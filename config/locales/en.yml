@@ -15,6 +15,11 @@ en:
   email_accounts:
     title: "Email Accounts"
     empty: "No email accounts linked yet."
+    bind_new: "Bind New Email"
+    bind_success: "Email account bound successfully."
+    bind_failure: "Failed to bind email account."
+    oauth_failure: "Google authentication failed. Please try again."
+    connected_at: "Connected %{time}"
   tickets:
     title: "Tickets"
     empty: "No tickets yet."

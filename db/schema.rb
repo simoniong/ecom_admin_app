@@ -10,10 +10,25 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_03_25_134557) do
+ActiveRecord::Schema[8.1].define(version: 2026_03_25_173811) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
+
+  create_table "email_accounts", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.text "access_token", null: false
+    t.datetime "created_at", null: false
+    t.string "email", null: false
+    t.string "google_uid", null: false
+    t.text "refresh_token", null: false
+    t.text "scopes"
+    t.datetime "token_expires_at"
+    t.datetime "updated_at", null: false
+    t.uuid "user_id", null: false
+    t.index ["google_uid"], name: "index_email_accounts_on_google_uid", unique: true
+    t.index ["user_id", "email"], name: "index_email_accounts_on_user_id_and_email", unique: true
+    t.index ["user_id"], name: "index_email_accounts_on_user_id"
+  end
 
   create_table "users", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.datetime "created_at", null: false
@@ -30,4 +45,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_25_134557) do
     t.index ["reset_password_token"], name: "index_users_on_reset_password_token", unique: true
     t.index ["unlock_token"], name: "index_users_on_unlock_token", unique: true
   end
+
+  add_foreign_key "email_accounts", "users"
 end

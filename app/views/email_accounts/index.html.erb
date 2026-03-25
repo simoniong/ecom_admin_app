@@ -1,4 +1,33 @@
 <div class="max-w-4xl">
-  <h1 class="text-2xl font-semibold text-gray-900"><%= t("email_accounts.title") %></h1>
-  <p class="mt-4 text-sm text-gray-500"><%= t("email_accounts.empty") %></p>
+  <div class="flex items-center justify-between">
+    <h1 class="text-2xl font-semibold text-gray-900"><%= t("email_accounts.title") %></h1>
+    <%= button_to "/auth/google_oauth2", method: :post,
+        data: { turbo: false },
+        class: "inline-flex items-center gap-2 px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2" do %>
+      <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+      </svg>
+      <%= t("email_accounts.bind_new") %>
+    <% end %>
+  </div>
+
+  <% if @email_accounts.any? %>
+    <div class="mt-6 bg-white shadow-sm rounded-lg border border-gray-200 divide-y divide-gray-200">
+      <% @email_accounts.each do |account| %>
+        <div class="flex items-center justify-between px-6 py-4">
+          <div class="flex items-center gap-3">
+            <svg class="w-5 h-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75" />
+            </svg>
+            <span class="text-sm font-medium text-gray-900"><%= account.email %></span>
+          </div>
+          <span class="text-xs text-gray-500">
+            <%= t("email_accounts.connected_at", time: l(account.created_at, format: :short)) %>
+          </span>
+        </div>
+      <% end %>
+    </div>
+  <% else %>
+    <p class="mt-4 text-sm text-gray-500"><%= t("email_accounts.empty") %></p>
+  <% end %>
 </div>

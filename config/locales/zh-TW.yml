@@ -15,6 +15,11 @@
   email_accounts:
     title: "郵箱"
     empty: "尚未綁定任何郵箱。"
+    bind_new: "綁定新郵箱"
+    bind_success: "郵箱綁定成功。"
+    bind_failure: "郵箱綁定失敗。"
+    oauth_failure: "Google 認證失敗，請重試。"
+    connected_at: "連接於 %{time}"
   tickets:
     title: "工單"
     empty: "目前沒有任何工單。"
