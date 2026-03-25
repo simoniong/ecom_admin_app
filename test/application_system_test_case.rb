@@ -9,4 +9,9 @@ class ApplicationSystemTestCase < ActionDispatch::SystemTestCase
     fill_in "Password", with: ADMIN_TEST_PASSWORD
     click_button "Sign in"
   end
+
+  setup do
+    ENV["no_proxy"] = "localhost,127.0.0.1"
+    ENV["NO_PROXY"] = "localhost,127.0.0.1"
+  end
 end
