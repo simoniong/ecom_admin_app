@@ -9,10 +9,7 @@ class AuthenticationSystemTest < ApplicationSystemTestCase
   end
 
   test "successful login shows dashboard with sidebar" do
-    visit new_user_session_path
-    fill_in "Email", with: "admin@example.com"
-    fill_in "Password", with: "password123"
-    click_button "Sign in"
+    sign_in_as_admin
 
     assert_text "Dashboard"
     assert_text "Welcome back"
@@ -22,21 +19,15 @@ class AuthenticationSystemTest < ApplicationSystemTestCase
   end
 
   test "sidebar shows user email" do
-    visit new_user_session_path
-    fill_in "Email", with: "admin@example.com"
-    fill_in "Password", with: "password123"
-    click_button "Sign in"
+    sign_in_as_admin
 
     within "aside" do
-      assert_text "admin@example.com"
+      assert_text users(:admin).email
     end
   end
 
   test "navigate to email accounts page" do
-    visit new_user_session_path
-    fill_in "Email", with: "admin@example.com"
-    fill_in "Password", with: "password123"
-    click_button "Sign in"
+    sign_in_as_admin
 
     click_link "Email Accounts"
     assert_text "Email Accounts"
@@ -44,10 +35,7 @@ class AuthenticationSystemTest < ApplicationSystemTestCase
   end
 
   test "navigate to tickets page" do
-    visit new_user_session_path
-    fill_in "Email", with: "admin@example.com"
-    fill_in "Password", with: "password123"
-    click_button "Sign in"
+    sign_in_as_admin
 
     click_link "Tickets"
     assert_text "Tickets"
@@ -55,10 +43,7 @@ class AuthenticationSystemTest < ApplicationSystemTestCase
   end
 
   test "logout redirects to login page" do
-    visit new_user_session_path
-    fill_in "Email", with: "admin@example.com"
-    fill_in "Password", with: "password123"
-    click_button "Sign in"
+    sign_in_as_admin
 
     click_button "Sign out"
     assert_selector "h2", text: "Sign in"
@@ -66,7 +51,7 @@ class AuthenticationSystemTest < ApplicationSystemTestCase
 
   test "login with wrong password shows error" do
     visit new_user_session_path
-    fill_in "Email", with: "admin@example.com"
+    fill_in "Email", with: users(:admin).email
     fill_in "Password", with: "wrongpassword"
     click_button "Sign in"
 
