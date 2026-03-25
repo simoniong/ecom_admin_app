@@ -82,6 +82,68 @@ class EmailAccountsTest < ActionDispatch::IntegrationTest
     assert_redirected_to email_accounts_path
   end
 
+  test "show displays email account details" do
+    user = users(:email_user)
+    account = user.email_accounts.create!(
+      email: "show@gmail.com",
+      google_uid: "show-uid",
+      access_token: "show-token",
+      refresh_token: "show-refresh",
+      token_expires_at: 1.hour.from_now,
+      scopes: "email,profile"
+    )
+    sign_in user
+    get email_account_path(id: account.id)
+    assert_response :success
+    assert_select "dd", text: "show@gmail.com"
+    assert_select "dd", text: "show-uid"
+    assert_select "dd", text: "show-token"
+    assert_select "dd", text: "show-refresh"
+  end
+
+  test "show is scoped to current user" do
+    other_user = users(:email_user)
+    account = other_user.email_accounts.create!(
+      email: "other@gmail.com",
+      google_uid: "other-uid",
+      access_token: "token",
+      refresh_token: "refresh"
+    )
+    sign_in users(:admin)
+    get email_account_path(id: account.id)
+    assert_response :not_found
+  end
+
+  test "destroy disconnects email account" do
+    user = users(:email_user)
+    account = user.email_accounts.create!(
+      email: "destroy@gmail.com",
+      google_uid: "destroy-uid",
+      access_token: "token",
+      refresh_token: "refresh"
+    )
+    sign_in user
+    assert_difference "EmailAccount.count", -1 do
+      delete email_account_path(id: account.id)
+    end
+    assert_redirected_to email_accounts_path
+    follow_redirect!
+    assert_select "p", text: /disconnected successfully/
+  end
+
+  test "destroy is scoped to current user" do
+    other_user = users(:email_user)
+    account = other_user.email_accounts.create!(
+      email: "notmine@gmail.com",
+      google_uid: "notmine-uid",
+      access_token: "token",
+      refresh_token: "refresh"
+    )
+    sign_in users(:admin)
+    delete email_account_path(id: account.id)
+    assert_response :not_found
+  end
+
   test "oauth failure redirects with alert" do
     sign_in users(:admin)
     get "/auth/failure"

@@ -10,7 +10,7 @@ Rails.application.routes.draw do
       root "dashboard#show", as: :authenticated_root
     end
 
-    resources :email_accounts, only: [ :index ]
+    resources :email_accounts, only: [ :index, :show, :destroy ]
     resources :tickets, only: [ :index ]
   end
 
