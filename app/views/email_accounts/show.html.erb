@@ -2,7 +2,7 @@
   <div class="flex items-center justify-between">
     <div class="flex items-center gap-3">
       <%= link_to email_accounts_path, class: "text-gray-400 hover:text-gray-600" do %>
-        <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+        <svg class="w-5 h-5" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
         </svg>
       <% end %>
@@ -12,7 +12,7 @@
     <%= button_to email_account_path(@email_account), method: :delete,
         data: { turbo_confirm: t("email_accounts.disconnect_confirm") },
         class: "inline-flex items-center gap-2 px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2" do %>
-      <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+      <svg class="w-4 h-4" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
         <path stroke-linecap="round" stroke-linejoin="round" d="M13.181 8.68a4.503 4.503 0 0 1 1.903 6.405m-9.768-2.782L3.56 14.06a4.5 4.5 0 0 0 6.364 6.365l.164-.164m-3.07-8.355-2.122 2.122a4.5 4.5 0 0 0 6.364 6.364l2.122-2.122M10.5 13.5l3-3m2.818-2.818L18.56 5.44a4.5 4.5 0 0 0-6.364-6.364l-.164.163m3.07 8.355 2.122-2.122a4.5 4.5 0 0 0-6.364-6.364l-2.122 2.122" />
       </svg>
       <%= t("email_accounts.disconnect") %>

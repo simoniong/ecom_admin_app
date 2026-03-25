@@ -90,15 +90,17 @@ class EmailAccountTest < ActiveSupport::TestCase
   end
 
   test "access_token is encrypted in database" do
-    raw_value = ActiveRecord::Base.connection.select_value(
-      "SELECT access_token FROM email_accounts WHERE id = '#{@account.id}'"
+    connection = ActiveRecord::Base.connection
+    raw_value = connection.select_value(
+      "SELECT access_token FROM email_accounts WHERE id = #{connection.quote(@account.id)}"
     )
     assert_not_equal "model-access-token", raw_value
   end
 
   test "refresh_token is encrypted in database" do
-    raw_value = ActiveRecord::Base.connection.select_value(
-      "SELECT refresh_token FROM email_accounts WHERE id = '#{@account.id}'"
+    connection = ActiveRecord::Base.connection
+    raw_value = connection.select_value(
+      "SELECT refresh_token FROM email_accounts WHERE id = #{connection.quote(@account.id)}"
     )
     assert_not_equal "model-refresh-token", raw_value
   end

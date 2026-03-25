@@ -161,7 +161,7 @@ class EmailAccountsTest < ActionDispatch::IntegrationTest
         token: "mock-access-token",
         refresh_token: "mock-refresh-token",
         expires_at: 1.hour.from_now.to_i,
-        scope: "email profile https://www.googleapis.com/auth/gmail.readonly"
+        scope: "email profile https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/gmail.modify"
       }
     )
   end
