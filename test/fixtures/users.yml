@@ -1,0 +1,7 @@
+admin:
+  id: <%= SecureRandom.uuid %>
+  email: "admin@example.com"
+  encrypted_password: <%= Devise::Encryptor.digest(User, "password123") %>
+  failed_attempts: 0
+  created_at: <%= Time.current %>
+  updated_at: <%= Time.current %>

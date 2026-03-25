@@ -60,6 +60,13 @@ bin/importmap audit              # JS dependency audit
 - Must include both unit tests and feature (system) tests
 - CI runs: Brakeman, bundler-audit, importmap audit, RuboCop, unit tests, system tests
 
+## Git Workflow
+
+- **Never commit directly to `main` or `staging`**. All code changes must go through feature branches and PRs.
+- Branch naming: `feature/<description>`, `fix/<description>`, etc.
+- PR flow: feature branch → PR to `staging` → merge → auto-deploy to staging env
+- `staging` → PR to `main` → merge → auto-deploy to production env
+
 ## Style & Conventions
 
 - RuboCop Omakase (Rails-oriented rules)

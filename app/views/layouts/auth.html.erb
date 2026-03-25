@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title><%= content_for(:title) || "Ecom Admin App" %></title>
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <%= csrf_meta_tags %>
+    <%= csp_meta_tag %>
+    <%= stylesheet_link_tag :app, "data-turbo-track": "reload" %>
+    <%= javascript_importmap_tags %>
+  </head>
+
+  <body class="bg-gray-50 min-h-screen flex items-center justify-center">
+    <div class="w-full max-w-md p-8 bg-white rounded-lg shadow-sm border border-gray-200">
+      <% if notice.present? %>
+        <p class="mb-4 p-3 bg-green-50 text-green-700 rounded-md text-sm"><%= notice %></p>
+      <% end %>
+      <% if alert.present? %>
+        <p class="mb-4 p-3 bg-red-50 text-red-700 rounded-md text-sm"><%= alert %></p>
+      <% end %>
+      <%= yield %>
+    </div>
+  </body>
+</html>
