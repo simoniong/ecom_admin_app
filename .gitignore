@@ -30,6 +30,9 @@
 
 /public/assets
 
+# Tailwind build output
+/app/assets/builds
+
 # Ignore key files for decrypting credentials and more.
 /config/*.key
 
