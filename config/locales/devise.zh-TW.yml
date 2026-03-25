@@ -1,0 +1,25 @@
+"zh-TW":
+  devise:
+    failure:
+      already_authenticated: "您已經登入。"
+      inactive: "您的帳戶尚未啟用。"
+      invalid: "電子郵件或密碼無效。"
+      locked: "您的帳戶已被鎖定。"
+      last_attempt: "您還有最後一次嘗試機會，之後帳戶將被鎖定。"
+      not_found_in_database: "電子郵件或密碼無效。"
+      timeout: "會話已過期，請重新登入。"
+      unauthenticated: "請先登入後再繼續。"
+    sessions:
+      signed_in: "登入成功。"
+      signed_out: "已登出。"
+      already_signed_out: "已登出。"
+    passwords:
+      send_instructions: "您將在幾分鐘內收到重設密碼的郵件。"
+      updated: "密碼修改成功，您已登入。"
+    unlocks:
+      send_instructions: "您將在幾分鐘內收到解鎖帳戶的郵件。"
+      unlocked: "帳戶已解鎖，請登入。"
+  errors:
+    messages:
+      not_found: "未找到"
+      not_locked: "未鎖定"

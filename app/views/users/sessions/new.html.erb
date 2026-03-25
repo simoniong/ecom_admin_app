@@ -1,4 +1,4 @@
-<h2 class="text-2xl font-semibold text-gray-900 text-center mb-6">登入</h2>
+<h2 class="text-2xl font-semibold text-gray-900 text-center mb-6"><%= t("auth.sign_in") %></h2>
 
 <%= form_for(resource, as: resource_name, url: session_path(resource_name)) do |f| %>
   <div class="space-y-4">
@@ -17,12 +17,23 @@
     <% if devise_mapping.rememberable? %>
       <div class="flex items-center gap-2">
         <%= f.check_box :remember_me, class: "h-4 w-4 rounded border-gray-300 text-gray-900 focus:ring-gray-900" %>
-        <%= f.label :remember_me, class: "text-sm text-gray-600" %>
+        <%= f.label :remember_me, t("auth.remember_me"), class: "text-sm text-gray-600" %>
       </div>
     <% end %>
 
     <div>
-      <%= f.submit "登入", class: "w-full bg-gray-900 text-white py-2 px-4 rounded-md text-sm font-medium hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-900 cursor-pointer" %>
+      <%= f.submit t("auth.sign_in_button"), class: "w-full bg-gray-900 text-white py-2 px-4 rounded-md text-sm font-medium hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-900 cursor-pointer" %>
     </div>
   </div>
 <% end %>
+
+<div class="mt-4 flex justify-center gap-2 text-xs text-gray-400">
+  <% I18n.available_locales.each_with_index do |loc, i| %>
+    <% if i > 0 %><span>·</span><% end %>
+    <% if loc == I18n.locale %>
+      <span class="text-gray-900 font-medium"><%= t("language_name", locale: loc) %></span>
+    <% else %>
+      <%= link_to t("language_name", locale: loc), url_for(locale: loc), class: "hover:text-gray-600" %>
+    <% end %>
+  <% end %>
+</div>

@@ -35,3 +35,6 @@
 
 .plan
 .claude
+
+# Coverage reports
+/coverage

@@ -1,0 +1,22 @@
+"zh-TW":
+  app_name: "Ecom Admin"
+  language_name: "繁體中文"
+  nav:
+    email_accounts: "郵箱"
+    tickets: "工單"
+    sign_out: "登出"
+  auth:
+    sign_in: "登入"
+    sign_in_button: "登入"
+    remember_me: "記住我"
+  dashboard:
+    title: "儀表板"
+    welcome: "歡迎回來，%{email}"
+  email_accounts:
+    title: "郵箱"
+    empty: "尚未綁定任何郵箱。"
+  tickets:
+    title: "工單"
+    empty: "目前沒有任何工單。"
+  locale_switcher:
+    label: "語言"

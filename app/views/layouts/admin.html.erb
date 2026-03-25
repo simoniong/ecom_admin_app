@@ -9,17 +9,34 @@
     <%= javascript_importmap_tags %>
   </head>
 
-  <body class="bg-gray-50 min-h-screen">
+  <body class="bg-gray-50 min-h-screen" data-controller="sidebar">
+    <%# Mobile overlay %>
+    <div data-sidebar-target="overlay"
+         data-action="click->sidebar#close"
+         class="hidden fixed inset-0 bg-gray-900/50 z-30 lg:hidden"></div>
+
     <div class="flex min-h-screen">
       <%= render "shared/sidebar" %>
-      <main class="flex-1 p-6 overflow-auto">
-        <% if notice.present? %>
-          <p class="mb-4 p-3 bg-green-50 text-green-700 rounded-md text-sm"><%= notice %></p>
-        <% end %>
-        <% if alert.present? %>
-          <p class="mb-4 p-3 bg-red-50 text-red-700 rounded-md text-sm"><%= alert %></p>
-        <% end %>
-        <%= yield %>
+      <main class="flex-1 overflow-auto">
+        <%# Mobile top bar %>
+        <div class="sticky top-0 z-20 flex items-center gap-3 bg-white border-b border-gray-200 px-4 py-3 lg:hidden">
+          <button data-action="click->sidebar#toggle" class="text-gray-600 hover:text-gray-900">
+            <svg class="w-6 h-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+            </svg>
+          </button>
+          <span class="text-sm font-semibold text-gray-900">Ecom Admin</span>
+        </div>
+
+        <div class="p-4 sm:p-6">
+          <% if notice.present? %>
+            <p class="mb-4 p-3 bg-green-50 text-green-700 rounded-md text-sm"><%= notice %></p>
+          <% end %>
+          <% if alert.present? %>
+            <p class="mb-4 p-3 bg-red-50 text-red-700 rounded-md text-sm"><%= alert %></p>
+          <% end %>
+          <%= yield %>
+        </div>
       </main>
     </div>
   </body>

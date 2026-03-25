@@ -4,7 +4,7 @@ class AuthenticationTest < ActionDispatch::IntegrationTest
   test "unauthenticated user sees login page at root" do
     get root_path
     assert_response :success
-    assert_select "h2", "登入"
+    assert_select "h2", "Sign in"
   end
 
   test "login with valid credentials" do
