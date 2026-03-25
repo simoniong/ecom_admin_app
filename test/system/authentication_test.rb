@@ -70,6 +70,6 @@ class AuthenticationSystemTest < ApplicationSystemTestCase
     fill_in "Password", with: "wrongpassword"
     click_button "Sign in"
 
-    assert_text "Invalid Email or password"
+    assert_text "Invalid email or password."
   end
 end
