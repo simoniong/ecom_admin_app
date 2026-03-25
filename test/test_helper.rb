@@ -7,6 +7,8 @@ ENV["RAILS_ENV"] ||= "test"
 require_relative "../config/environment"
 require "rails/test_help"
 
+ADMIN_TEST_PASSWORD = "password123"
+
 module ActiveSupport
   class TestCase
     # Run tests in parallel with specified workers
