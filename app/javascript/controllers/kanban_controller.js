@@ -20,10 +20,17 @@ export default class extends Controller {
     const ticketId = event.item.dataset.ticketId
     const newStatus = event.to.dataset.status
     const oldStatus = event.from.dataset.status
-
-    if (newStatus === oldStatus) return
-
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content
+
+    // Collect new position order of the target lane
+    const positionIds = [...event.to.children].map(card => card.dataset.ticketId)
+
+    const body = { ticket: { position_ids: positionIds } }
+
+    // Cross-lane: also send status transition
+    if (newStatus !== oldStatus) {
+      body.ticket.status = newStatus
+    }
 
     try {
       const response = await fetch(`/tickets/${ticketId}`, {
@@ -33,13 +40,12 @@ export default class extends Controller {
           "X-CSRF-Token": csrfToken,
           "Accept": "application/json"
         },
-        body: JSON.stringify({ ticket: { status: newStatus } })
+        body: JSON.stringify(body)
       })
 
       if (!response.ok) {
         const data = await response.json()
-        alert(data.error || "Status transition failed")
-        // Revert: move card back to original lane
+        alert(data.error || "Operation failed")
         event.from.insertBefore(event.item, event.from.children[event.oldIndex])
       }
     } catch (error) {

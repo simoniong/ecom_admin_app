@@ -11,7 +11,16 @@ class Ticket < ApplicationRecord
   validates :draft_reply, presence: true, if: -> { draft? || draft_confirmed? }
 
   scope :by_recency, -> { order(last_message_at: :desc) }
+  scope :by_position, -> { order(position: :asc, last_message_at: :desc) }
   scope :for_user, ->(user) { joins(:email_account).where(email_accounts: { user_id: user.id }) }
+
+  def self.reorder_positions!(ticket_ids)
+    transaction do
+      ticket_ids.each_with_index do |id, index|
+        where(id: id).update_all(position: index)
+      end
+    end
+  end
 
   ALLOWED_TRANSITIONS = {
     "draft" => [ "draft_confirmed" ],

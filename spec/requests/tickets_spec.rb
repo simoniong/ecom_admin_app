@@ -139,5 +139,18 @@ RSpec.describe "Tickets", type: :request do
       patch ticket_path(id: ticket.id), params: { ticket: { status: "closed" } }, as: :json
       expect(response).to have_http_status(:unprocessable_entity)
     end
+
+    it "reorders tickets within a lane via JSON" do
+      t1 = create(:ticket, email_account: email_account, position: 0)
+      t2 = create(:ticket, email_account: email_account, position: 1)
+      t3 = create(:ticket, email_account: email_account, position: 2)
+      sign_in user
+
+      patch ticket_path(id: t1.id), params: { ticket: { position_ids: [ t3.id, t1.id, t2.id ] } }, as: :json
+      expect(response).to have_http_status(:ok)
+      expect(t3.reload.position).to eq(0)
+      expect(t1.reload.position).to eq(1)
+      expect(t2.reload.position).to eq(2)
+    end
   end
 end

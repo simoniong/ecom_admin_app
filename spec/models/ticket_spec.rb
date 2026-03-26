@@ -124,4 +124,28 @@ RSpec.describe Ticket, type: :model do
       expect { ticket.transition_status!("new_ticket") }.to raise_error(Ticket::InvalidTransition)
     end
   end
+
+  describe ".reorder_positions!" do
+    it "updates positions based on id order" do
+      t1 = create(:ticket, email_account: email_account, position: 0)
+      t2 = create(:ticket, email_account: email_account, position: 1)
+      t3 = create(:ticket, email_account: email_account, position: 2)
+
+      Ticket.reorder_positions!([ t3.id, t1.id, t2.id ])
+
+      expect(t3.reload.position).to eq(0)
+      expect(t1.reload.position).to eq(1)
+      expect(t2.reload.position).to eq(2)
+    end
+  end
+
+  describe ".by_position" do
+    it "orders by position then last_message_at" do
+      t1 = create(:ticket, email_account: email_account, position: 2)
+      t2 = create(:ticket, email_account: email_account, position: 0)
+      t3 = create(:ticket, email_account: email_account, position: 1)
+
+      expect(Ticket.by_position).to eq([ t2, t3, t1 ])
+    end
+  end
 end
