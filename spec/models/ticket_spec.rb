@@ -96,4 +96,32 @@ RSpec.describe Ticket, type: :model do
       expect(ticket).to be_valid
     end
   end
+
+  describe "#transition_status!" do
+    it "allows draft → draft_confirmed" do
+      ticket.update!(status: :draft, draft_reply: "reply")
+      ticket.transition_status!("draft_confirmed")
+      expect(ticket.reload).to be_draft_confirmed
+    end
+
+    it "allows draft_confirmed → draft" do
+      ticket.update!(status: :draft_confirmed, draft_reply: "reply")
+      ticket.transition_status!("draft")
+      expect(ticket.reload).to be_draft
+    end
+
+    it "raises for new_ticket → draft_confirmed" do
+      expect { ticket.transition_status!("draft_confirmed") }.to raise_error(Ticket::InvalidTransition)
+    end
+
+    it "raises for closed → draft" do
+      ticket.update!(status: :closed)
+      expect { ticket.transition_status!("draft") }.to raise_error(Ticket::InvalidTransition)
+    end
+
+    it "raises for draft → new_ticket" do
+      ticket.update!(status: :draft, draft_reply: "reply")
+      expect { ticket.transition_status!("new_ticket") }.to raise_error(Ticket::InvalidTransition)
+    end
+  end
 end

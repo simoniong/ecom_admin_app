@@ -35,8 +35,8 @@
     title: "工单"
     empty: "目前没有任何工单。"
     no_subject: "（无主题）"
-    filter:
-      all: "全部"
+    status_updated: "工单状态更新成功。"
+    invalid_transition: "此状态转换不被允许。"
     status:
       new_ticket: "新工单"
       draft: "草稿"

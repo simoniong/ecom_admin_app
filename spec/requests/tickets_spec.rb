@@ -23,20 +23,23 @@ RSpec.describe "Tickets", type: :request do
       expect(response.body).to include("My order issue")
     end
 
-    it "shows empty state when no tickets" do
+    it "shows Kanban board with all swim lanes" do
       sign_in user
       get tickets_path
-      expect(response.body).to include("No tickets yet.")
+      expect(response.body).to include("New")
+      expect(response.body).to include("Draft")
+      expect(response.body).to include("Confirmed")
+      expect(response.body).to include("Closed")
     end
 
-    it "filters by status" do
+    it "shows tickets across all swim lanes" do
       create(:ticket, email_account: email_account, status: :new_ticket, subject: "New one")
       create(:ticket, email_account: email_account, status: :closed, subject: "Closed one")
       sign_in user
 
-      get tickets_path(status: "new_ticket")
+      get tickets_path
       expect(response.body).to include("New one")
-      expect(response.body).not_to include("Closed one")
+      expect(response.body).to include("Closed one")
     end
 
     it "does not show other users' tickets" do
@@ -112,6 +115,29 @@ RSpec.describe "Tickets", type: :request do
       sign_in user
       patch ticket_path(id: ticket.id), params: { ticket: { draft_reply: "hack" } }
       expect(response).to have_http_status(:not_found)
+    end
+
+    it "transitions status from draft to draft_confirmed via JSON" do
+      ticket = create(:ticket, :draft, email_account: email_account)
+      sign_in user
+      patch ticket_path(id: ticket.id), params: { ticket: { status: "draft_confirmed" } }, as: :json
+      expect(response).to have_http_status(:ok)
+      expect(ticket.reload).to be_draft_confirmed
+    end
+
+    it "transitions status from draft_confirmed to draft via JSON" do
+      ticket = create(:ticket, :draft_confirmed, email_account: email_account)
+      sign_in user
+      patch ticket_path(id: ticket.id), params: { ticket: { status: "draft" } }, as: :json
+      expect(response).to have_http_status(:ok)
+      expect(ticket.reload).to be_draft
+    end
+
+    it "rejects invalid status transition via JSON" do
+      ticket = create(:ticket, email_account: email_account, status: :new_ticket)
+      sign_in user
+      patch ticket_path(id: ticket.id), params: { ticket: { status: "closed" } }, as: :json
+      expect(response).to have_http_status(:unprocessable_entity)
     end
   end
 end

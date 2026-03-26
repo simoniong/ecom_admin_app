@@ -13,6 +13,11 @@ class Ticket < ApplicationRecord
   scope :by_recency, -> { order(last_message_at: :desc) }
   scope :for_user, ->(user) { joins(:email_account).where(email_accounts: { user_id: user.id }) }
 
+  ALLOWED_TRANSITIONS = {
+    "draft" => [ "draft_confirmed" ],
+    "draft_confirmed" => [ "draft" ]
+  }.freeze
+
   def submit_draft!(content)
     raise "Can only submit draft for new tickets" unless new_ticket?
 
@@ -22,4 +27,13 @@ class Ticket < ApplicationRecord
       status: :draft
     )
   end
+
+  def transition_status!(new_status)
+    allowed = ALLOWED_TRANSITIONS[status] || []
+    raise InvalidTransition, "Cannot transition from #{status} to #{new_status}" unless allowed.include?(new_status)
+
+    update!(status: new_status)
+  end
+
+  class InvalidTransition < StandardError; end
 end

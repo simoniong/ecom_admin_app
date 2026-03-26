@@ -35,8 +35,8 @@ en:
     title: "Tickets"
     empty: "No tickets yet."
     no_subject: "(No subject)"
-    filter:
-      all: "All"
+    status_updated: "Ticket status updated successfully."
+    invalid_transition: "This status transition is not allowed."
     status:
       new_ticket: "New"
       draft: "Draft"
