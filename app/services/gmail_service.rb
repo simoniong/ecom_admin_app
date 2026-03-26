@@ -15,8 +15,8 @@ class GmailService
     client.get_user_thread("me", thread_id, format: "full")
   end
 
-  def list_history(start_history_id:, history_types: [ "messageAdded" ])
-    client.list_user_histories("me", start_history_id: start_history_id, history_types: history_types)
+  def list_history(start_history_id:, history_types: [ "messageAdded" ], page_token: nil)
+    client.list_user_histories("me", start_history_id: start_history_id, history_types: history_types, page_token: page_token)
   end
 
   def user_profile
@@ -51,8 +51,15 @@ class GmailService
       grant_type: "refresh_token"
     )
 
-    data = JSON.parse(response.body)
-    raise "Token refresh failed: #{data['error']}" unless data["access_token"]
+    raise "Token refresh failed: HTTP #{response.code} - #{response.body}" unless response.is_a?(Net::HTTPSuccess)
+
+    begin
+      data = JSON.parse(response.body)
+    rescue JSON::ParserError => e
+      raise "Token refresh failed: invalid JSON (HTTP #{response.code}): #{e.message}"
+    end
+
+    raise "Token refresh failed: #{data['error'] || 'no access_token in response'}" unless data["access_token"]
 
     email_account.update!(
       access_token: data["access_token"],

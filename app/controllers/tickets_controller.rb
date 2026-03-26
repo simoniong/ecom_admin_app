@@ -2,7 +2,13 @@ class TicketsController < AdminController
   def index
     @status = params[:status] || "new_ticket"
     @tickets = Ticket.for_user(current_user).includes(:email_account).by_recency
-    @tickets = @tickets.where(status: @status) unless @status == "all"
+
+    if @status != "all" && Ticket.statuses.key?(@status)
+      @tickets = @tickets.where(status: @status)
+    elsif @status != "all"
+      @status = "new_ticket"
+      @tickets = @tickets.where(status: :new_ticket)
+    end
   end
 
   def show

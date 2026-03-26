@@ -1,4 +1,6 @@
 class GmailSyncService
+  include EmailHeaderParser
+
   attr_reader :email_account, :gmail
 
   def initialize(email_account)
@@ -38,19 +40,32 @@ class GmailSyncService
   end
 
   def incremental_sync
-    history_result = gmail.list_history(start_history_id: email_account.last_history_id)
+    page_token = nil
+    all_thread_ids = []
+    latest_history_id = email_account.last_history_id
 
-    if history_result.history.present?
-      thread_ids = history_result.history
-        .flat_map(&:messages_added)
-        .compact
-        .map { |ma| ma.message.thread_id }
-        .uniq
+    loop do
+      history_result = gmail.list_history(
+        start_history_id: email_account.last_history_id,
+        page_token: page_token
+      )
 
-      thread_ids.each { |thread_id| process_thread(thread_id) }
+      if history_result.history.present?
+        thread_ids = history_result.history
+          .flat_map(&:messages_added)
+          .compact
+          .map { |ma| ma.message.thread_id }
+
+        all_thread_ids.concat(thread_ids)
+      end
+
+      latest_history_id = history_result.history_id if history_result.history_id
+      page_token = history_result.next_page_token
+      break if page_token.nil?
     end
 
-    email_account.update!(last_history_id: history_result.history_id) if history_result.history_id
+    all_thread_ids.uniq.each { |thread_id| process_thread(thread_id) }
+    email_account.update!(last_history_id: latest_history_id) if latest_history_id
   rescue Google::Apis::ClientError => e
     raise unless e.status_code == 404
     full_sync
@@ -102,8 +117,14 @@ class GmailSyncService
     end
 
     ticket.last_message_at = last_msg_time
-    ticket.save!
-    ticket.messages.each(&:save!)
+
+    Ticket.transaction do
+      ticket.save!
+      ticket.messages.each do |message|
+        message.ticket_id ||= ticket.id
+        message.save! if message.new_record? || message.changed?
+      end
+    end
 
     if is_new && ticket.customer_email.present?
       begin
@@ -147,17 +168,5 @@ class GmailSyncService
     Base64.urlsafe_decode64(data).force_encoding("UTF-8")
   rescue ArgumentError
     data
-  end
-
-  def parse_email_address(header_value)
-    return nil if header_value.blank?
-    match = header_value.match(/<([^>]+)>/)
-    match ? match[1] : header_value.strip
-  end
-
-  def parse_name(header_value)
-    return nil if header_value.blank?
-    match = header_value.match(/\A\s*"?([^"<]+)"?\s*</)
-    match ? match[1].strip : nil
   end
 end
