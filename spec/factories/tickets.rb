@@ -7,5 +7,21 @@ FactoryBot.define do
     customer_name { "Test Customer" }
     status { :new_ticket }
     last_message_at { Time.current }
+
+    trait :draft do
+      status { :draft }
+      draft_reply { "Agent generated draft reply" }
+      draft_reply_at { Time.current }
+    end
+
+    trait :draft_confirmed do
+      status { :draft_confirmed }
+      draft_reply { "Confirmed draft reply" }
+      draft_reply_at { Time.current }
+    end
+
+    trait :closed do
+      status { :closed }
+    end
   end
 end

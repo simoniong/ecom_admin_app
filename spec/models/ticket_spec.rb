@@ -67,4 +67,33 @@ RSpec.describe Ticket, type: :model do
       expect(Ticket.for_user(user)).not_to include(other_ticket)
     end
   end
+
+  describe "#submit_draft!" do
+    it "sets draft_reply, draft_reply_at, and transitions to draft" do
+      ticket.submit_draft!("Thank you for reaching out.")
+      ticket.reload
+      expect(ticket).to be_draft
+      expect(ticket.draft_reply).to eq("Thank you for reaching out.")
+      expect(ticket.draft_reply_at).to be_present
+    end
+
+    it "raises when ticket is not in new_ticket status" do
+      ticket.update!(status: :draft, draft_reply: "existing")
+      expect { ticket.submit_draft!("New draft") }.to raise_error(RuntimeError, /new tickets/)
+    end
+  end
+
+  describe "draft_reply validation" do
+    it "requires draft_reply when status is draft" do
+      ticket.status = :draft
+      ticket.draft_reply = nil
+      expect(ticket).not_to be_valid
+      expect(ticket.errors[:draft_reply]).to include("can't be blank")
+    end
+
+    it "does not require draft_reply when status is new_ticket" do
+      ticket.draft_reply = nil
+      expect(ticket).to be_valid
+    end
+  end
 end

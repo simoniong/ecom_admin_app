@@ -88,4 +88,30 @@ RSpec.describe "Tickets", type: :request do
       expect(response).to have_http_status(:not_found)
     end
   end
+
+  describe "PATCH /tickets/:id" do
+    it "updates draft_reply when ticket is in draft status" do
+      ticket = create(:ticket, email_account: email_account, status: :draft, draft_reply: "old draft")
+      sign_in user
+      patch ticket_path(id: ticket.id), params: { ticket: { draft_reply: "updated draft" } }
+      expect(response).to redirect_to(ticket_path(id: ticket.id))
+      expect(ticket.reload.draft_reply).to eq("updated draft")
+    end
+
+    it "rejects update when ticket is not in draft status" do
+      ticket = create(:ticket, email_account: email_account, status: :new_ticket)
+      sign_in user
+      patch ticket_path(id: ticket.id), params: { ticket: { draft_reply: "should fail" } }
+      expect(response).to redirect_to(ticket_path(id: ticket.id))
+      expect(ticket.reload.draft_reply).to be_nil
+    end
+
+    it "returns 404 for another user's ticket" do
+      other_account = create(:email_account)
+      ticket = create(:ticket, email_account: other_account, status: :draft, draft_reply: "draft")
+      sign_in user
+      patch ticket_path(id: ticket.id), params: { ticket: { draft_reply: "hack" } }
+      expect(response).to have_http_status(:not_found)
+    end
+  end
 end

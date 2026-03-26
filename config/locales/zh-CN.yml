@@ -56,5 +56,10 @@
       no_tracking_events: "暂无物流轨迹。"
       tracking_pending: "物流信息加载中..."
       view_on_carrier: "在承运商网站查看"
+      draft_reply: "草稿回复"
+      draft_by_agent: "由 Agent 生成"
+      save_draft: "保存草稿"
+      draft_saved: "草稿保存成功。"
+    draft_not_editable: "只有草稿状态的工单才能编辑。"
   locale_switcher:
     label: "语言"
