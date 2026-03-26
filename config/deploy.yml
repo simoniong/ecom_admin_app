@@ -17,6 +17,12 @@ env:
   secret:
     - RAILS_MASTER_KEY
     - DB_PASSWORD
+    - GOOGLE_CLIENT_ID
+    - GOOGLE_CLIENT_SECRET
+    - SHOPIFY_SHOP_DOMAIN
+    - SHOPIFY_ACCESS_TOKEN
+    - SEVENTEEN_TRACK_API_KEY
+    - AGENT_API_KEY
 
 builder:
   arch: amd64

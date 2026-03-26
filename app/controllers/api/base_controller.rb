@@ -5,7 +5,7 @@ class Api::BaseController < ActionController::API
 
   def authenticate_api_key!
     token = request.headers["Authorization"]&.delete_prefix("Bearer ")
-    expected = Rails.application.credentials.dig(:agent, :api_key)
+    expected = ENV["AGENT_API_KEY"] || Rails.application.credentials.dig(:agent, :api_key)
 
     if token.blank? || expected.blank?
       render json: { error: "Unauthorized" }, status: :unauthorized

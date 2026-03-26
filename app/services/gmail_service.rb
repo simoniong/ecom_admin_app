@@ -62,8 +62,8 @@ class GmailService
 
     response = Net::HTTP.post_form(
       URI(GOOGLE_TOKEN_URI),
-      client_id: Rails.application.credentials.dig(:google, :client_id),
-      client_secret: Rails.application.credentials.dig(:google, :client_secret),
+      client_id: ENV["GOOGLE_CLIENT_ID"] || Rails.application.credentials.dig(:google, :client_id),
+      client_secret: ENV["GOOGLE_CLIENT_SECRET"] || Rails.application.credentials.dig(:google, :client_secret),
       refresh_token: email_account.refresh_token,
       grant_type: "refresh_token"
     )

@@ -2,8 +2,8 @@ class ShopifyService
   BASE_URL_TEMPLATE = "https://%s/admin/api/2024-10"
 
   def initialize
-    @shop_domain = Rails.application.credentials.dig(:shopify, :shop_domain)
-    @access_token = Rails.application.credentials.dig(:shopify, :access_token)
+    @shop_domain = ENV["SHOPIFY_SHOP_DOMAIN"] || Rails.application.credentials.dig(:shopify, :shop_domain)
+    @access_token = ENV["SHOPIFY_ACCESS_TOKEN"] || Rails.application.credentials.dig(:shopify, :access_token)
     @base_url = format(BASE_URL_TEMPLATE, @shop_domain)
   end
 

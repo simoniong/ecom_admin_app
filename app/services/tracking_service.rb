@@ -2,7 +2,7 @@ class TrackingService
   API_URL = "https://api.17track.net/track/v2.2/gettrackinfo"
 
   def initialize
-    @api_key = Rails.application.credentials.dig(:seventeen_track, :api_key)
+    @api_key = ENV["SEVENTEEN_TRACK_API_KEY"] || Rails.application.credentials.dig(:seventeen_track, :api_key)
   end
 
   def track(tracking_numbers)
