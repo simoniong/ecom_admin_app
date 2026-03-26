@@ -34,5 +34,16 @@
   tickets:
     title: "工单"
     empty: "目前没有任何工单。"
+    no_subject: "（无主题）"
+    filter:
+      all: "全部"
+    status:
+      new_ticket: "新工单"
+      draft: "草稿"
+      draft_confirmed: "已确认"
+      closed: "已关闭"
+    show:
+      messages: "消息记录"
+      no_messages: "此线程暂无消息。"
   locale_switcher:
     label: "语言"

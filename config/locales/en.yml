@@ -34,5 +34,16 @@ en:
   tickets:
     title: "Tickets"
     empty: "No tickets yet."
+    no_subject: "(No subject)"
+    filter:
+      all: "All"
+    status:
+      new_ticket: "New"
+      draft: "Draft"
+      draft_confirmed: "Confirmed"
+      closed: "Closed"
+    show:
+      messages: "Messages"
+      no_messages: "No messages in this thread."
   locale_switcher:
     label: "Language"

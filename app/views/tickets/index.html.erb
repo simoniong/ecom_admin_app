@@ -1,4 +1,47 @@
-<div class="max-w-4xl mx-auto">
+<div class="max-w-5xl mx-auto">
   <h1 class="text-2xl font-semibold text-gray-900"><%= t("tickets.title") %></h1>
-  <p class="mt-4 text-sm text-gray-500"><%= t("tickets.empty") %></p>
+
+  <%# Status filter tabs %>
+  <div class="mt-4 flex gap-2 flex-wrap">
+    <%= link_to t("tickets.filter.all"), tickets_path,
+        class: "px-3 py-1.5 text-sm font-medium rounded-md #{params[:status].blank? ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-100'}" %>
+    <% %w[new_ticket draft draft_confirmed closed].each do |status| %>
+      <%= link_to t("tickets.status.#{status}"), tickets_path(status: status),
+          class: "px-3 py-1.5 text-sm font-medium rounded-md #{params[:status] == status ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-100'}" %>
+    <% end %>
+  </div>
+
+  <% if @tickets.any? %>
+    <div class="mt-6 bg-white shadow-sm rounded-lg border border-gray-200 divide-y divide-gray-200">
+      <% @tickets.each do |ticket| %>
+        <%= link_to ticket_path(ticket), class: "flex items-center justify-between px-6 py-4 hover:bg-gray-50 transition" do %>
+          <div class="flex items-center gap-4 min-w-0">
+            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
+              <%= case ticket.status
+                  when 'new_ticket' then 'bg-blue-100 text-blue-800'
+                  when 'draft' then 'bg-yellow-100 text-yellow-800'
+                  when 'draft_confirmed' then 'bg-green-100 text-green-800'
+                  when 'closed' then 'bg-gray-100 text-gray-800'
+                  end %>">
+              <%= t("tickets.status.#{ticket.status}") %>
+            </span>
+            <div class="min-w-0">
+              <p class="text-sm font-medium text-gray-900 truncate"><%= ticket.subject || t("tickets.no_subject") %></p>
+              <p class="text-xs text-gray-500 truncate"><%= ticket.customer_name || ticket.customer_email %></p>
+            </div>
+          </div>
+          <div class="flex items-center gap-3 shrink-0">
+            <span class="text-xs text-gray-500">
+              <%= ticket.last_message_at ? l(ticket.last_message_at.in_time_zone("Asia/Shanghai"), format: :short) : "—" %>
+            </span>
+            <svg class="w-4 h-4 text-gray-400" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+            </svg>
+          </div>
+        <% end %>
+      <% end %>
+    </div>
+  <% else %>
+    <p class="mt-6 text-sm text-gray-500"><%= t("tickets.empty") %></p>
+  <% end %>
 </div>

@@ -1,5 +1,6 @@
 class EmailAccount < ApplicationRecord
   belongs_to :user
+  has_many :tickets, dependent: :destroy
 
   encrypts :access_token, deterministic: false
   encrypts :refresh_token, deterministic: false

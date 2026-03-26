@@ -1,0 +1,9 @@
+production:
+  sync_gmail_threads:
+    class: SyncGmailThreadsJob
+    schedule: every 10 minutes
+
+development:
+  sync_gmail_threads:
+    class: SyncGmailThreadsJob
+    schedule: every 10 minutes
