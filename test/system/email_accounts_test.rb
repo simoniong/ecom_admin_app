@@ -16,7 +16,9 @@ class EmailAccountsSystemTest < ApplicationSystemTestCase
   test "oauth flow binds email and shows in list" do
     sign_in_as_admin
     click_link "Email Accounts"
-    click_button "Bind New Email"
+
+    find("button", text: "Bind New Email").click
+    assert_current_path email_accounts_path, wait: 5
 
     assert_text "Email account bound successfully."
     assert_text "oauth-test@gmail.com"
@@ -26,7 +28,10 @@ class EmailAccountsSystemTest < ApplicationSystemTestCase
   test "clicking account navigates to show page" do
     sign_in_as_admin
     click_link "Email Accounts"
-    click_button "Bind New Email"
+
+    find("button", text: "Bind New Email").click
+    assert_current_path email_accounts_path, wait: 5
+
     click_link "oauth-test@gmail.com"
 
     assert_text "Access Token"
@@ -38,7 +43,10 @@ class EmailAccountsSystemTest < ApplicationSystemTestCase
   test "disconnect removes account and returns to list" do
     sign_in_as_admin
     click_link "Email Accounts"
-    click_button "Bind New Email"
+
+    find("button", text: "Bind New Email").click
+    assert_current_path email_accounts_path, wait: 5
+
     click_link "oauth-test@gmail.com"
 
     accept_confirm do
