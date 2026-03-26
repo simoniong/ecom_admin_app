@@ -43,6 +43,7 @@ en:
       draft_confirmed: "Confirmed"
       closed: "Closed"
     show:
+      details: "Customer & Order Details"
       messages: "Messages"
       no_messages: "No messages in this thread."
       customer: "Customer"

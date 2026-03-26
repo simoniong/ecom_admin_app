@@ -15,9 +15,9 @@
          data-action="click->sidebar#close"
          class="hidden fixed inset-0 bg-gray-900/50 z-30 lg:hidden"></div>
 
-    <div class="flex min-h-screen">
+    <div class="flex h-screen overflow-hidden">
       <%= render "shared/sidebar" %>
-      <main class="flex-1 overflow-auto">
+      <main class="flex-1 overflow-y-auto">
         <%# Mobile top bar %>
         <div class="sticky top-0 z-20 flex items-center gap-3 bg-white border-b border-gray-200 px-4 py-3 lg:hidden">
           <button data-action="click->sidebar#toggle" class="text-gray-600 hover:text-gray-900">

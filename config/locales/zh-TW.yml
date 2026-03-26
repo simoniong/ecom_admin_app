@@ -43,6 +43,7 @@
       draft_confirmed: "已確認"
       closed: "已關閉"
     show:
+      details: "客戶與訂單詳情"
       messages: "訊息記錄"
       no_messages: "此線程暫無訊息。"
       customer: "客戶資訊"

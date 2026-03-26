@@ -1,0 +1,68 @@
+<%# Customer Info %>
+<div class="bg-white shadow-sm rounded-lg border border-gray-200 p-4">
+  <h3 class="text-sm font-semibold text-gray-900 mb-3"><%= t("tickets.show.customer") %></h3>
+  <% if @customer %>
+    <dl class="space-y-2 text-sm">
+      <% if @customer.full_name %>
+        <div>
+          <dt class="text-gray-500"><%= t("tickets.show.customer_name") %></dt>
+          <dd class="text-gray-900"><%= @customer.full_name %></dd>
+        </div>
+      <% end %>
+      <div>
+        <dt class="text-gray-500"><%= t("tickets.show.customer_email") %></dt>
+        <dd class="text-gray-900"><%= @customer.email || @ticket.customer_email %></dd>
+      </div>
+      <% if @customer.phone.present? %>
+        <div>
+          <dt class="text-gray-500"><%= t("tickets.show.customer_phone") %></dt>
+          <dd class="text-gray-900"><%= @customer.phone %></dd>
+        </div>
+      <% end %>
+    </dl>
+  <% else %>
+    <p class="text-sm text-gray-500"><%= @ticket.customer_email %></p>
+    <p class="text-xs text-gray-400 mt-1"><%= t("tickets.show.no_shopify_customer") %></p>
+  <% end %>
+</div>
+
+<%# Orders %>
+<div class="bg-white shadow-sm rounded-lg border border-gray-200 p-4">
+  <h3 class="text-sm font-semibold text-gray-900 mb-3"><%= t("tickets.show.orders") %></h3>
+  <% if @orders.any? %>
+    <div class="space-y-3">
+      <% @orders.each do |order| %>
+        <div class="border-b border-gray-100 pb-3 last:border-0 last:pb-0">
+          <div class="flex items-center justify-between">
+            <span class="text-sm font-medium text-gray-900"><%= order.name %></span>
+            <span class="text-xs text-gray-500"><%= order.ordered_at ? l(order.ordered_at.in_time_zone("Asia/Shanghai"), format: :short) : "—" %></span>
+          </div>
+          <div class="mt-1 flex items-center gap-2">
+            <span class="text-sm text-gray-700"><%= number_to_currency(order.total_price, unit: order.currency.to_s + " ") %></span>
+            <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700"><%= order.financial_status %></span>
+          </div>
+
+          <% if order.fulfillments.any? %>
+            <div class="mt-2 space-y-1">
+              <% order.fulfillments.each do |f| %>
+                <div class="flex items-center gap-2 text-xs">
+                  <span class="inline-flex items-center px-1.5 py-0.5 rounded bg-purple-50 text-purple-700 font-medium"><%= f.status %></span>
+                  <% if f.tracking_number.present? %>
+                    <% if f.tracking_url.present? %>
+                      <%= link_to f.tracking_number, f.tracking_url, target: "_blank", rel: "noopener", class: "text-blue-600 hover:underline" %>
+                    <% else %>
+                      <span class="text-gray-600"><%= f.tracking_number %></span>
+                    <% end %>
+                    <span class="text-gray-400"><%= f.tracking_company %></span>
+                  <% end %>
+                </div>
+              <% end %>
+            </div>
+          <% end %>
+        </div>
+      <% end %>
+    </div>
+  <% else %>
+    <p class="text-sm text-gray-500"><%= t("tickets.show.no_orders") %></p>
+  <% end %>
+</div>

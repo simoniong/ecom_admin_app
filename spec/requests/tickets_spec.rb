@@ -59,6 +59,27 @@ RSpec.describe "Tickets", type: :request do
       expect(response.body).to include("Where is my package?")
     end
 
+    it "shows messages in reverse chronological order" do
+      ticket = create(:ticket, email_account: email_account)
+      old_msg = create(:message, ticket: ticket, body: "First message", sent_at: 2.hours.ago)
+      new_msg = create(:message, ticket: ticket, body: "Latest message", sent_at: 1.minute.ago)
+      sign_in user
+      get ticket_path(id: ticket.id)
+      expect(response.body.index("Latest message")).to be < response.body.index("First message")
+    end
+
+    it "shows customer and order info when available" do
+      customer = create(:customer, first_name: "Jane", last_name: "Buyer", email: "jane@example.com")
+      order = create(:order, customer: customer, name: "#2001", total_price: 59.99)
+      create(:fulfillment, order: order, tracking_number: "SHIP123", tracking_company: "FedEx")
+      ticket = create(:ticket, email_account: email_account, customer: customer)
+      sign_in user
+      get ticket_path(id: ticket.id)
+      expect(response.body).to include("Jane Buyer")
+      expect(response.body).to include("#2001")
+      expect(response.body).to include("SHIP123")
+    end
+
     it "returns 404 for another user's ticket" do
       other_account = create(:email_account)
       ticket = create(:ticket, email_account: other_account)
