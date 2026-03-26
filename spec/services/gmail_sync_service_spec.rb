@@ -341,4 +341,86 @@ RSpec.describe GmailSyncService do
       expect(Message.last.body).to eq("not-valid-base64!!!")
     end
   end
+
+  describe "closed ticket reopen logic (Stories 7/8)" do
+    let!(:existing_ticket) do
+      t = create(:ticket, email_account: email_account, gmail_thread_id: "t-reopen",
+                  status: :closed, customer_email: "buyer@example.com",
+                  draft_reply: "old draft", draft_reply_at: 1.hour.ago,
+                  scheduled_send_at: 1.hour.from_now, scheduled_job_id: "old-job")
+      create(:message, ticket: t, gmail_message_id: "m-old", from: "buyer@example.com",
+              sent_at: 1.day.ago, gmail_internal_date: (1.day.ago.to_f * 1000).to_i)
+      t
+    end
+
+    it "reopens closed ticket when customer replies (Story 7)" do
+      gmail = instance_double(GmailService)
+      allow(GmailService).to receive(:new).and_return(gmail)
+
+      email_account.update!(last_history_id: 50000)
+
+      message_added = Google::Apis::GmailV1::HistoryMessageAdded.new(
+        message: Google::Apis::GmailV1::Message.new(id: "m-new-customer", thread_id: "t-reopen")
+      )
+      history = Google::Apis::GmailV1::History.new(messages_added: [ message_added ])
+      history_response = Google::Apis::GmailV1::ListHistoryResponse.new(
+        history: [ history ], history_id: 50100
+      )
+      allow(gmail).to receive(:list_history).and_return(history_response)
+
+      full_thread = build_gmail_thread(
+        id: "t-reopen",
+        messages: [
+          build_gmail_message(id: "m-old", thread_id: "t-reopen", from: "buyer@example.com",
+                              internal_date: (1.day.ago.to_f * 1000).to_i),
+          build_gmail_message(id: "m-new-customer", thread_id: "t-reopen", from: "buyer@example.com",
+                              subject: "Follow up", body: "Any update?",
+                              internal_date: (1.minute.ago.to_f * 1000).to_i)
+        ]
+      )
+      allow(gmail).to receive(:get_thread).with("t-reopen").and_return(full_thread)
+
+      service.sync!
+
+      existing_ticket.reload
+      expect(existing_ticket.status).to eq("new_ticket")
+      expect(existing_ticket.draft_reply).to be_nil
+      expect(existing_ticket.draft_reply_at).to be_nil
+      expect(existing_ticket.scheduled_send_at).to be_nil
+      expect(existing_ticket.scheduled_job_id).to be_nil
+    end
+
+    it "keeps closed ticket closed when we reply (Story 8)" do
+      gmail = instance_double(GmailService)
+      allow(GmailService).to receive(:new).and_return(gmail)
+
+      email_account.update!(last_history_id: 50000)
+
+      message_added = Google::Apis::GmailV1::HistoryMessageAdded.new(
+        message: Google::Apis::GmailV1::Message.new(id: "m-our-reply", thread_id: "t-reopen")
+      )
+      history = Google::Apis::GmailV1::History.new(messages_added: [ message_added ])
+      history_response = Google::Apis::GmailV1::ListHistoryResponse.new(
+        history: [ history ], history_id: 50200
+      )
+      allow(gmail).to receive(:list_history).and_return(history_response)
+
+      full_thread = build_gmail_thread(
+        id: "t-reopen",
+        messages: [
+          build_gmail_message(id: "m-old", thread_id: "t-reopen", from: "buyer@example.com",
+                              internal_date: (1.day.ago.to_f * 1000).to_i),
+          build_gmail_message(id: "m-our-reply", thread_id: "t-reopen", from: "shop@gmail.com",
+                              to: "buyer@example.com", subject: "Re: Follow up",
+                              internal_date: (1.minute.ago.to_f * 1000).to_i)
+        ]
+      )
+      allow(gmail).to receive(:get_thread).with("t-reopen").and_return(full_thread)
+
+      service.sync!
+
+      existing_ticket.reload
+      expect(existing_ticket.status).to eq("closed")
+    end
+  end
 end
