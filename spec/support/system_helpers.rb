@@ -4,6 +4,7 @@ module SystemHelpers
     fill_in "Email", with: user.email
     fill_in "Password", with: password
     click_button "Sign in"
+    expect(page).to have_text("Dashboard", wait: 5)
   end
 end
 
