@@ -104,6 +104,11 @@ RSpec.describe Ticket, type: :model do
       expect(ticket.reload).to be_draft_confirmed
     end
 
+    it "allows new_ticket → closed (spam)" do
+      ticket.transition_status!("closed")
+      expect(ticket.reload).to be_closed
+    end
+
     it "allows draft_confirmed → draft" do
       ticket.update!(status: :draft_confirmed, draft_reply: "reply")
       ticket.transition_status!("draft")

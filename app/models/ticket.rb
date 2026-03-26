@@ -23,7 +23,7 @@ class Ticket < ApplicationRecord
   end
 
   ALLOWED_TRANSITIONS = {
-    "new_ticket" => [ "draft" ],
+    "new_ticket" => [ "draft", "closed" ],
     "draft" => [ "draft_confirmed" ],
     "draft_confirmed" => [ "draft" ]
   }.freeze

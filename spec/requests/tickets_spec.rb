@@ -149,10 +149,18 @@ RSpec.describe "Tickets", type: :request do
     end
 
     it "rejects invalid status transition via JSON" do
+      ticket = create(:ticket, email_account: email_account, status: :closed)
+      sign_in user
+      patch ticket_path(id: ticket.id), params: { ticket: { status: "draft_confirmed" } }, as: :json
+      expect(response).to have_http_status(:unprocessable_entity)
+    end
+
+    it "allows new_ticket → closed via JSON (spam)" do
       ticket = create(:ticket, email_account: email_account, status: :new_ticket)
       sign_in user
       patch ticket_path(id: ticket.id), params: { ticket: { status: "closed" } }, as: :json
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:ok)
+      expect(ticket.reload).to be_closed
     end
 
     it "transitions status with position_ids (cross-lane drag)" do
