@@ -119,6 +119,25 @@ class GmailSyncService
 
     ticket.last_message_at = last_msg_time
 
+    # Story 7/8: Reopen closed tickets on new customer reply, keep closed on our reply
+    if !is_new && ticket.closed?
+      has_new_messages = ticket.messages.any?(&:new_record?)
+      if has_new_messages
+        latest_new_msg = ticket.messages.select(&:new_record?).max_by { |m| m.sent_at || Time.at(0) }
+        latest_from = parse_email_address(latest_new_msg&.from)
+
+        if latest_from&.downcase != email_account.email.downcase
+          # Customer replied → reopen
+          ticket.status = :new_ticket
+          ticket.draft_reply = nil
+          ticket.draft_reply_at = nil
+          ticket.scheduled_send_at = nil
+          ticket.scheduled_job_id = nil
+        end
+        # Our reply → stay closed (no change needed)
+      end
+    end
+
     Ticket.transaction do
       ticket.save!
       ticket.messages.each do |message|
