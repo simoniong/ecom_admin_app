@@ -43,7 +43,10 @@ jobs:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
       - name: Add server to known_hosts
-        run: ssh-keyscan -H 159.65.143.163 >> ~/.ssh/known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keygen -R 159.65.143.163 2>/dev/null || true
+          ssh-keyscan -H 159.65.143.163 >> ~/.ssh/known_hosts
 
       - name: Deploy with Kamal
         run: bundle exec kamal deploy
