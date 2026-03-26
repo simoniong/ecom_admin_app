@@ -8,7 +8,18 @@ class Ticket < ApplicationRecord
   validates :gmail_thread_id, presence: true, uniqueness: { scope: :email_account_id }
   validates :customer_email, presence: true
   validates :status, presence: true
+  validates :draft_reply, presence: true, if: :draft?
 
   scope :by_recency, -> { order(last_message_at: :desc) }
   scope :for_user, ->(user) { joins(:email_account).where(email_accounts: { user_id: user.id }) }
+
+  def submit_draft!(content)
+    raise "Can only submit draft for new tickets" unless new_ticket?
+
+    update!(
+      draft_reply: content,
+      draft_reply_at: Time.current,
+      status: :draft
+    )
+  end
 end
