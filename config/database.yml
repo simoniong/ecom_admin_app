@@ -87,7 +87,11 @@ test:
 production:
   primary: &primary_production
     <<: *default
+    <% if ENV["DATABASE_URL"].present? %>
     url: "<%= ENV['DATABASE_URL'] %>"
+    <% else %>
+    database: ecom_admin_app_production
+    <% end %>
   cache:
     <<: *primary_production
     migrations_paths: db/cache_migrate
