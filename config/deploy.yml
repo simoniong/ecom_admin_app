@@ -30,7 +30,8 @@ env:
     - DATABASE_URL
 
 accessories:
-  shared-db:
+  db:
+    service: postgres
     image: postgres:16
     host: 159.65.143.163
     env:
