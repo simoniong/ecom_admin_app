@@ -33,7 +33,6 @@ accessories:
   db:
     image: postgres:16
     host: 159.65.143.163
-    port: "5432:5432"
     env:
       clear:
         POSTGRES_DB: ecom_admin_app_production
