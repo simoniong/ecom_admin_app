@@ -2,8 +2,14 @@ production:
   sync_gmail_threads:
     class: SyncGmailThreadsJob
     schedule: every 10 minutes
+  tracking_refresh:
+    class: TrackingRefreshJob
+    schedule: every 1 hour
 
 development:
   sync_gmail_threads:
     class: SyncGmailThreadsJob
     schedule: every 10 minutes
+  tracking_refresh:
+    class: TrackingRefreshJob
+    schedule: every 1 hour

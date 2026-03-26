@@ -45,5 +45,12 @@ en:
     show:
       messages: "Messages"
       no_messages: "No messages in this thread."
+      customer: "Customer"
+      customer_name: "Name"
+      customer_email: "Email"
+      customer_phone: "Phone"
+      no_shopify_customer: "No Shopify customer found."
+      orders: "Orders"
+      no_orders: "No orders found."
   locale_switcher:
     label: "Language"

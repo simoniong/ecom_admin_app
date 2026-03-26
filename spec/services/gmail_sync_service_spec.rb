@@ -27,6 +27,12 @@ RSpec.describe GmailSyncService do
     Google::Apis::GmailV1::Thread.new(id: id, messages: messages)
   end
 
+  before do
+    shopify_lookup = instance_double(ShopifyLookupService)
+    allow(ShopifyLookupService).to receive(:new).and_return(shopify_lookup)
+    allow(shopify_lookup).to receive(:lookup)
+  end
+
   describe "#sync! (full sync)" do
     before do
       gmail = instance_double(GmailService)

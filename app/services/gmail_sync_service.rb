@@ -72,7 +72,9 @@ class GmailSyncService
       customer_name: customer[:name]
     )
 
-    if ticket.new_record?
+    is_new = ticket.new_record?
+
+    if is_new
       has_our_reply = full_thread.messages.any? do |msg|
         msg_from = parse_email_address(extract_headers(msg)["From"])
         msg_from&.downcase == email_account.email.downcase
@@ -102,6 +104,14 @@ class GmailSyncService
     ticket.last_message_at = last_msg_time
     ticket.save!
     ticket.messages.each(&:save!)
+
+    if is_new && ticket.customer_email.present?
+      begin
+        ShopifyLookupService.new.lookup(ticket)
+      rescue => e
+        Rails.logger.error("[ShopifyLookup] Failed for Ticket##{ticket.id}: #{e.message}")
+      end
+    end
   end
 
   def detect_customer(headers, account_email)

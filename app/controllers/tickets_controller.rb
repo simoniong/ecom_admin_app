@@ -6,7 +6,9 @@ class TicketsController < AdminController
   end
 
   def show
-    @ticket = Ticket.for_user(current_user).find(params[:id])
+    @ticket = Ticket.for_user(current_user).includes(customer: { orders: :fulfillments }).find(params[:id])
     @messages = @ticket.messages.chronological
+    @customer = @ticket.customer
+    @orders = @customer&.orders&.by_recency || []
   end
 end

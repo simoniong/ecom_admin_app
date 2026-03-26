@@ -45,5 +45,12 @@
     show:
       messages: "消息记录"
       no_messages: "此线程暂无消息。"
+      customer: "客户信息"
+      customer_name: "姓名"
+      customer_email: "邮箱"
+      customer_phone: "电话"
+      no_shopify_customer: "未找到 Shopify 客户。"
+      orders: "订单"
+      no_orders: "暂无订单。"
   locale_switcher:
     label: "语言"

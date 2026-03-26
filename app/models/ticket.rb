@@ -1,5 +1,6 @@
 class Ticket < ApplicationRecord
   belongs_to :email_account
+  belongs_to :customer, optional: true
   has_many :messages, dependent: :destroy
 
   enum :status, { new_ticket: 0, draft: 1, draft_confirmed: 2, closed: 3 }, default: :new_ticket
