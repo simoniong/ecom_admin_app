@@ -33,7 +33,7 @@ env:
 accessories:
   db:
     service: postgres
-    image: postgres:17
+    image: postgres:18
     host: 159.65.143.163
     env:
       clear:
@@ -42,7 +42,7 @@ accessories:
       secret:
         - POSTGRES_PASSWORD
     directories:
-      - /var/data/postgres:/var/lib/postgresql/data
+      - /var/data/postgres:/var/lib/postgresql
     options:
       network: kamal
 
