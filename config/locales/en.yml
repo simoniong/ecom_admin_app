@@ -61,6 +61,8 @@ en:
       save_draft: "Save Draft"
       draft_placeholder: "Write your reply here..."
       draft_saved: "Draft saved successfully."
-    draft_not_editable: "Draft can only be edited when ticket is in Draft status."
+      scheduled_at: "Scheduled to send at %{time}"
+      email_sent: "Email Sent"
+    draft_not_editable: "Current status does not allow editing."
   locale_switcher:
     label: "Language"

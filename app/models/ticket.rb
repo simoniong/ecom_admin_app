@@ -42,11 +42,19 @@ class Ticket < ApplicationRecord
     allowed = ALLOWED_TRANSITIONS[status] || []
     raise InvalidTransition, "Cannot transition from #{status} to #{new_status}" unless allowed.include?(new_status)
 
+    old_status = status
+
     attrs = { status: new_status }
-    # Set draft_reply_at when entering draft for the first time
     attrs[:draft_reply_at] = Time.current if new_status == "draft" && draft_reply_at.nil?
 
     update!(attrs)
+
+    # Schedule/cancel email based on transition
+    if new_status == "draft_confirmed"
+      EmailScheduler.schedule!(self)
+    elsif old_status == "draft_confirmed" && new_status == "draft"
+      EmailScheduler.cancel!(self)
+    end
   end
 
   class InvalidTransition < StandardError; end
