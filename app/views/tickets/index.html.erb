@@ -3,11 +3,11 @@
 
   <%# Status filter tabs %>
   <div class="mt-4 flex gap-2 flex-wrap">
-    <%= link_to t("tickets.filter.all"), tickets_path,
-        class: "px-3 py-1.5 text-sm font-medium rounded-md #{params[:status].blank? ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-100'}" %>
+    <%= link_to t("tickets.filter.all"), tickets_path(status: "all"),
+        class: "px-3 py-1.5 text-sm font-medium rounded-md #{@status == 'all' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-100'}" %>
     <% %w[new_ticket draft draft_confirmed closed].each do |status| %>
       <%= link_to t("tickets.status.#{status}"), tickets_path(status: status),
-          class: "px-3 py-1.5 text-sm font-medium rounded-md #{params[:status] == status ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-100'}" %>
+          class: "px-3 py-1.5 text-sm font-medium rounded-md #{@status == status ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-100'}" %>
     <% end %>
   </div>
 

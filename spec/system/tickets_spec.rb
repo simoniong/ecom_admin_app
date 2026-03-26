@@ -17,9 +17,10 @@ RSpec.describe "Tickets", type: :system do
     sign_in_via_form(user)
     click_link "Tickets"
     expect(page).to have_text("Shipping delay")
+
+    click_link "All"
+    expect(page).to have_text("Shipping delay")
     expect(page).to have_text("Refund request")
-    expect(page).to have_text("New")
-    expect(page).to have_text("Closed")
   end
 
   it "filters tickets by status" do
