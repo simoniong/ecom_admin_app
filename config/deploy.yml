@@ -8,8 +8,8 @@ servers:
       - 159.65.143.163
 
 proxy:
-  ssl: false
-  host: 159.65.143.163
+  ssl: true
+  host: hq-stg.ksuntech.com
 
 registry:
   server: ghcr.io
