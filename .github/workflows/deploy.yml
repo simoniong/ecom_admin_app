@@ -39,11 +39,14 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
-      - name: Add server to known_hosts
+      - name: Configure SSH
         run: |
           mkdir -p ~/.ssh
-          ssh-keygen -R 159.65.143.163 2>/dev/null || true
-          ssh-keyscan -H 159.65.143.163 >> ~/.ssh/known_hosts
+          chmod 700 ~/.ssh
+          ssh-keyscan -t ed25519,rsa,ecdsa -H 159.65.143.163 >> ~/.ssh/known_hosts 2>/dev/null
+          chmod 644 ~/.ssh/known_hosts
+          echo -e "Host 159.65.143.163\n  StrictHostKeyChecking no\n  UserKnownHostsFile /dev/null" >> ~/.ssh/config
+          chmod 644 ~/.ssh/config
 
       - name: Deploy with Kamal
         run: bundle exec kamal deploy
