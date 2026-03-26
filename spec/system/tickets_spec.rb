@@ -22,9 +22,19 @@ RSpec.describe "Tickets", type: :system do
     sign_in_via_form(user)
     click_link "Tickets"
 
-    expect(page).to have_text("New issue")
-    expect(page).to have_text("Drafted issue")
-    expect(page).to have_text("Old issue")
+    within('[data-status="new_ticket"]') do
+      expect(page).to have_text("New issue")
+      expect(page).not_to have_text("Drafted issue")
+    end
+
+    within('[data-status="draft"]') do
+      expect(page).to have_text("Drafted issue")
+      expect(page).not_to have_text("New issue")
+    end
+
+    within('[data-status="closed"]') do
+      expect(page).to have_text("Old issue")
+    end
   end
 
   it "navigates to ticket show page from card" do

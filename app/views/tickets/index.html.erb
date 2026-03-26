@@ -10,7 +10,7 @@
             <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold <%= ticket_status_badge_classes(status) %>">
               <%= t("tickets.status.#{status}") %>
             </span>
-            <span class="text-xs text-gray-400"><%= @tickets_by_status[status].size %></span>
+            <span class="text-xs text-gray-400" data-lane-count><%= @tickets_by_status[status].size %></span>
           </div>
         </div>
 

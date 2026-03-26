@@ -2,9 +2,10 @@ class TicketsController < AdminController
   before_action :set_ticket, only: [ :show, :update ]
 
   def index
-    tickets = Ticket.for_user(current_user).includes(:email_account).by_position
+    tickets = Ticket.for_user(current_user).includes(:email_account).by_position.to_a
+    grouped = tickets.group_by(&:status)
     @tickets_by_status = Ticket.statuses.keys.index_with do |status|
-      tickets.where(status: status)
+      grouped[status] || []
     end
   end
 
@@ -15,9 +16,9 @@ class TicketsController < AdminController
   end
 
   def update
-    if params[:ticket][:status].present?
+    if params.dig(:ticket, :status).present?
       handle_status_transition
-    elsif params[:ticket][:position_ids].present?
+    elsif params.dig(:ticket, :position_ids).present?
       handle_reorder
     else
       handle_draft_update
@@ -27,11 +28,10 @@ class TicketsController < AdminController
   private
 
   def handle_status_transition
-    @ticket.transition_status!(params[:ticket][:status])
+    @ticket.transition_status!(params.dig(:ticket, :status))
 
-    # Also update position if provided (cross-lane drag)
-    if params[:ticket][:position_ids].present?
-      Ticket.for_user(current_user).reorder_positions!(params[:ticket][:position_ids])
+    if params.dig(:ticket, :position_ids).present?
+      Ticket.for_user(current_user).reorder_positions!(params.dig(:ticket, :position_ids))
     end
 
     respond_to do |format|
@@ -46,7 +46,7 @@ class TicketsController < AdminController
   end
 
   def handle_reorder
-    Ticket.for_user(current_user).reorder_positions!(params[:ticket][:position_ids])
+    Ticket.for_user(current_user).reorder_positions!(params.dig(:ticket, :position_ids))
 
     respond_to do |format|
       format.json { render json: { success: true }, status: :ok }

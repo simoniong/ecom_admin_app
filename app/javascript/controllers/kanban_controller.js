@@ -22,12 +22,9 @@ export default class extends Controller {
     const oldStatus = event.from.dataset.status
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content
 
-    // Collect new position order of the target lane
     const positionIds = [...event.to.children].map(card => card.dataset.ticketId)
-
     const body = { ticket: { position_ids: positionIds } }
 
-    // Cross-lane: also send status transition
     if (newStatus !== oldStatus) {
       body.ticket.status = newStatus
     }
@@ -52,5 +49,14 @@ export default class extends Controller {
       alert("Network error. Please try again.")
       event.from.insertBefore(event.item, event.from.children[event.oldIndex])
     }
+
+    this.updateLaneCount(event.from)
+    this.updateLaneCount(event.to)
+  }
+
+  updateLaneCount(lane) {
+    const count = lane.querySelectorAll("[data-ticket-id]").length
+    const header = lane.closest(".flex-col")?.querySelector("[data-lane-count]")
+    if (header) header.textContent = count
   }
 }
