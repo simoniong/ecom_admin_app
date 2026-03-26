@@ -79,7 +79,8 @@ class GmailSyncService
     first_message = full_thread.messages.first
     headers = extract_headers(first_message)
 
-    customer = detect_customer(headers, email_account.email)
+    first_body = extract_body(first_message)
+    customer = detect_customer(headers, email_account.email, first_body)
 
     ticket.assign_attributes(
       subject: headers["Subject"],
@@ -135,8 +136,21 @@ class GmailSyncService
     end
   end
 
-  def detect_customer(headers, account_email)
+  SHOPIFY_SENDER_PATTERNS = [
+    /@shopify\.com\z/i,
+    /@myshopify\.com\z/i,
+    /noreply@/i,
+    /no-reply@/i
+  ].freeze
+
+  def detect_customer(headers, account_email, body = nil)
     from_email = parse_email_address(headers["From"])
+
+    # If sender looks like Shopify/system, try to extract real customer from body
+    if from_email && shopify_sender?(from_email) && body.present?
+      customer_from_body = extract_customer_from_body(body)
+      return customer_from_body if customer_from_body[:email].present?
+    end
 
     if from_email&.downcase != account_email.downcase
       { email: from_email, name: parse_name(headers["From"]) }
@@ -144,6 +158,30 @@ class GmailSyncService
       to_email = parse_email_address(headers["To"])
       { email: to_email, name: parse_name(headers["To"]) }
     end
+  end
+
+  def shopify_sender?(email)
+    SHOPIFY_SENDER_PATTERNS.any? { |pattern| email.match?(pattern) }
+  end
+
+  def extract_customer_from_body(body)
+    email = nil
+    name = nil
+
+    # Match email patterns in body
+    email_match = body.match(/[\w.+-]+@[\w.-]+\.\w{2,}/)
+    email = email_match[0] if email_match
+
+    # Common Shopify form patterns:
+    # "Name: John Doe" or "From: John Doe"
+    name_match = body.match(/(?:Name|From|Customer|送信者|名前)\s*[:：]\s*(.+)/i)
+    name = name_match[1].strip if name_match
+
+    # "Email: john@example.com" — more specific email extraction
+    email_field_match = body.match(/(?:Email|E-mail|メール)\s*[:：]\s*([\w.+-]+@[\w.-]+\.\w{2,})/i)
+    email = email_field_match[1] if email_field_match
+
+    { email: email, name: name }
   end
 
   def extract_headers(message)

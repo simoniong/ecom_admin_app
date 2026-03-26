@@ -149,5 +149,38 @@ RSpec.describe GmailSyncService do
       service.sync!
       expect(Ticket.last.status).to eq("closed")
     end
+
+    it "extracts real customer from Shopify form email body" do
+      gmail = instance_double(GmailService)
+      allow(GmailService).to receive(:new).and_return(gmail)
+
+      profile = Google::Apis::GmailV1::Profile.new(history_id: 99)
+      allow(gmail).to receive(:user_profile).and_return(profile)
+
+      thread_list = Google::Apis::GmailV1::ListThreadsResponse.new(
+        threads: [ Google::Apis::GmailV1::Thread.new(id: "t4") ],
+        next_page_token: nil
+      )
+      allow(gmail).to receive(:list_threads).and_return(thread_list)
+
+      shopify_body = "Name: Jane Customer\nEmail: jane@buyer.com\n\nHi, where is my order #1234?"
+      full_thread = build_gmail_thread(
+        id: "t4",
+        messages: [
+          build_gmail_message(
+            id: "m4", thread_id: "t4",
+            from: "noreply@shopify.com",
+            subject: "Contact form submission",
+            body: shopify_body
+          )
+        ]
+      )
+      allow(gmail).to receive(:get_thread).with("t4").and_return(full_thread)
+
+      service.sync!
+      ticket = Ticket.last
+      expect(ticket.customer_email).to eq("jane@buyer.com")
+      expect(ticket.customer_name).to eq("Jane Customer")
+    end
   end
 end

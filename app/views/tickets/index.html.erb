@@ -21,7 +21,13 @@
             </span>
             <div class="min-w-0">
               <p class="text-sm font-medium text-gray-900 truncate"><%= ticket.subject || t("tickets.no_subject") %></p>
-              <p class="text-xs text-gray-500 truncate"><%= ticket.customer_name || ticket.customer_email %></p>
+              <p class="text-xs text-gray-500 truncate">
+                <% if ticket.customer_name.present? %>
+                  <%= ticket.customer_name %> &lt;<%= ticket.customer_email %>&gt;
+                <% else %>
+                  <%= ticket.customer_email %>
+                <% end %>
+              </p>
             </div>
           </div>
           <div class="flex items-center gap-3 shrink-0">
