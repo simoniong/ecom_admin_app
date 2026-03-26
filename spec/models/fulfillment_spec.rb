@@ -30,4 +30,53 @@ RSpec.describe Fulfillment, type: :model do
       expect(Fulfillment.with_tracking).to eq([ with ])
     end
   end
+
+  describe "tracking helpers" do
+    let(:fulfillment) do
+      build(:fulfillment, tracking_details: {
+        "status" => "Delivered",
+        "last_event" => "Delivered to recipient",
+        "last_event_time" => "2026-03-25 10:00:00",
+        "events" => [
+          { "description" => "Shipped", "time" => "2026-03-20 08:00", "location" => "LA" },
+          { "description" => "Delivered", "time" => "2026-03-25 10:00", "location" => "NYC" }
+        ]
+      })
+    end
+
+    it "#tracking_status returns status" do
+      expect(fulfillment.tracking_status).to eq("Delivered")
+    end
+
+    it "#last_tracking_event returns last event" do
+      expect(fulfillment.last_tracking_event).to eq("Delivered to recipient")
+    end
+
+    it "#last_tracking_time returns last event time" do
+      expect(fulfillment.last_tracking_time).to eq("2026-03-25 10:00:00")
+    end
+
+    it "#tracking_events returns events in reverse chronological order" do
+      events = fulfillment.tracking_events
+      expect(events.first["description"]).to eq("Delivered")
+      expect(events.last["description"]).to eq("Shipped")
+    end
+
+    it "#tracking_loaded? returns true when details present" do
+      expect(fulfillment.tracking_loaded?).to be true
+    end
+
+    it "#tracking_loaded? returns false when details empty" do
+      fulfillment.tracking_details = {}
+      expect(fulfillment.tracking_loaded?).to be false
+    end
+
+    it "handles nil tracking_details gracefully" do
+      fulfillment.tracking_details = nil
+      expect(fulfillment.tracking_status).to be_nil
+      expect(fulfillment.last_tracking_event).to be_nil
+      expect(fulfillment.tracking_events).to eq([])
+      expect(fulfillment.tracking_loaded?).to be false
+    end
+  end
 end

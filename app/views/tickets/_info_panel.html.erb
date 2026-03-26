@@ -26,43 +26,105 @@
   <% end %>
 </div>
 
-<%# Orders %>
-<div class="bg-white shadow-sm rounded-lg border border-gray-200 p-4">
-  <h3 class="text-sm font-semibold text-gray-900 mb-3"><%= t("tickets.show.orders") %></h3>
-  <% if @orders.any? %>
-    <div class="space-y-3">
-      <% @orders.each do |order| %>
-        <div class="border-b border-gray-100 pb-3 last:border-0 last:pb-0">
-          <div class="flex items-center justify-between">
-            <span class="text-sm font-medium text-gray-900"><%= order.name %></span>
-            <span class="text-xs text-gray-500"><%= order.ordered_at ? l(order.ordered_at.in_time_zone("Asia/Shanghai"), format: :short) : "—" %></span>
-          </div>
-          <div class="mt-1 flex items-center gap-2">
-            <span class="text-sm text-gray-700"><%= number_to_currency(order.total_price, unit: order.currency.to_s + " ") %></span>
-            <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700"><%= order.financial_status %></span>
-          </div>
+<%# Orders & Fulfillments %>
+<% if @orders.any? %>
+  <% @orders.each do |order| %>
+    <div class="bg-white shadow-sm rounded-lg border border-gray-200 p-4">
+      <%# Order header %>
+      <div class="flex items-center justify-between mb-2">
+        <span class="text-sm font-semibold text-gray-900"><%= order.name %></span>
+        <span class="text-xs text-gray-500"><%= order.ordered_at ? l(order.ordered_at.in_time_zone("Asia/Shanghai"), format: :short) : "—" %></span>
+      </div>
+      <div class="flex items-center gap-2 mb-3">
+        <span class="text-sm text-gray-700"><%= number_to_currency(order.total_price, unit: order.currency.to_s + " ") %></span>
+        <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700"><%= order.financial_status %></span>
+      </div>
 
-          <% if order.fulfillments.any? %>
-            <div class="mt-2 space-y-1">
-              <% order.fulfillments.each do |f| %>
-                <div class="flex items-center gap-2 text-xs">
-                  <span class="inline-flex items-center px-1.5 py-0.5 rounded bg-purple-50 text-purple-700 font-medium"><%= f.status %></span>
-                  <% if f.tracking_number.present? %>
-                    <% if f.tracking_url.present? %>
-                      <%= link_to f.tracking_number, f.tracking_url, target: "_blank", rel: "noopener", class: "text-blue-600 hover:underline" %>
-                    <% else %>
-                      <span class="text-gray-600"><%= f.tracking_number %></span>
+      <%# Fulfillment cards %>
+      <% if order.fulfillments.any? %>
+        <div class="space-y-3">
+          <% order.fulfillments.each do |f| %>
+            <div class="border border-gray-100 rounded-lg overflow-hidden" data-controller="collapsible">
+              <%# Fulfillment summary — clickable to expand %>
+              <button data-action="click->collapsible#toggle"
+                      class="w-full text-left px-3 py-2.5 hover:bg-gray-50 transition">
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-2">
+                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-purple-50 text-purple-700"><%= f.status %></span>
+                    <% if f.tracking_number.present? %>
+                      <span class="text-xs font-mono text-gray-600"><%= f.tracking_number %></span>
                     <% end %>
-                    <span class="text-gray-400"><%= f.tracking_company %></span>
-                  <% end %>
+                  </div>
+                  <svg data-collapsible-target="icon" class="w-4 h-4 text-gray-400 transition-transform shrink-0" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+                  </svg>
                 </div>
-              <% end %>
+
+                <% if f.tracking_company.present? %>
+                  <p class="text-xs text-gray-400 mt-1"><%= f.tracking_company %></p>
+                <% end %>
+
+                <%# Last tracking event preview %>
+                <% if f.last_tracking_event.present? %>
+                  <div class="mt-2 flex items-start gap-2">
+                    <div class="mt-0.5 w-2 h-2 rounded-full bg-green-500 shrink-0"></div>
+                    <div>
+                      <p class="text-xs text-gray-700"><%= f.last_tracking_event %></p>
+                      <% if f.last_tracking_time.present? %>
+                        <p class="text-xs text-gray-400"><%= f.last_tracking_time %></p>
+                      <% end %>
+                    </div>
+                  </div>
+                <% elsif f.tracking_loaded? %>
+                  <p class="text-xs text-gray-400 mt-1"><%= t("tickets.show.no_tracking_events") %></p>
+                <% else %>
+                  <p class="text-xs text-gray-400 mt-1"><%= t("tickets.show.tracking_pending") %></p>
+                <% end %>
+              </button>
+
+              <%# Expanded: full tracking timeline %>
+              <div data-collapsible-target="content" class="hidden border-t border-gray-100 px-3 py-3 bg-gray-50">
+                <% if f.tracking_url.present? %>
+                  <div class="mb-3">
+                    <%= link_to t("tickets.show.view_on_carrier"), f.tracking_url, target: "_blank", rel: "noopener",
+                        class: "text-xs text-blue-600 hover:underline" %>
+                  </div>
+                <% end %>
+
+                <% events = f.tracking_events %>
+                <% if events.any? %>
+                  <div class="relative pl-4">
+                    <div class="absolute left-1.5 top-1 bottom-1 w-px bg-gray-200"></div>
+                    <% events.each_with_index do |event, i| %>
+                      <div class="relative pb-3 last:pb-0">
+                        <div class="absolute -left-2.5 mt-1 w-2 h-2 rounded-full <%= i == 0 ? 'bg-green-500' : 'bg-gray-300' %>"></div>
+                        <div class="ml-2">
+                          <p class="text-xs text-gray-800"><%= event["description"] %></p>
+                          <div class="flex items-center gap-2 mt-0.5">
+                            <% if event["time"].present? %>
+                              <span class="text-xs text-gray-400"><%= event["time"] %></span>
+                            <% end %>
+                            <% if event["location"].present? %>
+                              <span class="text-xs text-gray-400"><%= event["location"] %></span>
+                            <% end %>
+                          </div>
+                        </div>
+                      </div>
+                    <% end %>
+                  </div>
+                <% else %>
+                  <p class="text-xs text-gray-500"><%= t("tickets.show.no_tracking_events") %></p>
+                <% end %>
+              </div>
             </div>
           <% end %>
         </div>
       <% end %>
     </div>
-  <% else %>
-    <p class="text-sm text-gray-500"><%= t("tickets.show.no_orders") %></p>
   <% end %>
-</div>
+<% else %>
+  <div class="bg-white shadow-sm rounded-lg border border-gray-200 p-4">
+    <h3 class="text-sm font-semibold text-gray-900 mb-3"><%= t("tickets.show.orders") %></h3>
+    <p class="text-sm text-gray-500"><%= t("tickets.show.no_orders") %></p>
+  </div>
+<% end %>

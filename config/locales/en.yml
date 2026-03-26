@@ -53,5 +53,8 @@ en:
       no_shopify_customer: "No Shopify customer found."
       orders: "Orders"
       no_orders: "No orders found."
+      no_tracking_events: "No tracking events yet."
+      tracking_pending: "Tracking info loading..."
+      view_on_carrier: "View on carrier website"
   locale_switcher:
     label: "Language"

@@ -53,5 +53,8 @@
       no_shopify_customer: "未找到 Shopify 客户。"
       orders: "订单"
       no_orders: "暂无订单。"
+      no_tracking_events: "暂无物流轨迹。"
+      tracking_pending: "物流信息加载中..."
+      view_on_carrier: "在承运商网站查看"
   locale_switcher:
     label: "语言"
