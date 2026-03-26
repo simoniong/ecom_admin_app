@@ -8,7 +8,7 @@ class Ticket < ApplicationRecord
   validates :gmail_thread_id, presence: true, uniqueness: { scope: :email_account_id }
   validates :customer_email, presence: true
   validates :status, presence: true
-  validates :draft_reply, presence: true, if: :draft?
+  validates :draft_reply, presence: true, if: -> { draft? || draft_confirmed? }
 
   scope :by_recency, -> { order(last_message_at: :desc) }
   scope :for_user, ->(user) { joins(:email_account).where(email_accounts: { user_id: user.id }) }

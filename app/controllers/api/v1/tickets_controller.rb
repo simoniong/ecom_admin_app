@@ -8,7 +8,9 @@ class Api::V1::TicketsController < Api::BaseController
   end
 
   def show
-    ticket = Ticket.where(status: :new_ticket).find(params[:id])
+    ticket = Ticket.where(status: :new_ticket)
+                   .includes(:messages, customer: { orders: :fulfillments })
+                   .find(params[:id])
     render json: ticket_json(ticket, detail: true)
   rescue ActiveRecord::RecordNotFound
     render json: { error: "Ticket not found or not in new status" }, status: :not_found
@@ -30,6 +32,8 @@ class Api::V1::TicketsController < Api::BaseController
     render json: ticket_json(ticket), status: :ok
   rescue ActiveRecord::RecordNotFound
     render json: { error: "Ticket not found" }, status: :not_found
+  rescue ActiveRecord::RecordInvalid
+    render json: { error: "Validation failed", details: ticket.errors.full_messages }, status: :unprocessable_entity
   end
 
   private
@@ -47,7 +51,7 @@ class Api::V1::TicketsController < Api::BaseController
       created_at: ticket.created_at
     }
 
-    json[:messages] = ticket.messages.order(sent_at: :desc).map do |m|
+    json[:messages] = ticket.messages.sort_by { |m| m.sent_at || Time.at(0) }.reverse.map do |m|
       {
         id: m.id,
         from: m.from,
@@ -67,7 +71,7 @@ class Api::V1::TicketsController < Api::BaseController
         phone: ticket.customer.phone
       }
 
-      json[:orders] = ticket.customer.orders.by_recency.map do |order|
+      json[:orders] = ticket.customer.orders.sort_by { |o| o.ordered_at || Time.at(0) }.reverse.map do |order|
         {
           id: order.id,
           name: order.name,
