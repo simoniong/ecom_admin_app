@@ -20,11 +20,13 @@ bin/rails server                 # Start Rails server only
 bin/rails db:create db:migrate   # Create and migrate DB
 bin/rails db:test:prepare        # Prepare test DB
 
-# Testing
-bin/rails test                   # Run all unit/integration tests
-bin/rails test:system            # Run system tests (Capybara + Selenium)
-bin/rails test test/models/ticket_test.rb           # Run single test file
-bin/rails test test/models/ticket_test.rb:42        # Run single test at line
+# Testing (RSpec + FactoryBot)
+bundle exec rspec                                    # Run all specs
+bundle exec rspec spec/models                        # Run model specs
+bundle exec rspec spec/requests                      # Run request specs
+bundle exec rspec spec/system                        # Run system specs
+bundle exec rspec spec/models/user_spec.rb           # Run single spec file
+bundle exec rspec spec/models/user_spec.rb:10        # Run single example at line
 
 # Linting & Security
 bin/rubocop                      # RuboCop (omakase style)
@@ -55,10 +57,11 @@ bin/importmap audit              # JS dependency audit
 
 ## Testing Requirements
 
+- **RSpec** with **FactoryBot** (no fixtures)
 - 95%+ coverage required — PRs will not be approved without it
 - No mocks — tests must hit real database
-- Must include both unit tests and feature (system) tests
-- CI runs: Brakeman, bundler-audit, importmap audit, RuboCop, unit tests, system tests
+- Must include model specs, request specs, and system specs
+- CI runs: Brakeman, bundler-audit, importmap audit, RuboCop, RSpec (unit + request), RSpec (system)
 
 ## Git Workflow
 
