@@ -345,7 +345,9 @@ RSpec.describe GmailSyncService do
   describe "closed ticket reopen logic (Stories 7/8)" do
     let!(:existing_ticket) do
       t = create(:ticket, email_account: email_account, gmail_thread_id: "t-reopen",
-                  status: :closed, customer_email: "buyer@example.com")
+                  status: :closed, customer_email: "buyer@example.com",
+                  draft_reply: "old draft", draft_reply_at: 1.hour.ago,
+                  scheduled_send_at: 1.hour.from_now, scheduled_job_id: "old-job")
       create(:message, ticket: t, gmail_message_id: "m-old", from: "buyer@example.com",
               sent_at: 1.day.ago, gmail_internal_date: (1.day.ago.to_f * 1000).to_i)
       t
@@ -383,6 +385,9 @@ RSpec.describe GmailSyncService do
       existing_ticket.reload
       expect(existing_ticket.status).to eq("new_ticket")
       expect(existing_ticket.draft_reply).to be_nil
+      expect(existing_ticket.draft_reply_at).to be_nil
+      expect(existing_ticket.scheduled_send_at).to be_nil
+      expect(existing_ticket.scheduled_job_id).to be_nil
     end
 
     it "keeps closed ticket closed when we reply (Story 8)" do
