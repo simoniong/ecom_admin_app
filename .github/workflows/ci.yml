@@ -101,7 +101,7 @@ jobs:
           RAILS_ENV: test
           DATABASE_URL: postgres://postgres:postgres@localhost:5432
           RAILS_MASTER_KEY: ${{ secrets.RAILS_MASTER_KEY }}
-        run: bin/rails db:test:prepare test
+        run: bin/rails db:test:prepare && bundle exec rspec --exclude-pattern "spec/system/**/*_spec.rb"
 
   system-test:
     runs-on: ubuntu-latest
@@ -139,7 +139,7 @@ jobs:
           RAILS_ENV: test
           DATABASE_URL: postgres://postgres:postgres@localhost:5432
           RAILS_MASTER_KEY: ${{ secrets.RAILS_MASTER_KEY }}
-        run: bin/rails db:test:prepare test:system
+        run: bin/rails db:test:prepare && bundle exec rspec spec/system
 
       - name: Keep screenshots from failed system tests
         uses: actions/upload-artifact@v4
