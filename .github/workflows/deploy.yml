@@ -49,4 +49,4 @@ jobs:
           chmod 644 ~/.ssh/config
 
       - name: Deploy with Kamal
-        run: bundle exec kamal deploy
+        run: bundle exec kamal setup || bundle exec kamal deploy
