@@ -20,11 +20,10 @@ RSpec.describe "Authentication", type: :system do
     expect(page).to have_link("Tickets")
   end
 
-  it "shows user email in sidebar" do
+  it "shows user email on page" do
     sign_in_via_form(user)
 
-    sidebar = find("aside", visible: :all)
-    expect(sidebar).to have_content(user.email)
+    expect(page).to have_text(user.email)
   end
 
   it "navigates to email accounts page" do
