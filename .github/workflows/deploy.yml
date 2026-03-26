@@ -17,7 +17,7 @@ jobs:
       DOCKER_BUILDKIT: 1
       KAMAL_REGISTRY_PASSWORD: ${{ secrets.KAMAL_REGISTRY_PASSWORD }}
       RAILS_MASTER_KEY: ${{ secrets.RAILS_MASTER_KEY }}
-      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DB_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
       POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
 
     steps:

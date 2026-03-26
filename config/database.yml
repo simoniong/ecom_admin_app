@@ -87,11 +87,10 @@ test:
 production:
   primary: &primary_production
     <<: *default
-    <% if ENV["DATABASE_URL"].present? %>
-    url: "<%= ENV['DATABASE_URL'] %>"
-    <% else %>
-    database: ecom_admin_app_production
-    <% end %>
+    host: "<%= ENV.fetch('DB_HOST', 'localhost') %>"
+    database: "<%= ENV.fetch('DB_NAME', 'ecom_admin_app_production') %>"
+    username: "<%= ENV.fetch('DB_USERNAME', 'ecom_admin_app') %>"
+    password: "<%= ENV.fetch('DB_PASSWORD', '') %>"
   cache:
     <<: *primary_production
     migrations_paths: db/cache_migrate
