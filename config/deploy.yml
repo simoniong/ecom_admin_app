@@ -1,13 +1,11 @@
 service: ecom-admin-app
 
-image: ghcr.io/simoniong/ecom_admin_app
+image: simoniong/ecom_admin_app
 
 servers:
   web:
     hosts:
       - 159.65.143.163
-    options:
-      network: kamal
 
 proxy:
   ssl: false
