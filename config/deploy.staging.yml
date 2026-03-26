@@ -1,0 +1,30 @@
+servers:
+  web:
+    hosts:
+      - 159.65.143.163
+
+proxy:
+  ssl: true
+  host: hq-stg.ksuntech.com
+
+env:
+  clear:
+    DB_HOST: postgres-db
+    DB_NAME: ecom_admin_app_production
+    DB_USERNAME: ecom_admin_app
+
+accessories:
+  db:
+    service: postgres
+    image: postgres:18
+    host: 159.65.143.163
+    env:
+      clear:
+        POSTGRES_DB: ecom_admin_app_production
+        POSTGRES_USER: ecom_admin_app
+      secret:
+        - POSTGRES_PASSWORD
+    directories:
+      - /var/data/postgres:/var/lib/postgresql
+    options:
+      network: kamal

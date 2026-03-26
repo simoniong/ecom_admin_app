@@ -1,11 +1,11 @@
-name: Deploy to Staging
+name: Deploy to Production
 
 on:
   push:
-    branches: [staging]
+    branches: [main]
 
 concurrency:
-  group: deploy-staging
+  group: deploy-production
   cancel-in-progress: true
 
 jobs:
@@ -16,15 +16,15 @@ jobs:
     env:
       DOCKER_BUILDKIT: 1
       KAMAL_REGISTRY_PASSWORD: ${{ secrets.KAMAL_REGISTRY_PASSWORD }}
-      STAGING_RAILS_MASTER_KEY: ${{ secrets.STAGING_RAILS_MASTER_KEY }}
-      STAGING_DB_PASSWORD: ${{ secrets.STAGING_POSTGRES_PASSWORD }}
-      STAGING_POSTGRES_PASSWORD: ${{ secrets.STAGING_POSTGRES_PASSWORD }}
+      PRODUCTION_RAILS_MASTER_KEY: ${{ secrets.PRODUCTION_RAILS_MASTER_KEY }}
+      PRODUCTION_DB_PASSWORD: ${{ secrets.PRODUCTION_POSTGRES_PASSWORD }}
+      PRODUCTION_POSTGRES_PASSWORD: ${{ secrets.PRODUCTION_POSTGRES_PASSWORD }}
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
         with:
-          ref: staging
+          ref: main
 
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
@@ -43,10 +43,8 @@ jobs:
         run: |
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
-          ssh-keyscan -t ed25519,rsa,ecdsa -H 159.65.143.163 >> ~/.ssh/known_hosts 2>/dev/null
-          chmod 644 ~/.ssh/known_hosts
           echo -e "Host *\n  StrictHostKeyChecking no\n  UserKnownHostsFile /dev/null" >> ~/.ssh/config
           chmod 644 ~/.ssh/config
 
       - name: Deploy with Kamal
-        run: bundle exec kamal deploy -d staging
+        run: bundle exec kamal deploy -d production

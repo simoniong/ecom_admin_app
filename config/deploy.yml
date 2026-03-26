@@ -2,15 +2,6 @@ service: ecom-admin-app
 
 image: simoniong/ecom_admin_app
 
-servers:
-  web:
-    hosts:
-      - 159.65.143.163
-
-proxy:
-  ssl: true
-  host: hq-stg.ksuntech.com
-
 registry:
   server: ghcr.io
   username: simoniong
@@ -23,28 +14,9 @@ env:
     RAILS_LOG_TO_STDOUT: "1"
     RAILS_SERVE_STATIC_FILES: "1"
     SOLID_QUEUE_IN_PUMA: "1"
-    DB_HOST: postgres-db
-    DB_NAME: ecom_admin_app_production
-    DB_USERNAME: ecom_admin_app
   secret:
     - RAILS_MASTER_KEY
     - DB_PASSWORD
-
-accessories:
-  db:
-    service: postgres
-    image: postgres:18
-    host: 159.65.143.163
-    env:
-      clear:
-        POSTGRES_DB: ecom_admin_app_production
-        POSTGRES_USER: ecom_admin_app
-      secret:
-        - POSTGRES_PASSWORD
-    directories:
-      - /var/data/postgres:/var/lib/postgresql
-    options:
-      network: kamal
 
 builder:
   arch: amd64

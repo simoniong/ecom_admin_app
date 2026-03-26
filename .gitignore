@@ -35,9 +35,14 @@
 
 # Ignore key files for decrypting credentials and more.
 /config/*.key
+/config/credentials/*.key
 
 .plan
 .claude
 
 # Coverage reports
 /coverage
+
+# Ignore key files for decrypting credentials and more.
+/config/credentials/*.key
+
