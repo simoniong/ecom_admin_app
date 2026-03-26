@@ -23,6 +23,7 @@ class Ticket < ApplicationRecord
   end
 
   ALLOWED_TRANSITIONS = {
+    "new_ticket" => [ "draft" ],
     "draft" => [ "draft_confirmed" ],
     "draft_confirmed" => [ "draft" ]
   }.freeze
@@ -41,7 +42,11 @@ class Ticket < ApplicationRecord
     allowed = ALLOWED_TRANSITIONS[status] || []
     raise InvalidTransition, "Cannot transition from #{status} to #{new_status}" unless allowed.include?(new_status)
 
-    update!(status: new_status)
+    attrs = { status: new_status }
+    # Set draft_reply_at when entering draft for the first time
+    attrs[:draft_reply_at] = Time.current if new_status == "draft" && draft_reply_at.nil?
+
+    update!(attrs)
   end
 
   class InvalidTransition < StandardError; end

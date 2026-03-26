@@ -55,7 +55,7 @@ class TicketsController < AdminController
   end
 
   def handle_draft_update
-    unless @ticket.draft?
+    unless @ticket.new_ticket? || @ticket.draft?
       redirect_to ticket_path(id: @ticket.id), alert: t("tickets.draft_not_editable")
       return
     end

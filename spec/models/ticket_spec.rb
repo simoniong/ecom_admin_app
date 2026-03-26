@@ -110,6 +110,13 @@ RSpec.describe Ticket, type: :model do
       expect(ticket.reload).to be_draft
     end
 
+    it "allows new_ticket → draft when draft_reply present" do
+      ticket.update!(draft_reply: "my reply")
+      ticket.transition_status!("draft")
+      expect(ticket.reload).to be_draft
+      expect(ticket.draft_reply_at).to be_present
+    end
+
     it "raises for new_ticket → draft_confirmed" do
       expect { ticket.transition_status!("draft_confirmed") }.to raise_error(Ticket::InvalidTransition)
     end

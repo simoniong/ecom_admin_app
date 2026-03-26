@@ -101,12 +101,27 @@ RSpec.describe "Tickets", type: :request do
       expect(ticket.reload.draft_reply).to eq("updated draft")
     end
 
-    it "rejects update when ticket is not in draft status" do
+    it "updates draft_reply when ticket is in new_ticket status" do
       ticket = create(:ticket, email_account: email_account, status: :new_ticket)
+      sign_in user
+      patch ticket_path(id: ticket.id), params: { ticket: { draft_reply: "manual draft" } }
+      expect(response).to redirect_to(ticket_path(id: ticket.id))
+      expect(ticket.reload.draft_reply).to eq("manual draft")
+    end
+
+    it "rejects draft update when ticket is closed" do
+      ticket = create(:ticket, email_account: email_account, status: :closed)
       sign_in user
       patch ticket_path(id: ticket.id), params: { ticket: { draft_reply: "should fail" } }
       expect(response).to redirect_to(ticket_path(id: ticket.id))
-      expect(ticket.reload.draft_reply).to be_nil
+    end
+
+    it "transitions new_ticket → draft via JSON" do
+      ticket = create(:ticket, email_account: email_account, status: :new_ticket, draft_reply: "ready")
+      sign_in user
+      patch ticket_path(id: ticket.id), params: { ticket: { status: "draft" } }, as: :json
+      expect(response).to have_http_status(:ok)
+      expect(ticket.reload).to be_draft
     end
 
     it "returns 404 for another user's ticket" do
