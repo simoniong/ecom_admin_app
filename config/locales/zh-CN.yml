@@ -35,8 +35,8 @@
     title: "工单"
     empty: "目前没有任何工单。"
     no_subject: "（无主题）"
-    filter:
-      all: "全部"
+    status_updated: "工单状态更新成功。"
+    invalid_transition: "此状态转换不被允许。"
     status:
       new_ticket: "新工单"
       draft: "草稿"
@@ -59,7 +59,8 @@
       draft_reply: "草稿回复"
       draft_by_agent: "由 Agent 生成"
       save_draft: "保存草稿"
+      draft_placeholder: "在此输入回复内容..."
       draft_saved: "草稿保存成功。"
-    draft_not_editable: "只有草稿状态的工单才能编辑。"
+    draft_not_editable: "当前状态不允许编辑草稿。"
   locale_switcher:
     label: "语言"

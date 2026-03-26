@@ -37,7 +37,8 @@ RSpec.describe "Authentication", type: :system do
     sign_in_via_form(user)
     click_link "Tickets"
     expect(page).to have_text("Tickets")
-    expect(page).to have_text("No tickets yet.")
+    expect(page).to have_text("New")
+    expect(page).to have_text("Draft")
   end
 
   it "logs out and redirects to login" do
