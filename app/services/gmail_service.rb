@@ -23,11 +23,17 @@ class GmailService
     client.get_user_profile("me")
   end
 
-  def send_message(to:, subject:, body:, thread_id: nil, message_id: nil)
-    raw_message = build_raw_message(to: to, subject: subject, body: body, message_id: message_id)
+  def send_message(to:, subject:, body:, thread_id: nil)
+    from_addr = email_account.email
+    mail = Mail.new
+    mail.from = from_addr
+    mail.to = to
+    mail.subject = subject
+    mail.body = body
+    mail.charset = "UTF-8"
 
     message = Google::Apis::GmailV1::Message.new(
-      raw: Base64.urlsafe_encode64(raw_message),
+      raw: Base64.urlsafe_encode64(mail.to_s),
       thread_id: thread_id
     )
 
@@ -35,20 +41,6 @@ class GmailService
   end
 
   private
-
-  def build_raw_message(to:, subject:, body:, message_id: nil)
-    headers = []
-    headers << "From: #{email_account.email}"
-    headers << "To: #{to}"
-    headers << "Subject: #{subject}"
-    headers << "Content-Type: text/plain; charset=UTF-8"
-    headers << "In-Reply-To: #{message_id}" if message_id
-    headers << "References: #{message_id}" if message_id
-    headers << ""
-    headers << body
-
-    headers.join("\r\n")
-  end
 
   def client
     @client ||= build_client

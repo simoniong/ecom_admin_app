@@ -1,7 +1,7 @@
 class SendScheduledEmailJob < ApplicationJob
   queue_as :default
 
-  def perform(ticket_id)
+  def perform(ticket_id, expected_job_id: nil)
     ticket = Ticket.find(ticket_id)
 
     unless ticket.draft_confirmed?
@@ -9,23 +9,21 @@ class SendScheduledEmailJob < ApplicationJob
       return
     end
 
-    gmail = GmailService.new(ticket.email_account)
+    # Idempotency: verify this is the currently scheduled job
+    if expected_job_id.present? && ticket.scheduled_job_id != expected_job_id
+      Rails.logger.info("[SendEmail] Ticket##{ticket_id} has different scheduled_job_id, skipping stale job")
+      return
+    end
 
-    # Find the last customer message to reply to
-    last_customer_msg = ticket.messages
-      .where.not(from: ticket.email_account.email)
-      .order(sent_at: :desc)
-      .first
+    gmail = GmailService.new(ticket.email_account)
 
     sent_message = gmail.send_message(
       to: ticket.customer_email,
       subject: "Re: #{ticket.subject}",
       body: ticket.draft_reply,
-      thread_id: ticket.gmail_thread_id,
-      message_id: last_customer_msg&.gmail_message_id
+      thread_id: ticket.gmail_thread_id
     )
 
-    # Record the sent message
     ticket.messages.create!(
       gmail_message_id: sent_message.id,
       from: ticket.email_account.email,

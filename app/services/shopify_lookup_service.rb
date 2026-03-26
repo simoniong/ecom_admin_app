@@ -20,6 +20,7 @@ class ShopifyLookupService
     shopify_customer = shopify_customers.first
 
     Customer.find_or_initialize_by(shopify_customer_id: shopify_customer["id"]).tap do |c|
+      # Use default_address for timezone — more reliably populated than per-order shipping_address
       country_code = shopify_customer.dig("default_address", "country_code")
       c.assign_attributes(
         email: shopify_customer["email"],

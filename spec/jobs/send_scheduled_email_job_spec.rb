@@ -18,13 +18,13 @@ RSpec.describe SendScheduledEmailJob, type: :job do
   end
 
   it "sends email and closes ticket" do
-    described_class.perform_now(ticket.id)
+    described_class.perform_now(ticket.id, expected_job_id: "job-1")
     ticket.reload
 
     expect(ticket).to be_closed
     expect(ticket.scheduled_send_at).to be_nil
     expect(ticket.scheduled_job_id).to be_nil
-    expect(ticket.messages.count).to eq(2) # original + sent
+    expect(ticket.messages.count).to eq(2)
     expect(ticket.messages.last.gmail_message_id).to eq("sent-msg-id")
   end
 
@@ -35,11 +35,21 @@ RSpec.describe SendScheduledEmailJob, type: :job do
     described_class.perform_now(ticket.id)
   end
 
+  it "skips if expected_job_id does not match (stale job)" do
+    expect(GmailService).not_to receive(:new)
+    described_class.perform_now(ticket.id, expected_job_id: "stale-job-id")
+  end
+
+  it "sends when expected_job_id is nil (backwards compat)" do
+    described_class.perform_now(ticket.id)
+    expect(ticket.reload).to be_closed
+  end
+
   it "raises on send failure for retry" do
     gmail = instance_double(GmailService)
     allow(GmailService).to receive(:new).and_return(gmail)
     allow(gmail).to receive(:send_message).and_raise(RuntimeError, "Gmail API error")
 
-    expect { described_class.perform_now(ticket.id) }.to raise_error(RuntimeError, /Gmail API error/)
+    expect { described_class.perform_now(ticket.id, expected_job_id: "job-1") }.to raise_error(RuntimeError, /Gmail API error/)
   end
 end
