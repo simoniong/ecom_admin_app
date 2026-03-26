@@ -10,16 +10,31 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_03_25_173811) do
+ActiveRecord::Schema[8.1].define(version: 2026_03_26_034341) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
+
+  create_table "customers", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "email"
+    t.string "first_name"
+    t.string "last_name"
+    t.string "phone"
+    t.bigint "shopify_customer_id", null: false
+    t.jsonb "shopify_data", default: {}
+    t.datetime "updated_at", null: false
+    t.index ["email"], name: "index_customers_on_email"
+    t.index ["shopify_customer_id"], name: "index_customers_on_shopify_customer_id", unique: true
+  end
 
   create_table "email_accounts", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.text "access_token", null: false
     t.datetime "created_at", null: false
     t.string "email", null: false
     t.string "google_uid", null: false
+    t.bigint "last_history_id"
+    t.datetime "last_synced_at"
     t.text "refresh_token", null: false
     t.text "scopes"
     t.datetime "token_expires_at"
@@ -28,6 +43,74 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_25_173811) do
     t.index ["google_uid"], name: "index_email_accounts_on_google_uid", unique: true
     t.index ["user_id", "email"], name: "index_email_accounts_on_user_id_and_email", unique: true
     t.index ["user_id"], name: "index_email_accounts_on_user_id"
+  end
+
+  create_table "fulfillments", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.uuid "order_id", null: false
+    t.jsonb "shopify_data", default: {}
+    t.bigint "shopify_fulfillment_id", null: false
+    t.string "status"
+    t.string "tracking_company"
+    t.jsonb "tracking_details", default: {}
+    t.string "tracking_number"
+    t.string "tracking_url"
+    t.datetime "updated_at", null: false
+    t.index ["order_id"], name: "index_fulfillments_on_order_id"
+    t.index ["shopify_fulfillment_id"], name: "index_fulfillments_on_shopify_fulfillment_id", unique: true
+    t.index ["tracking_number"], name: "index_fulfillments_on_tracking_number"
+  end
+
+  create_table "messages", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.text "body"
+    t.string "cc"
+    t.datetime "created_at", null: false
+    t.string "from", null: false
+    t.bigint "gmail_internal_date"
+    t.string "gmail_message_id", null: false
+    t.datetime "sent_at"
+    t.string "subject"
+    t.uuid "ticket_id", null: false
+    t.string "to"
+    t.datetime "updated_at", null: false
+    t.index ["gmail_message_id"], name: "index_messages_on_gmail_message_id", unique: true
+    t.index ["ticket_id", "sent_at"], name: "index_messages_on_ticket_id_and_sent_at"
+    t.index ["ticket_id"], name: "index_messages_on_ticket_id"
+  end
+
+  create_table "orders", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "currency"
+    t.uuid "customer_id", null: false
+    t.string "email"
+    t.string "financial_status"
+    t.string "fulfillment_status"
+    t.string "name"
+    t.datetime "ordered_at"
+    t.jsonb "shopify_data", default: {}
+    t.bigint "shopify_order_id", null: false
+    t.decimal "total_price", precision: 10, scale: 2
+    t.datetime "updated_at", null: false
+    t.index ["customer_id"], name: "index_orders_on_customer_id"
+    t.index ["shopify_order_id"], name: "index_orders_on_shopify_order_id", unique: true
+  end
+
+  create_table "tickets", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "customer_email", null: false
+    t.uuid "customer_id"
+    t.string "customer_name"
+    t.uuid "email_account_id", null: false
+    t.string "gmail_thread_id", null: false
+    t.datetime "last_message_at"
+    t.integer "status", default: 0, null: false
+    t.string "subject"
+    t.datetime "updated_at", null: false
+    t.index ["customer_id"], name: "index_tickets_on_customer_id"
+    t.index ["email_account_id", "gmail_thread_id"], name: "index_tickets_on_email_account_id_and_gmail_thread_id", unique: true
+    t.index ["email_account_id"], name: "index_tickets_on_email_account_id"
+    t.index ["last_message_at"], name: "index_tickets_on_last_message_at"
+    t.index ["status"], name: "index_tickets_on_status"
   end
 
   create_table "users", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -47,4 +130,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_25_173811) do
   end
 
   add_foreign_key "email_accounts", "users"
+  add_foreign_key "fulfillments", "orders"
+  add_foreign_key "messages", "tickets"
+  add_foreign_key "orders", "customers"
+  add_foreign_key "tickets", "customers"
+  add_foreign_key "tickets", "email_accounts"
 end

@@ -1,0 +1,79 @@
+<div class="max-w-4xl mx-auto">
+  <%# Header %>
+  <div class="flex items-center gap-3">
+    <%= link_to tickets_path, class: "text-gray-400 hover:text-gray-600" do %>
+      <svg class="w-5 h-5" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
+      </svg>
+    <% end %>
+    <div>
+      <h1 class="text-2xl font-semibold text-gray-900"><%= @ticket.subject || t("tickets.no_subject") %></h1>
+      <p class="text-sm text-gray-500">
+        <%= @ticket.customer_name || @ticket.customer_email %> &middot;
+        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium <%= ticket_status_badge_classes(@ticket.status) %>">
+          <%= t("tickets.status.#{@ticket.status}") %>
+        </span>
+      </p>
+    </div>
+  </div>
+
+  <%# Mobile: Collapsible info panel above messages %>
+  <div class="mt-4 lg:hidden" data-controller="collapsible">
+    <button data-action="click->collapsible#toggle"
+            class="w-full flex items-center justify-between px-4 py-3 bg-white rounded-lg border border-gray-200 shadow-sm text-sm font-medium text-gray-700">
+      <span><%= t("tickets.show.details") %></span>
+      <svg data-collapsible-target="icon" class="w-4 h-4 text-gray-400 transition-transform" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+      </svg>
+    </button>
+    <div data-collapsible-target="content" class="hidden mt-3 space-y-4">
+      <%= render "tickets/info_panel" %>
+    </div>
+  </div>
+
+  <div class="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <%# Left column: Messages %>
+    <div class="lg:col-span-2 flex flex-col">
+      <h2 class="text-lg font-medium text-gray-900 mb-4"><%= t("tickets.show.messages") %></h2>
+
+      <% if @messages.any? %>
+        <div class="overflow-y-auto space-y-4 pr-2" style="max-height: calc(100vh - 200px);">
+        <% @messages.each do |message| %>
+          <% is_customer = parse_email_address(message.from)&.downcase != @ticket.email_account.email.downcase %>
+          <div class="flex <%= is_customer ? 'justify-start' : 'justify-end' %>">
+            <div class="max-w-lg rounded-lg px-4 py-3 <%= is_customer ? 'bg-white border border-gray-200' : 'bg-blue-50 border border-blue-100' %>">
+              <div class="flex items-center gap-2 mb-1">
+                <span class="text-xs font-medium <%= is_customer ? 'text-gray-700' : 'text-blue-700' %>"><%= message.from %></span>
+                <span class="text-xs text-gray-400">
+                  <%= message.sent_at ? l(message.sent_at.in_time_zone("Asia/Shanghai"), format: :short) : "—" %>
+                </span>
+              </div>
+              <% new_content, quoted_content = split_email_body(message.body) %>
+              <div class="text-sm text-gray-800 whitespace-pre-wrap break-words"><%= new_content %></div>
+              <% if quoted_content.present? %>
+                <div data-controller="collapsible" class="mt-2">
+                  <button data-action="click->collapsible#toggle"
+                          class="text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1">
+                    <span>···</span>
+                    <svg data-collapsible-target="icon" class="w-3 h-3 transition-transform" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+                    </svg>
+                  </button>
+                  <div data-collapsible-target="content" class="hidden mt-1 pl-3 border-l-2 border-gray-200 text-xs text-gray-500 whitespace-pre-wrap break-words"><%= quoted_content %></div>
+                </div>
+              <% end %>
+            </div>
+          </div>
+        <% end %>
+        </div>
+      <% else %>
+        <p class="text-sm text-gray-500"><%= t("tickets.show.no_messages") %></p>
+      <% end %>
+    </div>
+
+    <%# Right column: Desktop only %>
+    <div class="hidden lg:block space-y-6 overflow-y-auto" style="max-height: calc(100vh - 200px);">
+      <%= render "tickets/info_panel" %>
+    </div>
+  </div>
+</div>

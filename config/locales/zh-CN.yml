@@ -34,5 +34,27 @@
   tickets:
     title: "工单"
     empty: "目前没有任何工单。"
+    no_subject: "（无主题）"
+    filter:
+      all: "全部"
+    status:
+      new_ticket: "新工单"
+      draft: "草稿"
+      draft_confirmed: "已确认"
+      closed: "已关闭"
+    show:
+      details: "客户与订单详情"
+      messages: "消息记录"
+      no_messages: "此线程暂无消息。"
+      customer: "客户信息"
+      customer_name: "姓名"
+      customer_email: "邮箱"
+      customer_phone: "电话"
+      no_shopify_customer: "未找到 Shopify 客户。"
+      orders: "订单"
+      no_orders: "暂无订单。"
+      no_tracking_events: "暂无物流轨迹。"
+      tracking_pending: "物流信息加载中..."
+      view_on_carrier: "在承运商网站查看"
   locale_switcher:
     label: "语言"

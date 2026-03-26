@@ -26,6 +26,15 @@ gem "devise", "~> 5.0"
 gem "omniauth-google-oauth2", "~> 1.2"
 gem "omniauth-rails_csrf_protection", "~> 1.0"
 
+# Gmail API client
+gem "google-apis-gmail_v1", "~> 0.40"
+
+# Shopify Admin API client
+gem "shopify_api", "~> 14.0"
+
+# HTTP client for 17Track API
+gem "httparty", "~> 0.22"
+
 # Windows does not include zoneinfo files, so bundle the tzinfo-data gem
 gem "tzinfo-data", platforms: %i[ windows jruby ]
 
@@ -76,4 +85,7 @@ group :test do
 
   # Code coverage
   gem "simplecov", require: false
+
+  # HTTP stubbing for external API tests
+  gem "webmock", "~> 3.23"
 end

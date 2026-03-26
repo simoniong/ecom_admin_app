@@ -34,5 +34,27 @@ en:
   tickets:
     title: "Tickets"
     empty: "No tickets yet."
+    no_subject: "(No subject)"
+    filter:
+      all: "All"
+    status:
+      new_ticket: "New"
+      draft: "Draft"
+      draft_confirmed: "Confirmed"
+      closed: "Closed"
+    show:
+      details: "Customer & Order Details"
+      messages: "Messages"
+      no_messages: "No messages in this thread."
+      customer: "Customer"
+      customer_name: "Name"
+      customer_email: "Email"
+      customer_phone: "Phone"
+      no_shopify_customer: "No Shopify customer found."
+      orders: "Orders"
+      no_orders: "No orders found."
+      no_tracking_events: "No tracking events yet."
+      tracking_pending: "Tracking info loading..."
+      view_on_carrier: "View on carrier website"
   locale_switcher:
     label: "Language"

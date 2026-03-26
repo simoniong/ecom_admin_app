@@ -11,7 +11,7 @@ Rails.application.routes.draw do
     end
 
     resources :email_accounts, only: [ :index, :show, :destroy ]
-    resources :tickets, only: [ :index ]
+    resources :tickets, only: [ :index, :show ]
   end
 
   devise_scope :user do
