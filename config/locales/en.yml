@@ -15,6 +15,22 @@ en:
   email_accounts:
     title: "Email Accounts"
     empty: "No email accounts linked yet."
+    bind_new: "Bind New Email"
+    bind_success: "Email account bound successfully."
+    bind_failure: "Failed to bind email account."
+    oauth_failure: "Google authentication failed. Please try again."
+    connected_at: "Connected %{time}"
+    disconnect: "Disconnect"
+    disconnect_confirm: "Are you sure you want to disconnect this email account? All associated tickets will be deleted."
+    disconnect_success: "Email account disconnected successfully."
+    show:
+      email: "Email"
+      google_uid: "Google UID"
+      access_token: "Access Token"
+      refresh_token: "Refresh Token"
+      token_expires_at: "Token Expires At"
+      scopes: "Scopes"
+      connected_at: "Connected At"
   tickets:
     title: "Tickets"
     empty: "No tickets yet."

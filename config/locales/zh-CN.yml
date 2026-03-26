@@ -15,6 +15,22 @@
   email_accounts:
     title: "邮箱"
     empty: "尚未绑定任何邮箱。"
+    bind_new: "绑定新邮箱"
+    bind_success: "邮箱绑定成功。"
+    bind_failure: "邮箱绑定失败。"
+    oauth_failure: "Google 认证失败，请重试。"
+    connected_at: "连接于 %{time}"
+    disconnect: "解绑"
+    disconnect_confirm: "确定要解绑此邮箱吗？所有关联的工单将被删除。"
+    disconnect_success: "邮箱已解绑。"
+    show:
+      email: "邮箱地址"
+      google_uid: "Google UID"
+      access_token: "Access Token"
+      refresh_token: "Refresh Token"
+      token_expires_at: "Token 过期时间"
+      scopes: "授权范围"
+      connected_at: "连接时间"
   tickets:
     title: "工单"
     empty: "目前没有任何工单。"
