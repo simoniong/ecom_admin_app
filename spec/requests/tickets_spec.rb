@@ -155,6 +155,25 @@ RSpec.describe "Tickets", type: :request do
       expect(response).to have_http_status(:unprocessable_entity)
     end
 
+    it "transitions status with position_ids (cross-lane drag)" do
+      ticket = create(:ticket, :draft, email_account: email_account)
+      other = create(:ticket, :draft_confirmed, email_account: email_account)
+      sign_in user
+      patch ticket_path(id: ticket.id), params: {
+        ticket: { status: "draft_confirmed", position_ids: [ ticket.id, other.id ] }
+      }, as: :json
+      expect(response).to have_http_status(:ok)
+      expect(ticket.reload).to be_draft_confirmed
+      expect(ticket.reload.position).to eq(0)
+    end
+
+    it "re-renders show on draft update validation failure" do
+      ticket = create(:ticket, :draft, email_account: email_account)
+      sign_in user
+      patch ticket_path(id: ticket.id), params: { ticket: { draft_reply: "" } }
+      expect(response).to have_http_status(:unprocessable_entity)
+    end
+
     it "reorders tickets within a lane via JSON" do
       t1 = create(:ticket, email_account: email_account, position: 0)
       t2 = create(:ticket, email_account: email_account, position: 1)

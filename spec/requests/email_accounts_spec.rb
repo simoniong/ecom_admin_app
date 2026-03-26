@@ -119,5 +119,24 @@ RSpec.describe "EmailAccounts", type: :request do
       follow_redirect!
       expect(response.body).to include("Google authentication failed")
     end
+
+    it "handles oauth failure via failure endpoint" do
+      sign_in user
+      OmniAuth.config.mock_auth[:google_oauth2] = :invalid_credentials
+      get "/auth/failure?message=invalid_credentials"
+      expect(response).to redirect_to(email_accounts_path)
+      follow_redirect!
+      expect(response.body).to include("Google authentication failed")
+    end
+
+    it "redirects with alert when save fails due to duplicate" do
+      sign_in user
+
+      other_user = create(:user)
+      create(:email_account, user: other_user, google_uid: "google-uid-999", email: "other@gmail.com")
+
+      get "/auth/google_oauth2/callback"
+      expect(response).to redirect_to(email_accounts_path)
+    end
   end
 end
