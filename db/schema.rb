@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_03_26_082908) do
+ActiveRecord::Schema[8.1].define(version: 2026_03_26_090040) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -23,6 +23,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_26_082908) do
     t.string "phone"
     t.bigint "shopify_customer_id", null: false
     t.jsonb "shopify_data", default: {}
+    t.string "timezone", default: "UTC", null: false
     t.datetime "updated_at", null: false
     t.index ["email"], name: "index_customers_on_email"
     t.index ["shopify_customer_id"], name: "index_customers_on_shopify_customer_id", unique: true
@@ -227,6 +228,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_26_082908) do
     t.string "gmail_thread_id", null: false
     t.datetime "last_message_at"
     t.integer "position", default: 0, null: false
+    t.string "scheduled_job_id"
+    t.datetime "scheduled_send_at"
     t.integer "status", default: 0, null: false
     t.string "subject"
     t.datetime "updated_at", null: false
@@ -234,6 +237,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_26_082908) do
     t.index ["email_account_id", "gmail_thread_id"], name: "index_tickets_on_email_account_id_and_gmail_thread_id", unique: true
     t.index ["email_account_id"], name: "index_tickets_on_email_account_id"
     t.index ["last_message_at"], name: "index_tickets_on_last_message_at"
+    t.index ["scheduled_send_at"], name: "index_tickets_on_scheduled_send_at"
     t.index ["status", "position"], name: "index_tickets_on_status_and_position"
     t.index ["status"], name: "index_tickets_on_status"
   end

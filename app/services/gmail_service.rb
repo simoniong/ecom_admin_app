@@ -23,6 +23,23 @@ class GmailService
     client.get_user_profile("me")
   end
 
+  def send_message(to:, subject:, body:, thread_id: nil)
+    from_addr = email_account.email
+    mail = Mail.new
+    mail.from = from_addr
+    mail.to = to
+    mail.subject = subject
+    mail.body = body
+    mail.charset = "UTF-8"
+
+    message = Google::Apis::GmailV1::Message.new(
+      raw: Base64.urlsafe_encode64(mail.to_s),
+      thread_id: thread_id
+    )
+
+    client.send_user_message("me", message)
+  end
+
   private
 
   def client

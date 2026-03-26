@@ -61,6 +61,8 @@
       save_draft: "保存草稿"
       draft_placeholder: "在此輸入回覆內容..."
       draft_saved: "草稿保存成功。"
+      scheduled_at: "預計發送時間：%{time}"
+      email_sent: "郵件已發送"
     draft_not_editable: "當前狀態不允許編輯草稿。"
   locale_switcher:
     label: "語言"
