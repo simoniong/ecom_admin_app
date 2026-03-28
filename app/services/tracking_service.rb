@@ -53,7 +53,8 @@ class TrackingService
     accepted = data.dig("data", "accepted") || []
     accepted.map do |item|
       track_info = item["track_info"] || {}
-      events = track_info.dig("tracking", "providers", 0, "events") || []
+      providers = track_info.dig("tracking", "providers") || []
+      events = providers.flat_map { |provider| provider["events"] || [] }
 
       {
         tracking_number: item["number"],

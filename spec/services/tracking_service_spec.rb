@@ -130,6 +130,37 @@ RSpec.describe TrackingService do
       expect(results.first[:events]).to eq([])
     end
 
+    it "merges events from multiple providers" do
+      stub_request(:post, TrackingService::TRACK_URL)
+        .to_return(
+          status: 200,
+          body: {
+            data: {
+              accepted: [
+                {
+                  number: "TRACK_MULTI",
+                  track_info: {
+                    latest_status: { status: "Delivered" },
+                    latest_event: { description: "Delivered", time_iso: "2026-03-25T10:00:00+08:00" },
+                    tracking: {
+                      providers: [
+                        { events: [ { description: "Picked up", time_iso: "2026-03-20T08:00:00+08:00", location: "Shanghai" } ] },
+                        { events: [ { description: "Delivered", time_iso: "2026-03-25T10:00:00+08:00", location: "New York" } ] }
+                      ]
+                    }
+                  }
+                }
+              ]
+            }
+          }.to_json,
+          headers: { "Content-Type" => "application/json" }
+        )
+
+      results = service.track([ "TRACK_MULTI" ])
+      expect(results.first[:events].length).to eq(2)
+      expect(results.first[:events].map { |e| e[:location] }).to eq([ "Shanghai", "New York" ])
+    end
+
     it "tracks multiple numbers in one request" do
       stub_request(:post, TrackingService::TRACK_URL)
         .to_return(
@@ -154,7 +185,7 @@ RSpec.describe TrackingService do
       stub_request(:post, TrackingService::TRACK_URL)
         .to_return(
           status: 200,
-          body: { data: {} }.to_json,
+          body: { data: { accepted: nil } }.to_json,
           headers: { "Content-Type" => "application/json" }
         )
 
