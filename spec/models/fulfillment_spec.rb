@@ -79,4 +79,30 @@ RSpec.describe Fulfillment, type: :model do
       expect(fulfillment.tracking_loaded?).to be false
     end
   end
+
+  describe "after_commit :register_tracking" do
+    it "enqueues TrackingRegisterJob when tracking_number is set" do
+      fulfillment = create(:fulfillment, tracking_number: nil)
+
+      expect {
+        fulfillment.update!(tracking_number: "NEW123")
+      }.to have_enqueued_job(TrackingRegisterJob).with([ "NEW123" ])
+    end
+
+    it "does not enqueue when tracking_number is unchanged" do
+      fulfillment = create(:fulfillment, tracking_number: "EXISTING")
+
+      expect {
+        fulfillment.update!(status: "delivered")
+      }.not_to have_enqueued_job(TrackingRegisterJob)
+    end
+
+    it "does not enqueue when tracking_number is cleared" do
+      fulfillment = create(:fulfillment, tracking_number: "EXISTING")
+
+      expect {
+        fulfillment.update!(tracking_number: nil)
+      }.not_to have_enqueued_job(TrackingRegisterJob)
+    end
+  end
 end
