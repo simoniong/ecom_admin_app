@@ -4,7 +4,7 @@ RSpec.describe TrackingRegisterJob, type: :job do
   it "registers tracking numbers via TrackingService" do
     tracking_service = instance_double(TrackingService)
     allow(TrackingService).to receive(:new).and_return(tracking_service)
-    allow(tracking_service).to receive(:register).with([ "TRACK1" ]).and_return([{ "number" => "TRACK1" }])
+    allow(tracking_service).to receive(:register).with([ "TRACK1" ]).and_return([ { "number" => "TRACK1" } ])
 
     described_class.perform_now([ "TRACK1" ])
 
