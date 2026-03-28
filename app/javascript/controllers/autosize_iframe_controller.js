@@ -2,16 +2,19 @@ import { Controller } from "@hotwired/stimulus"
 
 export default class extends Controller {
   connect() {
-    this.element.addEventListener("load", () => this.resize())
+    this._onLoad = () => this.resize()
+    this.element.addEventListener("load", this._onLoad)
+    this.resize()
+  }
+
+  disconnect() {
+    this.element.removeEventListener("load", this._onLoad)
   }
 
   resize() {
-    try {
-      const height = this.element.contentDocument.documentElement.scrollHeight
-      this.element.style.height = `${Math.min(height + 20, 600)}px`
-    } catch (e) {
-      // sandbox may prevent access
-      this.element.style.height = "300px"
-    }
+    // Without allow-same-origin, we can't access contentDocument
+    // Use a reasonable default height with scrolling
+    this.element.style.height = "300px"
+    this.element.style.overflowY = "auto"
   }
 }

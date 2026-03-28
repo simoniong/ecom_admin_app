@@ -21,10 +21,11 @@ module ApplicationHelper
       # Render HTML in sandboxed iframe for security
       tag.iframe(
         srcdoc: body,
-        sandbox: "allow-same-origin",
+        sandbox: "",
         class: "w-full border-0 rounded",
-        style: "min-height: 200px;",
+        style: "min-height: 300px; max-height: 600px;",
         loading: "lazy",
+        title: "Email message",
         data: { controller: "autosize-iframe" }
       )
     else
@@ -39,7 +40,7 @@ module ApplicationHelper
     end
   end
 
-  def render_quoted_content(quoted_content)
+  def render_quoted_content(quoted_content) # :nodoc:
     tag.div(data: { controller: "collapsible" }, class: "mt-2") do
       button = tag.button(
         data: { action: "click->collapsible#toggle" },

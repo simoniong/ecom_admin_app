@@ -81,8 +81,9 @@ RSpec.describe ApplicationHelper, type: :helper do
     it "renders HTML content in a sandboxed iframe" do
       html = helper.render_message_body("<html><body><h1>Hello</h1></body></html>")
       expect(html).to include("iframe")
-      expect(html).to include("sandbox")
+      expect(html).to include('sandbox=""')
       expect(html).to include("srcdoc")
+      expect(html).to include('title="Email message"')
     end
 
     it "renders plain text with split_email_body" do
