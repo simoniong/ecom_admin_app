@@ -21,20 +21,20 @@ RSpec.describe "Authentication", type: :system do
   end
 
   it "shows user email on page" do
-    sign_in_via_form(user)
+    sign_in_as(user)
 
     expect(page).to have_text(user.email)
   end
 
   it "navigates to email accounts page" do
-    sign_in_via_form(user)
+    sign_in_as(user)
     click_link "Email Accounts"
     expect(page).to have_text("Email Accounts")
     expect(page).to have_text("No email accounts linked yet.")
   end
 
   it "navigates to tickets page" do
-    sign_in_via_form(user)
+    sign_in_as(user)
     click_link "Tickets"
     expect(page).to have_text("Tickets")
     expect(page).to have_text("New")
@@ -42,7 +42,7 @@ RSpec.describe "Authentication", type: :system do
   end
 
   it "logs out and redirects to login" do
-    sign_in_via_form(user)
+    sign_in_as(user)
     click_button "Sign out"
     expect(page).to have_selector("h2", text: "Sign in")
   end

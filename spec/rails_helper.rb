@@ -45,7 +45,10 @@ RSpec.configure do |config|
   config.before(:each, type: :system) do
     ENV["no_proxy"] = "localhost,127.0.0.1"
     ENV["NO_PROXY"] = "localhost,127.0.0.1"
-    driven_by :selenium, using: :headless_chrome, screen_size: [ 1400, 900 ]
+    driven_by :selenium, using: :headless_chrome, screen_size: [ 1400, 900 ] do |driver_option|
+      driver_option.add_argument("--disable-application-cache")
+      driver_option.add_argument("--disk-cache-size=0")
+    end
   end
 
   config.after(:each) do

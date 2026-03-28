@@ -5,7 +5,7 @@ RSpec.describe "Tickets", type: :system do
   let!(:email_account) { create(:email_account, user: user) }
 
   it "shows Kanban board with four swim lanes" do
-    sign_in_via_form(user)
+    sign_in_as(user)
     click_link "Tickets"
 
     expect(page).to have_text("New")
@@ -19,7 +19,7 @@ RSpec.describe "Tickets", type: :system do
     create(:ticket, :draft, email_account: email_account, subject: "Drafted issue")
     create(:ticket, email_account: email_account, subject: "Old issue", status: :closed)
 
-    sign_in_via_form(user)
+    sign_in_as(user)
     click_link "Tickets"
 
     within('[data-status="new_ticket"]') do
@@ -41,7 +41,7 @@ RSpec.describe "Tickets", type: :system do
     ticket = create(:ticket, email_account: email_account, subject: "Help needed")
     create(:message, ticket: ticket, from: "customer@example.com", body: "I need help with my order")
 
-    sign_in_via_form(user)
+    sign_in_as(user)
     click_link "Tickets"
     click_link "Help needed"
 
@@ -54,7 +54,7 @@ RSpec.describe "Tickets", type: :system do
     create(:ticket, :draft, email_account: email_account, subject: "Draft ticket",
                      draft_reply: "Agent generated reply")
 
-    sign_in_via_form(user)
+    sign_in_as(user)
     click_link "Tickets"
     click_link "Draft ticket"
 
@@ -67,7 +67,7 @@ RSpec.describe "Tickets", type: :system do
     create(:ticket, :draft, email_account: email_account, subject: "Editable draft",
                      draft_reply: "Original draft")
 
-    sign_in_via_form(user)
+    sign_in_as(user)
     click_link "Tickets"
     click_link "Editable draft"
 
