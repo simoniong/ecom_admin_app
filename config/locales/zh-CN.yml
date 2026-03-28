@@ -14,6 +14,20 @@
   dashboard:
     title: "仪表盘"
     welcome: "欢迎回来，%{email}"
+    sessions: "访客数"
+    orders: "订单数"
+    revenue: "销售额"
+    conversion_rate: "转化率"
+    ad_spend: "广告花费"
+    roas: "ROAS"
+    vs_previous: "对比上期"
+    ranges:
+      today: "今天"
+      yesterday: "昨天"
+      past_7_days: "过去7天"
+      this_month: "本月"
+      last_month: "上月"
+      past_30_days: "过去30天"
   email_accounts:
     title: "邮箱"
     empty: "尚未绑定任何邮箱。"

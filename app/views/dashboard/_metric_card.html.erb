@@ -1,0 +1,26 @@
+<%# locals: (title:, value:, previous:, current_raw:, is_currency: false, is_percentage: false, invert_color: false) %>
+<div class="bg-white rounded-lg border border-gray-200 shadow-sm p-5">
+  <dt class="text-sm font-medium text-gray-500 truncate"><%= title %></dt>
+  <dd class="mt-2">
+    <div class="text-2xl font-semibold text-gray-900"><%= value %></div>
+    <% if previous && previous != 0 %>
+      <% change = ((current_raw - previous).to_f / previous * 100).round(1) %>
+      <% positive = invert_color ? change < 0 : change > 0 %>
+      <div class="mt-1 flex items-center text-xs">
+        <% if change > 0 %>
+          <svg class="w-3.5 h-3.5 <%= positive ? 'text-green-500' : 'text-red-500' %>" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M10 17a.75.75 0 01-.75-.75V5.612L5.29 9.77a.75.75 0 01-1.08-1.04l5.25-5.5a.75.75 0 011.08 0l5.25 5.5a.75.75 0 11-1.08 1.04l-3.96-4.158V16.25A.75.75 0 0110 17z" clip-rule="evenodd" />
+          </svg>
+        <% elsif change < 0 %>
+          <svg class="w-3.5 h-3.5 <%= positive ? 'text-green-500' : 'text-red-500' %>" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M10 3a.75.75 0 01.75.75v10.638l3.96-4.158a.75.75 0 111.08 1.04l-5.25 5.5a.75.75 0 01-1.08 0l-5.25-5.5a.75.75 0 111.08-1.04l3.96 4.158V3.75A.75.75 0 0110 3z" clip-rule="evenodd" />
+          </svg>
+        <% end %>
+        <span class="<%= positive ? 'text-green-600' : 'text-red-600' %>">
+          <%= change > 0 ? "+" : "" %><%= change %>%
+        </span>
+        <span class="ml-1 text-gray-400"><%= t("dashboard.vs_previous") %></span>
+      </div>
+    <% end %>
+  </dd>
+</div>
