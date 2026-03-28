@@ -48,13 +48,23 @@ RSpec.describe TrackingService do
               accepted: [
                 {
                   number: "TRACK123",
-                  track: {
-                    e: "Delivered",
-                    z0: { z: "Delivered to recipient", a: "2026-03-25 10:00:00" },
-                    z1: [
-                      { z: "In transit", a: "2026-03-24 08:00:00", c: "Los Angeles" },
-                      { z: "Delivered", a: "2026-03-25 10:00:00", c: "New York" }
-                    ]
+                  track_info: {
+                    latest_status: { status: "Delivered", sub_status: "Delivered_Other" },
+                    latest_event: {
+                      description: "Delivered to recipient",
+                      time_iso: "2026-03-25T10:00:00+08:00",
+                      location: "New York, US"
+                    },
+                    tracking: {
+                      providers: [
+                        {
+                          events: [
+                            { description: "In transit", time_iso: "2026-03-24T08:00:00+08:00", location: "Los Angeles" },
+                            { description: "Delivered to recipient", time_iso: "2026-03-25T10:00:00+08:00", location: "New York" }
+                          ]
+                        }
+                      ]
+                    }
                   }
                 }
               ]
@@ -67,7 +77,11 @@ RSpec.describe TrackingService do
       expect(results.length).to eq(1)
       expect(results.first[:tracking_number]).to eq("TRACK123")
       expect(results.first[:status]).to eq("Delivered")
+      expect(results.first[:last_event]).to eq("Delivered to recipient")
+      expect(results.first[:last_event_time]).to eq("2026-03-25T10:00:00+08:00")
       expect(results.first[:events].length).to eq(2)
+      expect(results.first[:events].first[:description]).to eq("In transit")
+      expect(results.first[:events].first[:location]).to eq("Los Angeles")
     end
 
     it "returns empty array for empty input" do
