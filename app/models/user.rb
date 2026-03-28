@@ -7,4 +7,5 @@ class User < ApplicationRecord
   has_many :email_accounts, dependent: :destroy
   has_many :shopify_stores, dependent: :destroy
   has_many :tickets, through: :email_accounts
+  has_many :ad_accounts, dependent: :destroy
 end

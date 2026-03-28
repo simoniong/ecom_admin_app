@@ -1,0 +1,47 @@
+<div class="max-w-4xl mx-auto">
+  <div class="flex items-center justify-between">
+    <h1 class="text-2xl font-semibold text-gray-900"><%= t("ad_accounts.title") %></h1>
+    <%= link_to meta_auth_path,
+        data: { turbo: false },
+        class: "inline-flex items-center gap-2 px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2" do %>
+      <svg class="w-4 h-4" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+      </svg>
+      <%= t("ad_accounts.connect_meta") %>
+    <% end %>
+  </div>
+
+  <% if @ad_accounts.any? %>
+    <div class="mt-6 bg-white shadow-sm rounded-lg border border-gray-200 divide-y divide-gray-200">
+      <% @ad_accounts.each do |account| %>
+        <%= link_to ad_account_path(account), class: "flex items-center justify-between px-6 py-4 hover:bg-gray-50 transition" do %>
+          <div class="flex items-center gap-3">
+            <svg class="w-5 h-5 text-gray-400" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M10.34 15.84c-.688-.06-1.386-.09-2.09-.09H7.5a4.5 4.5 0 1 1 0-9h.75c.704 0 1.402-.03 2.09-.09m0 9.18c.253.962.584 1.892.985 2.783.247.55.06 1.21-.463 1.511l-.657.38a.75.75 0 0 1-1.006-.327 19.23 19.23 0 0 1-1.282-3.095m2.423-6.252a21.247 21.247 0 0 0 0 6.252m6.996-3.126c0 2.533-.655 4.914-1.806 6.987m0-13.974c1.15 2.073 1.806 4.454 1.806 6.987m0 0h1.5" />
+            </svg>
+            <div>
+              <span class="text-sm font-medium text-gray-900"><%= account.account_name || account.account_id %></span>
+              <span class="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800"><%= account.platform.capitalize %></span>
+            </div>
+          </div>
+          <div class="flex items-center gap-3">
+            <% if account.token_expired? %>
+              <span class="text-xs text-red-600 font-medium"><%= t("ad_accounts.token_expired") %></span>
+            <% elsif account.token_expiring_soon? %>
+              <span class="text-xs text-yellow-600 font-medium"><%= t("ad_accounts.token_expires_soon") %></span>
+            <% else %>
+              <span class="text-xs text-gray-500">
+                <%= t("ad_accounts.connected_at", time: l(account.created_at, format: :short)) %>
+              </span>
+            <% end %>
+            <svg class="w-4 h-4 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+            </svg>
+          </div>
+        <% end %>
+      <% end %>
+    </div>
+  <% else %>
+    <p class="mt-4 text-sm text-gray-500"><%= t("ad_accounts.empty") %></p>
+  <% end %>
+</div>

@@ -10,10 +10,37 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_03_28_161940) do
+ActiveRecord::Schema[8.1].define(version: 2026_03_28_162322) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
+
+  create_table "ad_accounts", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.text "access_token", null: false
+    t.string "account_id", null: false
+    t.string "account_name"
+    t.datetime "created_at", null: false
+    t.string "platform", default: "meta", null: false
+    t.datetime "token_expires_at"
+    t.datetime "updated_at", null: false
+    t.uuid "user_id", null: false
+    t.index [ "platform", "account_id" ], name: "index_ad_accounts_on_platform_and_account_id", unique: true
+    t.index [ "user_id" ], name: "index_ad_accounts_on_user_id"
+  end
+
+  create_table "ad_daily_metrics", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "ad_account_id", null: false
+    t.integer "clicks", default: 0
+    t.decimal "conversion_value", precision: 12, scale: 2, default: "0.0"
+    t.integer "conversions", default: 0
+    t.datetime "created_at", null: false
+    t.date "date", null: false
+    t.integer "impressions", default: 0
+    t.decimal "spend", precision: 12, scale: 2, default: "0.0"
+    t.datetime "updated_at", null: false
+    t.index [ "ad_account_id", "date" ], name: "index_ad_daily_metrics_on_ad_account_id_and_date", unique: true
+    t.index [ "ad_account_id" ], name: "index_ad_daily_metrics_on_ad_account_id"
+  end
 
   create_table "customers", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.datetime "created_at", null: false
@@ -96,6 +123,19 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_28_161940) do
     t.datetime "updated_at", null: false
     t.index [ "customer_id" ], name: "index_orders_on_customer_id"
     t.index [ "shopify_order_id" ], name: "index_orders_on_shopify_order_id", unique: true
+  end
+
+  create_table "shopify_daily_metrics", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.decimal "conversion_rate", precision: 5, scale: 4, default: "0.0"
+    t.datetime "created_at", null: false
+    t.date "date", null: false
+    t.integer "orders_count", default: 0
+    t.decimal "revenue", precision: 12, scale: 2, default: "0.0"
+    t.integer "sessions", default: 0
+    t.uuid "shopify_store_id", null: false
+    t.datetime "updated_at", null: false
+    t.index [ "shopify_store_id", "date" ], name: "idx_shopify_metrics_store_date", unique: true
+    t.index [ "shopify_store_id" ], name: "index_shopify_daily_metrics_on_shopify_store_id"
   end
 
   create_table "shopify_stores", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -272,6 +312,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_28_161940) do
     t.index [ "unlock_token" ], name: "index_users_on_unlock_token", unique: true
   end
 
+  add_foreign_key "ad_accounts", "users"
+  add_foreign_key "ad_daily_metrics", "ad_accounts"
   add_foreign_key "email_accounts", "shopify_stores"
   add_foreign_key "email_accounts", "users"
   add_foreign_key "fulfillments", "orders"
