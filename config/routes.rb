@@ -5,6 +5,10 @@ Rails.application.routes.draw do
   get "auth/google_oauth2/callback", to: "oauth_callbacks#google_oauth2"
   get "auth/failure", to: "oauth_callbacks#failure"
 
+  # Shopify OAuth (outside locale scope — Shopify redirects to a fixed URL)
+  get "shopify/auth", to: "shopify_oauth#auth", as: :shopify_auth
+  get "shopify/callback", to: "shopify_oauth#callback", as: :shopify_callback
+
   # Agent API
   namespace :api do
     namespace :v1 do
@@ -20,6 +24,7 @@ Rails.application.routes.draw do
     end
 
     resources :email_accounts, only: [ :index, :show, :destroy ]
+    resources :shopify_stores, only: [ :index, :show, :update, :destroy ]
     resources :tickets, only: [ :index, :show, :update ]
   end
 

@@ -3,6 +3,7 @@
   language_name: "繁體中文"
   nav:
     email_accounts: "郵箱"
+    shopify_stores: "Shopify 商店"
     tickets: "工單"
     sign_out: "登出"
   auth:
@@ -64,5 +65,27 @@
       scheduled_at: "預計發送時間：%{time}"
       email_sent: "郵件已發送"
     draft_not_editable: "當前狀態不允許編輯草稿。"
+  shopify_stores:
+    title: "Shopify 商店"
+    empty: "尚未連接任何 Shopify 商店。"
+    bind_new: "連接商店"
+    bind_success: "Shopify 商店連接成功。"
+    bind_failure: "Shopify 商店連接失敗。"
+    oauth_failure: "Shopify 認證失敗，請重試。"
+    connected_at: "連接於 %{time}"
+    disconnect: "斷開連接"
+    disconnect_confirm: "確定要斷開此 Shopify 商店嗎？關聯的郵箱將被取消綁定。"
+    disconnect_success: "Shopify 商店已斷開連接。"
+    updated: "郵箱關聯更新成功。"
+    enter_shop_domain: "商店域名"
+    shop_domain_placeholder: "your-store.myshopify.com"
+    connect: "連接 Shopify"
+    save_links: "保存關聯"
+    show:
+      shop_domain: "商店域名"
+      scopes: "授權範圍"
+      installed_at: "安裝時間"
+      connected_at: "連接時間"
+      linked_email_accounts: "關聯郵箱"
   locale_switcher:
     label: "語言"
