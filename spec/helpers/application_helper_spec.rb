@@ -59,4 +59,44 @@ RSpec.describe ApplicationHelper, type: :helper do
       expect(quoted).to be_nil
     end
   end
+
+  describe "#html_content?" do
+    it "detects HTML content" do
+      expect(helper.html_content?("<html><body>Hello</body></html>")).to be true
+      expect(helper.html_content?("<div>Content</div>")).to be true
+      expect(helper.html_content?("<p>Paragraph</p>")).to be true
+      expect(helper.html_content?("<table><tr><td>Data</td></tr></table>")).to be true
+      expect(helper.html_content?("Hello <br> World")).to be true
+    end
+
+    it "returns false for plain text" do
+      expect(helper.html_content?("Just plain text")).to be false
+      expect(helper.html_content?("Price is > $50")).to be false
+      expect(helper.html_content?(nil)).to be false
+      expect(helper.html_content?("")).to be false
+    end
+  end
+
+  describe "#render_message_body" do
+    it "renders HTML content in a sandboxed iframe" do
+      html = helper.render_message_body("<html><body><h1>Hello</h1></body></html>")
+      expect(html).to include("iframe")
+      expect(html).to include('sandbox=""')
+      expect(html).to include("srcdoc")
+      expect(html).to include('title="Email message"')
+    end
+
+    it "renders plain text with split_email_body" do
+      html = helper.render_message_body("Hello world")
+      expect(html).to include("Hello world")
+      expect(html).not_to include("iframe")
+    end
+
+    it "renders plain text with quoted content" do
+      body = "My reply\n\n> Quoted line 1\n> Quoted line 2"
+      html = helper.render_message_body(body)
+      expect(html).to include("My reply")
+      expect(html).to include("collapsible")
+    end
+  end
 end

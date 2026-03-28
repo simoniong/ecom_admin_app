@@ -11,6 +11,61 @@ module ApplicationHelper
     end
   end
 
+  def html_content?(text)
+    return false if text.blank?
+    text.match?(/<\s*(html|body|div|p|table|br|span|a|img|head|style)\b/i)
+  end
+
+  def render_message_body(body)
+    if html_content?(body)
+      # Render HTML in sandboxed iframe for security
+      tag.iframe(
+        srcdoc: body,
+        sandbox: "",
+        class: "w-full border-0 rounded",
+        style: "min-height: 300px; max-height: 600px;",
+        loading: "lazy",
+        title: "Email message",
+        data: { controller: "autosize-iframe" }
+      )
+    else
+      new_content, quoted_content = split_email_body(body)
+      html = tag.div(new_content, class: "text-sm text-gray-800 whitespace-pre-wrap break-words")
+
+      if quoted_content.present?
+        html += render_quoted_content(quoted_content)
+      end
+
+      html
+    end
+  end
+
+  def render_quoted_content(quoted_content) # :nodoc:
+    tag.div(data: { controller: "collapsible" }, class: "mt-2") do
+      button = tag.button(
+        data: { action: "click->collapsible#toggle" },
+        class: "text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1"
+      ) do
+        tag.span("···") +
+        tag.svg(
+          tag.path("", stroke_linecap: "round", stroke_linejoin: "round", d: "m19.5 8.25-7.5 7.5-7.5-7.5"),
+          data: { collapsible_target: "icon" },
+          class: "w-3 h-3 transition-transform",
+          xmlns: "http://www.w3.org/2000/svg", fill: "none", viewBox: "0 0 24 24",
+          stroke_width: "1.5", stroke: "currentColor", aria_hidden: "true"
+        )
+      end
+
+      content = tag.div(
+        quoted_content,
+        data: { collapsible_target: "content" },
+        class: "hidden mt-1 pl-3 border-l-2 border-gray-200 text-xs text-gray-500 whitespace-pre-wrap break-words"
+      )
+
+      button + content
+    end
+  end
+
   def split_email_body(body)
     return [ body, nil ] if body.blank?
 
