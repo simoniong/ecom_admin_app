@@ -94,9 +94,8 @@
         <div class="overflow-y-auto space-y-4 pr-2" style="max-height: calc(100vh - 200px);">
         <% @messages.each do |message| %>
           <% is_customer = parse_email_address(message.from)&.downcase != @ticket.email_account.email.downcase %>
-          <% is_html = html_content?(message.body) %>
-          <div class="flex <%= is_html ? '' : (is_customer ? 'justify-start' : 'justify-end') %>">
-            <div class="<%= is_html ? 'w-full' : 'max-w-lg' %> rounded-lg px-4 py-3 <%= is_customer ? 'bg-white border border-gray-200' : 'bg-blue-50 border border-blue-100' %>">
+          <div>
+            <div class="rounded-lg px-4 py-3 <%= is_customer ? 'bg-white border border-gray-200' : 'bg-blue-50 border border-blue-100' %>">
               <div class="flex items-center gap-2 mb-1">
                 <span class="text-xs font-medium <%= is_customer ? 'text-gray-700' : 'text-blue-700' %>"><%= message.from %></span>
                 <span class="text-xs text-gray-400">
