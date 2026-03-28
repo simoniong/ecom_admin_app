@@ -6,7 +6,13 @@ class TrackingRefreshJob < ApplicationJob
     return if fulfillments.empty?
 
     tracking_numbers = fulfillments.pluck(:tracking_number).uniq
-    results = TrackingService.new.track(tracking_numbers)
+    service = TrackingService.new
+
+    # Backfill: register any tracking numbers that haven't been registered yet
+    unregistered = fulfillments.where(tracking_details: {}).pluck(:tracking_number).uniq
+    service.register(unregistered) if unregistered.any?
+
+    results = service.track(tracking_numbers)
 
     results_by_number = results.index_by { |r| r[:tracking_number] }
 

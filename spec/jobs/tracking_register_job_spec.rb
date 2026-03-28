@@ -17,11 +17,13 @@ RSpec.describe TrackingRegisterJob, type: :job do
     described_class.perform_now([])
   end
 
-  it "handles API errors gracefully" do
+  it "retries on failure" do
     tracking_service = instance_double(TrackingService)
     allow(TrackingService).to receive(:new).and_return(tracking_service)
-    allow(tracking_service).to receive(:register).and_raise(RuntimeError, "API down")
+    allow(tracking_service).to receive(:register).and_raise(StandardError, "API down")
 
-    expect { described_class.perform_now([ "TRACK1" ]) }.not_to raise_error
+    expect {
+      described_class.perform_now([ "TRACK1" ])
+    }.to have_enqueued_job(TrackingRegisterJob).with([ "TRACK1" ])
   end
 end
