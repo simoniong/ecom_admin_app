@@ -16,6 +16,8 @@ module SystemHelpers
   end
 end
 
+Warden.test_mode!
+
 RSpec.configure do |config|
   config.include SystemHelpers, type: :system
   config.include Warden::Test::Helpers, type: :system
