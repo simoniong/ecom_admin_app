@@ -1,7 +1,7 @@
 servers:
   web:
     hosts:
-      - PRODUCTION_IP_HERE
+      - 206.189.157.255
 
 proxy:
   ssl: true
@@ -17,7 +17,7 @@ accessories:
   db:
     service: postgres
     image: postgres:18
-    host: PRODUCTION_IP_HERE
+    host: 206.189.157.255
     env:
       clear:
         POSTGRES_DB: ecom_admin_app_production
