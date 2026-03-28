@@ -7,9 +7,40 @@ RSpec.describe TrackingService do
     allow(Rails.application.credentials).to receive(:dig).with(:seventeen_track, :api_key).and_return("test-api-key")
   end
 
+  describe "#register" do
+    it "registers tracking numbers with 17Track" do
+      stub_request(:post, TrackingService::REGISTER_URL)
+        .to_return(
+          status: 200,
+          body: {
+            data: {
+              accepted: [ { number: "TRACK123" } ],
+              rejected: []
+            }
+          }.to_json,
+          headers: { "Content-Type" => "application/json" }
+        )
+
+      result = service.register([ "TRACK123" ])
+      expect(result.length).to eq(1)
+      expect(result.first["number"]).to eq("TRACK123")
+    end
+
+    it "returns empty array for empty input" do
+      expect(service.register([])).to eq([])
+    end
+
+    it "raises on API error" do
+      stub_request(:post, TrackingService::REGISTER_URL)
+        .to_return(status: 500, body: "Server Error")
+
+      expect { service.register([ "TRACK1" ]) }.to raise_error(RuntimeError, /17Track register error/)
+    end
+  end
+
   describe "#track" do
     it "returns tracking info for given numbers" do
-      stub_request(:post, TrackingService::API_URL)
+      stub_request(:post, TrackingService::TRACK_URL)
         .to_return(
           status: 200,
           body: {
@@ -44,7 +75,7 @@ RSpec.describe TrackingService do
     end
 
     it "raises on API error" do
-      stub_request(:post, TrackingService::API_URL)
+      stub_request(:post, TrackingService::TRACK_URL)
         .to_return(status: 500, body: "Server Error")
 
       expect { service.track([ "TRACK1" ]) }.to raise_error(RuntimeError, /17Track API error/)
