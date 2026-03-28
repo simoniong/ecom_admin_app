@@ -1,5 +1,5 @@
 class TrackingService
-  BASE_URL = "https://api.17track.net/track/v2.2"
+  BASE_URL = "https://api.17track.net/track/v2.4"
   REGISTER_URL = "#{BASE_URL}/register"
   TRACK_URL = "#{BASE_URL}/gettrackinfo"
 
@@ -52,16 +52,20 @@ class TrackingService
   def parse_response(data)
     accepted = data.dig("data", "accepted") || []
     accepted.map do |item|
+      track_info = item["track_info"] || {}
+      providers = track_info.dig("tracking", "providers") || []
+      events = providers.flat_map { |provider| provider["events"] || [] }
+
       {
         tracking_number: item["number"],
-        status: item.dig("track", "e"),
-        last_event: item.dig("track", "z0", "z"),
-        last_event_time: item.dig("track", "z0", "a"),
-        events: (item.dig("track", "z1") || []).map do |event|
+        status: track_info.dig("latest_status", "status"),
+        last_event: track_info.dig("latest_event", "description"),
+        last_event_time: track_info.dig("latest_event", "time_iso"),
+        events: events.map do |event|
           {
-            description: event["z"],
-            time: event["a"],
-            location: event["c"]
+            description: event["description"],
+            time: event["time_iso"],
+            location: event["location"]
           }
         end
       }

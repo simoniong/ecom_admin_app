@@ -20,7 +20,7 @@ class Fulfillment < ApplicationRecord
   end
 
   def tracking_events
-    (tracking_details&.dig("events") || []).sort_by { |e| e["time"].to_s }.reverse
+    (tracking_details&.dig("events") || []).sort_by { |e| Time.zone.parse(e["time"]) rescue Time.at(0) }.reverse
   end
 
   def tracking_loaded?
