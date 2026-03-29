@@ -1,20 +1,32 @@
 class ShopifyLookupService
-  def initialize(shopify_service: ShopifyService.new)
+  def initialize(shopify_service: nil)
     @shopify = shopify_service
   end
 
   def lookup(ticket)
-    customer = find_or_create_customer(ticket.customer_email)
+    shopify_service = resolve_shopify_service(ticket)
+    return unless shopify_service
+
+    customer = find_or_create_customer(shopify_service, ticket.customer_email)
     return unless customer
 
     ticket.update!(customer: customer)
-    sync_orders(customer)
+    sync_orders(shopify_service, customer)
   end
 
   private
 
-  def find_or_create_customer(email)
-    shopify_customers = @shopify.find_customers_by_email(email)
+  def resolve_shopify_service(ticket)
+    return @shopify if @shopify
+
+    store = ticket.email_account&.shopify_store
+    return nil unless store
+
+    ShopifyService.new(store)
+  end
+
+  def find_or_create_customer(shopify_service, email)
+    shopify_customers = shopify_service.find_customers_by_email(email)
     return nil if shopify_customers.empty?
 
     shopify_customer = shopify_customers.first
@@ -34,8 +46,8 @@ class ShopifyLookupService
     end
   end
 
-  def sync_orders(customer)
-    shopify_orders = @shopify.fetch_orders(customer.shopify_customer_id)
+  def sync_orders(shopify_service, customer)
+    shopify_orders = shopify_service.fetch_orders(customer.shopify_customer_id)
 
     shopify_orders.each do |shopify_order|
       order = customer.orders.find_or_initialize_by(shopify_order_id: shopify_order["id"])
@@ -51,12 +63,12 @@ class ShopifyLookupService
       )
       order.save!
 
-      sync_fulfillments(order)
+      sync_fulfillments(shopify_service, order)
     end
   end
 
-  def sync_fulfillments(order)
-    shopify_fulfillments = @shopify.fetch_fulfillments(order.shopify_order_id)
+  def sync_fulfillments(shopify_service, order)
+    shopify_fulfillments = shopify_service.fetch_fulfillments(order.shopify_order_id)
 
     shopify_fulfillments.each do |sf|
       fulfillment = order.fulfillments.find_or_initialize_by(shopify_fulfillment_id: sf["id"])

@@ -1,13 +1,9 @@
 require "rails_helper"
 
 RSpec.describe ShopifyService do
-  let(:service) { described_class.new }
+  let(:store) { OpenStruct.new(shop_domain: "test-store.myshopify.com", access_token: "shpat_test") }
+  let(:service) { described_class.new(store) }
   let(:base_url) { "https://test-store.myshopify.com/admin/api/2024-10" }
-
-  before do
-    allow(Rails.application.credentials).to receive(:dig).with(:shopify, :shop_domain).and_return("test-store.myshopify.com")
-    allow(Rails.application.credentials).to receive(:dig).with(:shopify, :access_token).and_return("shpat_test")
-  end
 
   describe "#find_customers_by_email" do
     it "returns customers matching email" do
