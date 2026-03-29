@@ -100,6 +100,7 @@ en:
     show:
       shop_domain: "Shop Domain"
       scopes: "Scopes"
+      timezone: "Timezone"
       installed_at: "Installed At"
       connected_at: "Connected At"
       linked_email_accounts: "Linked Email Accounts"
@@ -125,6 +126,7 @@ en:
       platform: "Platform"
       account_id: "Account ID"
       account_name: "Account Name"
+      timezone: "Timezone"
       token_expires_at: "Token Expires At"
       connected_at: "Connected At"
   locale_switcher:

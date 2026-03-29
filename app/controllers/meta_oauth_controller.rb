@@ -28,7 +28,7 @@ class MetaOauthController < AdminController
     expires_in = long_token_info["expires_in"]&.to_i
 
     graph = Koala::Facebook::API.new(long_token)
-    ad_accounts_data = graph.get_connections("me", "adaccounts", fields: "account_id,name,account_status")
+    ad_accounts_data = graph.get_connections("me", "adaccounts", fields: "account_id,name,account_status,timezone_name")
 
     session[:meta_long_token] = long_token
     session[:meta_token_expires_at] = (expires_in ? (Time.current + expires_in.seconds).iso8601 : nil)
@@ -59,8 +59,9 @@ class MetaOauthController < AdminController
 
     account_ids.each do |acct_id|
       name = params.dig(:account_names, acct_id)
+      timezone = params.dig(:account_timezones, acct_id)
       ad_account = current_user.ad_accounts.find_or_initialize_by(platform: "meta", account_id: "act_#{acct_id}")
-      ad_account.assign_attributes(account_name: name, access_token: token, token_expires_at: expires_at)
+      ad_account.assign_attributes(account_name: name, access_token: token, token_expires_at: expires_at, timezone: timezone.presence || "UTC")
       ad_account.save!
     end
 

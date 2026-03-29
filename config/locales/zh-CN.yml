@@ -100,6 +100,7 @@
     show:
       shop_domain: "商店域名"
       scopes: "授权范围"
+      timezone: "时区"
       installed_at: "安装时间"
       connected_at: "连接时间"
       linked_email_accounts: "关联邮箱"
@@ -125,6 +126,7 @@
       platform: "平台"
       account_id: "账户 ID"
       account_name: "账户名称"
+      timezone: "时区"
       token_expires_at: "Token 过期时间"
       connected_at: "连接时间"
   locale_switcher:

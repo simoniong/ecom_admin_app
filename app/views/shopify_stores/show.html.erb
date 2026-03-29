@@ -32,6 +32,17 @@
       </div>
 
       <div class="px-6 py-4 sm:grid sm:grid-cols-3 sm:gap-4">
+        <dt class="text-sm font-medium text-gray-500"><%= t("shopify_stores.show.timezone") %></dt>
+        <dd class="mt-1 text-sm text-gray-900 sm:col-span-2 sm:mt-0">
+          <%= @shopify_store.timezone %>
+          <% tz = ActiveSupport::TimeZone[@shopify_store.timezone] %>
+          <% if tz %>
+            <span class="text-gray-500">(<%= tz.formatted_offset %>)</span>
+          <% end %>
+        </dd>
+      </div>
+
+      <div class="px-6 py-4 sm:grid sm:grid-cols-3 sm:gap-4">
         <dt class="text-sm font-medium text-gray-500"><%= t("shopify_stores.show.installed_at") %></dt>
         <dd class="mt-1 text-sm text-gray-900 sm:col-span-2 sm:mt-0">
           <%= @shopify_store.installed_at ? l(@shopify_store.installed_at, format: :long) : "—" %>

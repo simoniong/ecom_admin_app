@@ -99,6 +99,7 @@
     save_links: "保存關聯"
     show:
       shop_domain: "商店域名"
+      timezone: "時區"
       scopes: "授權範圍"
       installed_at: "安裝時間"
       connected_at: "連接時間"
@@ -125,6 +126,7 @@
       platform: "平台"
       account_id: "帳戶 ID"
       account_name: "帳戶名稱"
+      timezone: "時區"
       token_expires_at: "Token 過期時間"
       connected_at: "連接時間"
   locale_switcher:
