@@ -24,14 +24,7 @@
     </p>
 
     <%# Metric cards grid %>
-    <div class="grid grid-cols-2 lg:grid-cols-3 gap-4">
-      <%# Sessions %>
-      <%= render "dashboard/metric_card",
-          title: t("dashboard.sessions"),
-          value: number_with_delimiter(@metrics[:current][:sessions]),
-          previous: @metrics[:previous][:sessions],
-          current_raw: @metrics[:current][:sessions] %>
-
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
       <%# Orders %>
       <%= render "dashboard/metric_card",
           title: t("dashboard.orders"),
@@ -46,14 +39,6 @@
           previous: @metrics[:previous][:revenue],
           current_raw: @metrics[:current][:revenue],
           is_currency: true %>
-
-      <%# Conversion Rate %>
-      <%= render "dashboard/metric_card",
-          title: t("dashboard.conversion_rate"),
-          value: "#{@metrics[:current][:conversion_rate]}%",
-          previous: @metrics[:previous][:conversion_rate],
-          current_raw: @metrics[:current][:conversion_rate],
-          is_percentage: true %>
 
       <%# Ad Spend %>
       <%= render "dashboard/metric_card",

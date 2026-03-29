@@ -13,10 +13,8 @@ RSpec.describe "Dashboard", type: :request do
     it "displays metric cards" do
       sign_in user
       get authenticated_root_path
-      expect(response.body).to include(I18n.t("dashboard.sessions"))
       expect(response.body).to include(I18n.t("dashboard.orders"))
       expect(response.body).to include(I18n.t("dashboard.revenue"))
-      expect(response.body).to include(I18n.t("dashboard.conversion_rate"))
       expect(response.body).to include(I18n.t("dashboard.ad_spend"))
       expect(response.body).to include(I18n.t("dashboard.roas"))
     end
@@ -44,11 +42,11 @@ RSpec.describe "Dashboard", type: :request do
 
     it "displays metrics data from database" do
       store = create(:shopify_store, user: user)
-      create(:shopify_daily_metric, shopify_store: store, date: Date.current, sessions: 42, orders_count: 3, revenue: 250)
+      create(:shopify_daily_metric, shopify_store: store, date: Date.current, orders_count: 3, revenue: 250)
 
       sign_in user
       get authenticated_root_path(range: "today")
-      expect(response.body).to include("42")
+      expect(response.body).to include("3")
       expect(response.body).to include("250")
     end
 
