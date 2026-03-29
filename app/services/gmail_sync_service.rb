@@ -76,6 +76,7 @@ class GmailSyncService
       end
     rescue Google::Apis::ClientError => e
       raise unless e.status_code == 404
+      email_account.update!(last_history_id: nil)
       full_sync
       return
     end
