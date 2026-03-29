@@ -1,66 +1,62 @@
 class ShopifyAnalyticsService
+  BASE_URL_TEMPLATE = "https://%s/admin/api/2024-10"
+
   def initialize(shop_domain:, access_token:, store_id:)
     @shop_domain = shop_domain
     @access_token = access_token
     @store_id = store_id
+    @base_url = format(BASE_URL_TEMPLATE, @shop_domain)
   end
 
   def sync_date(date)
-    analytics = fetch_analytics(date)
+    orders_count = fetch_orders_count(date)
+    revenue = fetch_revenue(date)
 
     metric = ShopifyDailyMetric.find_or_initialize_by(
       shopify_store_id: @store_id, date: date
     )
     metric.assign_attributes(
-      sessions: analytics[:sessions],
-      orders_count: analytics[:orders],
-      revenue: analytics[:revenue],
-      conversion_rate: analytics[:sessions] > 0 ? (analytics[:orders].to_f / analytics[:sessions]) : 0
+      sessions: 0, # ShopifyQL not available on this plan; sessions left at 0 for now
+      orders_count: orders_count,
+      revenue: revenue,
+      conversion_rate: 0
     )
     metric.save!
+  rescue => e
+    Rails.logger.error("[ShopifyAnalytics] Failed to sync for #{date}: #{e.message}")
   end
 
   private
 
-  def fetch_analytics(date)
-    client = build_graphql_client
-
-    sessions = fetch_shopifyql(client, "FROM sessions SHOW count() WHERE day = '#{date.iso8601}'")
-    orders = fetch_shopifyql(client, "FROM orders SHOW count() WHERE order_date = '#{date.iso8601}'")
-    revenue = fetch_shopifyql(client, "FROM orders SHOW sum(net_sales) WHERE order_date = '#{date.iso8601}'")
-
-    { sessions: sessions, orders: orders, revenue: revenue.to_d }
-  rescue => e
-    Rails.logger.error("[ShopifyAnalytics] Failed to fetch analytics for #{date}: #{e.message}")
-    { sessions: 0, orders: 0, revenue: 0 }
+  def fetch_orders_count(date)
+    response = get("/orders/count.json",
+      status: "any",
+      created_at_min: date.beginning_of_day.iso8601,
+      created_at_max: date.end_of_day.iso8601)
+    response["count"] || 0
   end
 
-  def build_graphql_client
-    session = ShopifyAPI::Auth::Session.new(
-      shop: @shop_domain,
-      access_token: @access_token
-    )
-    ShopifyAPI::Clients::Graphql::Admin.new(session: session)
+  def fetch_revenue(date)
+    orders = get("/orders.json",
+      status: "any",
+      financial_status: "paid",
+      created_at_min: date.beginning_of_day.iso8601,
+      created_at_max: date.end_of_day.iso8601,
+      fields: "total_price",
+      limit: 250)
+    (orders["orders"] || []).sum { |o| o["total_price"].to_d }
   end
 
-  def fetch_shopifyql(client, shopifyql_query)
-    query = <<~GQL
-      {
-        shopifyqlQuery(query: "#{shopifyql_query.gsub('"', '\\"')}") {
-          __typename
-          ... on TableResponse {
-            tableData {
-              rowData
-              columns { name dataType }
-            }
-          }
-        }
+  def get(path, **params)
+    response = HTTParty.get(
+      "#{@base_url}#{path}",
+      query: params,
+      headers: {
+        "X-Shopify-Access-Token" => @access_token,
+        "Content-Type" => "application/json"
       }
-    GQL
-
-    response = client.query(query: query)
-    data = response.body.dig("data", "shopifyqlQuery", "tableData", "rowData")
-    return 0 if data.blank?
-    data.first&.first.to_i
+    )
+    raise "Shopify API error (#{response.code}): #{response.body}" unless response.success?
+    response.parsed_response
   end
 end
