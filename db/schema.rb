@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_03_28_162322) do
+ActiveRecord::Schema[8.1].define(version: 2026_03_29_174508) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -144,6 +144,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_28_162322) do
     t.datetime "installed_at"
     t.string "scopes"
     t.string "shop_domain", null: false
+    t.string "timezone", default: "UTC", null: false
     t.datetime "updated_at", null: false
     t.uuid "user_id", null: false
     t.index [ "shop_domain" ], name: "index_shopify_stores_on_shop_domain", unique: true

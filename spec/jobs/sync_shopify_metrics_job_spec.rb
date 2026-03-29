@@ -8,7 +8,8 @@ RSpec.describe SyncShopifyMetricsJob, type: :job do
     allow(ShopifyAnalyticsService).to receive(:new).with(
       shop_domain: store.shop_domain,
       access_token: store.access_token,
-      store_id: store.id
+      store_id: store.id,
+      timezone: store.timezone
     ).and_return(service)
     allow(service).to receive(:sync_date)
 

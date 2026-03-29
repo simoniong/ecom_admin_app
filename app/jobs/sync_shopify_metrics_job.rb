@@ -10,7 +10,8 @@ class SyncShopifyMetricsJob < ApplicationJob
         ShopifyAnalyticsService.new(
           shop_domain: store.shop_domain,
           access_token: store.access_token,
-          store_id: store.id
+          store_id: store.id,
+          timezone: store.timezone
         ).sync_date(date)
       rescue => e
         Rails.logger.error("[SyncShopifyMetrics] store=#{store.shop_domain} date=#{date}: #{e.message}")

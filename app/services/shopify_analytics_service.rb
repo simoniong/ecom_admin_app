@@ -1,10 +1,11 @@
 class ShopifyAnalyticsService
   BASE_URL_TEMPLATE = "https://%s/admin/api/2024-10"
 
-  def initialize(shop_domain:, access_token:, store_id:)
+  def initialize(shop_domain:, access_token:, store_id:, timezone: "UTC")
     @shop_domain = shop_domain
     @access_token = access_token
     @store_id = store_id
+    @timezone = ActiveSupport::TimeZone[timezone] || ActiveSupport::TimeZone["UTC"]
     @base_url = format(BASE_URL_TEMPLATE, @shop_domain)
   end
 
@@ -28,20 +29,28 @@ class ShopifyAnalyticsService
 
   private
 
+  def date_range_in_shop_timezone(date)
+    start_time = @timezone.parse(date.to_s).beginning_of_day
+    end_time = @timezone.parse(date.to_s).end_of_day
+    [ start_time.iso8601, end_time.iso8601 ]
+  end
+
   def fetch_orders_count(date)
+    min, max = date_range_in_shop_timezone(date)
     response = get("/orders/count.json",
       status: "any",
-      created_at_min: date.beginning_of_day.iso8601,
-      created_at_max: date.end_of_day.iso8601)
+      created_at_min: min,
+      created_at_max: max)
     response["count"] || 0
   end
 
   def fetch_revenue(date)
+    min, max = date_range_in_shop_timezone(date)
     orders = get("/orders.json",
       status: "any",
       financial_status: "paid",
-      created_at_min: date.beginning_of_day.iso8601,
-      created_at_max: date.end_of_day.iso8601,
+      created_at_min: min,
+      created_at_max: max,
       fields: "total_price",
       limit: 250)
     (orders["orders"] || []).sum { |o| o["total_price"].to_d }

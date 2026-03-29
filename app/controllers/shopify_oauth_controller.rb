@@ -64,6 +64,7 @@ class ShopifyOauthController < AdminController
     store.assign_attributes(
       access_token: access_token_response["access_token"],
       scopes: access_token_response["scope"],
+      timezone: fetch_shop_timezone(shop, access_token_response["access_token"]),
       installed_at: store.installed_at || Time.current
     )
 
@@ -87,6 +88,18 @@ class ShopifyOauthController < AdminController
     return false unless hmac.bytesize == digest.bytesize
 
     ActiveSupport::SecurityUtils.secure_compare(digest, hmac)
+  end
+
+  def fetch_shop_timezone(shop, access_token)
+    response = HTTParty.get(
+      "https://#{shop}/admin/api/2024-10/shop.json",
+      query: { fields: "iana_timezone" },
+      headers: { "X-Shopify-Access-Token" => access_token, "Content-Type" => "application/json" }
+    )
+    return "UTC" unless response.success?
+    response.parsed_response.dig("shop", "iana_timezone") || "UTC"
+  rescue
+    "UTC"
   end
 
   def exchange_code_for_token(shop, code)
