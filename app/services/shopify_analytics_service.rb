@@ -6,36 +6,47 @@ class ShopifyAnalyticsService
   end
 
   def sync_date(date)
-    sessions_count = fetch_sessions(date)
-
-    orders_data = Order.where(ordered_at: date.all_day)
-    orders_count = orders_data.count
-    revenue = orders_data.sum(:total_price)
+    analytics = fetch_analytics(date)
 
     metric = ShopifyDailyMetric.find_or_initialize_by(
       shopify_store_id: @store_id, date: date
     )
     metric.assign_attributes(
-      sessions: sessions_count,
-      orders_count: orders_count,
-      revenue: revenue,
-      conversion_rate: sessions_count > 0 ? (orders_count.to_f / sessions_count) : 0
+      sessions: analytics[:sessions],
+      orders_count: analytics[:orders],
+      revenue: analytics[:revenue],
+      conversion_rate: analytics[:sessions] > 0 ? (analytics[:orders].to_f / analytics[:sessions]) : 0
     )
     metric.save!
   end
 
   private
 
-  def fetch_sessions(date)
+  def fetch_analytics(date)
+    client = build_graphql_client
+
+    sessions = fetch_shopifyql(client, "FROM sessions SHOW count() WHERE day = '#{date.iso8601}'")
+    orders = fetch_shopifyql(client, "FROM orders SHOW count() WHERE order_date = '#{date.iso8601}'")
+    revenue = fetch_shopifyql(client, "FROM orders SHOW sum(net_sales) WHERE order_date = '#{date.iso8601}'")
+
+    { sessions: sessions, orders: orders, revenue: revenue.to_d }
+  rescue => e
+    Rails.logger.error("[ShopifyAnalytics] Failed to fetch analytics for #{date}: #{e.message}")
+    { sessions: 0, orders: 0, revenue: 0 }
+  end
+
+  def build_graphql_client
     session = ShopifyAPI::Auth::Session.new(
       shop: @shop_domain,
       access_token: @access_token
     )
-    client = ShopifyAPI::Clients::Graphql::Admin.new(session: session)
+    ShopifyAPI::Clients::Graphql::Admin.new(session: session)
+  end
 
+  def fetch_shopifyql(client, shopifyql_query)
     query = <<~GQL
       {
-        shopifyqlQuery(query: "FROM sessions SHOW count() WHERE day = '#{date.iso8601}' GROUP BY day SINCE #{date.iso8601} UNTIL #{date.iso8601}") {
+        shopifyqlQuery(query: "#{shopifyql_query.gsub('"', '\\"')}") {
           __typename
           ... on TableResponse {
             tableData {
@@ -51,8 +62,5 @@ class ShopifyAnalyticsService
     data = response.body.dig("data", "shopifyqlQuery", "tableData", "rowData")
     return 0 if data.blank?
     data.first&.first.to_i
-  rescue => e
-    Rails.logger.error("[ShopifyAnalytics] Failed to fetch sessions for #{date}: #{e.message}")
-    0
   end
 end
