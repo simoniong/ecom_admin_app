@@ -31,12 +31,13 @@ class GmailSyncService
 
       result.threads.each do |thread_stub|
         process_thread(thread_stub.id)
-      rescue Google::Apis::ClientError => e
-        raise unless e.status_code == 404
-        Rails.logger.warn("[GmailSync] Skipping deleted thread #{thread_stub.id}")
       rescue => e
-        has_failures = true
-        Rails.logger.error("[GmailSync] Failed to process thread #{thread_stub.id}: #{e.class} - #{e.message}")
+        if e.is_a?(Google::Apis::ClientError) && e.status_code == 404
+          Rails.logger.warn("[GmailSync] Skipping deleted thread #{thread_stub.id}")
+        else
+          has_failures = true
+          Rails.logger.error("[GmailSync] Failed to process thread #{thread_stub.id}: #{e.class} - #{e.message}")
+        end
       end
 
       page_token = result.next_page_token
@@ -83,13 +84,13 @@ class GmailSyncService
 
     all_thread_ids.uniq.each do |thread_id|
       process_thread(thread_id)
-    rescue Google::Apis::ClientError => e
-      raise unless e.status_code == 404
-      # Deleted/missing thread — skip without blocking history advancement
-      Rails.logger.warn("[GmailSync] Skipping deleted thread #{thread_id}")
     rescue => e
-      has_failures = true
-      Rails.logger.error("[GmailSync] Failed to process thread #{thread_id}: #{e.class} - #{e.message}")
+      if e.is_a?(Google::Apis::ClientError) && e.status_code == 404
+        Rails.logger.warn("[GmailSync] Skipping deleted thread #{thread_id}")
+      else
+        has_failures = true
+        Rails.logger.error("[GmailSync] Failed to process thread #{thread_id}: #{e.class} - #{e.message}")
+      end
     end
 
     # Only advance history_id when all threads succeeded; otherwise the next
