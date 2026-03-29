@@ -1,7 +1,7 @@
 require "rails_helper"
 
 RSpec.describe SyncShopifyMetricsJob, type: :job do
-  it "syncs metrics for each store" do
+  it "syncs yesterday and today by default" do
     store = create(:shopify_store)
 
     service = instance_double(ShopifyAnalyticsService)
@@ -17,6 +17,18 @@ RSpec.describe SyncShopifyMetricsJob, type: :job do
 
     expect(service).to have_received(:sync_date).with(Date.yesterday)
     expect(service).to have_received(:sync_date).with(Date.current)
+  end
+
+  it "syncs custom number of days" do
+    store = create(:shopify_store)
+
+    service = instance_double(ShopifyAnalyticsService)
+    allow(ShopifyAnalyticsService).to receive(:new).and_return(service)
+    allow(service).to receive(:sync_date)
+
+    described_class.perform_now(days: 7)
+
+    expect(service).to have_received(:sync_date).exactly(8).times # 7 days ago..today = 8 days
   end
 
   it "handles errors gracefully" do
