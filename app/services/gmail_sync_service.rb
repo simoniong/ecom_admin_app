@@ -23,7 +23,6 @@ class GmailSyncService
   def full_sync
     profile = gmail.user_profile
     page_token = nil
-    has_failures = false
 
     loop do
       result = gmail.list_threads(query: "in:inbox", page_token: page_token)
@@ -31,8 +30,10 @@ class GmailSyncService
 
       result.threads.each do |thread_stub|
         process_thread(thread_stub.id)
+      rescue Google::Apis::ClientError => e
+        raise unless e.status_code == 404
+        Rails.logger.warn("[GmailSync] Skipping deleted thread #{thread_stub.id}")
       rescue => e
-        has_failures = true
         Rails.logger.error("[GmailSync] Failed to process thread #{thread_stub.id}: #{e.class} - #{e.message}")
       end
 
@@ -40,7 +41,10 @@ class GmailSyncService
       break if page_token.nil?
     end
 
-    email_account.update!(last_history_id: profile.history_id) unless has_failures
+    # Always advance history_id in full_sync to avoid endless 404-fallback loops.
+    # Transient failures will be retried via the next incremental sync since
+    # get_thread fetches the full thread (all messages) each time.
+    email_account.update!(last_history_id: profile.history_id)
   end
 
   def incremental_sync
@@ -78,6 +82,10 @@ class GmailSyncService
 
     all_thread_ids.uniq.each do |thread_id|
       process_thread(thread_id)
+    rescue Google::Apis::ClientError => e
+      raise unless e.status_code == 404
+      # Deleted/missing thread — skip without blocking history advancement
+      Rails.logger.warn("[GmailSync] Skipping deleted thread #{thread_id}")
     rescue => e
       has_failures = true
       Rails.logger.error("[GmailSync] Failed to process thread #{thread_id}: #{e.class} - #{e.message}")
@@ -85,6 +93,7 @@ class GmailSyncService
 
     # Only advance history_id when all threads succeeded; otherwise the next
     # sync retries from the same point so transient failures get another chance.
+    # Thread-level 404s (deleted threads) are skipped and don't count as failures.
     email_account.update!(last_history_id: latest_history_id) if latest_history_id && !has_failures
   end
 

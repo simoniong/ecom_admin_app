@@ -343,15 +343,14 @@ RSpec.describe GmailSyncService do
   end
 
   describe "per-thread error resilience" do
-    it "continues processing other threads when one fails (incremental sync)" do
+    it "skips deleted threads (404) and advances history_id (incremental sync)" do
       email_account.update!(last_history_id: 20000)
 
       gmail = instance_double(GmailService)
       allow(GmailService).to receive(:new).and_return(gmail)
 
-      # History returns two threads
       message_added_1 = Google::Apis::GmailV1::HistoryMessageAdded.new(
-        message: Google::Apis::GmailV1::Message.new(id: "m-fail", thread_id: "t-fail")
+        message: Google::Apis::GmailV1::Message.new(id: "m-fail", thread_id: "t-deleted")
       )
       message_added_2 = Google::Apis::GmailV1::HistoryMessageAdded.new(
         message: Google::Apis::GmailV1::Message.new(id: "m-ok", thread_id: "t-ok")
@@ -362,12 +361,11 @@ RSpec.describe GmailSyncService do
       )
       allow(gmail).to receive(:list_history).and_return(history_response)
 
-      # First thread fails (e.g. deleted thread returns 404)
-      allow(gmail).to receive(:get_thread).with("t-fail").and_raise(
+      # Deleted thread returns 404 — should be skipped, not block progress
+      allow(gmail).to receive(:get_thread).with("t-deleted").and_raise(
         Google::Apis::ClientError.new("not found", status_code: 404)
       )
 
-      # Second thread succeeds
       full_thread = build_gmail_thread(
         id: "t-ok",
         messages: [ build_gmail_message(id: "m-ok", thread_id: "t-ok", from: "ok@example.com") ]
@@ -376,7 +374,31 @@ RSpec.describe GmailSyncService do
 
       expect { service.sync! }.to change(Ticket, :count).by(1)
       expect(Ticket.last.gmail_thread_id).to eq("t-ok")
-      # history_id must NOT advance so the failed thread is retried next sync
+      # 404 is a skip, not a failure — history_id advances
+      expect(email_account.reload.last_history_id).to eq(20200)
+    end
+
+    it "does not advance history_id on transient errors (incremental sync)" do
+      email_account.update!(last_history_id: 20000)
+
+      gmail = instance_double(GmailService)
+      allow(GmailService).to receive(:new).and_return(gmail)
+
+      message_added = Google::Apis::GmailV1::HistoryMessageAdded.new(
+        message: Google::Apis::GmailV1::Message.new(id: "m-err", thread_id: "t-err")
+      )
+      history = Google::Apis::GmailV1::History.new(messages_added: [ message_added ])
+      history_response = Google::Apis::GmailV1::ListHistoryResponse.new(
+        history: [ history ], history_id: 20200
+      )
+      allow(gmail).to receive(:list_history).and_return(history_response)
+
+      # Transient error (e.g. 500) — should block history_id advancement
+      allow(gmail).to receive(:get_thread).with("t-err").and_raise(
+        Google::Apis::ServerError.new("internal error", status_code: 500)
+      )
+
+      service.sync!
       expect(email_account.reload.last_history_id).to eq(20000)
     end
 
@@ -405,8 +427,8 @@ RSpec.describe GmailSyncService do
 
       expect { service.sync! }.to change(Ticket, :count).by(1)
       expect(Ticket.last.gmail_thread_id).to eq("t-ok2")
-      # history_id must NOT advance so the failed thread is retried next sync
-      expect(email_account.reload.last_history_id).to be_nil
+      # full_sync always advances history_id to avoid endless 404-fallback loops
+      expect(email_account.reload.last_history_id).to eq(99)
     end
   end
 
