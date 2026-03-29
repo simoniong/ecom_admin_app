@@ -23,6 +23,7 @@ class GmailSyncService
   def full_sync
     profile = gmail.user_profile
     page_token = nil
+    has_failures = false
 
     loop do
       result = gmail.list_threads(query: "in:inbox", page_token: page_token)
@@ -34,6 +35,7 @@ class GmailSyncService
         raise unless e.status_code == 404
         Rails.logger.warn("[GmailSync] Skipping deleted thread #{thread_stub.id}")
       rescue => e
+        has_failures = true
         Rails.logger.error("[GmailSync] Failed to process thread #{thread_stub.id}: #{e.class} - #{e.message}")
       end
 
@@ -41,10 +43,9 @@ class GmailSyncService
       break if page_token.nil?
     end
 
-    # Always advance history_id in full_sync to avoid endless 404-fallback loops.
-    # Transient failures will be retried via the next incremental sync since
-    # get_thread fetches the full thread (all messages) each time.
-    email_account.update!(last_history_id: profile.history_id)
+    # Don't advance history_id on transient failures so the next sync retries
+    # via full_sync again (last_history_id stays nil/stale → same path).
+    email_account.update!(last_history_id: profile.history_id) unless has_failures
   end
 
   def incremental_sync

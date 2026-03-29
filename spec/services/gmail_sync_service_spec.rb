@@ -427,8 +427,8 @@ RSpec.describe GmailSyncService do
 
       expect { service.sync! }.to change(Ticket, :count).by(1)
       expect(Ticket.last.gmail_thread_id).to eq("t-ok2")
-      # full_sync always advances history_id to avoid endless 404-fallback loops
-      expect(email_account.reload.last_history_id).to eq(99)
+      # Transient failure — history_id must NOT advance so full_sync retries next run
+      expect(email_account.reload.last_history_id).to be_nil
     end
   end
 
