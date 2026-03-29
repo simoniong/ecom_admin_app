@@ -376,7 +376,8 @@ RSpec.describe GmailSyncService do
 
       expect { service.sync! }.to change(Ticket, :count).by(1)
       expect(Ticket.last.gmail_thread_id).to eq("t-ok")
-      expect(email_account.reload.last_history_id).to eq(20200)
+      # history_id must NOT advance so the failed thread is retried next sync
+      expect(email_account.reload.last_history_id).to eq(20000)
     end
 
     it "continues processing other threads when one fails (full sync)" do
@@ -404,6 +405,8 @@ RSpec.describe GmailSyncService do
 
       expect { service.sync! }.to change(Ticket, :count).by(1)
       expect(Ticket.last.gmail_thread_id).to eq("t-ok2")
+      # history_id must NOT advance so the failed thread is retried next sync
+      expect(email_account.reload.last_history_id).to be_nil
     end
   end
 

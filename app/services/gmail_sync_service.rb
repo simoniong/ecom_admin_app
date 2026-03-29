@@ -23,6 +23,7 @@ class GmailSyncService
   def full_sync
     profile = gmail.user_profile
     page_token = nil
+    has_failures = false
 
     loop do
       result = gmail.list_threads(query: "in:inbox", page_token: page_token)
@@ -31,6 +32,7 @@ class GmailSyncService
       result.threads.each do |thread_stub|
         process_thread(thread_stub.id)
       rescue => e
+        has_failures = true
         Rails.logger.error("[GmailSync] Failed to process thread #{thread_stub.id}: #{e.class} - #{e.message}")
       end
 
@@ -38,7 +40,7 @@ class GmailSyncService
       break if page_token.nil?
     end
 
-    email_account.update!(last_history_id: profile.history_id)
+    email_account.update!(last_history_id: profile.history_id) unless has_failures
   end
 
   def incremental_sync
@@ -72,13 +74,18 @@ class GmailSyncService
       return
     end
 
+    has_failures = false
+
     all_thread_ids.uniq.each do |thread_id|
       process_thread(thread_id)
     rescue => e
+      has_failures = true
       Rails.logger.error("[GmailSync] Failed to process thread #{thread_id}: #{e.class} - #{e.message}")
     end
 
-    email_account.update!(last_history_id: latest_history_id) if latest_history_id
+    # Only advance history_id when all threads succeeded; otherwise the next
+    # sync retries from the same point so transient failures get another chance.
+    email_account.update!(last_history_id: latest_history_id) if latest_history_id && !has_failures
   end
 
   def process_thread(thread_id)
