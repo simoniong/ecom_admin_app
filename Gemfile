@@ -35,6 +35,9 @@ gem "shopify_api", "~> 14.0"
 # HTTP client for 17Track API
 gem "httparty", "~> 0.22"
 
+# Meta (Facebook) Ads API client
+gem "koala", "~> 3.6"
+
 # Windows does not include zoneinfo files, so bundle the tzinfo-data gem
 gem "tzinfo-data", platforms: %i[ windows jruby ]
 
