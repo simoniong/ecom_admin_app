@@ -3,6 +3,7 @@
   language_name: "简体中文"
   nav:
     email_accounts: "邮箱"
+    shopify_stores: "Shopify 商店"
     tickets: "工单"
     sign_out: "登出"
   auth:
@@ -64,5 +65,27 @@
       scheduled_at: "预计发送时间：%{time}"
       email_sent: "邮件已发送"
     draft_not_editable: "当前状态不允许编辑草稿。"
+  shopify_stores:
+    title: "Shopify 商店"
+    empty: "尚未连接任何 Shopify 商店。"
+    bind_new: "连接商店"
+    bind_success: "Shopify 商店连接成功。"
+    bind_failure: "Shopify 商店连接失败。"
+    oauth_failure: "Shopify 认证失败，请重试。"
+    connected_at: "连接于 %{time}"
+    disconnect: "断开连接"
+    disconnect_confirm: "确定要断开此 Shopify 商店吗？关联的邮箱将被取消绑定。"
+    disconnect_success: "Shopify 商店已断开连接。"
+    updated: "邮箱关联更新成功。"
+    enter_shop_domain: "商店域名"
+    shop_domain_placeholder: "your-store.myshopify.com"
+    connect: "连接 Shopify"
+    save_links: "保存关联"
+    show:
+      shop_domain: "商店域名"
+      scopes: "授权范围"
+      installed_at: "安装时间"
+      connected_at: "连接时间"
+      linked_email_accounts: "关联邮箱"
   locale_switcher:
     label: "语言"

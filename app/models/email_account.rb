@@ -1,5 +1,6 @@
 class EmailAccount < ApplicationRecord
   belongs_to :user
+  belongs_to :shopify_store, optional: true
   has_many :tickets, dependent: :destroy
 
   encrypts :access_token, deterministic: false

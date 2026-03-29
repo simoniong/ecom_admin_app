@@ -5,5 +5,6 @@ class User < ApplicationRecord
          :validatable, :lockable
 
   has_many :email_accounts, dependent: :destroy
+  has_many :shopify_stores, dependent: :destroy
   has_many :tickets, through: :email_accounts
 end

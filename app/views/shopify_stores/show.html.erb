@@ -1,0 +1,74 @@
+<div class="max-w-4xl mx-auto">
+  <div class="flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <%= link_to shopify_stores_path, class: "text-gray-400 hover:text-gray-600" do %>
+        <svg class="w-5 h-5" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
+        </svg>
+      <% end %>
+      <h1 class="text-2xl font-semibold text-gray-900"><%= @shopify_store.shop_domain %></h1>
+    </div>
+
+    <%= button_to shopify_store_path(@shopify_store), method: :delete,
+        data: { turbo_confirm: t("shopify_stores.disconnect_confirm") },
+        class: "inline-flex items-center gap-2 px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2" do %>
+      <svg class="w-4 h-4" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M13.181 8.68a4.503 4.503 0 0 1 1.903 6.405m-9.768-2.782L3.56 14.06a4.5 4.5 0 0 0 6.364 6.365l.164-.164m-3.07-8.355-2.122 2.122a4.5 4.5 0 0 0 6.364 6.364l2.122-2.122M10.5 13.5l3-3m2.818-2.818L18.56 5.44a4.5 4.5 0 0 0-6.364-6.364l-.164.163m3.07 8.355 2.122-2.122a4.5 4.5 0 0 0-6.364-6.364l-2.122 2.122" />
+      </svg>
+      <%= t("shopify_stores.disconnect") %>
+    <% end %>
+  </div>
+
+  <div class="mt-6 bg-white shadow-sm rounded-lg border border-gray-200">
+    <dl class="divide-y divide-gray-200">
+      <div class="px-6 py-4 sm:grid sm:grid-cols-3 sm:gap-4">
+        <dt class="text-sm font-medium text-gray-500"><%= t("shopify_stores.show.shop_domain") %></dt>
+        <dd class="mt-1 text-sm text-gray-900 sm:col-span-2 sm:mt-0"><%= @shopify_store.shop_domain %></dd>
+      </div>
+
+      <div class="px-6 py-4 sm:grid sm:grid-cols-3 sm:gap-4">
+        <dt class="text-sm font-medium text-gray-500"><%= t("shopify_stores.show.scopes") %></dt>
+        <dd class="mt-1 text-sm text-gray-900 sm:col-span-2 sm:mt-0 font-mono text-xs"><%= @shopify_store.scopes.presence || "—" %></dd>
+      </div>
+
+      <div class="px-6 py-4 sm:grid sm:grid-cols-3 sm:gap-4">
+        <dt class="text-sm font-medium text-gray-500"><%= t("shopify_stores.show.installed_at") %></dt>
+        <dd class="mt-1 text-sm text-gray-900 sm:col-span-2 sm:mt-0">
+          <%= @shopify_store.installed_at ? l(@shopify_store.installed_at, format: :long) : "—" %>
+        </dd>
+      </div>
+
+      <div class="px-6 py-4 sm:grid sm:grid-cols-3 sm:gap-4">
+        <dt class="text-sm font-medium text-gray-500"><%= t("shopify_stores.show.connected_at") %></dt>
+        <dd class="mt-1 text-sm text-gray-900 sm:col-span-2 sm:mt-0"><%= l(@shopify_store.created_at, format: :long) %></dd>
+      </div>
+    </dl>
+  </div>
+
+  <%# Linked Email Accounts %>
+  <div class="mt-6 bg-white shadow-sm rounded-lg border border-gray-200 p-6">
+    <h2 class="text-lg font-medium text-gray-900 mb-4"><%= t("shopify_stores.show.linked_email_accounts") %></h2>
+
+    <%= form_with url: shopify_store_path(@shopify_store), method: :patch, class: "space-y-4" do |f| %>
+      <div class="space-y-2">
+        <% @email_accounts.each do |account| %>
+          <label class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-50 cursor-pointer">
+            <input type="checkbox" name="email_account_ids[]" value="<%= account.id %>"
+                   <%= "checked" if account.shopify_store_id == @shopify_store.id %>
+                   class="rounded border-gray-300 text-gray-900 focus:ring-gray-900" />
+            <span class="text-sm text-gray-700"><%= account.email %></span>
+          </label>
+        <% end %>
+      </div>
+
+      <% if @email_accounts.any? %>
+        <div class="pt-3 border-t border-gray-200">
+          <%= f.submit t("shopify_stores.save_links"),
+              class: "inline-flex items-center px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2 cursor-pointer" %>
+        </div>
+      <% else %>
+        <p class="text-sm text-gray-500"><%= t("email_accounts.empty") %></p>
+      <% end %>
+    <% end %>
+  </div>
+</div>

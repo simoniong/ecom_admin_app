@@ -3,6 +3,7 @@ en:
   language_name: "English"
   nav:
     email_accounts: "Email Accounts"
+    shopify_stores: "Shopify Stores"
     tickets: "Tickets"
     sign_out: "Sign out"
   auth:
@@ -64,5 +65,27 @@ en:
       scheduled_at: "Scheduled to send at %{time}"
       email_sent: "Email Sent"
     draft_not_editable: "Current status does not allow editing."
+  shopify_stores:
+    title: "Shopify Stores"
+    empty: "No Shopify stores connected yet."
+    bind_new: "Connect Store"
+    bind_success: "Shopify store connected successfully."
+    bind_failure: "Failed to connect Shopify store."
+    oauth_failure: "Shopify authentication failed. Please try again."
+    connected_at: "Connected %{time}"
+    disconnect: "Disconnect"
+    disconnect_confirm: "Are you sure you want to disconnect this Shopify store? Email accounts will be unlinked."
+    disconnect_success: "Shopify store disconnected successfully."
+    updated: "Email account links updated successfully."
+    enter_shop_domain: "Shop Domain"
+    shop_domain_placeholder: "your-store.myshopify.com"
+    connect: "Connect to Shopify"
+    save_links: "Save Links"
+    show:
+      shop_domain: "Shop Domain"
+      scopes: "Scopes"
+      installed_at: "Installed At"
+      connected_at: "Connected At"
+      linked_email_accounts: "Linked Email Accounts"
   locale_switcher:
     label: "Language"
