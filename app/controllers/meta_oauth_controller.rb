@@ -16,6 +16,11 @@ class MetaOauthController < AdminController
       return
     end
 
+    if params[:error].present? || params[:code].blank?
+      redirect_to ad_accounts_path, alert: t("ad_accounts.oauth_failure")
+      return
+    end
+
     oauth = Koala::Facebook::OAuth.new(meta_app_id, meta_app_secret, meta_callback_url)
     short_token = oauth.get_access_token(params[:code])
     long_token_info = oauth.exchange_access_token_info(short_token)
@@ -30,11 +35,20 @@ class MetaOauthController < AdminController
 
     @ad_accounts = ad_accounts_data.select { |a| a["account_status"] == 1 }
     render :select_accounts
+  rescue Koala::Facebook::OAuthTokenRequestError, Koala::Facebook::ClientError, Koala::KoalaError => e
+    Rails.logger.warn("Meta OAuth callback error: #{e.class}: #{e.message}")
+    redirect_to ad_accounts_path, alert: t("ad_accounts.oauth_failure")
   end
 
   def select_accounts
     token = session.delete(:meta_long_token)
     expires_at_str = session.delete(:meta_token_expires_at)
+
+    if token.blank?
+      redirect_to ad_accounts_path, alert: t("ad_accounts.oauth_failure")
+      return
+    end
+
     expires_at = expires_at_str ? Time.zone.parse(expires_at_str) : nil
     account_ids = params[:account_ids] || []
 

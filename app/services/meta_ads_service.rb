@@ -1,7 +1,7 @@
 class MetaAdsService
   def initialize(ad_account)
     @ad_account = ad_account
-    @graph = Koala::Facebook::API.new(ad_account.access_token)
+    @graph = build_graph
   end
 
   def sync_date_range(start_date, end_date)
@@ -42,9 +42,14 @@ class MetaAdsService
       access_token: new_info["access_token"],
       token_expires_at: Time.current + new_info["expires_in"].to_i.seconds
     )
+    @graph = build_graph
   end
 
   private
+
+  def build_graph
+    Koala::Facebook::API.new(@ad_account.access_token)
+  end
 
   def extract_action_count(actions, action_type)
     return 0 if actions.blank?

@@ -105,6 +105,7 @@ en:
     select_accounts_submit: "Connect Selected"
     token_expires_soon: "Token expires soon — reconnect recommended"
     token_expired: "Token expired — please reconnect"
+    unnamed_account: "Unnamed Account"
     show:
       platform: "Platform"
       account_id: "Account ID"

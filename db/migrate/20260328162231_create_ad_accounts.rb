@@ -11,6 +11,6 @@ class CreateAdAccounts < ActiveRecord::Migration[8.1]
       t.timestamps
     end
 
-    add_index :ad_accounts, [ :platform, :account_id ], unique: true
+    add_index :ad_accounts, [ :user_id, :platform, :account_id ], unique: true
   end
 end

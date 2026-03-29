@@ -105,6 +105,7 @@
     select_accounts_submit: "绑定选中账户"
     token_expires_soon: "Token 即将过期 — 建议重新连接"
     token_expired: "Token 已过期 — 请重新连接"
+    unnamed_account: "未命名账户"
     show:
       platform: "平台"
       account_id: "账户 ID"

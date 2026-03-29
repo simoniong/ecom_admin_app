@@ -5,7 +5,7 @@ class AdAccount < ApplicationRecord
   encrypts :access_token, deterministic: false
 
   validates :platform, presence: true, inclusion: { in: %w[meta] }
-  validates :account_id, presence: true, uniqueness: { scope: :platform }
+  validates :account_id, presence: true, uniqueness: { scope: [ :platform, :user_id ] }
   validates :access_token, presence: true
 
   scope :meta, -> { where(platform: "meta") }
