@@ -342,6 +342,153 @@ RSpec.describe GmailSyncService do
     end
   end
 
+  describe "per-thread error resilience" do
+    it "skips deleted threads (404) and advances history_id (incremental sync)" do
+      email_account.update!(last_history_id: 20000)
+
+      gmail = instance_double(GmailService)
+      allow(GmailService).to receive(:new).and_return(gmail)
+
+      message_added_1 = Google::Apis::GmailV1::HistoryMessageAdded.new(
+        message: Google::Apis::GmailV1::Message.new(id: "m-fail", thread_id: "t-deleted")
+      )
+      message_added_2 = Google::Apis::GmailV1::HistoryMessageAdded.new(
+        message: Google::Apis::GmailV1::Message.new(id: "m-ok", thread_id: "t-ok")
+      )
+      history = Google::Apis::GmailV1::History.new(messages_added: [ message_added_1, message_added_2 ])
+      history_response = Google::Apis::GmailV1::ListHistoryResponse.new(
+        history: [ history ], history_id: 20200
+      )
+      allow(gmail).to receive(:list_history).and_return(history_response)
+
+      # Deleted thread returns 404 — should be skipped, not block progress
+      allow(gmail).to receive(:get_thread).with("t-deleted").and_raise(
+        Google::Apis::ClientError.new("not found", status_code: 404)
+      )
+
+      full_thread = build_gmail_thread(
+        id: "t-ok",
+        messages: [ build_gmail_message(id: "m-ok", thread_id: "t-ok", from: "ok@example.com") ]
+      )
+      allow(gmail).to receive(:get_thread).with("t-ok").and_return(full_thread)
+
+      expect { service.sync! }.to change(Ticket, :count).by(1)
+      expect(Ticket.last.gmail_thread_id).to eq("t-ok")
+      # 404 is a skip, not a failure — history_id advances
+      expect(email_account.reload.last_history_id).to eq(20200)
+    end
+
+    it "does not advance history_id on transient errors (incremental sync)" do
+      email_account.update!(last_history_id: 20000)
+
+      gmail = instance_double(GmailService)
+      allow(GmailService).to receive(:new).and_return(gmail)
+
+      message_added = Google::Apis::GmailV1::HistoryMessageAdded.new(
+        message: Google::Apis::GmailV1::Message.new(id: "m-err", thread_id: "t-err")
+      )
+      history = Google::Apis::GmailV1::History.new(messages_added: [ message_added ])
+      history_response = Google::Apis::GmailV1::ListHistoryResponse.new(
+        history: [ history ], history_id: 20200
+      )
+      allow(gmail).to receive(:list_history).and_return(history_response)
+
+      # Transient error (e.g. 500) — should block history_id advancement
+      allow(gmail).to receive(:get_thread).with("t-err").and_raise(
+        Google::Apis::ServerError.new("internal error", status_code: 500)
+      )
+
+      service.sync!
+      expect(email_account.reload.last_history_id).to eq(20000)
+    end
+
+    it "continues processing other threads when one fails (full sync)" do
+      gmail = instance_double(GmailService)
+      allow(GmailService).to receive(:new).and_return(gmail)
+
+      profile = Google::Apis::GmailV1::Profile.new(history_id: 99)
+      allow(gmail).to receive(:user_profile).and_return(profile)
+
+      thread_list = Google::Apis::GmailV1::ListThreadsResponse.new(
+        threads: [
+          Google::Apis::GmailV1::Thread.new(id: "t-fail"),
+          Google::Apis::GmailV1::Thread.new(id: "t-ok2")
+        ],
+        next_page_token: nil
+      )
+      allow(gmail).to receive(:list_threads).and_return(thread_list)
+
+      allow(gmail).to receive(:get_thread).with("t-fail").and_raise(RuntimeError, "API error")
+      allow(gmail).to receive(:get_thread).with("t-ok2").and_return(
+        build_gmail_thread(id: "t-ok2", messages: [
+          build_gmail_message(id: "m-ok2", thread_id: "t-ok2", from: "ok2@example.com")
+        ])
+      )
+
+      expect { service.sync! }.to change(Ticket, :count).by(1)
+      expect(Ticket.last.gmail_thread_id).to eq("t-ok2")
+      # Transient failure — history_id must NOT advance so full_sync retries next run
+      expect(email_account.reload.last_history_id).to be_nil
+    end
+  end
+
+  describe "nested multipart body extraction" do
+    it "extracts body from nested multipart/mixed > multipart/alternative structure" do
+      gmail = instance_double(GmailService)
+      allow(GmailService).to receive(:new).and_return(gmail)
+
+      profile = Google::Apis::GmailV1::Profile.new(history_id: 99)
+      allow(gmail).to receive(:user_profile).and_return(profile)
+
+      thread_list = Google::Apis::GmailV1::ListThreadsResponse.new(
+        threads: [ Google::Apis::GmailV1::Thread.new(id: "t-nested") ],
+        next_page_token: nil
+      )
+      allow(gmail).to receive(:list_threads).and_return(thread_list)
+
+      # Simulate: multipart/mixed -> [multipart/alternative -> [text/plain, text/html], image/png]
+      full_thread = Google::Apis::GmailV1::Thread.new(
+        id: "t-nested",
+        messages: [
+          Google::Apis::GmailV1::Message.new(
+            id: "m-nested", thread_id: "t-nested",
+            internal_date: (Time.current.to_f * 1000).to_i,
+            payload: Google::Apis::GmailV1::MessagePart.new(
+              mime_type: "multipart/mixed",
+              headers: [
+                Google::Apis::GmailV1::MessagePartHeader.new(name: "From", value: "nested@example.com"),
+                Google::Apis::GmailV1::MessagePartHeader.new(name: "Subject", value: "Nested multipart")
+              ],
+              parts: [
+                Google::Apis::GmailV1::MessagePart.new(
+                  mime_type: "multipart/alternative",
+                  parts: [
+                    Google::Apis::GmailV1::MessagePart.new(
+                      mime_type: "text/plain",
+                      body: Google::Apis::GmailV1::MessagePartBody.new(data: Base64.urlsafe_encode64("Nested plain text"))
+                    ),
+                    Google::Apis::GmailV1::MessagePart.new(
+                      mime_type: "text/html",
+                      body: Google::Apis::GmailV1::MessagePartBody.new(data: Base64.urlsafe_encode64("<b>Nested HTML</b>"))
+                    )
+                  ]
+                ),
+                Google::Apis::GmailV1::MessagePart.new(
+                  mime_type: "image/png",
+                  body: Google::Apis::GmailV1::MessagePartBody.new(data: nil)
+                )
+              ]
+            )
+          )
+        ]
+      )
+      allow(gmail).to receive(:get_thread).with("t-nested").and_return(full_thread)
+
+      service.sync!
+      expect(Message.last.body).to eq("Nested plain text")
+    end
+  end
+
   describe "closed ticket reopen logic (Stories 7/8)" do
     let!(:existing_ticket) do
       t = create(:ticket, email_account: email_account, gmail_thread_id: "t-reopen",
