@@ -30,6 +30,8 @@ class GmailSyncService
 
       result.threads.each do |thread_stub|
         process_thread(thread_stub.id)
+      rescue => e
+        Rails.logger.error("[GmailSync] Failed to process thread #{thread_stub.id}: #{e.class} - #{e.message}")
       end
 
       page_token = result.next_page_token
@@ -44,31 +46,39 @@ class GmailSyncService
     all_thread_ids = []
     latest_history_id = email_account.last_history_id
 
-    loop do
-      history_result = gmail.list_history(
-        start_history_id: email_account.last_history_id,
-        page_token: page_token
-      )
+    begin
+      loop do
+        history_result = gmail.list_history(
+          start_history_id: email_account.last_history_id,
+          page_token: page_token
+        )
 
-      if history_result.history.present?
-        thread_ids = history_result.history
-          .flat_map(&:messages_added)
-          .compact
-          .map { |ma| ma.message.thread_id }
+        if history_result.history.present?
+          thread_ids = history_result.history
+            .flat_map(&:messages_added)
+            .compact
+            .map { |ma| ma.message.thread_id }
 
-        all_thread_ids.concat(thread_ids)
+          all_thread_ids.concat(thread_ids)
+        end
+
+        latest_history_id = history_result.history_id if history_result.history_id
+        page_token = history_result.next_page_token
+        break if page_token.nil?
       end
-
-      latest_history_id = history_result.history_id if history_result.history_id
-      page_token = history_result.next_page_token
-      break if page_token.nil?
+    rescue Google::Apis::ClientError => e
+      raise unless e.status_code == 404
+      full_sync
+      return
     end
 
-    all_thread_ids.uniq.each { |thread_id| process_thread(thread_id) }
+    all_thread_ids.uniq.each do |thread_id|
+      process_thread(thread_id)
+    rescue => e
+      Rails.logger.error("[GmailSync] Failed to process thread #{thread_id}: #{e.class} - #{e.message}")
+    end
+
     email_account.update!(last_history_id: latest_history_id) if latest_history_id
-  rescue Google::Apis::ClientError => e
-    raise unless e.status_code == 404
-    full_sync
   end
 
   def process_thread(thread_id)
@@ -210,14 +220,32 @@ class GmailSyncService
   end
 
   def extract_body(message)
-    parts = message.payload&.parts
-    if parts.present?
-      text_part = parts.find { |p| p.mime_type == "text/plain" }
-      html_part = parts.find { |p| p.mime_type == "text/html" }
-      decode_body((text_part || html_part)&.body&.data)
-    else
-      decode_body(message.payload&.body&.data)
+    find_body_in_parts(message.payload)
+  end
+
+  def find_body_in_parts(part)
+    return nil if part.nil?
+
+    # Leaf node with body data
+    if part.parts.blank?
+      return decode_body(part.body&.data) if part.body&.data.present? && (part.mime_type.nil? || part.mime_type.start_with?("text/"))
+      return nil
     end
+
+    # Prefer text/plain, fall back to text/html, recurse into multipart/*
+    text_part = part.parts.find { |p| p.mime_type == "text/plain" }
+    return decode_body(text_part.body&.data) if text_part&.body&.data.present?
+
+    html_part = part.parts.find { |p| p.mime_type == "text/html" }
+    return decode_body(html_part.body&.data) if html_part&.body&.data.present?
+
+    # Recurse into nested multipart parts (e.g. multipart/alternative inside multipart/mixed)
+    part.parts.each do |sub_part|
+      body = find_body_in_parts(sub_part)
+      return body if body.present?
+    end
+
+    nil
   end
 
   def decode_body(data)
