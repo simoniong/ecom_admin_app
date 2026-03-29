@@ -10,6 +10,6 @@ class CreateShopifyStores < ActiveRecord::Migration[8.1]
       t.timestamps
     end
 
-    add_index :shopify_stores, :shop_domain, unique: true
+    add_index :shopify_stores, [ :user_id, :shop_domain ], unique: true
   end
 end

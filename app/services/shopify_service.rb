@@ -1,3 +1,5 @@
+require "ostruct"
+
 class ShopifyService
   BASE_URL_TEMPLATE = "https://%s/admin/api/2024-10"
 

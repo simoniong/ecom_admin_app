@@ -13,8 +13,14 @@ class ShopifyOauthController < AdminController
     session[:shopify_oauth_nonce] = nonce
 
     client_id = ENV["SHOPIFY_CLIENT_ID"] || Rails.application.credentials.dig(:shopify, :client_id)
+
+    if client_id.blank?
+      redirect_to shopify_stores_path, alert: t("shopify_stores.oauth_failure")
+      return
+    end
+
     scopes = "read_products,read_customers,read_orders,read_fulfillments,read_analytics"
-    redirect_uri = shopify_callback_url
+    redirect_uri = shopify_callback_url(locale: nil)
 
     authorize_url = "https://#{shop}/admin/oauth/authorize?" + {
       client_id: client_id,
@@ -74,8 +80,11 @@ class ShopifyOauthController < AdminController
     return false if hmac.blank?
 
     secret = ENV["SHOPIFY_CLIENT_SECRET"] || Rails.application.credentials.dig(:shopify, :client_secret)
+    return false if secret.blank?
+
     message = query_params.sort.map { |k, v| "#{k}=#{v}" }.join("&")
     digest = OpenSSL::HMAC.hexdigest("SHA256", secret, message)
+    return false unless hmac.bytesize == digest.bytesize
 
     ActiveSupport::SecurityUtils.secure_compare(digest, hmac)
   end
