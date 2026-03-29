@@ -2,6 +2,7 @@
   app_name: "Ecom Admin"
   language_name: "繁體中文"
   nav:
+    dashboard: "儀表板"
     email_accounts: "郵箱"
     shopify_stores: "Shopify 商店"
     tickets: "工單"

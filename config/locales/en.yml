@@ -2,6 +2,7 @@ en:
   app_name: "Ecom Admin"
   language_name: "English"
   nav:
+    dashboard: "Dashboard"
     email_accounts: "Email Accounts"
     shopify_stores: "Shopify Stores"
     tickets: "Tickets"
