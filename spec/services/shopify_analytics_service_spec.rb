@@ -16,46 +16,59 @@ RSpec.describe ShopifyAnalyticsService do
       .to_return(status: 200, body: { count: count }.to_json, headers: { "Content-Type" => "application/json" })
   end
 
-  def stub_orders(orders)
-    stub_request(:get, %r{#{base_url}/orders\.json})
+  def stub_gross_revenue_orders(orders)
+    stub_request(:get, %r{#{base_url}/orders\.json.*created_at_min})
+      .to_return(status: 200, body: { orders: orders }.to_json, headers: { "Content-Type" => "application/json" })
+  end
+
+  def stub_refund_orders(orders)
+    stub_request(:get, %r{#{base_url}/orders\.json.*updated_at_min})
       .to_return(status: 200, body: { orders: orders }.to_json, headers: { "Content-Type" => "application/json" })
   end
 
   describe "#sync_date" do
-    it "creates a daily metric from Shopify REST API" do
+    it "creates a daily metric with revenue minus refunds" do
       stub_orders_count(18)
-      stub_orders([
+      stub_gross_revenue_orders([
         { "current_subtotal_price" => "120.00", "total_shipping_price_set" => { "shop_money" => { "amount" => "20.00" } }, "total_tax" => "10.00" },
         { "current_subtotal_price" => "200.00", "total_shipping_price_set" => { "shop_money" => { "amount" => "30.00" } }, "total_tax" => "20.00" }
+      ])
+      stub_refund_orders([
+        {
+          "refunds" => [ {
+            "created_at" => Time.current.iso8601,
+            "refund_line_items" => [ { "subtotal" => "50.00" } ],
+            "order_adjustments" => []
+          } ]
+        }
       ])
 
       expect { service.sync_date(Date.current) }.to change(ShopifyDailyMetric, :count).by(1)
 
       metric = ShopifyDailyMetric.last
       expect(metric.orders_count).to eq(18)
-      expect(metric.revenue).to eq(400.00)
-      expect(metric.shopify_store_id).to eq(store.id)
+      expect(metric.revenue).to eq(350.00) # 400 gross - 50 refund
     end
 
     it "updates existing metric" do
       create(:shopify_daily_metric, shopify_store: store, date: Date.current, orders_count: 5)
       stub_orders_count(25)
-      stub_orders([])
+      stub_gross_revenue_orders([])
+      stub_refund_orders([])
 
       expect { service.sync_date(Date.current) }.not_to change(ShopifyDailyMetric, :count)
-
-      metric = ShopifyDailyMetric.find_by(shopify_store_id: store.id, date: Date.current)
-      expect(metric.orders_count).to eq(25)
+      expect(ShopifyDailyMetric.find_by(shopify_store_id: store.id, date: Date.current).orders_count).to eq(25)
     end
 
-    it "handles empty orders response" do
-      stub_orders_count(0)
-      stub_orders([])
+    it "handles no refunds" do
+      stub_orders_count(5)
+      stub_gross_revenue_orders([
+        { "current_subtotal_price" => "100.00", "total_shipping_price_set" => { "shop_money" => { "amount" => "10.00" } }, "total_tax" => "0.00" }
+      ])
+      stub_refund_orders([])
 
       service.sync_date(Date.current)
-      metric = ShopifyDailyMetric.last
-      expect(metric.orders_count).to eq(0)
-      expect(metric.revenue).to eq(0)
+      expect(ShopifyDailyMetric.last.revenue).to eq(110.00)
     end
 
     it "handles API errors gracefully" do

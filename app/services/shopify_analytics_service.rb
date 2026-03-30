@@ -11,15 +11,16 @@ class ShopifyAnalyticsService
 
   def sync_date(date)
     orders_count = fetch_orders_count(date)
-    revenue = fetch_revenue(date)
+    gross_revenue = fetch_gross_revenue(date)
+    refunds_total = fetch_refunds_total(date)
 
     metric = ShopifyDailyMetric.find_or_initialize_by(
       shopify_store_id: @store_id, date: date
     )
     metric.assign_attributes(
-      sessions: 0, # ShopifyQL not available on this plan; sessions left at 0 for now
+      sessions: 0,
       orders_count: orders_count,
-      revenue: revenue,
+      revenue: gross_revenue - refunds_total,
       conversion_rate: 0
     )
     metric.save!
@@ -44,8 +45,8 @@ class ShopifyAnalyticsService
     response["count"] || 0
   end
 
-  # Total Sales = current_subtotal_price + shipping + tax (matches Shopify Dashboard)
-  def fetch_revenue(date)
+  # Gross revenue from orders created on this date
+  def fetch_gross_revenue(date)
     min, max = date_range_in_shop_timezone(date)
     orders = get("/orders.json",
       status: "any",
@@ -58,6 +59,34 @@ class ShopifyAnalyticsService
       shipping = o.dig("total_shipping_price_set", "shop_money", "amount").to_d
       tax = o["total_tax"].to_d
       subtotal + shipping + tax
+    end
+  end
+
+  # Sum of refunds processed on this date (across all orders, not just today's)
+  def fetch_refunds_total(date)
+    min, max = date_range_in_shop_timezone(date)
+    # Fetch orders that have refunds — we need to check all orders, not just today's
+    # Use a wider window and filter refunds by date
+    orders = get("/orders.json",
+      status: "any",
+      updated_at_min: min,
+      updated_at_max: max,
+      fields: "refunds",
+      limit: 250)
+    (orders["orders"] || []).sum do |order|
+      (order["refunds"] || []).sum do |refund|
+        refund_time = Time.zone.parse(refund["created_at"]) rescue nil
+        next 0 unless refund_time
+        refund_date = refund_time.in_time_zone(@timezone).to_date
+        next 0 unless refund_date == date
+
+        # Sum refund line item amounts + shipping refund
+        line_items_total = (refund["refund_line_items"] || []).sum { |li| li["subtotal"].to_d }
+        shipping_total = (refund.dig("order_adjustments") || [])
+          .select { |a| a["kind"] == "shipping_refund" }
+          .sum { |a| a["amount"].to_d.abs }
+        line_items_total + shipping_total
+      end
     end
   end
 
