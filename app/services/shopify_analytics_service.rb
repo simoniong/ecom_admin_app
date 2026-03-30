@@ -44,15 +44,21 @@ class ShopifyAnalyticsService
     response["count"] || 0
   end
 
+  # Total Sales = current_subtotal_price + shipping + tax (matches Shopify Dashboard)
   def fetch_revenue(date)
     min, max = date_range_in_shop_timezone(date)
     orders = get("/orders.json",
       status: "any",
       created_at_min: min,
       created_at_max: max,
-      fields: "current_total_price",
+      fields: "current_subtotal_price,total_shipping_price_set,total_tax",
       limit: 250)
-    (orders["orders"] || []).sum { |o| o["current_total_price"].to_d }
+    (orders["orders"] || []).sum do |o|
+      subtotal = o["current_subtotal_price"].to_d
+      shipping = o.dig("total_shipping_price_set", "shop_money", "amount").to_d
+      tax = o["total_tax"].to_d
+      subtotal + shipping + tax
+    end
   end
 
   def get(path, **params)

@@ -24,7 +24,10 @@ RSpec.describe ShopifyAnalyticsService do
   describe "#sync_date" do
     it "creates a daily metric from Shopify REST API" do
       stub_orders_count(18)
-      stub_orders([ { "current_total_price" => "150.00" }, { "current_total_price" => "250.00" } ])
+      stub_orders([
+        { "current_subtotal_price" => "120.00", "total_shipping_price_set" => { "shop_money" => { "amount" => "20.00" } }, "total_tax" => "10.00" },
+        { "current_subtotal_price" => "200.00", "total_shipping_price_set" => { "shop_money" => { "amount" => "30.00" } }, "total_tax" => "20.00" }
+      ])
 
       expect { service.sync_date(Date.current) }.to change(ShopifyDailyMetric, :count).by(1)
 
