@@ -45,17 +45,17 @@ class ShopifyAnalyticsService
     response["count"] || 0
   end
 
-  # Gross revenue from orders created on this date
+  # Gross revenue from orders created on this date (original amounts, before refunds)
   def fetch_gross_revenue(date)
     min, max = date_range_in_shop_timezone(date)
     orders = get("/orders.json",
       status: "any",
       created_at_min: min,
       created_at_max: max,
-      fields: "current_subtotal_price,total_shipping_price_set,total_tax",
+      fields: "subtotal_price,total_shipping_price_set,total_tax",
       limit: 250)
     (orders["orders"] || []).sum do |o|
-      subtotal = o["current_subtotal_price"].to_d
+      subtotal = o["subtotal_price"].to_d
       shipping = o.dig("total_shipping_price_set", "shop_money", "amount").to_d
       tax = o["total_tax"].to_d
       subtotal + shipping + tax

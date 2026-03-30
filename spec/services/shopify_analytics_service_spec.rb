@@ -30,8 +30,8 @@ RSpec.describe ShopifyAnalyticsService do
     it "creates a daily metric with revenue minus refunds" do
       stub_orders_count(18)
       stub_gross_revenue_orders([
-        { "current_subtotal_price" => "120.00", "total_shipping_price_set" => { "shop_money" => { "amount" => "20.00" } }, "total_tax" => "10.00" },
-        { "current_subtotal_price" => "200.00", "total_shipping_price_set" => { "shop_money" => { "amount" => "30.00" } }, "total_tax" => "20.00" }
+        { "subtotal_price" => "120.00", "total_shipping_price_set" => { "shop_money" => { "amount" => "20.00" } }, "total_tax" => "10.00" },
+        { "subtotal_price" => "200.00", "total_shipping_price_set" => { "shop_money" => { "amount" => "30.00" } }, "total_tax" => "20.00" }
       ])
       stub_refund_orders([
         {
@@ -63,7 +63,7 @@ RSpec.describe ShopifyAnalyticsService do
     it "handles no refunds" do
       stub_orders_count(5)
       stub_gross_revenue_orders([
-        { "current_subtotal_price" => "100.00", "total_shipping_price_set" => { "shop_money" => { "amount" => "10.00" } }, "total_tax" => "0.00" }
+        { "subtotal_price" => "100.00", "total_shipping_price_set" => { "shop_money" => { "amount" => "10.00" } }, "total_tax" => "0.00" }
       ])
       stub_refund_orders([])
 
