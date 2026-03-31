@@ -21,6 +21,7 @@
     conversion_rate: "轉化率"
     ad_spend: "廣告花費"
     roas: "ROAS"
+    apply: "查詢"
     vs_previous: "對比上期"
     ranges:
       today: "今天"

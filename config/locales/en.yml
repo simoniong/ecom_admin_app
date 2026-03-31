@@ -21,6 +21,7 @@ en:
     conversion_rate: "Conversion Rate"
     ad_spend: "Ad Spend"
     roas: "ROAS"
+    apply: "Apply"
     vs_previous: "vs previous period"
     ranges:
       today: "Today"

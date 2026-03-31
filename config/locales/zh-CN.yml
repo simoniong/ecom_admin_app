@@ -21,6 +21,7 @@
     conversion_rate: "转化率"
     ad_spend: "广告花费"
     roas: "ROAS"
+    apply: "查询"
     vs_previous: "对比上期"
     ranges:
       today: "今天"
