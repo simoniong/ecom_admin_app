@@ -1,13 +1,15 @@
 class SyncShopifyMetricsJob < ApplicationJob
   queue_as :default
 
-  # days: number of past days to sync (default: 1 = yesterday + today)
+  # days: number of past days to sync (default: 1 = yesterday + today in shop timezone)
   def perform(days: 1)
     return unless defined?(ShopifyStore)
 
-    dates = (days.days.ago.to_date..Date.current).to_a
-
     ShopifyStore.find_each do |store|
+      shop_tz = ActiveSupport::TimeZone[store.timezone] || ActiveSupport::TimeZone["UTC"]
+      shop_today = Time.current.in_time_zone(shop_tz).to_date
+      dates = ((shop_today - days.days)..shop_today).to_a
+
       service = ShopifyAnalyticsService.new(
         shop_domain: store.shop_domain,
         access_token: store.access_token,

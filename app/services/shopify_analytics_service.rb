@@ -63,14 +63,14 @@ class ShopifyAnalyticsService
   end
 
   # Sum of refunds processed on this date (across all orders, not just today's)
+  # Uses updated_at_min from target date to now, then filters refunds by created_at.
+  # Wide window needed because an order refunded on target date may have been
+  # updated again later (changing its updated_at past the target date window).
   def fetch_refunds_total(date)
-    min, max = date_range_in_shop_timezone(date)
-    # Fetch orders that have refunds — we need to check all orders, not just today's
-    # Use a wider window and filter refunds by date
+    min, _max = date_range_in_shop_timezone(date)
     orders = get("/orders.json",
       status: "any",
       updated_at_min: min,
-      updated_at_max: max,
       fields: "refunds",
       limit: 250)
     (orders["orders"] || []).sum do |order|
@@ -80,12 +80,13 @@ class ShopifyAnalyticsService
         refund_date = refund_time.in_time_zone(@timezone).to_date
         next 0 unless refund_date == date
 
-        # Sum refund line item amounts + shipping refund
+        # Returns = refund line items subtotal minus refund_discrepancy adjustments
+        # (discrepancy accounts for partial refunds where merchant keeps some amount)
         line_items_total = (refund["refund_line_items"] || []).sum { |li| li["subtotal"].to_d }
-        shipping_total = (refund.dig("order_adjustments") || [])
-          .select { |a| a["kind"] == "shipping_refund" }
-          .sum { |a| a["amount"].to_d.abs }
-        line_items_total + shipping_total
+        discrepancy = (refund["order_adjustments"] || [])
+          .select { |a| a["kind"] == "refund_discrepancy" }
+          .sum { |a| a["amount"].to_d }
+        line_items_total - discrepancy
       end
     end
   end
