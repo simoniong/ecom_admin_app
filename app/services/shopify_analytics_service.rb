@@ -86,16 +86,20 @@ class ShopifyAnalyticsService
   end
 
   # Fetch refunds processed on target date via GraphQL.
+  # Uses updated_at filter + reverse sort to efficiently find recent refunds
+  # without paginating through all historical refunded orders.
   # Returns = refund_line_items subtotal - REFUND_DISCREPANCY adjustments
   def fetch_refunds_via_graphql(client, min_time, max_time)
     cursor = nil
     total_returns = BigDecimal("0")
+    # Query orders updated from target date onward that have refunds
+    updated_since = min_time.iso8601
 
     loop do
       after_clause = cursor ? ", after: \"#{cursor}\"" : ""
       query = <<~GQL
         {
-          orders(first: 50#{after_clause}, query: "financial_status:partially_refunded OR financial_status:refunded") {
+          orders(first: 50#{after_clause}, sortKey: UPDATED_AT, reverse: true, query: "financial_status:partially_refunded OR financial_status:refunded updated_at:>=#{updated_since}") {
             edges {
               cursor
               node {
