@@ -62,7 +62,7 @@ RSpec.describe ShopifyAnalyticsService do
               "refundLineItems" => { "edges" => [
                 { "node" => { "subtotalSet" => { "shopMoney" => { "amount" => "50.00" } } } }
               ] },
-              "orderAdjustments" => []
+              "orderAdjustments" => { "edges" => [] }
             } ]
           }
         ])
@@ -85,9 +85,9 @@ RSpec.describe ShopifyAnalyticsService do
               "refundLineItems" => { "edges" => [
                 { "node" => { "subtotalSet" => { "shopMoney" => { "amount" => "69.90" } } } }
               ] },
-              "orderAdjustments" => [
-                { "kind" => "REFUND_DISCREPANCY", "amountSet" => { "shopMoney" => { "amount" => "34.95" } } }
-              ]
+              "orderAdjustments" => { "edges" => [
+                { "node" => { "reason" => "REFUND_DISCREPANCY", "amountSet" => { "shopMoney" => { "amount" => "34.95" } } } }
+              ] }
             } ]
           }
         ])
@@ -108,14 +108,14 @@ RSpec.describe ShopifyAnalyticsService do
                 "refundLineItems" => { "edges" => [
                   { "node" => { "subtotalSet" => { "shopMoney" => { "amount" => "20.00" } } } }
                 ] },
-                "orderAdjustments" => []
+                "orderAdjustments" => { "edges" => [] }
               },
               {
                 "createdAt" => 1.day.ago.utc.iso8601,
                 "refundLineItems" => { "edges" => [
                   { "node" => { "subtotalSet" => { "shopMoney" => { "amount" => "99.00" } } } }
                 ] },
-                "orderAdjustments" => []
+                "orderAdjustments" => { "edges" => [] }
               }
             ]
           }

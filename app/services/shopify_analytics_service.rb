@@ -12,7 +12,13 @@ class ShopifyAnalyticsService
 
     client = build_graphql_client
     orders_count, gross_revenue = fetch_orders_via_graphql(client, min_time, max_time)
-    refunds_total = fetch_refunds_via_graphql(client, min_time, max_time)
+
+    refunds_total = begin
+      fetch_refunds_via_graphql(client, min_time, max_time)
+    rescue => e
+      Rails.logger.warn("[ShopifyAnalytics] Refund query failed for #{date}, using 0: #{e.message}")
+      BigDecimal("0")
+    end
 
     metric = ShopifyDailyMetric.find_or_initialize_by(
       shopify_store_id: @store_id, date: date
@@ -102,7 +108,8 @@ class ShopifyAnalyticsService
   def fetch_refunds_for_status(client, min_time, max_time, status)
     cursor = nil
     total = BigDecimal("0")
-    updated_since = min_time.iso8601
+    # Use date-only format; Shopify's query parser can't handle ISO8601 timestamps
+    updated_since = min_time.in_time_zone(@timezone).to_date.iso8601
 
     loop do
       after_clause = cursor ? ", after: \"#{cursor}\"" : ""
@@ -121,9 +128,13 @@ class ShopifyAnalyticsService
                       }
                     }
                   }
-                  orderAdjustments {
-                    kind
-                    amountSet { shopMoney { amount } }
+                  orderAdjustments(first: 10) {
+                    edges {
+                      node {
+                        reason
+                        amountSet { shopMoney { amount } }
+                      }
+                    }
                   }
                 }
               }
@@ -149,9 +160,12 @@ class ShopifyAnalyticsService
           li_total = (refund.dig("refundLineItems", "edges") || []).sum do |e|
             e.dig("node", "subtotalSet", "shopMoney", "amount").to_d
           end
-          discrepancy = (refund["orderAdjustments"] || [])
-            .select { |a| a["kind"] == "REFUND_DISCREPANCY" }
-            .sum { |a| a.dig("amountSet", "shopMoney", "amount").to_d }
+          # Skip refunds with no returned items (manual refunds/credits)
+          next if li_total.zero?
+
+          # Sum ALL adjustment types to get net returns
+          adjustments = (refund.dig("orderAdjustments", "edges") || []).map { |e| e["node"] }
+          discrepancy = adjustments.sum { |a| a.dig("amountSet", "shopMoney", "amount").to_d }
 
           total += li_total - discrepancy
         end
