@@ -86,20 +86,29 @@ class ShopifyAnalyticsService
   end
 
   # Fetch refunds processed on target date via GraphQL.
-  # Uses updated_at filter + reverse sort to efficiently find recent refunds
-  # without paginating through all historical refunded orders.
+  # Queries partially_refunded and refunded orders separately to avoid
+  # Shopify query syntax issues with OR + updated_at filters.
   # Returns = refund_line_items subtotal - REFUND_DISCREPANCY adjustments
   def fetch_refunds_via_graphql(client, min_time, max_time)
-    cursor = nil
     total_returns = BigDecimal("0")
-    # Query orders updated from target date onward that have refunds
+
+    %w[partially_refunded refunded].each do |status|
+      total_returns += fetch_refunds_for_status(client, min_time, max_time, status)
+    end
+
+    total_returns
+  end
+
+  def fetch_refunds_for_status(client, min_time, max_time, status)
+    cursor = nil
+    total = BigDecimal("0")
     updated_since = min_time.iso8601
 
     loop do
       after_clause = cursor ? ", after: \"#{cursor}\"" : ""
       query = <<~GQL
         {
-          orders(first: 50#{after_clause}, sortKey: UPDATED_AT, reverse: true, query: "financial_status:partially_refunded OR financial_status:refunded updated_at:>=#{updated_since}") {
+          orders(first: 50#{after_clause}, sortKey: UPDATED_AT, reverse: true, query: "financial_status:#{status} updated_at:>=#{updated_since}") {
             edges {
               cursor
               node {
@@ -144,7 +153,7 @@ class ShopifyAnalyticsService
             .select { |a| a["kind"] == "REFUND_DISCREPANCY" }
             .sum { |a| a.dig("amountSet", "shopMoney", "amount").to_d }
 
-          total_returns += li_total - discrepancy
+          total += li_total - discrepancy
         end
       end
 
@@ -152,6 +161,6 @@ class ShopifyAnalyticsService
       cursor = edges.last["cursor"]
     end
 
-    total_returns
+    total
   end
 end
