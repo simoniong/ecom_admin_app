@@ -13,12 +13,7 @@ class ShopifyAnalyticsService
     client = build_graphql_client
     orders_count, gross_revenue = fetch_orders_via_graphql(client, min_time, max_time)
 
-    refunds_total = begin
-      fetch_refunds_via_graphql(client, min_time, max_time)
-    rescue => e
-      Rails.logger.warn("[ShopifyAnalytics] Refund query failed for #{date}, using 0: #{e.message}")
-      BigDecimal("0")
-    end
+    refunds_total = fetch_refunds_via_graphql(client, min_time, max_time)
 
     metric = ShopifyDailyMetric.find_or_initialize_by(
       shopify_store_id: @store_id, date: date
@@ -160,14 +155,13 @@ class ShopifyAnalyticsService
           li_total = (refund.dig("refundLineItems", "edges") || []).sum do |e|
             e.dig("node", "subtotalSet", "shopMoney", "amount").to_d
           end
-          # Skip refunds with no returned items (manual refunds/credits)
-          next if li_total.zero?
 
-          # Sum ALL adjustment types to get net returns
+          # Sum ALL adjustment types (includes settled pending refunds)
           adjustments = (refund.dig("orderAdjustments", "edges") || []).map { |e| e["node"] }
           discrepancy = adjustments.sum { |a| a.dig("amountSet", "shopMoney", "amount").to_d }
 
-          total += li_total - discrepancy
+          net = li_total - discrepancy
+          total += net unless net.zero?
         end
       end
 
