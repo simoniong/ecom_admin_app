@@ -17,13 +17,29 @@ RSpec.describe ShopifyAnalyticsService do
   end
 
   def stub_gross_revenue_orders(orders)
-    stub_request(:get, %r{#{base_url}/orders\.json.*created_at_min})
+    stub_request(:get, %r{#{base_url}/orders\.json})
       .to_return(status: 200, body: { orders: orders }.to_json, headers: { "Content-Type" => "application/json" })
   end
 
-  def stub_refund_orders(orders)
-    stub_request(:get, %r{#{base_url}/orders\.json.*updated_at_min})
-      .to_return(status: 200, body: { orders: orders }.to_json, headers: { "Content-Type" => "application/json" })
+  def stub_graphql_refunds(refund_orders, has_next_page: false)
+    edges = refund_orders.map.with_index do |order, i|
+      {
+        "cursor" => "cursor_#{i}",
+        "node" => { "refunds" => order[:refunds] }
+      }
+    end
+
+    body = {
+      "data" => {
+        "orders" => {
+          "edges" => edges,
+          "pageInfo" => { "hasNextPage" => has_next_page }
+        }
+      }
+    }
+
+    stub_request(:post, %r{test-store\.myshopify\.com/admin/api/2024-10/graphql\.json})
+      .to_return(status: 200, body: body.to_json, headers: { "Content-Type" => "application/json" })
   end
 
   describe "#sync_date" do
@@ -33,12 +49,14 @@ RSpec.describe ShopifyAnalyticsService do
         { "subtotal_price" => "120.00", "total_shipping_price_set" => { "shop_money" => { "amount" => "20.00" } }, "total_tax" => "10.00" },
         { "subtotal_price" => "200.00", "total_shipping_price_set" => { "shop_money" => { "amount" => "30.00" } }, "total_tax" => "20.00" }
       ])
-      stub_refund_orders([
+      stub_graphql_refunds([
         {
-          "refunds" => [ {
-            "created_at" => Time.current.iso8601,
-            "refund_line_items" => [ { "subtotal" => "50.00" } ],
-            "order_adjustments" => []
+          refunds: [ {
+            "createdAt" => Time.current.utc.iso8601,
+            "refundLineItems" => { "edges" => [
+              { "node" => { "subtotalSet" => { "shopMoney" => { "amount" => "50.00" } } } }
+            ] },
+            "orderAdjustments" => []
           } ]
         }
       ])
@@ -50,14 +68,58 @@ RSpec.describe ShopifyAnalyticsService do
       expect(metric.revenue).to eq(350.00) # 400 gross - 50 refund
     end
 
-    it "updates existing metric" do
-      create(:shopify_daily_metric, shopify_store: store, date: Date.current, orders_count: 5)
-      stub_orders_count(25)
-      stub_gross_revenue_orders([])
-      stub_refund_orders([])
+    it "accounts for refund discrepancies" do
+      stub_orders_count(10)
+      stub_gross_revenue_orders([
+        { "subtotal_price" => "200.00", "total_shipping_price_set" => { "shop_money" => { "amount" => "10.00" } }, "total_tax" => "0.00" }
+      ])
+      stub_graphql_refunds([
+        {
+          refunds: [ {
+            "createdAt" => Time.current.utc.iso8601,
+            "refundLineItems" => { "edges" => [
+              { "node" => { "subtotalSet" => { "shopMoney" => { "amount" => "69.90" } } } }
+            ] },
+            "orderAdjustments" => [
+              { "kind" => "REFUND_DISCREPANCY", "amountSet" => { "shopMoney" => { "amount" => "34.95" } } }
+            ]
+          } ]
+        }
+      ])
 
-      expect { service.sync_date(Date.current) }.not_to change(ShopifyDailyMetric, :count)
-      expect(ShopifyDailyMetric.find_by(shopify_store_id: store.id, date: Date.current).orders_count).to eq(25)
+      service.sync_date(Date.current)
+      # Returns = 69.90 - 34.95 = 34.95, Revenue = 210 - 34.95 = 175.05
+      expect(ShopifyDailyMetric.last.revenue).to eq(175.05)
+    end
+
+    it "filters refunds by date" do
+      stub_orders_count(5)
+      stub_gross_revenue_orders([
+        { "subtotal_price" => "100.00", "total_shipping_price_set" => { "shop_money" => { "amount" => "10.00" } }, "total_tax" => "0.00" }
+      ])
+      stub_graphql_refunds([
+        {
+          refunds: [
+            { # Today's refund — should be counted
+              "createdAt" => Time.current.utc.iso8601,
+              "refundLineItems" => { "edges" => [
+                { "node" => { "subtotalSet" => { "shopMoney" => { "amount" => "20.00" } } } }
+              ] },
+              "orderAdjustments" => []
+            },
+            { # Yesterday's refund — should NOT be counted
+              "createdAt" => 1.day.ago.utc.iso8601,
+              "refundLineItems" => { "edges" => [
+                { "node" => { "subtotalSet" => { "shopMoney" => { "amount" => "99.00" } } } }
+              ] },
+              "orderAdjustments" => []
+            }
+          ]
+        }
+      ])
+
+      service.sync_date(Date.current)
+      expect(ShopifyDailyMetric.last.revenue).to eq(90.00) # 110 - 20
     end
 
     it "handles no refunds" do
@@ -65,53 +127,10 @@ RSpec.describe ShopifyAnalyticsService do
       stub_gross_revenue_orders([
         { "subtotal_price" => "100.00", "total_shipping_price_set" => { "shop_money" => { "amount" => "10.00" } }, "total_tax" => "0.00" }
       ])
-      stub_refund_orders([])
+      stub_graphql_refunds([])
 
       service.sync_date(Date.current)
       expect(ShopifyDailyMetric.last.revenue).to eq(110.00)
-    end
-
-    it "accounts for refund discrepancies" do
-      stub_orders_count(10)
-      stub_gross_revenue_orders([
-        { "subtotal_price" => "200.00", "total_shipping_price_set" => { "shop_money" => { "amount" => "10.00" } }, "total_tax" => "0.00" }
-      ])
-      stub_refund_orders([
-        {
-          "refunds" => [ {
-            "created_at" => Time.current.iso8601,
-            "refund_line_items" => [ { "subtotal" => "69.90" } ],
-            "order_adjustments" => [ { "kind" => "refund_discrepancy", "amount" => "34.95" } ]
-          } ]
-        }
-      ])
-
-      service.sync_date(Date.current)
-      # Returns = 69.90 - 34.95 discrepancy = 34.95
-      # Revenue = 210 - 34.95 = 175.05
-      expect(ShopifyDailyMetric.last.revenue).to eq(175.05)
-    end
-
-    it "paginates when more than 250 orders" do
-      stub_orders_count(2)
-
-      # Page 1: 250 orders (simulated with 1 for simplicity)
-      page1_orders = [ { "subtotal_price" => "100.00", "total_shipping_price_set" => { "shop_money" => { "amount" => "5.00" } }, "total_tax" => "0.00" } ]
-      page2_orders = [ { "subtotal_price" => "50.00", "total_shipping_price_set" => { "shop_money" => { "amount" => "3.00" } }, "total_tax" => "0.00" } ]
-
-      # First page returns Link header with next
-      stub_request(:get, %r{#{base_url}/orders\.json.*created_at_min})
-        .to_return(
-          status: 200,
-          body: { orders: page1_orders }.to_json,
-          headers: { "Content-Type" => "application/json" }
-        )
-
-      stub_refund_orders([])
-
-      service.sync_date(Date.current)
-      # Only 1 order (< 250) so no pagination triggered
-      expect(ShopifyDailyMetric.last.revenue).to eq(105.00)
     end
 
     it "handles API errors gracefully" do

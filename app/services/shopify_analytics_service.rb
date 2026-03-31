@@ -12,7 +12,7 @@ class ShopifyAnalyticsService
   def sync_date(date)
     orders_count = fetch_orders_count(date)
     gross_revenue = fetch_gross_revenue(date)
-    refunds_total = fetch_refunds_total(date)
+    refunds_total = fetch_refunds_total_via_graphql(date)
 
     metric = ShopifyDailyMetric.find_or_initialize_by(
       shopify_store_id: @store_id, date: date
@@ -38,7 +38,7 @@ class ShopifyAnalyticsService
 
   def fetch_orders_count(date)
     min, max = date_range_in_shop_timezone(date)
-    response = get("/orders/count.json",
+    response = rest_get("/orders/count.json",
       status: "any",
       created_at_min: min,
       created_at_max: max)
@@ -47,7 +47,7 @@ class ShopifyAnalyticsService
 
   def fetch_gross_revenue(date)
     min, max = date_range_in_shop_timezone(date)
-    orders = get_all_pages("/orders.json",
+    orders = rest_get_all_pages("/orders.json",
       status: "any",
       created_at_min: min,
       created_at_max: max,
@@ -59,57 +59,115 @@ class ShopifyAnalyticsService
     end
   end
 
-  # Refunds processed on this date (across all orders).
-  # Queries orders updated on the target date with pagination,
-  # then filters refunds by created_at in shop timezone.
-  def fetch_refunds_total(date)
-    min, max = date_range_in_shop_timezone(date)
-    orders = get_all_pages("/orders.json",
-      status: "any",
-      updated_at_min: min,
-      updated_at_max: max,
-      fields: "refunds")
+  # Query all refunded/partially_refunded orders via GraphQL,
+  # filter refunds by created_at in shop timezone for the target date.
+  # Returns = refund_line_items subtotal - refund_discrepancy adjustments
+  def fetch_refunds_total_via_graphql(date)
+    min_time = @timezone.parse(date.to_s).beginning_of_day.utc
+    max_time = @timezone.parse(date.to_s).end_of_day.utc
 
-    orders.sum do |order|
-      (order["refunds"] || []).sum do |refund|
-        refund_time = Time.zone.parse(refund["created_at"]) rescue nil
-        next 0 unless refund_time
-        next 0 unless refund_time.in_time_zone(@timezone).to_date == date
+    client = build_graphql_client
+    cursor = nil
+    total_returns = BigDecimal("0")
 
-        line_items_total = (refund["refund_line_items"] || []).sum { |li| li["subtotal"].to_d }
-        discrepancy = (refund["order_adjustments"] || [])
-          .select { |a| a["kind"] == "refund_discrepancy" }
-          .sum { |a| a["amount"].to_d }
-        line_items_total - discrepancy
+    loop do
+      after_clause = cursor ? ", after: \"#{cursor}\"" : ""
+      query = <<~GQL
+        {
+          orders(first: 50#{after_clause}, query: "financial_status:partially_refunded OR financial_status:refunded") {
+            edges {
+              cursor
+              node {
+                refunds(first: 20) {
+                  createdAt
+                  refundLineItems(first: 50) {
+                    edges {
+                      node {
+                        subtotalSet {
+                          shopMoney { amount }
+                        }
+                      }
+                    }
+                  }
+                  orderAdjustments {
+                    kind
+                    amountSet {
+                      shopMoney { amount }
+                    }
+                  }
+                }
+              }
+            }
+            pageInfo {
+              hasNextPage
+            }
+          }
+        }
+      GQL
+
+      response = client.query(query: query)
+      data = response.body.dig("data", "orders")
+      break unless data
+
+      edges = data["edges"] || []
+      break if edges.empty?
+
+      edges.each do |edge|
+        order = edge["node"]
+        (order["refunds"] || []).each do |refund|
+          refund_at = Time.parse(refund["createdAt"]).utc rescue nil
+          next unless refund_at
+          next unless refund_at >= min_time && refund_at <= max_time
+
+          li_total = (refund.dig("refundLineItems", "edges") || []).sum do |e|
+            e.dig("node", "subtotalSet", "shopMoney", "amount").to_d
+          end
+          discrepancy = (refund["orderAdjustments"] || [])
+            .select { |a| a["kind"] == "REFUND_DISCREPANCY" }
+            .sum { |a| a.dig("amountSet", "shopMoney", "amount").to_d }
+
+          total_returns += li_total - discrepancy
+        end
       end
+
+      break unless data.dig("pageInfo", "hasNextPage")
+      cursor = edges.last["cursor"]
     end
+
+    total_returns
   end
 
-  def get(path, **params)
+  def build_graphql_client
+    session = ShopifyAPI::Auth::Session.new(
+      shop: @shop_domain,
+      access_token: @access_token
+    )
+    ShopifyAPI::Clients::Graphql::Admin.new(session: session)
+  end
+
+  def rest_get(path, **params)
     response = HTTParty.get(
       "#{@base_url}#{path}",
       query: params,
-      headers: api_headers
+      headers: rest_headers
     )
     raise "Shopify API error (#{response.code}): #{response.body}" unless response.success?
     response.parsed_response
   end
 
-  # Paginate through all orders using link header
-  def get_all_pages(path, **params)
+  def rest_get_all_pages(path, **params)
     all_records = []
     url = "#{@base_url}#{path}"
     query = params.merge(limit: 250)
 
     loop do
-      response = HTTParty.get(url, query: query, headers: api_headers)
+      response = HTTParty.get(url, query: query, headers: rest_headers)
       raise "Shopify API error (#{response.code}): #{response.body}" unless response.success?
 
       records = response.parsed_response["orders"] || []
       all_records.concat(records)
       break if records.size < 250
 
-      # Follow next page via Link header
       link = response.headers["link"]
       break unless link&.include?('rel="next"')
 
@@ -117,13 +175,13 @@ class ShopifyAnalyticsService
       break unless next_url
 
       url = next_url
-      query = {} # params are in the URL now
+      query = {}
     end
 
     all_records
   end
 
-  def api_headers
+  def rest_headers
     {
       "X-Shopify-Access-Token" => @access_token,
       "Content-Type" => "application/json"
