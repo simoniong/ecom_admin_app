@@ -45,43 +45,37 @@ class ShopifyAnalyticsService
     response["count"] || 0
   end
 
-  # Gross revenue from orders created on this date (original amounts, before refunds)
   def fetch_gross_revenue(date)
     min, max = date_range_in_shop_timezone(date)
-    orders = get("/orders.json",
+    orders = get_all_pages("/orders.json",
       status: "any",
       created_at_min: min,
       created_at_max: max,
-      fields: "subtotal_price,total_shipping_price_set,total_tax",
-      limit: 250)
-    (orders["orders"] || []).sum do |o|
-      subtotal = o["subtotal_price"].to_d
-      shipping = o.dig("total_shipping_price_set", "shop_money", "amount").to_d
-      tax = o["total_tax"].to_d
-      subtotal + shipping + tax
+      fields: "subtotal_price,total_shipping_price_set,total_tax")
+    orders.sum do |o|
+      o["subtotal_price"].to_d +
+        o.dig("total_shipping_price_set", "shop_money", "amount").to_d +
+        o["total_tax"].to_d
     end
   end
 
-  # Sum of refunds processed on this date (across all orders, not just today's)
-  # Uses updated_at_min from target date to now, then filters refunds by created_at.
-  # Wide window needed because an order refunded on target date may have been
-  # updated again later (changing its updated_at past the target date window).
+  # Refunds processed on this date (across all orders).
+  # Queries orders updated on the target date with pagination,
+  # then filters refunds by created_at in shop timezone.
   def fetch_refunds_total(date)
-    min, _max = date_range_in_shop_timezone(date)
-    orders = get("/orders.json",
+    min, max = date_range_in_shop_timezone(date)
+    orders = get_all_pages("/orders.json",
       status: "any",
       updated_at_min: min,
-      fields: "refunds",
-      limit: 250)
-    (orders["orders"] || []).sum do |order|
+      updated_at_max: max,
+      fields: "refunds")
+
+    orders.sum do |order|
       (order["refunds"] || []).sum do |refund|
         refund_time = Time.zone.parse(refund["created_at"]) rescue nil
         next 0 unless refund_time
-        refund_date = refund_time.in_time_zone(@timezone).to_date
-        next 0 unless refund_date == date
+        next 0 unless refund_time.in_time_zone(@timezone).to_date == date
 
-        # Returns = refund line items subtotal minus refund_discrepancy adjustments
-        # (discrepancy accounts for partial refunds where merchant keeps some amount)
         line_items_total = (refund["refund_line_items"] || []).sum { |li| li["subtotal"].to_d }
         discrepancy = (refund["order_adjustments"] || [])
           .select { |a| a["kind"] == "refund_discrepancy" }
@@ -95,12 +89,44 @@ class ShopifyAnalyticsService
     response = HTTParty.get(
       "#{@base_url}#{path}",
       query: params,
-      headers: {
-        "X-Shopify-Access-Token" => @access_token,
-        "Content-Type" => "application/json"
-      }
+      headers: api_headers
     )
     raise "Shopify API error (#{response.code}): #{response.body}" unless response.success?
     response.parsed_response
+  end
+
+  # Paginate through all orders using link header
+  def get_all_pages(path, **params)
+    all_records = []
+    url = "#{@base_url}#{path}"
+    query = params.merge(limit: 250)
+
+    loop do
+      response = HTTParty.get(url, query: query, headers: api_headers)
+      raise "Shopify API error (#{response.code}): #{response.body}" unless response.success?
+
+      records = response.parsed_response["orders"] || []
+      all_records.concat(records)
+      break if records.size < 250
+
+      # Follow next page via Link header
+      link = response.headers["link"]
+      break unless link&.include?('rel="next"')
+
+      next_url = link.match(/<([^>]+)>;\s*rel="next"/)&.captures&.first
+      break unless next_url
+
+      url = next_url
+      query = {} # params are in the URL now
+    end
+
+    all_records
+  end
+
+  def api_headers
+    {
+      "X-Shopify-Access-Token" => @access_token,
+      "Content-Type" => "application/json"
+    }
   end
 end

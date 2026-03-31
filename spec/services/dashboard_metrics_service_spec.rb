@@ -76,6 +76,15 @@ RSpec.describe DashboardMetricsService do
       expect(result[:date_range]).to eq(6.days.ago.to_date..Date.current)
     end
 
+    it "supports custom date range" do
+      create(:shopify_daily_metric, shopify_store: store, date: Date.new(2026, 3, 15), sessions: 50, orders_count: 3, revenue: 300)
+
+      result = described_class.new(user, start_date: "2026-03-15", end_date: "2026-03-15").call
+      expect(result[:range_key]).to eq("custom")
+      expect(result[:current][:orders]).to eq(3)
+      expect(result[:current][:revenue]).to eq(300)
+    end
+
     it "returns date range metadata" do
       result = described_class.new(user, range_key: "yesterday").call
       expect(result[:date_range]).to eq(Date.yesterday..Date.yesterday)

@@ -71,6 +71,49 @@ RSpec.describe ShopifyAnalyticsService do
       expect(ShopifyDailyMetric.last.revenue).to eq(110.00)
     end
 
+    it "accounts for refund discrepancies" do
+      stub_orders_count(10)
+      stub_gross_revenue_orders([
+        { "subtotal_price" => "200.00", "total_shipping_price_set" => { "shop_money" => { "amount" => "10.00" } }, "total_tax" => "0.00" }
+      ])
+      stub_refund_orders([
+        {
+          "refunds" => [ {
+            "created_at" => Time.current.iso8601,
+            "refund_line_items" => [ { "subtotal" => "69.90" } ],
+            "order_adjustments" => [ { "kind" => "refund_discrepancy", "amount" => "34.95" } ]
+          } ]
+        }
+      ])
+
+      service.sync_date(Date.current)
+      # Returns = 69.90 - 34.95 discrepancy = 34.95
+      # Revenue = 210 - 34.95 = 175.05
+      expect(ShopifyDailyMetric.last.revenue).to eq(175.05)
+    end
+
+    it "paginates when more than 250 orders" do
+      stub_orders_count(2)
+
+      # Page 1: 250 orders (simulated with 1 for simplicity)
+      page1_orders = [ { "subtotal_price" => "100.00", "total_shipping_price_set" => { "shop_money" => { "amount" => "5.00" } }, "total_tax" => "0.00" } ]
+      page2_orders = [ { "subtotal_price" => "50.00", "total_shipping_price_set" => { "shop_money" => { "amount" => "3.00" } }, "total_tax" => "0.00" } ]
+
+      # First page returns Link header with next
+      stub_request(:get, %r{#{base_url}/orders\.json.*created_at_min})
+        .to_return(
+          status: 200,
+          body: { orders: page1_orders }.to_json,
+          headers: { "Content-Type" => "application/json" }
+        )
+
+      stub_refund_orders([])
+
+      service.sync_date(Date.current)
+      # Only 1 order (< 250) so no pagination triggered
+      expect(ShopifyDailyMetric.last.revenue).to eq(105.00)
+    end
+
     it "handles API errors gracefully" do
       stub_request(:get, %r{#{base_url}/orders/count\.json})
         .to_return(status: 500, body: "Internal Server Error")
