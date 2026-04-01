@@ -120,6 +120,7 @@ class ShopifyAnalyticsService
                     edges {
                       node {
                         subtotalSet { shopMoney { amount } }
+                        totalTaxSet { shopMoney { amount } }
                       }
                     }
                   }
@@ -127,6 +128,7 @@ class ShopifyAnalyticsService
                     edges {
                       node {
                         subtotalAmountSet { shopMoney { amount } }
+                        taxAmountSet { shopMoney { amount } }
                       }
                     }
                   }
@@ -159,18 +161,24 @@ class ShopifyAnalyticsService
           next unless refund_at
           next unless refund_at >= min_time && refund_at <= max_time
 
-          li_total = (refund.dig("refundLineItems", "edges") || []).sum do |e|
+          li_subtotal = (refund.dig("refundLineItems", "edges") || []).sum do |e|
             e.dig("node", "subtotalSet", "shopMoney", "amount").to_d
           end
-          shipping_total = (refund.dig("refundShippingLines", "edges") || []).sum do |e|
+          li_tax = (refund.dig("refundLineItems", "edges") || []).sum do |e|
+            e.dig("node", "totalTaxSet", "shopMoney", "amount").to_d
+          end
+          shipping_subtotal = (refund.dig("refundShippingLines", "edges") || []).sum do |e|
             e.dig("node", "subtotalAmountSet", "shopMoney", "amount").to_d
+          end
+          shipping_tax = (refund.dig("refundShippingLines", "edges") || []).sum do |e|
+            e.dig("node", "taxAmountSet", "shopMoney", "amount").to_d
           end
 
           # Sum ALL adjustment types (includes settled pending refunds)
           adjustments = (refund.dig("orderAdjustments", "edges") || []).map { |e| e["node"] }
           discrepancy = adjustments.sum { |a| a.dig("amountSet", "shopMoney", "amount").to_d }
 
-          net = li_total + shipping_total - discrepancy
+          net = li_subtotal + li_tax + shipping_subtotal + shipping_tax - discrepancy
           total += net unless net.zero?
         end
       end
