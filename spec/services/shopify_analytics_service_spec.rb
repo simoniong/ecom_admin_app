@@ -12,7 +12,7 @@ RSpec.describe ShopifyAnalyticsService do
 
   def stub_graphql(responses)
     call_count = 0
-    stub_request(:post, %r{test-store\.myshopify\.com/admin/api/2024-10/graphql\.json})
+    stub_request(:post, %r{test-store\.myshopify\.com/admin/api/.+/graphql\.json})
       .to_return do
         body = responses[call_count] || empty_graphql_response
         call_count += 1
@@ -136,7 +136,7 @@ RSpec.describe ShopifyAnalyticsService do
     end
 
     it "handles API errors gracefully" do
-      stub_request(:post, %r{test-store\.myshopify\.com/admin/api/2024-10/graphql\.json})
+      stub_request(:post, %r{test-store\.myshopify\.com/admin/api/.+/graphql\.json})
         .to_return(status: 500, body: "Internal Server Error")
 
       expect { service.sync_date(Date.current) }.not_to raise_error
