@@ -4,7 +4,7 @@ class DashboardMetricsService
     "yesterday" => -> { Date.yesterday..Date.yesterday },
     "past_7_days" => -> { 6.days.ago.to_date..Date.current },
     "this_month" => -> { Date.current.beginning_of_month..Date.current },
-    "last_month" => -> { 1.month.ago.beginning_of_month..1.month.ago.end_of_month },
+    "last_month" => -> { 1.month.ago.beginning_of_month.to_date..1.month.ago.end_of_month.to_date },
     "past_30_days" => -> { 29.days.ago.to_date..Date.current }
   }.freeze
 
