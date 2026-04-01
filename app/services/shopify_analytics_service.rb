@@ -89,7 +89,7 @@ class ShopifyAnalyticsService
   # Fetch refunds processed on target date via GraphQL.
   # Queries partially_refunded and refunded orders separately to avoid
   # Shopify query syntax issues with OR + updated_at filters.
-  # Returns = refund_line_items subtotal - REFUND_DISCREPANCY adjustments
+  # Returns = refund_line_items subtotal + shipping refunds - all order adjustments
   def fetch_refunds_via_graphql(client, min_time, max_time)
     total_returns = BigDecimal("0")
 

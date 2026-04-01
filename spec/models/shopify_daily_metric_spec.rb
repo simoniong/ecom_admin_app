@@ -23,9 +23,9 @@ RSpec.describe ShopifyDailyMetric, type: :model do
     expect(metric).not_to be_valid
   end
 
-  it "validates revenue is non-negative" do
-    metric.revenue = -1
-    expect(metric).not_to be_valid
+  it "allows negative revenue (days with more refunds than sales)" do
+    metric.revenue = -50
+    expect(metric).to be_valid
   end
 
   describe ".for_date_range" do

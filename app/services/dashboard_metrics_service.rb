@@ -12,7 +12,14 @@ class DashboardMetricsService
     @user = user
     if start_date.present? && end_date.present?
       @range_key = "custom"
-      @date_range = start_date.to_date..end_date.to_date
+      @date_range = begin
+        parsed_start = Date.parse(start_date.to_s)
+        parsed_end = Date.parse(end_date.to_s)
+        parsed_start = [ parsed_start, parsed_end ].min
+        parsed_start..parsed_end
+      rescue ArgumentError
+        RANGES["past_7_days"].call
+      end
     else
       @range_key = range_key
       @date_range = RANGES.fetch(range_key, RANGES["past_7_days"]).call

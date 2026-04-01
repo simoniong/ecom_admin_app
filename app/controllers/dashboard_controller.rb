@@ -1,6 +1,13 @@
 class DashboardController < AdminController
   def show
-    @range_key = params[:range].presence || "past_7_days"
+    @range_key = if params[:start_date].present? && params[:end_date].present?
+                   "custom"
+    elsif DashboardMetricsService::RANGES.key?(params[:range])
+                   params[:range]
+    else
+                   "past_7_days"
+    end
+
     @metrics = DashboardMetricsService.new(
       current_user,
       range_key: @range_key,
