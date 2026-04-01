@@ -2,6 +2,7 @@
   app_name: "Ecom Admin"
   language_name: "简体中文"
   nav:
+    dashboard: "仪表盘"
     email_accounts: "邮箱"
     shopify_stores: "Shopify 商店"
     tickets: "工单"
@@ -14,6 +15,21 @@
   dashboard:
     title: "仪表盘"
     welcome: "欢迎回来，%{email}"
+    sessions: "访客数"
+    orders: "订单数"
+    revenue: "销售额"
+    conversion_rate: "转化率"
+    ad_spend: "广告花费"
+    roas: "ROAS"
+    apply: "查询"
+    vs_previous: "对比上期"
+    ranges:
+      today: "今天"
+      yesterday: "昨天"
+      past_7_days: "过去7天"
+      this_month: "本月"
+      last_month: "上月"
+      past_30_days: "过去30天"
   email_accounts:
     title: "邮箱"
     empty: "尚未绑定任何邮箱。"
@@ -85,6 +101,7 @@
     show:
       shop_domain: "商店域名"
       scopes: "授权范围"
+      timezone: "时区"
       installed_at: "安装时间"
       connected_at: "连接时间"
       linked_email_accounts: "关联邮箱"
@@ -110,6 +127,7 @@
       platform: "平台"
       account_id: "账户 ID"
       account_name: "账户名称"
+      timezone: "时区"
       token_expires_at: "Token 过期时间"
       connected_at: "连接时间"
   locale_switcher:

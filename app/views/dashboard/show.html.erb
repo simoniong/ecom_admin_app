@@ -1,4 +1,79 @@
-<div class="max-w-4xl mx-auto">
-  <h1 class="text-2xl font-semibold text-gray-900"><%= t("dashboard.title") %></h1>
-  <p class="mt-2 text-sm text-gray-600"><%= t("dashboard.welcome", email: current_user.email) %></p>
+<div class="max-w-7xl mx-auto">
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <h1 class="text-2xl font-semibold text-gray-900"><%= t("dashboard.title") %></h1>
+      <p class="mt-1 text-sm text-gray-600"><%= t("dashboard.welcome", email: current_user.email) %></p>
+    </div>
+  </div>
+
+  <%# Date range selector %>
+  <div class="flex flex-wrap items-center gap-2 mb-6" data-controller="dashboard">
+    <%# Preset buttons %>
+    <% DashboardMetricsService::RANGES.keys.each do |key| %>
+      <%= link_to authenticated_root_path(range: key),
+          data: { turbo_frame: "dashboard_metrics", dashboard_target: "rangeButton", action: "click->dashboard#selectRange" },
+          class: "px-3 py-1.5 text-sm font-medium rounded-md transition #{@range_key == key ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-100'}" do %>
+        <%= t("dashboard.ranges.#{key}") %>
+      <% end %>
+    <% end %>
+
+    <%# Separator %>
+    <span class="text-gray-300 mx-1">|</span>
+
+    <%# Custom date range picker %>
+    <div class="flex items-center gap-2">
+      <input type="date" data-dashboard-target="startDate"
+             value="<%= @range_key == 'custom' ? @metrics[:date_range].first : '' %>"
+             max="<%= Date.current %>"
+             class="px-2 py-1 text-sm border border-gray-300 rounded-md focus:border-gray-900 focus:ring-gray-900" />
+      <span class="text-sm text-gray-400">—</span>
+      <input type="date" data-dashboard-target="endDate"
+             value="<%= @range_key == 'custom' ? @metrics[:date_range].last : '' %>"
+             max="<%= Date.current %>"
+             class="px-2 py-1 text-sm border border-gray-300 rounded-md focus:border-gray-900 focus:ring-gray-900" />
+      <button type="button" data-action="click->dashboard#submitCustomRange"
+              class="px-3 py-1.5 text-sm font-medium rounded-md transition text-gray-600 hover:bg-gray-100">
+        <%= t("dashboard.apply") %>
+      </button>
+    </div>
+  </div>
+
+  <%= turbo_frame_tag "dashboard_metrics" do %>
+    <%# Date range display %>
+    <p class="text-xs text-gray-500 mb-4">
+      <%= l(@metrics[:date_range].first) %> — <%= l(@metrics[:date_range].last) %>
+    </p>
+
+    <%# Metric cards grid %>
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <%# Orders %>
+      <%= render "dashboard/metric_card",
+          title: t("dashboard.orders"),
+          value: number_with_delimiter(@metrics[:current][:orders]),
+          previous: @metrics[:previous][:orders],
+          current_raw: @metrics[:current][:orders] %>
+
+      <%# Revenue %>
+      <%= render "dashboard/metric_card",
+          title: t("dashboard.revenue"),
+          value: number_to_currency(@metrics[:current][:revenue]),
+          previous: @metrics[:previous][:revenue],
+          current_raw: @metrics[:current][:revenue] %>
+
+      <%# Ad Spend %>
+      <%= render "dashboard/metric_card",
+          title: t("dashboard.ad_spend"),
+          value: number_to_currency(@metrics[:current][:ad_spend]),
+          previous: @metrics[:previous][:ad_spend],
+          current_raw: @metrics[:current][:ad_spend],
+          invert_color: true %>
+
+      <%# ROAS %>
+      <%= render "dashboard/metric_card",
+          title: t("dashboard.roas"),
+          value: "#{@metrics[:current][:roas]}x",
+          previous: @metrics[:previous][:roas],
+          current_raw: @metrics[:current][:roas] %>
+    </div>
+  <% end %>
 </div>

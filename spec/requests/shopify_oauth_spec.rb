@@ -97,6 +97,14 @@ RSpec.describe "ShopifyOauth", type: :request do
           headers: { "Content-Type" => "application/json" }
         )
 
+      # Mock shop timezone fetch
+      stub_request(:get, %r{test\.myshopify\.com/admin/api/2024-10/shop\.json})
+        .to_return(
+          status: 200,
+          body: { shop: { iana_timezone: "Asia/Macau" } }.to_json,
+          headers: { "Content-Type" => "application/json" }
+        )
+
       expect {
         get shopify_callback_path, params: params.merge("hmac" => hmac)
       }.to change(ShopifyStore, :count).by(1)

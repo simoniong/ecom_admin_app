@@ -13,7 +13,16 @@ class MetaAdsService
       level: "account"
     )
 
-    insights.each do |day_data|
+    # Koala paginates by default (25 per page). Fetch all pages.
+    all_insights = insights.to_a
+    if insights.respond_to?(:next_page)
+      while (next_page = insights.next_page)
+        all_insights.concat(next_page)
+        insights = next_page
+      end
+    end
+
+    all_insights.each do |day_data|
       date = Date.parse(day_data["date_start"])
       metric = @ad_account.ad_daily_metrics.find_or_initialize_by(date: date)
       conversions = extract_action_count(day_data["actions"], "offsite_conversion.fb_pixel_purchase")
