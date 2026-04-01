@@ -123,6 +123,13 @@ class ShopifyAnalyticsService
                       }
                     }
                   }
+                  refundShippingLines(first: 10) {
+                    edges {
+                      node {
+                        subtotalAmountSet { shopMoney { amount } }
+                      }
+                    }
+                  }
                   orderAdjustments(first: 10) {
                     edges {
                       node {
@@ -155,12 +162,15 @@ class ShopifyAnalyticsService
           li_total = (refund.dig("refundLineItems", "edges") || []).sum do |e|
             e.dig("node", "subtotalSet", "shopMoney", "amount").to_d
           end
+          shipping_total = (refund.dig("refundShippingLines", "edges") || []).sum do |e|
+            e.dig("node", "subtotalAmountSet", "shopMoney", "amount").to_d
+          end
 
           # Sum ALL adjustment types (includes settled pending refunds)
           adjustments = (refund.dig("orderAdjustments", "edges") || []).map { |e| e["node"] }
           discrepancy = adjustments.sum { |a| a.dig("amountSet", "shopMoney", "amount").to_d }
 
-          net = li_total - discrepancy
+          net = li_total + shipping_total - discrepancy
           total += net unless net.zero?
         end
       end
