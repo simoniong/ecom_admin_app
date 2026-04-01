@@ -24,7 +24,7 @@ gem "devise", "~> 5.0"
 
 # OAuth [https://github.com/zquestz/omniauth-google-oauth2]
 gem "omniauth-google-oauth2", "~> 1.2"
-gem "omniauth-rails_csrf_protection", "~> 1.0"
+gem "omniauth-rails_csrf_protection", "~> 2.0"
 
 # Gmail API client
 gem "google-apis-gmail_v1", "~> 0.40"
