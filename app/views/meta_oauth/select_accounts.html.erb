@@ -8,6 +8,7 @@
         <label class="flex items-center gap-4 px-6 py-4 hover:bg-gray-50 cursor-pointer">
           <%= check_box_tag "account_ids[]", account["account_id"], true, class: "h-4 w-4 rounded border-gray-300 text-gray-900 focus:ring-gray-900" %>
           <%= hidden_field_tag "account_names[#{account["account_id"]}]", account["name"] %>
+          <%= hidden_field_tag "account_timezones[#{account["account_id"]}]", account["timezone_name"] %>
           <div>
             <span class="text-sm font-medium text-gray-900"><%= account["name"] || t("ad_accounts.unnamed_account") %></span>
             <span class="ml-2 text-xs text-gray-500 font-mono">act_<%= account["account_id"] %></span>

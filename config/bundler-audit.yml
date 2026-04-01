@@ -2,4 +2,6 @@
 # CVEs that are not relevant to the application can be enumerated on the ignore list below.
 
 ignore:
-  - CVE-THAT-DOES-NOT-APPLY
+  # action_text-trix XSS via drag-and-drop — locked by Rails actiontext dependency,
+  # will be resolved when Rails releases a patch. Low risk: admin-only app.
+  - GHSA-53p3-c7vp-4mcc
