@@ -139,8 +139,8 @@ RSpec.describe SyncAllOrdersService do
     end
 
     it "passes updated_at_min when incremental and orders_synced_at is set" do
-      last_sync = 1.hour.ago
-      store.update!(orders_synced_at: last_sync)
+      store.update!(orders_synced_at: 1.hour.ago)
+      last_sync = store.reload.orders_synced_at # DB-rounded precision
 
       allow(shopify_service).to receive(:fetch_all_customers).and_return([])
       allow(shopify_service).to receive(:fetch_all_orders).and_return([])
