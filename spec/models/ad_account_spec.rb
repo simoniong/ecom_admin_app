@@ -112,5 +112,15 @@ RSpec.describe AdAccount, type: :model do
       create(:ad_daily_metric, ad_account: ad_account)
       expect { ad_account.destroy }.to change(AdDailyMetric, :count).by(-1)
     end
+
+    it "optionally belongs to shopify_store" do
+      expect(build(:ad_account, user: user, shopify_store: nil)).to be_valid
+    end
+
+    it "can be linked to a shopify_store" do
+      store = create(:shopify_store, user: user)
+      ad_account.update!(shopify_store: store)
+      expect(ad_account.reload.shopify_store).to eq(store)
+    end
   end
 end

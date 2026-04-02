@@ -66,5 +66,16 @@ RSpec.describe ShopifyStore, type: :model do
       store.destroy
       expect(account.reload.shopify_store_id).to be_nil
     end
+
+    it "has many ad_accounts" do
+      ad_account = create(:ad_account, user: user, shopify_store: store)
+      expect(store.ad_accounts).to include(ad_account)
+    end
+
+    it "nullifies ad accounts on destroy" do
+      ad_account = create(:ad_account, user: user, shopify_store: store)
+      store.destroy
+      expect(ad_account.reload.shopify_store_id).to be_nil
+    end
   end
 end

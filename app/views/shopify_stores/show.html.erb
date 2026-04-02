@@ -56,11 +56,15 @@
     </dl>
   </div>
 
-  <%# Linked Email Accounts %>
-  <div class="mt-6 bg-white shadow-sm rounded-lg border border-gray-200 p-6">
-    <h2 class="text-lg font-medium text-gray-900 mb-4"><%= t("shopify_stores.show.linked_email_accounts") %></h2>
+  <%# Linked Accounts %>
+  <%= form_with url: shopify_store_path(@shopify_store), method: :patch, class: "space-y-6 mt-6" do |f| %>
+    <input type="hidden" name="email_account_ids[]" value="" />
+    <input type="hidden" name="ad_account_ids[]" value="" />
 
-    <%= form_with url: shopify_store_path(@shopify_store), method: :patch, class: "space-y-4" do |f| %>
+    <%# Linked Email Accounts %>
+    <div class="bg-white shadow-sm rounded-lg border border-gray-200 p-6">
+      <h2 class="text-lg font-medium text-gray-900 mb-4"><%= t("shopify_stores.show.linked_email_accounts") %></h2>
+
       <div class="space-y-2">
         <% @email_accounts.each do |account| %>
           <label class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-50 cursor-pointer">
@@ -72,14 +76,37 @@
         <% end %>
       </div>
 
-      <% if @email_accounts.any? %>
-        <div class="pt-3 border-t border-gray-200">
-          <%= f.submit t("shopify_stores.save_links"),
-              class: "inline-flex items-center px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2 cursor-pointer" %>
-        </div>
-      <% else %>
+      <% unless @email_accounts.any? %>
         <p class="text-sm text-gray-500"><%= t("email_accounts.empty") %></p>
       <% end %>
+    </div>
+
+    <%# Linked Ad Accounts %>
+    <div class="bg-white shadow-sm rounded-lg border border-gray-200 p-6">
+      <h2 class="text-lg font-medium text-gray-900 mb-4"><%= t("shopify_stores.show.linked_ad_accounts") %></h2>
+
+      <div class="space-y-2">
+        <% @ad_accounts.each do |account| %>
+          <label class="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-50 cursor-pointer">
+            <input type="checkbox" name="ad_account_ids[]" value="<%= account.id %>"
+                   <%= "checked" if account.shopify_store_id == @shopify_store.id %>
+                   class="rounded border-gray-300 text-gray-900 focus:ring-gray-900" />
+            <span class="text-sm text-gray-700"><%= account.account_name.presence || account.account_id %></span>
+            <span class="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700"><%= account.platform.capitalize %></span>
+          </label>
+        <% end %>
+      </div>
+
+      <% unless @ad_accounts.any? %>
+        <p class="text-sm text-gray-500"><%= t("ad_accounts.empty") %></p>
+      <% end %>
+    </div>
+
+    <% if @email_accounts.any? || @ad_accounts.any? %>
+      <div>
+        <%= f.submit t("shopify_stores.save_links"),
+            class: "inline-flex items-center px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2 cursor-pointer" %>
+      </div>
     <% end %>
-  </div>
+  <% end %>
 </div>
