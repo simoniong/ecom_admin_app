@@ -7,17 +7,20 @@ class ShopifyStoresController < AdminController
 
   def show
     @email_accounts = current_user.email_accounts.order(created_at: :desc)
+    @ad_accounts = current_user.ad_accounts.order(created_at: :desc)
   end
 
   def update
-    email_account_ids = Array(params[:email_account_ids]).select(&:present?)
+    if params.key?(:email_account_ids)
+      email_account_ids = Array(params[:email_account_ids]).select(&:present?)
+      current_user.email_accounts.where(shopify_store: @shopify_store).update_all(shopify_store_id: nil)
+      current_user.email_accounts.where(id: email_account_ids).update_all(shopify_store_id: @shopify_store.id) if email_account_ids.any?
+    end
 
-    # Unlink all email accounts currently linked to this store
-    current_user.email_accounts.where(shopify_store: @shopify_store).update_all(shopify_store_id: nil)
-
-    # Link selected email accounts
-    if email_account_ids.any?
-      current_user.email_accounts.where(id: email_account_ids).update_all(shopify_store_id: @shopify_store.id)
+    if params.key?(:ad_account_ids)
+      ad_account_ids = Array(params[:ad_account_ids]).select(&:present?)
+      current_user.ad_accounts.where(shopify_store: @shopify_store).update_all(shopify_store_id: nil)
+      current_user.ad_accounts.where(id: ad_account_ids).update_all(shopify_store_id: @shopify_store.id) if ad_account_ids.any?
     end
 
     redirect_to shopify_store_path(@shopify_store), notice: t("shopify_stores.updated")
