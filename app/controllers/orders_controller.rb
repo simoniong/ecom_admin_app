@@ -12,24 +12,25 @@ class OrdersController < AdminController
 
     parse_dates
 
-    orders = Order.includes(:customer, :fulfillments).by_recency
-    orders = orders.ordered_between(@from_date, @to_date)
-    orders = orders.search_by(@search) if @search
-    orders = orders.by_financial_status(@financial_status) if @financial_status
-    orders = orders.by_fulfillment_status(@fulfillment_status) if @fulfillment_status
+    base_orders = Order.by_recency
+    base_orders = base_orders.ordered_between(@from_date, @to_date)
+    base_orders = base_orders.search_by(@search) if @search
+    base_orders = base_orders.by_financial_status(@financial_status) if @financial_status
+    base_orders = base_orders.by_fulfillment_status(@fulfillment_status) if @fulfillment_status
 
-    @total_count = orders.count
+    @total_count = base_orders.count
     @total_pages = (@total_count.to_f / PER_PAGE).ceil
     @page = [ @page, @total_pages ].min if @total_pages > 0
 
-    @orders = orders
+    @orders = base_orders
+      .includes(:customer, :fulfillments)
       .reorder(@sort_column => @sort_direction)
       .offset((@page - 1) * PER_PAGE)
       .limit(PER_PAGE)
 
     @summary = {
       count: @total_count,
-      total_revenue: orders.sum(:total_price)
+      total_revenue: base_orders.sum(:total_price)
     }
   end
 

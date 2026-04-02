@@ -54,8 +54,7 @@ class SyncAllOrdersService
       break if batch.empty?
 
       batch.each do |shopify_order|
-        sync_order(shopify_order)
-        @synced_orders += 1
+        @synced_orders += 1 if sync_order(shopify_order)
       rescue => e
         Rails.logger.error("[SyncAllOrders] Failed to sync order #{shopify_order['id']}: #{e.message}")
       end
@@ -91,6 +90,7 @@ class SyncAllOrdersService
     end
 
     sync_fulfillments(order, shopify_order)
+    order
   end
 
   def resolve_customer(shopify_order)

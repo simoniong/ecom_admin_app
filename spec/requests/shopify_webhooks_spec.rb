@@ -73,6 +73,19 @@ RSpec.describe "ShopifyWebhooks", type: :request do
       expect(response).to have_http_status(:unauthorized)
     end
 
+    it "returns 401 when secret is not configured" do
+      allow(ENV).to receive(:[]).with("SHOPIFY_CLIENT_SECRET").and_return(nil)
+      allow(Rails.application.credentials).to receive(:dig).with(:shopify, :client_secret).and_return(nil)
+
+      post "/shopify/webhooks", params: order_payload, headers: {
+        "Content-Type" => "application/json",
+        "X-Shopify-Topic" => "orders/create",
+        "X-Shopify-Shop-Domain" => store.shop_domain,
+        "X-Shopify-Hmac-Sha256" => "some-hmac"
+      }
+      expect(response).to have_http_status(:unauthorized)
+    end
+
     it "returns 404 for unknown shop domain" do
       post_webhook(body: order_payload, shop_domain: "unknown.myshopify.com")
       expect(response).to have_http_status(:not_found)

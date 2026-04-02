@@ -25,11 +25,17 @@ class ShopifyWebhooksController < ActionController::API
   private
 
   def verify_shopify_webhook
+    secret = ENV["SHOPIFY_CLIENT_SECRET"] || Rails.application.credentials.dig(:shopify, :client_secret)
+    if secret.blank?
+      Rails.logger.error("[ShopifyWebhook] SHOPIFY_CLIENT_SECRET is not configured")
+      head :unauthorized
+      return
+    end
+
     request.body.rewind
     body = request.body.read
     request.body.rewind
 
-    secret = ENV["SHOPIFY_CLIENT_SECRET"] || Rails.application.credentials.dig(:shopify, :client_secret)
     digest = OpenSSL::HMAC.digest("SHA256", secret, body)
     computed_hmac = Base64.strict_encode64(digest)
     header_hmac = request.headers["X-Shopify-Hmac-Sha256"]
