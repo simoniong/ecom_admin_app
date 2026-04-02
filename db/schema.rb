@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_04_02_094124) do
+ActiveRecord::Schema[8.1].define(version: 2026_04_02_153131) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -184,11 +184,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_02_094124) do
     t.text "access_token", null: false
     t.datetime "created_at", null: false
     t.datetime "installed_at"
+    t.datetime "orders_synced_at"
     t.string "scopes"
     t.string "shop_domain", null: false
     t.string "timezone", default: "UTC", null: false
     t.datetime "updated_at", null: false
     t.uuid "user_id", null: false
+    t.datetime "webhooks_registered_at"
     t.index ["shop_domain"], name: "index_shopify_stores_on_shop_domain", unique: true
     t.index ["user_id"], name: "index_shopify_stores_on_user_id"
   end

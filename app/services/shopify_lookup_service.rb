@@ -31,27 +31,30 @@ class ShopifyLookupService
 
     shopify_customer = shopify_customers.first
 
-    Customer.find_or_initialize_by(shopify_customer_id: shopify_customer["id"]).tap do |c|
-      # Use default_address for timezone — more reliably populated than per-order shipping_address
-      country_code = shopify_customer.dig("default_address", "country_code")
-      c.assign_attributes(
-        email: shopify_customer["email"],
-        first_name: shopify_customer["first_name"],
-        last_name: shopify_customer["last_name"],
-        phone: shopify_customer["phone"],
-        timezone: TimezoneResolver.resolve(country_code),
-        shopify_data: shopify_customer
-      )
-      c.save!
-    end
+    # Use default_address for timezone — more reliably populated than per-order shipping_address
+    country_code = shopify_customer.dig("default_address", "country_code")
+    attrs = {
+      email: shopify_customer["email"],
+      first_name: shopify_customer["first_name"],
+      last_name: shopify_customer["last_name"],
+      phone: shopify_customer["phone"],
+      timezone: TimezoneResolver.resolve(country_code),
+      shopify_data: shopify_customer
+    }
+
+    customer = Customer.find_or_initialize_by(shopify_customer_id: shopify_customer["id"])
+    customer.assign_attributes(attrs)
+    customer.save!
+    customer
+  rescue ActiveRecord::RecordNotUnique
+    Customer.find_by!(shopify_customer_id: shopify_customer["id"]).tap { |c| c.update!(attrs) }
   end
 
   def sync_orders(shopify_service, customer)
     shopify_orders = shopify_service.fetch_orders(customer.shopify_customer_id)
 
     shopify_orders.each do |shopify_order|
-      order = customer.orders.find_or_initialize_by(shopify_order_id: shopify_order["id"])
-      order.assign_attributes(
+      attrs = {
         email: shopify_order["email"],
         name: shopify_order["name"],
         total_price: shopify_order["total_price"],
@@ -60,8 +63,16 @@ class ShopifyLookupService
         fulfillment_status: shopify_order["fulfillment_status"],
         ordered_at: shopify_order["created_at"],
         shopify_data: shopify_order
-      )
-      order.save!
+      }
+
+      order = customer.orders.find_or_initialize_by(shopify_order_id: shopify_order["id"])
+      order.assign_attributes(attrs)
+      begin
+        order.save!
+      rescue ActiveRecord::RecordNotUnique
+        order = Order.find_by!(shopify_order_id: shopify_order["id"])
+        order.update!(attrs.merge(customer: customer))
+      end
 
       sync_fulfillments(shopify_service, order)
     end
@@ -71,16 +82,22 @@ class ShopifyLookupService
     shopify_fulfillments = shopify_service.fetch_fulfillments(order.shopify_order_id)
 
     shopify_fulfillments.each do |sf|
-      fulfillment = order.fulfillments.find_or_initialize_by(shopify_fulfillment_id: sf["id"])
       tracking = sf["tracking_numbers"]&.first
-      fulfillment.assign_attributes(
+      attrs = {
         status: sf["status"],
         tracking_number: tracking || sf["tracking_number"],
         tracking_company: sf["tracking_company"],
         tracking_url: sf["tracking_url"] || sf["tracking_urls"]&.first,
         shopify_data: sf
-      )
-      fulfillment.save!
+      }
+
+      fulfillment = order.fulfillments.find_or_initialize_by(shopify_fulfillment_id: sf["id"])
+      fulfillment.assign_attributes(attrs)
+      begin
+        fulfillment.save!
+      rescue ActiveRecord::RecordNotUnique
+        order.fulfillments.find_by!(shopify_fulfillment_id: sf["id"]).update!(attrs)
+      end
     end
   end
 end

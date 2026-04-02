@@ -34,4 +34,62 @@ RSpec.describe Order, type: :model do
     new_order = create(:order, customer: customer, ordered_at: 1.day.ago)
     expect(customer.orders.by_recency).to eq([ new_order, old_order ])
   end
+
+  describe ".ordered_between" do
+    it "returns orders within the date range" do
+      customer = create(:customer)
+      inside = create(:order, customer: customer, ordered_at: 2.days.ago)
+      outside = create(:order, customer: customer, ordered_at: 10.days.ago)
+
+      results = Order.ordered_between(3.days.ago.to_date, Date.current)
+      expect(results).to include(inside)
+      expect(results).not_to include(outside)
+    end
+  end
+
+  describe ".search_by" do
+    it "finds orders by email" do
+      customer = create(:customer, email: "alice@example.com")
+      order = create(:order, customer: customer, email: "alice@example.com")
+      create(:order)
+
+      expect(Order.search_by("alice")).to eq([ order ])
+    end
+
+    it "finds orders by customer name" do
+      customer = create(:customer, first_name: "Jane", last_name: "Smith")
+      order = create(:order, customer: customer)
+      create(:order)
+
+      expect(Order.search_by("Jane")).to eq([ order ])
+    end
+
+    it "finds orders by full name" do
+      customer = create(:customer, first_name: "Jane", last_name: "Smith")
+      order = create(:order, customer: customer)
+      create(:order)
+
+      expect(Order.search_by("Jane Smith")).to eq([ order ])
+    end
+  end
+
+  describe ".by_financial_status" do
+    it "filters by financial status" do
+      customer = create(:customer)
+      paid = create(:order, customer: customer, financial_status: "paid")
+      pending = create(:order, customer: customer, financial_status: "pending")
+
+      expect(Order.by_financial_status("paid")).to eq([ paid ])
+    end
+  end
+
+  describe ".by_fulfillment_status" do
+    it "filters by fulfillment status" do
+      customer = create(:customer)
+      fulfilled = create(:order, customer: customer, fulfillment_status: "fulfilled")
+      unfulfilled = create(:order, customer: customer, fulfillment_status: nil)
+
+      expect(Order.by_fulfillment_status("fulfilled")).to eq([ fulfilled ])
+    end
+  end
 end
