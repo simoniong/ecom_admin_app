@@ -1,6 +1,8 @@
 class CampaignDisplayTemplate < ApplicationRecord
   belongs_to :user
 
+  before_validation :strip_blank_columns
+
   validates :name, presence: true
   validates :visible_columns, presence: true
 
@@ -20,5 +22,11 @@ class CampaignDisplayTemplate < ApplicationRecord
 
   def column_visible?(column)
     visible_columns.include?(column.to_s)
+  end
+
+  private
+
+  def strip_blank_columns
+    self.visible_columns = Array(visible_columns).reject(&:blank?)
   end
 end

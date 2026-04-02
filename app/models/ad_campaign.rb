@@ -7,6 +7,31 @@ class AdCampaign < ApplicationRecord
 
   scope :active, -> { where(status: "active") }
 
+  def self.batch_aggregated_metrics(campaign_ids, date_range)
+    return {} if campaign_ids.empty?
+
+    rows = AdCampaignDailyMetric
+      .where(ad_campaign_id: campaign_ids, date: date_range)
+      .group(:ad_campaign_id)
+      .pluck(
+        Arel.sql("ad_campaign_id"),
+        Arel.sql("COALESCE(SUM(impressions), 0)"),
+        Arel.sql("COALESCE(SUM(clicks), 0)"),
+        Arel.sql("COALESCE(SUM(add_to_cart), 0)"),
+        Arel.sql("COALESCE(SUM(checkout_initiated), 0)"),
+        Arel.sql("COALESCE(SUM(purchases), 0)"),
+        Arel.sql("COALESCE(SUM(spend), 0)"),
+        Arel.sql("COALESCE(SUM(conversion_value), 0)")
+      )
+
+    result = {}
+    Array(rows).each do |row|
+      result[row[0]] = CampaignMetrics.new(*row[1..])
+    end
+    campaign_ids.each { |id| result[id] ||= CampaignMetrics.new(0, 0, 0, 0, 0, 0, 0) }
+    result
+  end
+
   def aggregated_metrics(date_range)
     metrics = ad_campaign_daily_metrics.where(date: date_range)
     totals = metrics.pick(

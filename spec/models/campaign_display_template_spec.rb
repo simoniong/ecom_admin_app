@@ -54,6 +54,20 @@ RSpec.describe CampaignDisplayTemplate, type: :model do
     end
   end
 
+  describe "strip_blank_columns" do
+    it "removes blank strings from visible_columns" do
+      tpl = build(:campaign_display_template, visible_columns: [ "", "impressions", "", "clicks" ])
+      tpl.valid?
+      expect(tpl.visible_columns).to eq(%w[impressions clicks])
+    end
+
+    it "fails validation when all columns are blank" do
+      tpl = build(:campaign_display_template, visible_columns: [ "", "" ])
+      expect(tpl).not_to be_valid
+      expect(tpl.errors[:visible_columns]).to be_present
+    end
+  end
+
   describe "associations" do
     it "is destroyed with user" do
       create(:campaign_display_template, user: user)

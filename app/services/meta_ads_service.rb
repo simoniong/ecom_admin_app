@@ -56,7 +56,7 @@ class MetaAdsService
       campaign.assign_attributes(
         campaign_name: data["name"],
         status: map_campaign_status(data["effective_status"]),
-        daily_budget: (data["daily_budget"].to_d / 100) # Meta returns cents
+        daily_budget: ((data["daily_budget"].presence || 0).to_d / 100) # Meta returns cents
       )
       campaign.save!
     end

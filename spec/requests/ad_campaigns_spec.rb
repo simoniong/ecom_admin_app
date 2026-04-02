@@ -240,6 +240,12 @@ RSpec.describe "AdCampaigns", type: :request do
       expect(body.index("High Spend")).to be < body.index("Low Spend")
     end
 
+    it "handles invalid date gracefully" do
+      sign_in user
+      get ad_campaigns_path, params: { from_date: "not-a-date" }
+      expect(response).to have_http_status(:success)
+    end
+
     it "keeps active campaigns first regardless of sort" do
       active = create(:ad_campaign, ad_account: ad_account, campaign_name: "Active Low", status: "active", daily_budget: 10)
       paused = create(:ad_campaign, ad_account: ad_account, campaign_name: "Paused High", status: "paused", daily_budget: 999)

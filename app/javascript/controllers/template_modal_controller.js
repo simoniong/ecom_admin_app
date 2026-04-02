@@ -18,4 +18,8 @@ export default class extends Controller {
       this.close()
     }
   }
+
+  stopPropagation(event) {
+    event.stopPropagation()
+  }
 }

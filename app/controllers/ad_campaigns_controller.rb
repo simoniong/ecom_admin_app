@@ -28,8 +28,13 @@ class AdCampaignsController < AdminController
 
     accounts = @selected_account ? [ @selected_account ] : @ad_accounts
 
-    @from_date = params[:from_date].present? ? Date.parse(params[:from_date]) : 7.days.ago.to_date
-    @to_date = params[:to_date].present? ? Date.parse(params[:to_date]) : Date.current
+    begin
+      @from_date = params[:from_date].present? ? Date.parse(params[:from_date]) : 7.days.ago.to_date
+      @to_date = params[:to_date].present? ? Date.parse(params[:to_date]) : Date.current
+    rescue Date::Error
+      @from_date = 7.days.ago.to_date
+      @to_date = Date.current
+    end
     date_range = @from_date..@to_date
 
     @status_filter = params[:status_filter].presence
@@ -45,8 +50,7 @@ class AdCampaignsController < AdminController
       campaigns = campaigns.where(status: @status_filter)
     end
 
-    @campaign_metrics = {}
-    campaigns.each { |c| @campaign_metrics[c.id] = c.aggregated_metrics(date_range) }
+    @campaign_metrics = AdCampaign.batch_aggregated_metrics(campaigns.pluck(:id), date_range)
 
     @campaigns = sort_campaigns(campaigns.to_a)
 
@@ -58,18 +62,18 @@ class AdCampaignsController < AdminController
   private
 
   def sort_campaigns(campaigns)
-    sorted = campaigns.sort_by do |c|
+    direction = @sort_direction == "asc" ? 1 : -1
+
+    campaigns.sort_by do |c|
       m = @campaign_metrics[c.id]
       sort_val = if @sort_column == "daily_budget"
         c.daily_budget.to_f
       else
         m.public_send(@sort_column).to_f
       end
-      # Active first (0), then others (1)
       status_priority = c.status == "active" ? 0 : 1
-      [ status_priority, sort_val ]
+      [ status_priority, direction * sort_val ]
     end
-    @sort_direction == "asc" ? sorted : sorted.reverse.sort_by { |c| c.status == "active" ? 0 : 1 }
   end
 
   def build_summary

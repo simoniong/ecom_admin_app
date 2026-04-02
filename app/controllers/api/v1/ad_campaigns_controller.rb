@@ -14,20 +14,20 @@ class Api::V1::AdCampaignsController < Api::BaseController
       campaigns = campaigns.where(status: params[:status])
     end
 
-    from_date = params[:from_date].present? ? Date.parse(params[:from_date]) : 7.days.ago.to_date
-    to_date = params[:to_date].present? ? Date.parse(params[:to_date]) : Date.current
-    date_range = from_date..to_date
+    @from_date = params[:from_date].present? ? Date.parse(params[:from_date]) : 7.days.ago.to_date
+    @to_date = params[:to_date].present? ? Date.parse(params[:to_date]) : Date.current
+    date_range = @from_date..@to_date
 
-    render json: campaigns.order(:campaign_name).map { |c| campaign_json(c, date_range) }
+    ordered = campaigns.order(:campaign_name)
+    metrics_map = AdCampaign.batch_aggregated_metrics(ordered.pluck(:id), date_range)
+    render json: ordered.map { |c| campaign_json(c, metrics_map[c.id]) }
   rescue Date::Error
     render json: { error: "Invalid date format" }, status: :bad_request
   end
 
   private
 
-  def campaign_json(campaign, date_range)
-    m = campaign.aggregated_metrics(date_range)
-
+  def campaign_json(campaign, m)
     {
       id: campaign.id,
       campaign_id: campaign.campaign_id,
@@ -61,8 +61,8 @@ class Api::V1::AdCampaignsController < Api::BaseController
         purchase_click_rate: m.purchase_click_rate
       },
       date_range: {
-        from: date_range.first,
-        to: date_range.last
+        from: @from_date,
+        to: @to_date
       }
     }
   end
