@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_04_02_044058) do
+ActiveRecord::Schema[8.1].define(version: 2026_04_02_073619) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -26,8 +26,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_02_044058) do
     t.datetime "token_expires_at"
     t.datetime "updated_at", null: false
     t.uuid "user_id", null: false
-    t.index ["platform", "account_id"], name: "index_ad_accounts_on_platform_and_account_id", unique: true
     t.index ["shopify_store_id"], name: "index_ad_accounts_on_shopify_store_id"
+    t.index ["user_id", "platform", "account_id"], name: "index_ad_accounts_on_user_id_and_platform_and_account_id", unique: true
     t.index ["user_id"], name: "index_ad_accounts_on_user_id"
   end
 
