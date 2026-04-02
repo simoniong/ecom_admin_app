@@ -20,6 +20,7 @@ Rails.application.routes.draw do
       resources :tickets, only: [ :index, :show ] do
         post :draft_reply, on: :member
       end
+      resources :ad_campaigns, only: [ :index ]
     end
   end
 
@@ -31,6 +32,8 @@ Rails.application.routes.draw do
     resources :email_accounts, only: [ :index, :show, :destroy ]
     resources :shopify_stores, only: [ :index, :show, :update, :destroy ]
     resources :ad_accounts, only: [ :index, :show, :destroy ]
+    resources :ad_campaigns, only: [ :index ]
+    resources :campaign_display_templates, only: [ :create, :update, :destroy ]
     resources :tickets, only: [ :index, :show, :update ]
   end
 

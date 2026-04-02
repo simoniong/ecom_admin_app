@@ -84,6 +84,139 @@ RSpec.describe MetaAdsService do
     end
   end
 
+  describe "#sync_campaigns" do
+    let(:graph) { instance_double(Koala::Facebook::API) }
+
+    before do
+      allow(Koala::Facebook::API).to receive(:new).and_return(graph)
+    end
+
+    it "creates campaigns from Meta API data" do
+      allow(graph).to receive(:get_connections).and_return([
+        {
+          "id" => "camp_001",
+          "name" => "Summer Sale",
+          "effective_status" => "ACTIVE",
+          "daily_budget" => "5000"
+        },
+        {
+          "id" => "camp_002",
+          "name" => "Winter Promo",
+          "effective_status" => "PAUSED",
+          "daily_budget" => "3000"
+        }
+      ])
+
+      expect {
+        service.sync_campaigns
+      }.to change(AdCampaign, :count).by(2)
+
+      campaign = ad_account.ad_campaigns.find_by(campaign_id: "camp_001")
+      expect(campaign.campaign_name).to eq("Summer Sale")
+      expect(campaign.status).to eq("active")
+      expect(campaign.daily_budget).to eq(50.0)
+
+      paused = ad_account.ad_campaigns.find_by(campaign_id: "camp_002")
+      expect(paused.status).to eq("paused")
+      expect(paused.daily_budget).to eq(30.0)
+    end
+
+    it "updates existing campaigns" do
+      create(:ad_campaign, ad_account: ad_account, campaign_id: "camp_001", campaign_name: "Old Name", status: "active")
+
+      allow(graph).to receive(:get_connections).and_return([
+        {
+          "id" => "camp_001",
+          "name" => "New Name",
+          "effective_status" => "PAUSED",
+          "daily_budget" => "10000"
+        }
+      ])
+
+      expect {
+        service.sync_campaigns
+      }.not_to change(AdCampaign, :count)
+
+      campaign = ad_account.ad_campaigns.find_by(campaign_id: "camp_001")
+      expect(campaign.campaign_name).to eq("New Name")
+      expect(campaign.status).to eq("paused")
+    end
+
+    it "maps DELETED and ARCHIVED statuses" do
+      allow(graph).to receive(:get_connections).and_return([
+        { "id" => "camp_d", "name" => "Deleted", "effective_status" => "DELETED", "daily_budget" => "0" },
+        { "id" => "camp_a", "name" => "Archived", "effective_status" => "ARCHIVED", "daily_budget" => "0" }
+      ])
+
+      service.sync_campaigns
+
+      expect(ad_account.ad_campaigns.find_by(campaign_id: "camp_d").status).to eq("deleted")
+      expect(ad_account.ad_campaigns.find_by(campaign_id: "camp_a").status).to eq("deleted")
+    end
+  end
+
+  describe "#sync_campaign_insights" do
+    let(:graph) { instance_double(Koala::Facebook::API) }
+    let!(:campaign) { create(:ad_campaign, ad_account: ad_account, campaign_id: "camp_001") }
+
+    before do
+      allow(Koala::Facebook::API).to receive(:new).and_return(graph)
+      # stub campaigns fetch (used in sync_campaigns, not here directly)
+      allow(graph).to receive(:get_connections).with(
+        "camp_001", "insights", anything
+      ).and_return([
+        {
+          "date_start" => "2026-03-27",
+          "spend" => "100.50",
+          "impressions" => "5000",
+          "clicks" => "200",
+          "actions" => [
+            { "action_type" => "offsite_conversion.fb_pixel_add_to_cart", "value" => "30" },
+            { "action_type" => "offsite_conversion.fb_pixel_initiate_checkout", "value" => "15" },
+            { "action_type" => "offsite_conversion.fb_pixel_purchase", "value" => "8" }
+          ],
+          "action_values" => [
+            { "action_type" => "offsite_conversion.fb_pixel_purchase", "value" => "600.00" }
+          ]
+        }
+      ])
+    end
+
+    it "creates daily metrics for campaigns" do
+      expect {
+        service.sync_campaign_insights(Date.new(2026, 3, 27), Date.new(2026, 3, 27))
+      }.to change(AdCampaignDailyMetric, :count).by(1)
+
+      metric = campaign.ad_campaign_daily_metrics.find_by(date: "2026-03-27")
+      expect(metric.impressions).to eq(5000)
+      expect(metric.clicks).to eq(200)
+      expect(metric.add_to_cart).to eq(30)
+      expect(metric.checkout_initiated).to eq(15)
+      expect(metric.purchases).to eq(8)
+      expect(metric.spend).to eq(100.50)
+      expect(metric.conversion_value).to eq(600.00)
+    end
+
+    it "updates existing campaign metrics" do
+      create(:ad_campaign_daily_metric, ad_campaign: campaign, date: "2026-03-27", spend: 50)
+
+      expect {
+        service.sync_campaign_insights(Date.new(2026, 3, 27), Date.new(2026, 3, 27))
+      }.not_to change(AdCampaignDailyMetric, :count)
+
+      metric = campaign.ad_campaign_daily_metrics.find_by(date: "2026-03-27")
+      expect(metric.spend).to eq(100.50)
+    end
+
+    it "handles API errors per campaign gracefully" do
+      allow(graph).to receive(:get_connections).with(
+        "camp_001", "insights", anything
+      ).and_raise(Koala::Facebook::ClientError.new(400, "Rate limited"))
+
+      expect { service.sync_campaign_insights(Date.new(2026, 3, 27), Date.new(2026, 3, 27)) }.not_to raise_error
+    end
+  end
+
   describe "#refresh_token_if_needed!" do
     it "refreshes token when expiring soon" do
       ad_account.update!(token_expires_at: 3.days.from_now)
