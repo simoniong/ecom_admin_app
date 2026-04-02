@@ -2,7 +2,8 @@ require "rails_helper"
 
 RSpec.describe "Orders", type: :request do
   let(:user) { create(:user) }
-  let(:customer) { create(:customer, first_name: "John", last_name: "Doe", email: "john@example.com") }
+  let(:store) { create(:shopify_store, user: user) }
+  let(:customer) { create(:customer, shopify_store: store, first_name: "John", last_name: "Doe", email: "john@example.com") }
 
   describe "GET /orders" do
     it "returns success for authenticated user" do
@@ -114,6 +115,20 @@ RSpec.describe "Orders", type: :request do
       get orders_path, params: { from_date: 30.days.ago.to_date }
       expect(response.body).to include("Total Orders")
       expect(response.body).to include("Total Revenue")
+    end
+
+    it "does not show orders from other users' stores" do
+      other_user = create(:user)
+      other_store = create(:shopify_store, user: other_user)
+      other_customer = create(:customer, shopify_store: other_store, first_name: "Secret", email: "secret@example.com")
+      create(:order, customer: other_customer, shopify_store: other_store, name: "#SECRET")
+
+      create(:order, customer: customer, name: "#MINE")
+
+      sign_in user
+      get orders_path, params: { from_date: 30.days.ago.to_date }
+      expect(response.body).to include("#MINE")
+      expect(response.body).not_to include("#SECRET")
     end
 
     it "handles invalid date gracefully" do

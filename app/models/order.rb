@@ -1,8 +1,9 @@
 class Order < ApplicationRecord
   belongs_to :customer
+  belongs_to :shopify_store, optional: true
   has_many :fulfillments, dependent: :destroy
 
-  validates :shopify_order_id, presence: true, uniqueness: true
+  validates :shopify_order_id, presence: true, uniqueness: { scope: :shopify_store_id }
 
   scope :by_recency, -> { order(ordered_at: :desc) }
   scope :ordered_between, ->(from, to) { where(ordered_at: from.beginning_of_day..to.end_of_day) }

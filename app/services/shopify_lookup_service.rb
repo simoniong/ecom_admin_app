@@ -4,6 +4,7 @@ class ShopifyLookupService
   end
 
   def lookup(ticket)
+    @store = ticket.email_account&.shopify_store
     shopify_service = resolve_shopify_service(ticket)
     return unless shopify_service
 
@@ -18,11 +19,9 @@ class ShopifyLookupService
 
   def resolve_shopify_service(ticket)
     return @shopify if @shopify
+    return nil unless @store
 
-    store = ticket.email_account&.shopify_store
-    return nil unless store
-
-    ShopifyService.new(store)
+    ShopifyService.new(@store)
   end
 
   def find_or_create_customer(shopify_service, email)
@@ -42,12 +41,12 @@ class ShopifyLookupService
       shopify_data: shopify_customer
     }
 
-    customer = Customer.find_or_initialize_by(shopify_customer_id: shopify_customer["id"])
+    customer = Customer.find_or_initialize_by(shopify_store: @store, shopify_customer_id: shopify_customer["id"])
     customer.assign_attributes(attrs)
     customer.save!
     customer
   rescue ActiveRecord::RecordNotUnique
-    Customer.find_by!(shopify_customer_id: shopify_customer["id"]).tap { |c| c.update!(attrs) }
+    Customer.find_by!(shopify_store: @store, shopify_customer_id: shopify_customer["id"]).tap { |c| c.update!(attrs) }
   end
 
   def sync_orders(shopify_service, customer)
@@ -55,6 +54,7 @@ class ShopifyLookupService
 
     shopify_orders.each do |shopify_order|
       attrs = {
+        shopify_store: @store,
         email: shopify_order["email"],
         name: shopify_order["name"],
         total_price: shopify_order["total_price"],
@@ -65,12 +65,12 @@ class ShopifyLookupService
         shopify_data: shopify_order
       }
 
-      order = customer.orders.find_or_initialize_by(shopify_order_id: shopify_order["id"])
+      order = customer.orders.find_or_initialize_by(shopify_store: @store, shopify_order_id: shopify_order["id"])
       order.assign_attributes(attrs)
       begin
         order.save!
       rescue ActiveRecord::RecordNotUnique
-        order = Order.find_by!(shopify_order_id: shopify_order["id"])
+        order = Order.find_by!(shopify_store: @store, shopify_order_id: shopify_order["id"])
         order.update!(attrs.merge(customer: customer))
       end
 

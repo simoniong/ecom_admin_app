@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_04_02_153131) do
+ActiveRecord::Schema[8.1].define(version: 2026_04_02_171010) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -92,10 +92,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_02_153131) do
     t.string "phone"
     t.bigint "shopify_customer_id", null: false
     t.jsonb "shopify_data", default: {}
+    t.uuid "shopify_store_id"
     t.string "timezone", default: "UTC", null: false
     t.datetime "updated_at", null: false
     t.index ["email"], name: "index_customers_on_email"
-    t.index ["shopify_customer_id"], name: "index_customers_on_shopify_customer_id", unique: true
+    t.index ["shopify_store_id", "shopify_customer_id"], name: "idx_customers_store_shopify_id", unique: true
+    t.index ["shopify_store_id"], name: "index_customers_on_shopify_store_id"
   end
 
   create_table "email_accounts", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -161,10 +163,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_02_153131) do
     t.datetime "ordered_at"
     t.jsonb "shopify_data", default: {}
     t.bigint "shopify_order_id", null: false
+    t.uuid "shopify_store_id"
     t.decimal "total_price", precision: 10, scale: 2
     t.datetime "updated_at", null: false
     t.index ["customer_id"], name: "index_orders_on_customer_id"
-    t.index ["shopify_order_id"], name: "index_orders_on_shopify_order_id", unique: true
+    t.index ["shopify_store_id", "shopify_order_id"], name: "idx_orders_store_shopify_id", unique: true
+    t.index ["shopify_store_id"], name: "index_orders_on_shopify_store_id"
   end
 
   create_table "shopify_daily_metrics", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -363,11 +367,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_02_153131) do
   add_foreign_key "ad_campaigns", "ad_accounts"
   add_foreign_key "ad_daily_metrics", "ad_accounts"
   add_foreign_key "campaign_display_templates", "users"
+  add_foreign_key "customers", "shopify_stores"
   add_foreign_key "email_accounts", "shopify_stores"
   add_foreign_key "email_accounts", "users"
   add_foreign_key "fulfillments", "orders"
   add_foreign_key "messages", "tickets"
   add_foreign_key "orders", "customers"
+  add_foreign_key "orders", "shopify_stores"
   add_foreign_key "shopify_stores", "users"
   add_foreign_key "solid_queue_blocked_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
   add_foreign_key "solid_queue_claimed_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade

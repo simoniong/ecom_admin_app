@@ -12,7 +12,8 @@ class OrdersController < AdminController
 
     parse_dates
 
-    base_orders = Order.by_recency
+    store_ids = current_user.shopify_stores.pluck(:id)
+    base_orders = Order.where(shopify_store_id: store_ids).by_recency
     base_orders = base_orders.ordered_between(@from_date, @to_date)
     base_orders = base_orders.search_by(@search) if @search
     base_orders = base_orders.by_financial_status(@financial_status) if @financial_status

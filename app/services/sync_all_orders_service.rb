@@ -70,6 +70,7 @@ class SyncAllOrdersService
 
     attrs = {
       customer: customer,
+      shopify_store: @store,
       email: shopify_order["email"],
       name: shopify_order["name"],
       total_price: shopify_order["total_price"],
@@ -80,12 +81,12 @@ class SyncAllOrdersService
       shopify_data: shopify_order
     }
 
-    order = Order.find_or_initialize_by(shopify_order_id: shopify_order["id"])
+    order = Order.find_or_initialize_by(shopify_store: @store, shopify_order_id: shopify_order["id"])
     order.assign_attributes(attrs)
     begin
       order.save!
     rescue ActiveRecord::RecordNotUnique
-      order = Order.find_by!(shopify_order_id: shopify_order["id"])
+      order = Order.find_by!(shopify_store: @store, shopify_order_id: shopify_order["id"])
       order.update!(attrs)
     end
 
@@ -111,12 +112,12 @@ class SyncAllOrdersService
       shopify_data: shopify_customer
     }
 
-    customer = Customer.find_or_initialize_by(shopify_customer_id: shopify_customer["id"])
+    customer = Customer.find_or_initialize_by(shopify_store: @store, shopify_customer_id: shopify_customer["id"])
     customer.assign_attributes(attrs)
     customer.save!
     customer
   rescue ActiveRecord::RecordNotUnique
-    Customer.find_by!(shopify_customer_id: shopify_customer["id"]).tap { |c| c.update!(attrs) }
+    Customer.find_by!(shopify_store: @store, shopify_customer_id: shopify_customer["id"]).tap { |c| c.update!(attrs) }
   end
 
   def sync_fulfillments(order, shopify_order)
