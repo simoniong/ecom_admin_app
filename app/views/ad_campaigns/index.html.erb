@@ -1,0 +1,320 @@
+<%
+  # Determine visible columns from active template, or show all
+  all_columns = CampaignDisplayTemplate::ALL_COLUMNS
+  visible = @active_template ? @active_template.visible_columns : all_columns
+
+  # Column definitions: [key, alignment, formatter]
+  col_defs = {
+    "ad_account"             => [:left,  ->(c, m) { c.ad_account.account_name || c.ad_account.account_id }],
+    "daily_budget"           => [:right, ->(c, m) { number_to_currency(c.daily_budget) }],
+    "impressions"            => [:right, ->(c, m) { number_with_delimiter(m.impressions) }],
+    "clicks"                 => [:right, ->(c, m) { number_with_delimiter(m.clicks) }],
+    "ctr"                    => [:right, ->(c, m) { "#{m.ctr}%" }],
+    "cpc"                    => [:right, ->(c, m) { number_to_currency(m.cpc) }],
+    "add_to_cart"            => [:right, ->(c, m) { number_with_delimiter(m.add_to_cart) }],
+    "atc_click_rate"         => [:right, ->(c, m) { "#{m.atc_click_rate}%" }],
+    "cost_per_atc"           => [:right, ->(c, m) { number_to_currency(m.cost_per_atc) }],
+    "checkout_initiated"     => [:right, ->(c, m) { number_with_delimiter(m.checkout_initiated) }],
+    "checkout_atc_rate"      => [:right, ->(c, m) { "#{m.checkout_atc_rate}%" }],
+    "cost_per_checkout"      => [:right, ->(c, m) { number_to_currency(m.cost_per_checkout) }],
+    "purchases"              => [:right, ->(c, m) { number_with_delimiter(m.purchases) }],
+    "purchase_checkout_rate" => [:right, ->(c, m) { "#{m.purchase_checkout_rate}%" }],
+    "purchase_click_rate"    => [:right, ->(c, m) { "#{m.purchase_click_rate}%" }],
+    "cost_per_purchase"      => [:right, ->(c, m) { number_to_currency(m.cost_per_purchase) }],
+    "spend"                  => [:right, ->(c, m) { number_to_currency(m.spend) }],
+    "conversion_value"       => [:right, ->(c, m) { number_to_currency(m.conversion_value) }],
+    "roas"                   => [:right, ->(c, m) { "#{m.roas}x" }],
+  }
+%>
+
+<div class="space-y-6" data-controller="campaign-filter template-modal">
+  <div class="flex items-center justify-between">
+    <h1 class="text-2xl font-bold text-gray-900"><%= t("ad_campaigns.title") %></h1>
+
+    <%# Template selector %>
+    <div class="flex items-center gap-2">
+      <% if @templates.any? %>
+        <select onchange="if(this.value) window.location.search = new URLSearchParams({...Object.fromEntries(new URLSearchParams(window.location.search)), template_id: this.value}).toString()"
+                class="block w-48 rounded-md border-gray-300 shadow-sm text-sm focus:border-blue-500 focus:ring-blue-500">
+          <% @templates.each do |tpl| %>
+            <option value="<%= tpl.id %>" <%= "selected" if @active_template == tpl %>><%= tpl.name %></option>
+          <% end %>
+        </select>
+      <% end %>
+      <button type="button" data-action="click->template-modal#open"
+              class="inline-flex items-center gap-1 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
+        <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" />
+          <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+        </svg>
+        <% if @active_template %>
+          <%= t("campaign_display_templates.edit_template") %>
+        <% else %>
+          <%= t("campaign_display_templates.new_template") %>
+        <% end %>
+      </button>
+    </div>
+  </div>
+
+  <%# Filters %>
+  <%= form_tag ad_campaigns_path, method: :get, data: { campaign_filter_target: "filterForm" }, class: "bg-white rounded-lg border border-gray-200 p-4 space-y-4" do %>
+    <% if @active_template %>
+      <input type="hidden" name="template_id" value="<%= @active_template.id %>">
+    <% end %>
+    <input type="hidden" name="status_filter" value="<%= @status_filter %>" data-campaign-filter-target="statusFilter">
+    <input type="hidden" name="sort_column" value="<%= @sort_column %>" data-campaign-filter-target="sortColumn">
+    <input type="hidden" name="sort_direction" value="<%= @sort_direction %>" data-campaign-filter-target="sortDirection">
+
+    <div class="flex flex-wrap items-end gap-4">
+      <%# Store selector (only if multiple stores) %>
+      <% if @show_store_selector %>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1"><%= t("shopify_stores.title") %></label>
+          <select name="shopify_store_id"
+                  data-campaign-filter-target="storeSelect"
+                  data-action="change->campaign-filter#storeChanged"
+                  class="block w-48 rounded-md border-gray-300 shadow-sm text-sm focus:border-blue-500 focus:ring-blue-500">
+            <% @shopify_stores.each do |store| %>
+              <option value="<%= store.id %>" <%= "selected" if @selected_store == store %>><%= store.shop_domain.sub(".myshopify.com", "") %></option>
+            <% end %>
+          </select>
+        </div>
+      <% else %>
+        <% if @selected_store %>
+          <input type="hidden" name="shopify_store_id" value="<%= @selected_store.id %>">
+        <% end %>
+      <% end %>
+
+      <%# Ad Account filter (only if multiple accounts) %>
+      <% if @ad_accounts.size > 1 %>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1"><%= t("nav.ad_accounts") %></label>
+          <select name="ad_account_id"
+                  data-action="change->campaign-filter#submit"
+                  class="block w-48 rounded-md border-gray-300 shadow-sm text-sm focus:border-blue-500 focus:ring-blue-500">
+            <option value="all" <%= "selected" unless @selected_account %>><%= t("ad_campaigns.all_accounts") %></option>
+            <% @ad_accounts.each do |account| %>
+              <option value="<%= account.id %>" <%= "selected" if @selected_account == account %>><%= account.account_name || account.account_id %></option>
+            <% end %>
+          </select>
+        </div>
+      <% end %>
+
+      <%# Date range inputs %>
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1"><%= t("ad_campaigns.from_date") %></label>
+        <input type="date" name="from_date" value="<%= @from_date %>"
+               data-campaign-filter-target="fromDate"
+               data-action="change->campaign-filter#dateChanged"
+               class="block w-40 rounded-md border-gray-300 shadow-sm text-sm focus:border-blue-500 focus:ring-blue-500">
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1"><%= t("ad_campaigns.to_date") %></label>
+        <input type="date" name="to_date" value="<%= @to_date %>"
+               data-campaign-filter-target="toDate"
+               data-action="change->campaign-filter#dateChanged"
+               class="block w-40 rounded-md border-gray-300 shadow-sm text-sm focus:border-blue-500 focus:ring-blue-500">
+      </div>
+    </div>
+
+    <%# Date range quick picks %>
+    <div class="flex flex-wrap gap-2">
+      <% %w[today yesterday last_7_days this_week last_week last_30_days this_month last_month this_quarter last_quarter maximum].each do |range| %>
+        <button type="button"
+                data-campaign-filter-target="rangeButton"
+                data-action="click->campaign-filter#selectRange"
+                data-range="<%= range %>"
+                class="px-3 py-1 text-xs font-medium rounded-full border border-gray-300 bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors">
+          <%= t("ad_campaigns.ranges.#{range}") %>
+        </button>
+      <% end %>
+    </div>
+  <% end %>
+
+  <%# Campaigns table %>
+  <% if @campaigns.any? %>
+    <div class="bg-white rounded-lg border border-gray-200 overflow-x-auto">
+      <table class="min-w-full divide-y divide-gray-200">
+        <thead class="bg-gray-50">
+          <tr>
+            <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap"><%= t("ad_campaigns.columns.campaign_name") %></th>
+            <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
+              <select data-action="change->campaign-filter#statusChanged"
+                      data-campaign-filter-target="statusSelect"
+                      class="text-xs font-medium text-gray-500 uppercase tracking-wider bg-transparent border-none p-0 focus:ring-0 cursor-pointer">
+                <option value="" <%= "selected" if @status_filter.blank? %>><%= t("ad_campaigns.all_statuses") %></option>
+                <% %w[active paused deleted has_spend].each do |s| %>
+                  <option value="<%= s %>" <%= "selected" if @status_filter == s %>><%= t("ad_campaigns.status.#{s}") %></option>
+                <% end %>
+              </select>
+            </th>
+            <%
+              sortable_columns = AdCampaignsController::SORTABLE_COLUMNS
+              up_arrow = '<svg class="w-3 h-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 15.75l7.5-7.5 7.5 7.5" /></svg>'
+              down_arrow = '<svg class="w-3 h-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" /></svg>'
+              both_arrows = '<svg class="w-3 h-3 opacity-30" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 15 12 18.75 15.75 15m-7.5-6L12 5.25 15.75 9" /></svg>'
+            %>
+            <% all_columns.each do |col| %>
+              <% next unless visible.include?(col) %>
+              <% align = col_defs[col]&.first == :left ? "text-left" : "text-right" %>
+              <% if sortable_columns.include?(col) %>
+                <th class="px-3 py-3 <%= align %> text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                  <button type="button" data-action="click->campaign-filter#sortBy" data-sort-column="<%= col %>"
+                          class="inline-flex items-center gap-1 uppercase tracking-wider hover:text-gray-700">
+                    <%= t("ad_campaigns.columns.#{col}") %>
+                    <% if @sort_column == col %>
+                      <%= raw(@sort_direction == "asc" ? up_arrow : down_arrow) %>
+                    <% else %>
+                      <%= raw(both_arrows) %>
+                    <% end %>
+                  </button>
+                </th>
+              <% else %>
+                <th class="px-3 py-3 <%= align %> text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap"><%= t("ad_campaigns.columns.#{col}") %></th>
+              <% end %>
+            <% end %>
+          </tr>
+        </thead>
+        <tbody class="bg-white divide-y divide-gray-200">
+          <% @campaigns.each do |campaign| %>
+            <% m = @campaign_metrics[campaign.id] %>
+            <tr class="hover:bg-gray-50">
+              <td class="px-3 py-3 text-sm font-medium text-gray-900 whitespace-nowrap"><%= campaign.campaign_name || campaign.campaign_id %></td>
+              <td class="px-3 py-3 whitespace-nowrap">
+                <% if campaign.status == "active" %>
+                  <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800"><%= t("ad_campaigns.status.active") %></span>
+                <% elsif campaign.status == "paused" %>
+                  <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800"><%= t("ad_campaigns.status.paused") %></span>
+                <% else %>
+                  <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600"><%= t("ad_campaigns.status.#{campaign.status}") %></span>
+                <% end %>
+              </td>
+              <% all_columns.each do |col| %>
+                <% next unless visible.include?(col) %>
+                <% align = col_defs[col]&.first == :left ? "text-left" : "text-right" %>
+                <% formatter = col_defs[col]&.last %>
+                <% value = formatter ? formatter.call(campaign, m) : "" %>
+                <% font = col == "roas" ? "font-medium text-gray-900" : "text-gray-700" %>
+                <td class="px-3 py-3 text-sm <%= font %> <%= align %> whitespace-nowrap"><%= value %></td>
+              <% end %>
+            </tr>
+          <% end %>
+        </tbody>
+        <% if @campaigns.size > 1 %>
+          <%
+            sm = @summary_metrics
+            summary_defs = {
+              "ad_account"             => nil,
+              "daily_budget"           => -> { number_to_currency(@summary_budget) },
+              "impressions"            => -> { number_with_delimiter(sm.impressions) },
+              "clicks"                 => -> { number_with_delimiter(sm.clicks) },
+              "ctr"                    => -> { "#{sm.ctr}%" },
+              "cpc"                    => -> { number_to_currency(sm.cpc) },
+              "add_to_cart"            => -> { number_with_delimiter(sm.add_to_cart) },
+              "atc_click_rate"         => -> { "#{sm.atc_click_rate}%" },
+              "cost_per_atc"           => -> { number_to_currency(sm.cost_per_atc) },
+              "checkout_initiated"     => -> { number_with_delimiter(sm.checkout_initiated) },
+              "checkout_atc_rate"      => -> { "#{sm.checkout_atc_rate}%" },
+              "cost_per_checkout"      => -> { number_to_currency(sm.cost_per_checkout) },
+              "purchases"              => -> { number_with_delimiter(sm.purchases) },
+              "purchase_checkout_rate" => -> { "#{sm.purchase_checkout_rate}%" },
+              "purchase_click_rate"    => -> { "#{sm.purchase_click_rate}%" },
+              "cost_per_purchase"      => -> { number_to_currency(sm.cost_per_purchase) },
+              "spend"                  => -> { number_to_currency(sm.spend) },
+              "conversion_value"       => -> { number_to_currency(sm.conversion_value) },
+              "roas"                   => -> { "#{sm.roas}x" },
+            }
+          %>
+          <tfoot class="bg-gray-50 border-t-2 border-gray-300">
+            <tr>
+              <td class="px-3 py-3 text-sm font-semibold text-gray-900 whitespace-nowrap"><%= t("ad_campaigns.summary") %></td>
+              <td></td>
+              <% all_columns.each do |col| %>
+                <% next unless visible.include?(col) %>
+                <% align = col_defs[col]&.first == :left ? "text-left" : "text-right" %>
+                <% formatter = summary_defs[col] %>
+                <% if formatter %>
+                  <td class="px-3 py-3 text-sm font-semibold text-gray-900 <%= align %> whitespace-nowrap"><%= formatter.call %></td>
+                <% else %>
+                  <td></td>
+                <% end %>
+              <% end %>
+            </tr>
+          </tfoot>
+        <% end %>
+      </table>
+    </div>
+  <% else %>
+    <div class="bg-white rounded-lg border border-gray-200 p-12 text-center">
+      <p class="text-gray-500"><%= t("ad_campaigns.empty") %></p>
+    </div>
+  <% end %>
+
+<%# Template Edit/Create Modal %>
+<div id="template-modal" data-template-modal-target="modal" class="hidden fixed inset-0 z-50">
+  <div data-template-modal-target="backdrop" data-action="click->template-modal#backdropClick" class="fixed inset-0 bg-gray-900/50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-lg shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto" data-action="click->template-modal#stopPropagation">
+      <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+        <h2 class="text-lg font-semibold text-gray-900">
+          <%= @active_template ? t("campaign_display_templates.edit_template") : t("campaign_display_templates.new_template") %>
+        </h2>
+        <button type="button" data-action="click->template-modal#close" class="text-gray-400 hover:text-gray-600">
+          <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+
+      <%= form_with(
+            model: @active_template || CampaignDisplayTemplate.new,
+            url: @active_template ? campaign_display_template_path(@active_template) : campaign_display_templates_path,
+            method: @active_template ? :patch : :post,
+            class: "p-6 space-y-4"
+          ) do |f| %>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1"><%= t("campaign_display_templates.template_name") %></label>
+          <%= f.text_field :name,
+              value: @active_template&.name || t("campaign_display_templates.default_name"),
+              class: "block w-full rounded-md border-gray-300 shadow-sm text-sm focus:border-blue-500 focus:ring-blue-500" %>
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2"><%= t("campaign_display_templates.select_columns") %></label>
+          <div class="grid grid-cols-2 gap-2">
+            <% all_columns.each do |col| %>
+              <label class="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                <input type="checkbox" name="campaign_display_template[visible_columns][]" value="<%= col %>"
+                       <%= "checked" if @active_template.nil? || @active_template.column_visible?(col) %>
+                       class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                <%= t("ad_campaigns.columns.#{col}") %>
+              </label>
+            <% end %>
+          </div>
+        </div>
+
+        <%# Hidden empty value to ensure array is sent even when nothing checked %>
+        <input type="hidden" name="campaign_display_template[visible_columns][]" value="">
+
+        <div class="flex items-center justify-between pt-4 border-t border-gray-200">
+          <div>
+            <% if @active_template %>
+              <%= link_to t("campaign_display_templates.delete"),
+                  campaign_display_template_path(@active_template),
+                  data: { turbo_method: :delete, turbo_confirm: t("campaign_display_templates.delete_confirm") },
+                  class: "text-sm text-red-600 hover:text-red-800" %>
+            <% end %>
+          </div>
+          <div class="flex gap-2">
+            <button type="button" data-action="click->template-modal#close"
+                    class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
+              <%= t("campaign_display_templates.cancel") %>
+            </button>
+            <%= f.submit t("campaign_display_templates.save"),
+                class: "px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 cursor-pointer" %>
+          </div>
+        </div>
+      <% end %>
+    </div>
+  </div>
+</div>
+</div>
