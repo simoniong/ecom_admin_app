@@ -120,6 +120,7 @@ class ShopifyAnalyticsService
                     edges {
                       node {
                         subtotalSet { shopMoney { amount } }
+                        totalTaxSet { shopMoney { amount } }
                       }
                     }
                   }
@@ -127,6 +128,7 @@ class ShopifyAnalyticsService
                     edges {
                       node {
                         subtotalAmountSet { shopMoney { amount } }
+                        taxAmountSet { shopMoney { amount } }
                       }
                     }
                   }
@@ -160,10 +162,12 @@ class ShopifyAnalyticsService
           next unless refund_at >= min_time && refund_at <= max_time
 
           li_total = (refund.dig("refundLineItems", "edges") || []).sum do |e|
-            e.dig("node", "subtotalSet", "shopMoney", "amount").to_d
+            e.dig("node", "subtotalSet", "shopMoney", "amount").to_s.to_d +
+              e.dig("node", "totalTaxSet", "shopMoney", "amount").to_s.to_d
           end
           shipping_total = (refund.dig("refundShippingLines", "edges") || []).sum do |e|
-            e.dig("node", "subtotalAmountSet", "shopMoney", "amount").to_d
+            e.dig("node", "subtotalAmountSet", "shopMoney", "amount").to_s.to_d +
+              e.dig("node", "taxAmountSet", "shopMoney", "amount").to_s.to_d
           end
 
           # Sum ALL adjustment types (includes settled pending refunds)
