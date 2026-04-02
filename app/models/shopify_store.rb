@@ -1,6 +1,7 @@
 class ShopifyStore < ApplicationRecord
   belongs_to :user
   has_many :email_accounts, dependent: :nullify
+  has_many :ad_accounts, dependent: :nullify
 
   encrypts :access_token, deterministic: false
 

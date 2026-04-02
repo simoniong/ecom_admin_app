@@ -74,6 +74,39 @@ RSpec.describe "ShopifyStores", type: :request do
       expect(account.reload.shopify_store_id).to be_nil
     end
 
+    it "links ad accounts to store" do
+      store = create(:shopify_store, user: user)
+      ad_account = create(:ad_account, user: user)
+      sign_in user
+
+      patch shopify_store_path(id: store.id), params: { ad_account_ids: [ ad_account.id ] }
+      expect(response).to redirect_to(shopify_store_path(store))
+      expect(ad_account.reload.shopify_store_id).to eq(store.id)
+    end
+
+    it "unlinks previously linked ad accounts" do
+      store = create(:shopify_store, user: user)
+      ad_account = create(:ad_account, user: user, shopify_store: store)
+      sign_in user
+
+      patch shopify_store_path(id: store.id), params: { ad_account_ids: [ "" ] }
+      expect(ad_account.reload.shopify_store_id).to be_nil
+    end
+
+    it "links both email and ad accounts in a single update" do
+      store = create(:shopify_store, user: user)
+      email_account = create(:email_account, user: user)
+      ad_account = create(:ad_account, user: user)
+      sign_in user
+
+      patch shopify_store_path(id: store.id), params: {
+        email_account_ids: [ email_account.id ],
+        ad_account_ids: [ ad_account.id ]
+      }
+      expect(email_account.reload.shopify_store_id).to eq(store.id)
+      expect(ad_account.reload.shopify_store_id).to eq(store.id)
+    end
+
     it "returns 404 for another user's store" do
       store = create(:shopify_store, user: other_user)
       sign_in user
@@ -99,6 +132,15 @@ RSpec.describe "ShopifyStores", type: :request do
 
       delete shopify_store_path(id: store.id)
       expect(account.reload.shopify_store_id).to be_nil
+    end
+
+    it "nullifies linked ad accounts" do
+      store = create(:shopify_store, user: user)
+      ad_account = create(:ad_account, user: user, shopify_store: store)
+      sign_in user
+
+      delete shopify_store_path(id: store.id)
+      expect(ad_account.reload.shopify_store_id).to be_nil
     end
 
     it "returns 404 for another user's store" do
