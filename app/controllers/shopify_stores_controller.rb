@@ -27,7 +27,19 @@ class ShopifyStoresController < AdminController
   end
 
   def destroy
-    @shopify_store.destroy
+    customer_ids = @shopify_store.customers.pluck(:id)
+    order_ids = Order.where(customer_id: customer_ids)
+                     .or(Order.where(shopify_store_id: @shopify_store.id))
+                     .pluck(:id)
+
+    ActiveRecord::Base.transaction do
+      Fulfillment.where(order_id: order_ids).delete_all
+      Order.where(id: order_ids).delete_all
+      Ticket.where(customer_id: customer_ids).update_all(customer_id: nil)
+      Customer.where(id: customer_ids).delete_all
+      @shopify_store.destroy!
+    end
+
     redirect_to shopify_stores_path, notice: t("shopify_stores.disconnect_success")
   end
 
