@@ -306,6 +306,47 @@ RSpec.describe GmailSyncService do
       expect(Message.last.body).to eq("Plain text body")
     end
 
+    it "handles body with invalid UTF-8 bytes gracefully" do
+      gmail = instance_double(GmailService)
+      allow(GmailService).to receive(:new).and_return(gmail)
+
+      profile = Google::Apis::GmailV1::Profile.new(history_id: 99)
+      allow(gmail).to receive(:user_profile).and_return(profile)
+
+      thread_list = Google::Apis::GmailV1::ListThreadsResponse.new(
+        threads: [ Google::Apis::GmailV1::Thread.new(id: "t-bin") ],
+        next_page_token: nil
+      )
+      allow(gmail).to receive(:list_threads).and_return(thread_list)
+
+      # Body with invalid UTF-8 bytes
+      binary_body = "Hello \xFF\xFE world".b
+      encoded = Base64.urlsafe_encode64(binary_body)
+
+      full_thread = Google::Apis::GmailV1::Thread.new(
+        id: "t-bin",
+        messages: [
+          Google::Apis::GmailV1::Message.new(
+            id: "m-bin", thread_id: "t-bin",
+            internal_date: (Time.current.to_f * 1000).to_i,
+            payload: Google::Apis::GmailV1::MessagePart.new(
+              headers: [
+                Google::Apis::GmailV1::MessagePartHeader.new(name: "From", value: "binary@example.com"),
+                Google::Apis::GmailV1::MessagePartHeader.new(name: "Subject", value: "Binary body")
+              ],
+              body: Google::Apis::GmailV1::MessagePartBody.new(data: encoded)
+            )
+          )
+        ]
+      )
+      allow(gmail).to receive(:get_thread).with("t-bin").and_return(full_thread)
+
+      expect { service.sync! }.not_to raise_error
+      message = Message.last
+      expect(message.body).to be_valid_encoding
+      expect(message.body.encoding).to eq(Encoding::UTF_8)
+    end
+
     it "handles invalid base64 body gracefully" do
       gmail = instance_double(GmailService)
       allow(GmailService).to receive(:new).and_return(gmail)

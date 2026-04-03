@@ -11,10 +11,19 @@ RSpec.describe Customer, type: :model do
     expect(customer).not_to be_valid
   end
 
-  it "enforces shopify_customer_id uniqueness" do
-    create(:customer, shopify_customer_id: 12345)
-    duplicate = build(:customer, shopify_customer_id: 12345)
+  it "enforces shopify_customer_id uniqueness within store" do
+    store = create(:shopify_store)
+    create(:customer, shopify_store: store, shopify_customer_id: 12345)
+    duplicate = build(:customer, shopify_store: store, shopify_customer_id: 12345)
     expect(duplicate).not_to be_valid
+  end
+
+  it "allows same shopify_customer_id across different stores" do
+    store1 = create(:shopify_store)
+    store2 = create(:shopify_store)
+    create(:customer, shopify_store: store1, shopify_customer_id: 12345)
+    other = build(:customer, shopify_store: store2, shopify_customer_id: 12345)
+    expect(other).to be_valid
   end
 
   it "has many orders with dependent destroy" do

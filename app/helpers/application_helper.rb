@@ -66,6 +66,21 @@ module ApplicationHelper
     end
   end
 
+  def pagination_range(current, total, window: 2)
+    return (1..total).to_a if total <= (window * 2 + 5)
+
+    pages = []
+    pages << 1
+    left = [ current - window, 2 ].max
+    right = [ current + window, total - 1 ].min
+
+    pages << :gap if left > 2
+    pages.concat((left..right).to_a)
+    pages << :gap if right < total - 1
+    pages << total if total > 1
+    pages
+  end
+
   def split_email_body(body)
     return [ body, nil ] if body.blank?
 

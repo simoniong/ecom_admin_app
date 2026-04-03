@@ -17,6 +17,9 @@ production:
   sync_ad_campaigns:
     class: SyncAdCampaignsJob
     schedule: every 1 hour
+  sync_all_shopify_orders:
+    class: SyncAllShopifyOrdersRecurringJob
+    schedule: every 1 hour
   clear_solid_queue_finished_jobs:
     command: "SolidQueue::Job.clear_finished_in_batches(sleep_between_batches: 0.3)"
     schedule: every hour at minute 12
@@ -39,4 +42,7 @@ development:
     schedule: every 1 hour
   sync_ad_campaigns:
     class: SyncAdCampaignsJob
+    schedule: every 1 hour
+  sync_all_shopify_orders:
+    class: SyncAllShopifyOrdersRecurringJob
     schedule: every 1 hour

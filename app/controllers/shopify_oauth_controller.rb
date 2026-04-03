@@ -19,7 +19,7 @@ class ShopifyOauthController < AdminController
       return
     end
 
-    scopes = "read_products,read_customers,read_orders,read_fulfillments,read_analytics"
+    scopes = "read_products,read_customers,read_orders,read_fulfillments,read_analytics,write_webhooks"
     redirect_uri = shopify_callback_url(locale: nil)
 
     authorize_url = "https://#{shop}/admin/oauth/authorize?" + {
@@ -69,9 +69,13 @@ class ShopifyOauthController < AdminController
     )
 
     if store.save
+      SyncAllShopifyOrdersJob.perform_later(store.id)
+      RegisterShopifyWebhooksJob.perform_later(store.id)
+      BackfillShopifyMetricsJob.perform_later(store.id)
       redirect_to shopify_stores_path, notice: t("shopify_stores.bind_success")
     else
-      redirect_to shopify_stores_path, alert: t("shopify_stores.bind_failure")
+      alert = store.errors[:shop_domain].any? ? t("shopify_stores.already_bound") : t("shopify_stores.bind_failure")
+      redirect_to shopify_stores_path, alert: alert
     end
   end
 

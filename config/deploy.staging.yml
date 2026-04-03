@@ -12,6 +12,7 @@ env:
     DB_HOST: postgres-db
     DB_NAME: ecom_admin_app_production
     DB_USERNAME: ecom_admin_app
+    APP_HOST: https://hq-stg.ksuntech.com
 
 accessories:
   db:

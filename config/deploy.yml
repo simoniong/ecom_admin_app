@@ -27,6 +27,7 @@ env:
     - META_APP_SECRET
     - SHOPIFY_CLIENT_ID
     - SHOPIFY_CLIENT_SECRET
+    - SENTRY_DSN
 
 builder:
   arch: amd64

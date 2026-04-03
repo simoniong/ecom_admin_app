@@ -24,7 +24,7 @@ gem "devise", "~> 5.0"
 
 # OAuth [https://github.com/zquestz/omniauth-google-oauth2]
 gem "omniauth-google-oauth2", "~> 1.2"
-gem "omniauth-rails_csrf_protection", "~> 1.0"
+gem "omniauth-rails_csrf_protection", "~> 2.0"
 
 # Gmail API client
 gem "google-apis-gmail_v1", "~> 0.40"
@@ -34,6 +34,10 @@ gem "shopify_api", "~> 14.0"
 
 # HTTP client for 17Track API
 gem "httparty", "~> 0.22"
+
+# Error tracking [https://docs.sentry.io/platforms/ruby/guides/rails/]
+gem "sentry-ruby"
+gem "sentry-rails"
 
 # Meta (Facebook) Ads API client
 gem "koala", "~> 3.6"

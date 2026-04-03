@@ -31,15 +31,16 @@ RSpec.describe ShopifyStore, type: :model do
     expect(store).to be_valid
   end
 
-  it "enforces shop_domain uniqueness scoped to user" do
+  it "enforces shop_domain uniqueness for same user" do
     duplicate = build(:shopify_store, user: user, shop_domain: store.shop_domain)
     expect(duplicate).not_to be_valid
   end
 
-  it "allows same domain for different users" do
+  it "enforces global shop_domain uniqueness across users" do
     other_user = create(:user)
     other_store = build(:shopify_store, user: other_user, shop_domain: store.shop_domain)
-    expect(other_store).to be_valid
+    expect(other_store).not_to be_valid
+    expect(other_store.errors[:shop_domain]).to include("has already been taken")
   end
 
   it "requires access_token" do
