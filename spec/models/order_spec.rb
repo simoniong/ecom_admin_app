@@ -53,7 +53,7 @@ RSpec.describe Order, type: :model do
       inside = create(:order, customer: customer, ordered_at: 2.days.ago)
       outside = create(:order, customer: customer, ordered_at: 10.days.ago)
 
-      results = Order.ordered_between(3.days.ago.to_date, Date.current)
+      results = Order.ordered_between(3.days.ago.beginning_of_day, Time.current.end_of_day)
       expect(results).to include(inside)
       expect(results).not_to include(outside)
     end

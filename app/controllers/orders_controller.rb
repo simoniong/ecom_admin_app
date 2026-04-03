@@ -12,9 +12,13 @@ class OrdersController < AdminController
 
     parse_dates
 
-    store_ids = current_user.shopify_stores.pluck(:id)
-    base_orders = Order.where(shopify_store_id: store_ids).by_recency
-    base_orders = base_orders.ordered_between(@from_date, @to_date)
+    if current_shopify_store
+      base_orders = current_shopify_store.orders.by_recency
+    else
+      store_ids = current_user.shopify_stores.pluck(:id)
+      base_orders = Order.where(shopify_store_id: store_ids).by_recency
+    end
+    base_orders = base_orders.ordered_between(@from_time, @to_time)
     base_orders = base_orders.search_by(@search) if @search
     base_orders = base_orders.by_financial_status(@financial_status) if @financial_status
     base_orders = base_orders.by_fulfillment_status(@fulfillment_status) if @fulfillment_status
@@ -46,10 +50,16 @@ class OrdersController < AdminController
   private
 
   def parse_dates
-    @from_date = params[:from_date].present? ? Date.parse(params[:from_date]) : 30.days.ago.to_date
-    @to_date = params[:to_date].present? ? Date.parse(params[:to_date]) : Date.current
+    tz = store_timezone
+    today = Time.current.in_time_zone(tz).to_date
+    @from_date = params[:from_date].present? ? Date.parse(params[:from_date]) : today - 30
+    @to_date = params[:to_date].present? ? Date.parse(params[:to_date]) : today
+    @from_time = tz.parse(@from_date.to_s).beginning_of_day.utc
+    @to_time = tz.parse(@to_date.to_s).end_of_day.utc
   rescue Date::Error
-    @from_date = 30.days.ago.to_date
-    @to_date = Date.current
+    @from_date = today - 30
+    @to_date = today
+    @from_time = tz.parse(@from_date.to_s).beginning_of_day.utc
+    @to_time = tz.parse(@to_date.to_s).end_of_day.utc
   end
 end
