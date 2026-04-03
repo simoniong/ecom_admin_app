@@ -27,14 +27,15 @@ class ShopifyStoresController < AdminController
   end
 
   def destroy
-    customer_ids = @shopify_store.customers.pluck(:id)
-    order_ids = Order.where(customer_id: customer_ids)
-                     .or(Order.where(shopify_store_id: @shopify_store.id))
-                     .pluck(:id)
-
     ActiveRecord::Base.transaction do
-      Fulfillment.where(order_id: order_ids).delete_all
-      Order.where(id: order_ids).delete_all
+      @shopify_store.lock!
+
+      customer_ids = @shopify_store.customers.select(:id)
+      orders = Order.where(customer_id: customer_ids)
+                    .or(Order.where(shopify_store_id: @shopify_store.id))
+
+      Fulfillment.where(order_id: orders.select(:id)).delete_all
+      orders.delete_all
       Ticket.where(customer_id: customer_ids).update_all(customer_id: nil)
       Customer.where(id: customer_ids).delete_all
       @shopify_store.destroy!
