@@ -269,8 +269,11 @@ class GmailSyncService
 
   def decode_body(data)
     return nil if data.nil?
-    Base64.urlsafe_decode64(data).force_encoding("UTF-8")
+    decoded = Base64.urlsafe_decode64(data)
+    decoded.force_encoding("UTF-8")
+    decoded.valid_encoding? ? decoded : decoded.encode("UTF-8", "BINARY", invalid: :replace, undef: :replace, replace: "")
   rescue ArgumentError
-    data
+    data.force_encoding("UTF-8")
+    data.valid_encoding? ? data : data.encode("UTF-8", "BINARY", invalid: :replace, undef: :replace, replace: "")
   end
 end
