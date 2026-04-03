@@ -231,7 +231,7 @@
 
               <%# Date %>
               <td class="px-4 py-3 text-sm text-gray-500 whitespace-nowrap">
-                <%= order.ordered_at ? order.ordered_at.in_time_zone(store_timezone).strftime("%Y-%m-%d %H:%M") : "-" %>
+                <%= order.ordered_at ? order.ordered_at.in_time_zone(order.shopify_store&.active_timezone || "UTC").strftime("%Y-%m-%d %H:%M") : "-" %>
               </td>
             </tr>
           <% end %>
