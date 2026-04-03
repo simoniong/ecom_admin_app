@@ -19,7 +19,7 @@ class ShopifyOauthController < AdminController
       return
     end
 
-    scopes = "read_products,read_customers,read_orders,read_fulfillments,read_analytics,write_webhooks"
+    scopes = "read_products,read_customers,read_all_orders,read_fulfillments,read_analytics,write_webhooks"
     redirect_uri = shopify_callback_url(locale: nil)
 
     authorize_url = "https://#{shop}/admin/oauth/authorize?" + {
