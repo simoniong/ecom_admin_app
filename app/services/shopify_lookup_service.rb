@@ -91,12 +91,12 @@ class ShopifyLookupService
         shopify_data: sf
       }
 
-      fulfillment = order.fulfillments.find_or_initialize_by(shopify_fulfillment_id: sf["id"])
-      fulfillment.assign_attributes(attrs)
+      fulfillment = Fulfillment.find_or_initialize_by(shopify_fulfillment_id: sf["id"])
+      fulfillment.assign_attributes(attrs.merge(order: order))
       begin
         fulfillment.save!
       rescue ActiveRecord::RecordNotUnique
-        order.fulfillments.find_by!(shopify_fulfillment_id: sf["id"]).update!(attrs)
+        Fulfillment.find_by!(shopify_fulfillment_id: sf["id"]).update!(attrs.merge(order: order))
       end
     end
   end

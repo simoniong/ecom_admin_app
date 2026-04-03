@@ -111,6 +111,27 @@ RSpec.describe SyncAllOrdersService do
       expect(Fulfillment.count).to eq(1)
     end
 
+    it "updates existing fulfillment found globally instead of raising uniqueness error" do
+      service.call
+
+      # Simulate full re-sync: fulfillment already exists from first sync
+      existing_fulfillment = Fulfillment.find_by(shopify_fulfillment_id: 300)
+      expect(existing_fulfillment).to be_present
+
+      updated_order = shopify_order.merge(
+        "fulfillments" => [
+          { "id" => 300, "status" => "success", "tracking_number" => "TRACK_UPDATED",
+            "tracking_company" => "FedEx", "tracking_url" => "https://track2.example.com" }
+        ]
+      )
+      allow(shopify_service).to receive(:fetch_all_customers).and_return([ shopify_customer ], [])
+      allow(shopify_service).to receive(:fetch_all_orders).and_return([ updated_order ], [])
+
+      expect { described_class.new(store).call }.not_to change(Fulfillment, :count)
+      expect(existing_fulfillment.reload.tracking_number).to eq("TRACK_UPDATED")
+      expect(existing_fulfillment.tracking_company).to eq("FedEx")
+    end
+
     it "continues syncing when an individual order fails" do
       bad_order = { "id" => 999, "customer" => { "id" => nil }, "fulfillments" => [] }
       good_order = shopify_order.merge("id" => 201, "name" => "#1002")
