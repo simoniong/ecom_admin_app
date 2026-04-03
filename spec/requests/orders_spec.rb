@@ -163,6 +163,45 @@ RSpec.describe "Orders", type: :request do
       get orders_path, params: { from_date: 30.days.ago.to_date }
       expect(response.body).to include("pos")
     end
+
+    context "timezone-aware date filtering" do
+      let(:store) { create(:shopify_store, user: user, timezone: "America/Los_Angeles") }
+      let(:tz) { ActiveSupport::TimeZone["America/Los_Angeles"] }
+
+      it "includes orders that fall on the selected date in store timezone" do
+        # April 2 at 11pm Pacific = April 3 06:00 UTC
+        create(:order, customer: customer, name: "#TZ01",
+          ordered_at: tz.parse("2026-04-02 23:00:00").utc)
+        # April 2 at 1am Pacific = April 2 08:00 UTC
+        create(:order, customer: customer, name: "#TZ02",
+          ordered_at: tz.parse("2026-04-02 01:00:00").utc)
+
+        sign_in user
+        get orders_path, params: { from_date: "2026-04-02", to_date: "2026-04-02" }
+        expect(response.body).to include("#TZ01")
+        expect(response.body).to include("#TZ02")
+      end
+
+      it "excludes orders outside the selected date in store timezone" do
+        # April 3 at 1am Pacific = April 3 08:00 UTC (should be excluded for April 2 query)
+        create(:order, customer: customer, name: "#TZ03",
+          ordered_at: tz.parse("2026-04-03 01:00:00").utc)
+
+        sign_in user
+        get orders_path, params: { from_date: "2026-04-02", to_date: "2026-04-02" }
+        expect(response.body).not_to include("#TZ03")
+      end
+
+      it "displays ordered_at in store timezone" do
+        # April 2 at 11pm Pacific = April 3 06:00 UTC
+        create(:order, customer: customer, name: "#TZ04",
+          ordered_at: tz.parse("2026-04-02 23:30:00").utc)
+
+        sign_in user
+        get orders_path, params: { from_date: "2026-04-02", to_date: "2026-04-02" }
+        expect(response.body).to include("2026-04-02 23:30")
+      end
+    end
   end
 
   describe "POST /orders/sync" do
