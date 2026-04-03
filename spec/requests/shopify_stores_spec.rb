@@ -143,6 +143,36 @@ RSpec.describe "ShopifyStores", type: :request do
       expect(ad_account.reload.shopify_store_id).to be_nil
     end
 
+    it "deletes customers, orders, and fulfillments belonging to the store" do
+      store = create(:shopify_store, user: user)
+      customer = create(:customer, shopify_store: store)
+      order = create(:order, customer: customer, shopify_store: store)
+      fulfillment = create(:fulfillment, order: order)
+      sign_in user
+
+      delete shopify_store_path(id: store.id)
+
+      expect(Customer.exists?(customer.id)).to be false
+      expect(Order.exists?(order.id)).to be false
+      expect(Fulfillment.exists?(fulfillment.id)).to be false
+    end
+
+    it "nullifies customer_id on tickets when deleting store with customer that has tickets" do
+      store = create(:shopify_store, user: user)
+      customer = create(:customer, shopify_store: store)
+      email_account = create(:email_account, user: user)
+      ticket = create(:ticket, email_account: email_account, customer: customer)
+      sign_in user
+
+      expect {
+        delete shopify_store_path(id: store.id)
+      }.to change(ShopifyStore, :count).by(-1)
+
+      expect(response).to redirect_to(shopify_stores_path)
+      expect(ticket.reload.customer_id).to be_nil
+      expect(Ticket.exists?(ticket.id)).to be true
+    end
+
     it "returns 404 for another user's store" do
       store = create(:shopify_store, user: other_user)
       sign_in user
