@@ -1,6 +1,7 @@
 FactoryBot.define do
   factory :order do
     customer
+    shopify_store { customer.shopify_store }
     sequence(:shopify_order_id) { |n| 5000 + n }
     email { customer.email }
     sequence(:name) { |n| "##{1000 + n}" }

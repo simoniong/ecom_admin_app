@@ -1,0 +1,273 @@
+<div class="space-y-6" data-controller="order-filter">
+  <div class="flex items-center justify-between">
+    <h1 class="text-2xl font-bold text-gray-900"><%= t("orders.title") %></h1>
+    <%= button_to sync_orders_path, method: :post,
+        class: "inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50" do %>
+      <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182M2.985 14.652" />
+      </svg>
+      <%= t("orders.sync") %>
+    <% end %>
+  </div>
+
+  <%# Filters %>
+  <%= form_tag orders_path, method: :get, data: { order_filter_target: "filterForm" }, class: "bg-white rounded-lg border border-gray-200 p-4 space-y-4" do %>
+    <input type="hidden" name="sort_column" value="<%= @sort_column %>" data-order-filter-target="sortColumn">
+    <input type="hidden" name="sort_direction" value="<%= @sort_direction %>" data-order-filter-target="sortDirection">
+
+    <div class="flex flex-wrap items-end gap-4">
+      <%# Search %>
+      <div class="flex-1 min-w-[200px]">
+        <label class="block text-sm font-medium text-gray-700 mb-1"><%= t("orders.search") %></label>
+        <input type="text" name="search" value="<%= @search %>"
+               placeholder="<%= t("orders.search_placeholder") %>"
+               data-order-filter-target="searchInput"
+               data-action="keydown.enter->order-filter#submit"
+               class="block w-full rounded-md border-gray-300 shadow-sm text-sm focus:border-blue-500 focus:ring-blue-500">
+      </div>
+
+      <%# Date range inputs %>
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1"><%= t("orders.from_date") %></label>
+        <input type="date" name="from_date" value="<%= @from_date %>"
+               data-order-filter-target="fromDate"
+               data-action="change->order-filter#submit"
+               class="block w-40 rounded-md border-gray-300 shadow-sm text-sm focus:border-blue-500 focus:ring-blue-500">
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1"><%= t("orders.to_date") %></label>
+        <input type="date" name="to_date" value="<%= @to_date %>"
+               data-order-filter-target="toDate"
+               data-action="change->order-filter#submit"
+               class="block w-40 rounded-md border-gray-300 shadow-sm text-sm focus:border-blue-500 focus:ring-blue-500">
+      </div>
+
+      <%# Financial status filter %>
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1"><%= t("orders.financial_status") %></label>
+        <select name="financial_status" data-action="change->order-filter#submit"
+                class="block w-40 rounded-md border-gray-300 shadow-sm text-sm focus:border-blue-500 focus:ring-blue-500">
+          <option value="" <%= "selected" if @financial_status.blank? %>><%= t("orders.all") %></option>
+          <% %w[paid pending refunded partially_refunded voided authorized].each do |s| %>
+            <option value="<%= s %>" <%= "selected" if @financial_status == s %>><%= t("orders.financial_statuses.#{s}") %></option>
+          <% end %>
+        </select>
+      </div>
+
+      <%# Fulfillment status filter %>
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1"><%= t("orders.fulfillment") %></label>
+        <select name="fulfillment_status" data-action="change->order-filter#submit"
+                class="block w-40 rounded-md border-gray-300 shadow-sm text-sm focus:border-blue-500 focus:ring-blue-500">
+          <option value="" <%= "selected" if @fulfillment_status.blank? %>><%= t("orders.all") %></option>
+          <% %w[fulfilled unfulfilled partial].each do |s| %>
+            <option value="<%= s %>" <%= "selected" if @fulfillment_status == s %>><%= t("orders.fulfillment_statuses.#{s}") %></option>
+          <% end %>
+        </select>
+      </div>
+
+      <%# Search button %>
+      <button type="submit" class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700">
+        <%= t("orders.filter") %>
+      </button>
+    </div>
+
+    <%# Date range quick picks %>
+    <div class="flex flex-wrap gap-2">
+      <% %w[today yesterday this_week last_week].each do |range| %>
+        <button type="button"
+                data-order-filter-target="rangeButton"
+                data-action="click->order-filter#selectRange"
+                data-range="<%= range %>"
+                class="px-3 py-1 text-xs font-medium rounded-full border border-gray-300 bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors">
+          <%= t("orders.ranges.#{range}") %>
+        </button>
+      <% end %>
+    </div>
+  <% end %>
+
+  <%# Summary %>
+  <div class="flex items-center gap-6 text-sm text-gray-600">
+    <span><%= t("orders.total_orders") %>: <strong class="text-gray-900"><%= number_with_delimiter(@summary[:count]) %></strong></span>
+    <span><%= t("orders.total_revenue") %>: <strong class="text-gray-900"><%= number_to_currency(@summary[:total_revenue]) %></strong></span>
+  </div>
+
+  <%# Orders table %>
+  <% if @orders.any? %>
+    <%
+      up_arrow = '<svg class="w-3 h-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 15.75l7.5-7.5 7.5 7.5" /></svg>'
+      down_arrow = '<svg class="w-3 h-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" /></svg>'
+      both_arrows = '<svg class="w-3 h-3 opacity-30" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 15 12 18.75 15.75 15m-7.5-6L12 5.25 15.75 9" /></svg>'
+    %>
+    <div class="bg-white rounded-lg border border-gray-200 overflow-x-auto">
+      <table class="min-w-full divide-y divide-gray-200">
+        <thead class="bg-gray-50">
+          <tr>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap"><%= t("orders.columns.order_id") %></th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap"><%= t("orders.columns.customer") %></th>
+            <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
+              <button type="button" data-action="click->order-filter#sortBy" data-sort-column="total_price"
+                      class="inline-flex items-center gap-1 uppercase tracking-wider hover:text-gray-700">
+                <%= t("orders.columns.total") %>
+                <% if @sort_column == "total_price" %>
+                  <%= raw(@sort_direction == "asc" ? up_arrow : down_arrow) %>
+                <% else %>
+                  <%= raw(both_arrows) %>
+                <% end %>
+              </button>
+            </th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
+              <button type="button" data-action="click->order-filter#sortBy" data-sort-column="financial_status"
+                      class="inline-flex items-center gap-1 uppercase tracking-wider hover:text-gray-700">
+                <%= t("orders.columns.payment") %>
+                <% if @sort_column == "financial_status" %>
+                  <%= raw(@sort_direction == "asc" ? up_arrow : down_arrow) %>
+                <% else %>
+                  <%= raw(both_arrows) %>
+                <% end %>
+              </button>
+            </th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
+              <button type="button" data-action="click->order-filter#sortBy" data-sort-column="fulfillment_status"
+                      class="inline-flex items-center gap-1 uppercase tracking-wider hover:text-gray-700">
+                <%= t("orders.columns.fulfillment") %>
+                <% if @sort_column == "fulfillment_status" %>
+                  <%= raw(@sort_direction == "asc" ? up_arrow : down_arrow) %>
+                <% else %>
+                  <%= raw(both_arrows) %>
+                <% end %>
+              </button>
+            </th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap"><%= t("orders.columns.tracking") %></th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap"><%= t("orders.columns.source") %></th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
+              <button type="button" data-action="click->order-filter#sortBy" data-sort-column="ordered_at"
+                      class="inline-flex items-center gap-1 uppercase tracking-wider hover:text-gray-700">
+                <%= t("orders.columns.date") %>
+                <% if @sort_column == "ordered_at" %>
+                  <%= raw(@sort_direction == "asc" ? up_arrow : down_arrow) %>
+                <% else %>
+                  <%= raw(both_arrows) %>
+                <% end %>
+              </button>
+            </th>
+          </tr>
+        </thead>
+        <tbody class="bg-white divide-y divide-gray-200">
+          <% @orders.each do |order| %>
+            <tr class="hover:bg-gray-50">
+              <%# Order ID %>
+              <td class="px-4 py-3 text-sm font-medium text-blue-600 whitespace-nowrap">
+                <%= order.name || "##{order.shopify_order_id}" %>
+              </td>
+
+              <%# Customer %>
+              <td class="px-4 py-3 whitespace-nowrap">
+                <div class="text-sm font-medium text-gray-900"><%= order.customer&.full_name || "-" %></div>
+                <div class="text-xs text-gray-500"><%= order.email %></div>
+              </td>
+
+              <%# Total %>
+              <td class="px-4 py-3 text-sm text-gray-900 text-right whitespace-nowrap font-medium">
+                <%= number_to_currency(order.total_price, unit: order.currency == "USD" ? "$" : "#{order.currency} ") %>
+              </td>
+
+              <%# Financial status %>
+              <td class="px-4 py-3 whitespace-nowrap">
+                <% case order.financial_status %>
+                <% when "paid" %>
+                  <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800"><%= t("orders.financial_statuses.paid") %></span>
+                <% when "pending" %>
+                  <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800"><%= t("orders.financial_statuses.pending") %></span>
+                <% when "refunded" %>
+                  <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800"><%= t("orders.financial_statuses.refunded") %></span>
+                <% when "partially_refunded" %>
+                  <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800"><%= t("orders.financial_statuses.partially_refunded") %></span>
+                <% when "voided" %>
+                  <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600"><%= t("orders.financial_statuses.voided") %></span>
+                <% when "authorized" %>
+                  <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"><%= t("orders.financial_statuses.authorized") %></span>
+                <% else %>
+                  <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600"><%= order.financial_status || "-" %></span>
+                <% end %>
+              </td>
+
+              <%# Fulfillment status %>
+              <td class="px-4 py-3 whitespace-nowrap">
+                <% case order.fulfillment_status %>
+                <% when "fulfilled" %>
+                  <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800"><%= t("orders.fulfillment_statuses.fulfilled") %></span>
+                <% when "partial" %>
+                  <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800"><%= t("orders.fulfillment_statuses.partial") %></span>
+                <% else %>
+                  <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600"><%= t("orders.fulfillment_statuses.unfulfilled") %></span>
+                <% end %>
+              </td>
+
+              <%# Tracking %>
+              <td class="px-4 py-3 whitespace-nowrap">
+                <% fulfillment = order.fulfillments.detect { |f| f.tracking_number.present? } %>
+                <% if fulfillment %>
+                  <div class="text-xs">
+                    <div class="text-gray-700 font-medium"><%= fulfillment.tracking_company %></div>
+                    <% if fulfillment.tracking_url.present? %>
+                      <a href="<%= fulfillment.tracking_url %>" target="_blank" rel="noopener" class="text-blue-600 hover:underline"><%= fulfillment.tracking_number.truncate(18) %></a>
+                    <% else %>
+                      <span class="text-gray-500"><%= fulfillment.tracking_number.truncate(18) %></span>
+                    <% end %>
+                    <% if fulfillment.tracking_status.present? %>
+                      <div class="text-gray-400 mt-0.5"><%= fulfillment.tracking_status %></div>
+                    <% end %>
+                  </div>
+                <% else %>
+                  <span class="text-xs text-gray-400">-</span>
+                <% end %>
+              </td>
+
+              <%# Source %>
+              <td class="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">
+                <%= order.shopify_data&.dig("source_name") || "web" %>
+              </td>
+
+              <%# Date %>
+              <td class="px-4 py-3 text-sm text-gray-500 whitespace-nowrap">
+                <%= order.ordered_at&.strftime("%Y-%m-%d %H:%M") || "-" %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+
+    <%# Pagination %>
+    <% if @total_pages > 1 %>
+      <nav class="flex items-center justify-between">
+        <p class="text-sm text-gray-600">
+          <%= t("orders.showing", from: (@page - 1) * OrdersController::PER_PAGE + 1, to: [(@page) * OrdersController::PER_PAGE, @total_count].min, total: @total_count) %>
+        </p>
+        <div class="flex gap-1">
+          <% if @page > 1 %>
+            <%= link_to t("orders.prev"), request.params.merge(page: @page - 1),
+                class: "px-3 py-1 text-sm rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50" %>
+          <% end %>
+          <% pagination_range(@page, @total_pages).each do |p| %>
+            <% if p == :gap %>
+              <span class="px-2 py-1 text-sm text-gray-400">...</span>
+            <% else %>
+              <%= link_to p, request.params.merge(page: p),
+                  class: "px-3 py-1 text-sm rounded-md border #{p == @page ? 'border-blue-500 bg-blue-50 text-blue-700 font-medium' : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'}" %>
+            <% end %>
+          <% end %>
+          <% if @page < @total_pages %>
+            <%= link_to t("orders.next"), request.params.merge(page: @page + 1),
+                class: "px-3 py-1 text-sm rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50" %>
+          <% end %>
+        </div>
+      </nav>
+    <% end %>
+  <% else %>
+    <div class="bg-white rounded-lg border border-gray-200 p-12 text-center">
+      <p class="text-gray-500"><%= t("orders.empty") %></p>
+    </div>
+  <% end %>
+</div>
