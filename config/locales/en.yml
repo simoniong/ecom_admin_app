@@ -90,6 +90,7 @@ en:
     bind_new: "Connect Store"
     bind_success: "Shopify store connected successfully."
     bind_failure: "Failed to connect Shopify store."
+    already_bound: "This Shopify store is already connected by another user."
     oauth_failure: "Shopify authentication failed. Please try again."
     connected_at: "Connected %{time}"
     disconnect: "Disconnect"

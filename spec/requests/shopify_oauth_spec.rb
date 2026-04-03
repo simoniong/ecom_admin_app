@@ -158,5 +158,35 @@ RSpec.describe "ShopifyOauth", type: :request do
       get shopify_callback_path, params: params.merge("hmac" => hmac)
       expect(response).to redirect_to(shopify_stores_path)
     end
+
+    it "shows already_bound error when store is bound by another user" do
+      other_user = create(:user)
+      create(:shopify_store, user: other_user, shop_domain: "test.myshopify.com")
+
+      get shopify_auth_path, params: { shop: "test.myshopify.com" }
+      nonce = session[:shopify_oauth_nonce]
+
+      params = { "code" => "test-code", "shop" => "test.myshopify.com", "state" => nonce }
+      message = params.sort.map { |k, v| "#{k}=#{v}" }.join("&")
+      hmac = OpenSSL::HMAC.hexdigest("SHA256", "test-client-secret", message)
+
+      stub_request(:post, "https://test.myshopify.com/admin/oauth/access_token")
+        .to_return(
+          status: 200,
+          body: { access_token: "shpat_new_token", scope: "read_products" }.to_json,
+          headers: { "Content-Type" => "application/json" }
+        )
+
+      stub_request(:get, %r{test\.myshopify\.com/admin/api/2024-10/shop\.json})
+        .to_return(
+          status: 200,
+          body: { shop: { iana_timezone: "Asia/Macau" } }.to_json,
+          headers: { "Content-Type" => "application/json" }
+        )
+
+      get shopify_callback_path, params: params.merge("hmac" => hmac)
+      expect(response).to redirect_to(shopify_stores_path)
+      expect(flash[:alert]).to eq(I18n.t("shopify_stores.already_bound"))
+    end
   end
 end

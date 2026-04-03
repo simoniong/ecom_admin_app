@@ -74,7 +74,8 @@ class ShopifyOauthController < AdminController
       BackfillShopifyMetricsJob.perform_later(store.id)
       redirect_to shopify_stores_path, notice: t("shopify_stores.bind_success")
     else
-      redirect_to shopify_stores_path, alert: t("shopify_stores.bind_failure")
+      alert = store.errors[:shop_domain].any? ? t("shopify_stores.already_bound") : t("shopify_stores.bind_failure")
+      redirect_to shopify_stores_path, alert: alert
     end
   end
 

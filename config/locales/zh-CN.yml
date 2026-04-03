@@ -90,6 +90,7 @@
     bind_new: "连接商店"
     bind_success: "Shopify 商店连接成功。"
     bind_failure: "Shopify 商店连接失败。"
+    already_bound: "此 Shopify 商店已被其他用户绑定。"
     oauth_failure: "Shopify 认证失败，请重试。"
     connected_at: "连接于 %{time}"
     disconnect: "断开连接"
