@@ -35,6 +35,10 @@ gem "shopify_api", "~> 14.0"
 # HTTP client for 17Track API
 gem "httparty", "~> 0.22"
 
+# Error tracking [https://docs.sentry.io/platforms/ruby/guides/rails/]
+gem "sentry-ruby"
+gem "sentry-rails"
+
 # Meta (Facebook) Ads API client
 gem "koala", "~> 3.6"
 
