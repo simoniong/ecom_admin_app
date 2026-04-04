@@ -86,6 +86,64 @@ RSpec.describe "Shipments", type: :request do
       expect(response.body).to include("Showing 1-25 of 30")
     end
 
+    it "filters by destination carrier" do
+      order = create(:order, customer: customer, shopify_store: store)
+      create(:fulfillment, order: order, tracking_number: "T1", tracking_status: "InTransit", destination_carrier: "USPS")
+      create(:fulfillment, order: order, tracking_number: "T2", tracking_status: "InTransit", destination_carrier: "FedEx")
+
+      get shipments_path, params: { destination_carrier: "USPS" }
+      expect(response.body).to include("T1")
+      expect(response.body).not_to include("T2")
+    end
+
+    it "filters by sub_status" do
+      order = create(:order, customer: customer, shopify_store: store)
+      create(:fulfillment, order: order, tracking_number: "T1", tracking_status: "InTransit", tracking_sub_status: "InTransit_Collected")
+      create(:fulfillment, order: order, tracking_number: "T2", tracking_status: "InTransit", tracking_sub_status: "InTransit_CustomsProcessing")
+
+      get shipments_path, params: { sub_status: "InTransit_Collected" }
+      expect(response.body).to include("T1")
+      expect(response.body).not_to include("T2")
+    end
+
+    it "filters by status dropdown" do
+      order = create(:order, customer: customer, shopify_store: store)
+      create(:fulfillment, order: order, tracking_number: "T1", tracking_status: "Alert")
+      create(:fulfillment, order: order, tracking_number: "T2", tracking_status: "InTransit")
+
+      get shipments_path, params: { status: "Alert" }
+      expect(response.body).to include("T1")
+      expect(response.body).not_to include("T2")
+    end
+
+    it "filters by store_id when user has multiple stores" do
+      store2 = create(:shopify_store, user: user)
+      customer2 = create(:customer, shopify_store: store2)
+      order1 = create(:order, customer: customer, shopify_store: store)
+      order2 = create(:order, customer: customer2, shopify_store: store2)
+      create(:fulfillment, order: order1, tracking_number: "STORE1", tracking_status: "InTransit")
+      create(:fulfillment, order: order2, tracking_number: "STORE2", tracking_status: "InTransit")
+
+      get shipments_path, params: { store_id: store.id }
+      expect(response.body).to include("STORE1")
+      expect(response.body).not_to include("STORE2")
+    end
+
+    it "scopes to single store when current_shopify_store is set" do
+      order = create(:order, customer: customer, shopify_store: store)
+      create(:fulfillment, order: order, tracking_number: "SCOPED", tracking_status: "InTransit")
+
+      get shipments_path, params: { store_id: store.id }
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include("SCOPED")
+    end
+
+    it "shows empty state when no shipments" do
+      store # ensure store exists
+      get shipments_path
+      expect(response.body).to include("No shipments found")
+    end
+
     it "only shows shipments for current user stores" do
       other_user = create(:user)
       other_store = create(:shopify_store, user: other_user)
