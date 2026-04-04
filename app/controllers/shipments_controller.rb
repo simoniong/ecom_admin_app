@@ -60,10 +60,18 @@ class ShipmentsController < AdminController
     @filtered_scope = @filtered_scope.by_origin_carrier(@origin_carrier_filter) if @origin_carrier_filter
     @filtered_scope = @filtered_scope.by_destination_carrier(@destination_carrier_filter) if @destination_carrier_filter
     @filtered_scope = @filtered_scope.where(tracking_sub_status: @sub_status_filter) if @sub_status_filter
-    @filtered_scope = @filtered_scope.where(last_event_at: Date.parse(@event_from).beginning_of_day..) if @event_from
-    @filtered_scope = @filtered_scope.where(last_event_at: ..Date.parse(@event_to).end_of_day) if @event_to
-    @filtered_scope = @filtered_scope.where(transit_days: @transit_min.to_i..) if @transit_min
-    @filtered_scope = @filtered_scope.where(transit_days: ..@transit_max.to_i) if @transit_max
+    if @event_from && (date = Date.iso8601(@event_from) rescue nil)
+      @filtered_scope = @filtered_scope.where(last_event_at: date.beginning_of_day..)
+    end
+    if @event_to && (date = Date.iso8601(@event_to) rescue nil)
+      @filtered_scope = @filtered_scope.where(last_event_at: ..date.end_of_day)
+    end
+    if @transit_min && (val = Integer(@transit_min, exception: false)) && val >= 0
+      @filtered_scope = @filtered_scope.where(transit_days: val..)
+    end
+    if @transit_max && (val = Integer(@transit_max, exception: false)) && val >= 0
+      @filtered_scope = @filtered_scope.where(transit_days: ..val)
+    end
 
     if @store_filter
       @filtered_scope = @filtered_scope.joins(:order).where(orders: { shopify_store_id: @store_filter })

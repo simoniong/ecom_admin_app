@@ -260,6 +260,8 @@ en:
       event_time: "Latest event time"
       transit_days: "Transit time"
       days: "days"
+      min: "Min"
+      max: "Max"
       store: "Store"
     sort:
       input_time: "Input time"

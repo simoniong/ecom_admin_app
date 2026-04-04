@@ -163,15 +163,19 @@
               ["customer_email", t("shipments.columns.customer_email"), false]
             ]
           %>
-          <% toggleable_columns.each do |col_id, label, default_visible| %>
-            <label class="flex items-center px-4 py-1.5 text-sm hover:bg-gray-50 cursor-pointer">
-              <input type="checkbox" data-column-toggle-target="checkbox" data-column="<%= col_id %>"
-                     data-action="change->column-toggle#columnChanged"
-                     <%= "checked" if default_visible %>
-                     class="rounded border-gray-300 text-blue-600 focus:ring-blue-500 mr-3">
-              <%= label %>
-            </label>
-          <% end %>
+          <div data-column-toggle-target="list">
+            <% toggleable_columns.each do |col_id, label, default_visible| %>
+              <label class="flex items-center px-4 py-1.5 text-sm hover:bg-gray-50 cursor-pointer"
+                     data-column-toggle-target="item" data-column="<%= col_id %>">
+                <span data-drag-handle class="cursor-grab text-gray-400 mr-2 select-none" title="Drag to reorder">&#10495;</span>
+                <input type="checkbox" data-column-toggle-target="checkbox" data-column="<%= col_id %>"
+                       data-action="change->column-toggle#columnChanged"
+                       <%= "checked" if default_visible %>
+                       class="rounded border-gray-300 text-blue-600 focus:ring-blue-500 mr-3">
+                <%= label %>
+              </label>
+            <% end %>
+          </div>
         </div>
       </div>
     </div>
@@ -208,11 +212,11 @@
         <div>
           <label class="block text-xs font-medium text-gray-500 mb-1"><%= t("shipments.filters.transit_days") %></label>
           <div class="flex items-center gap-2">
-            <input type="number" name="transit_min" value="<%= @transit_min %>" min="0" placeholder="Min"
+            <input type="number" name="transit_min" value="<%= @transit_min %>" min="0" placeholder="<%= t("shipments.filters.min") %>"
                    data-action="change->shipment-filter#filterChanged"
                    class="w-20 rounded-md border-gray-300 shadow-sm text-sm focus:border-blue-500 focus:ring-blue-500">
             <span class="text-gray-400 text-sm">–</span>
-            <input type="number" name="transit_max" value="<%= @transit_max %>" min="0" placeholder="Max"
+            <input type="number" name="transit_max" value="<%= @transit_max %>" min="0" placeholder="<%= t("shipments.filters.max") %>"
                    data-action="change->shipment-filter#filterChanged"
                    class="w-20 rounded-md border-gray-300 shadow-sm text-sm focus:border-blue-500 focus:ring-blue-500">
             <span class="text-xs text-gray-400"><%= t("shipments.filters.days") %></span>
