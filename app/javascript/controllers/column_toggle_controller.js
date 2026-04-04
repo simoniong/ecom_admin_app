@@ -9,6 +9,12 @@ export default class extends Controller {
     this.loadPreferences()
     this.applyPreferences()
     this.initSortable()
+
+    // Table may not be in the DOM yet when controller connects (controller is above the table).
+    // Defer column reordering to next frame to ensure the table is rendered.
+    if (this.preferences) {
+      requestAnimationFrame(() => this.applyColumnOrder())
+    }
   }
 
   disconnect() {
