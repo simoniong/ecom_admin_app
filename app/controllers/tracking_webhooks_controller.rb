@@ -13,7 +13,12 @@ class TrackingWebhooksController < ActionController::API
 
   def verify_token
     expected = ENV["SEVENTEEN_TRACK_WEBHOOK_TOKEN"] || Rails.application.credentials.dig(:seventeen_track, :webhook_token)
-    return if expected.blank?
+
+    if expected.blank?
+      Rails.logger.error("[TrackingWebhook] Webhook token is not configured")
+      head :unauthorized
+      return
+    end
 
     token = params[:token] || request.headers["X-17Track-Token"]
     head :unauthorized unless ActiveSupport::SecurityUtils.secure_compare(token.to_s, expected.to_s)

@@ -110,18 +110,16 @@ class Fulfillment < ApplicationRecord
   end
 
   def extract_shipped_at(result)
-    return shipped_at if shipped_at.present? && result[:status] != "InTransit"
-
     events = result[:events] || []
     first_transit = events.find { |e| e[:description]&.match?(/in transit|collected|depart|picked up/i) }
-    first_transit ? (Time.zone.parse(first_transit[:time]) rescue nil) : nil
+    extracted = first_transit ? (Time.zone.parse(first_transit[:time]) rescue nil) : nil
+    extracted || shipped_at
   end
 
   def extract_delivered_at(result)
-    return nil unless result[:status] == "Delivered"
+    return delivered_at unless result[:status] == "Delivered"
+    return delivered_at unless result[:last_event_time].present?
 
-    if result[:last_event_time].present?
-      Time.zone.parse(result[:last_event_time]) rescue nil
-    end
+    Time.zone.parse(result[:last_event_time]) rescue delivered_at
   end
 end

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_04_04_024841) do
+ActiveRecord::Schema[8.1].define(version: 2026_04_04_045811) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -143,6 +143,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_04_024841) do
     t.integer "transit_days"
     t.datetime "updated_at", null: false
     t.index ["delivered_at"], name: "index_fulfillments_on_delivered_at"
+    t.index ["destination_carrier"], name: "index_fulfillments_on_destination_carrier"
     t.index ["destination_country"], name: "index_fulfillments_on_destination_country"
     t.index ["last_event_at"], name: "index_fulfillments_on_last_event_at"
     t.index ["order_id"], name: "index_fulfillments_on_order_id"
@@ -151,6 +152,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_04_024841) do
     t.index ["shopify_fulfillment_id"], name: "index_fulfillments_on_shopify_fulfillment_id", unique: true
     t.index ["tracking_number"], name: "index_fulfillments_on_tracking_number"
     t.index ["tracking_status"], name: "index_fulfillments_on_tracking_status"
+    t.index ["transit_days"], name: "index_fulfillments_on_transit_days"
   end
 
   create_table "messages", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
