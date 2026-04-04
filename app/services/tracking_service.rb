@@ -56,11 +56,20 @@ class TrackingService
       providers = track_info.dig("tracking", "providers") || []
       events = providers.flat_map { |provider| provider["events"] || [] }
 
+      origin_provider = providers.first
+      destination_provider = providers.length > 1 ? providers.last : nil
+
       {
         tracking_number: item["number"],
         status: track_info.dig("latest_status", "status"),
+        sub_status: track_info.dig("latest_status", "sub_status"),
         last_event: track_info.dig("latest_event", "description"),
         last_event_time: track_info.dig("latest_event", "time_iso"),
+        origin_country: track_info.dig("misc_info", "original", "country"),
+        destination_country: track_info.dig("misc_info", "destination", "country"),
+        origin_carrier: origin_provider&.dig("provider", "name"),
+        destination_carrier: destination_provider&.dig("provider", "name"),
+        transit_days: track_info.dig("time_metrics", "days_of_transit"),
         events: events.map do |event|
           {
             description: event["description"],

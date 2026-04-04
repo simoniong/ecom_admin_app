@@ -31,6 +31,191 @@ RSpec.describe Fulfillment, type: :model do
     end
   end
 
+  describe ".non_terminal" do
+    it "excludes Delivered and Expired fulfillments" do
+      in_transit = create(:fulfillment, tracking_status: "InTransit")
+      create(:fulfillment, tracking_status: "Delivered")
+      create(:fulfillment, tracking_status: "Expired")
+      pending_f = create(:fulfillment, tracking_status: nil)
+
+      result = Fulfillment.non_terminal
+      expect(result).to include(in_transit, pending_f)
+      expect(result.count).to eq(2)
+    end
+  end
+
+  describe ".by_tracking_status" do
+    it "filters by tracking status" do
+      delivered = create(:fulfillment, tracking_status: "Delivered")
+      create(:fulfillment, tracking_status: "InTransit")
+
+      expect(Fulfillment.by_tracking_status("Delivered")).to eq([ delivered ])
+    end
+  end
+
+  describe ".by_destination" do
+    it "filters by destination country" do
+      us = create(:fulfillment, destination_country: "US")
+      create(:fulfillment, destination_country: "AU")
+
+      expect(Fulfillment.by_destination("US")).to eq([ us ])
+    end
+  end
+
+  describe ".by_origin_carrier" do
+    it "filters by origin carrier" do
+      cp = create(:fulfillment, origin_carrier: "China Post")
+      create(:fulfillment, origin_carrier: "DHL")
+
+      expect(Fulfillment.by_origin_carrier("China Post")).to eq([ cp ])
+    end
+  end
+
+  describe ".by_destination_carrier" do
+    it "filters by destination carrier" do
+      usps = create(:fulfillment, destination_carrier: "USPS")
+      create(:fulfillment, destination_carrier: "FedEx")
+
+      expect(Fulfillment.by_destination_carrier("USPS")).to eq([ usps ])
+    end
+  end
+
+  describe ".by_store" do
+    it "filters by shopify store" do
+      store = create(:shopify_store)
+      other_store = create(:shopify_store)
+      order1 = create(:order, shopify_store: store)
+      order2 = create(:order, shopify_store: other_store)
+      f1 = create(:fulfillment, order: order1)
+      create(:fulfillment, order: order2)
+
+      expect(Fulfillment.by_store(store.id)).to eq([ f1 ])
+    end
+  end
+
+  describe ".search_by" do
+    it "searches by tracking number" do
+      f = create(:fulfillment, tracking_number: "DOR019055CN")
+      create(:fulfillment, tracking_number: "OTHER123")
+
+      expect(Fulfillment.search_by("DOR019")).to eq([ f ])
+    end
+
+    it "searches by order name" do
+      order = create(:order, name: "PKS#2431")
+      f = create(:fulfillment, order: order)
+      create(:fulfillment)
+
+      expect(Fulfillment.search_by("PKS#2431")).to eq([ f ])
+    end
+
+    it "searches by customer email" do
+      customer = create(:customer, email: "john@example.com")
+      order = create(:order, customer: customer)
+      f = create(:fulfillment, order: order)
+      create(:fulfillment)
+
+      expect(Fulfillment.search_by("john@example")).to eq([ f ])
+    end
+  end
+
+  describe ".by_shipped_between" do
+    it "filters by shipped_at range" do
+      f1 = create(:fulfillment, shipped_at: 2.days.ago)
+      create(:fulfillment, shipped_at: 10.days.ago)
+
+      expect(Fulfillment.by_shipped_between(3.days.ago, Time.current)).to eq([ f1 ])
+    end
+  end
+
+  describe ".by_ordered_between" do
+    it "filters by order's ordered_at range" do
+      order1 = create(:order, ordered_at: 2.days.ago)
+      order2 = create(:order, ordered_at: 10.days.ago)
+      f1 = create(:fulfillment, order: order1)
+      create(:fulfillment, order: order2)
+
+      expect(Fulfillment.by_ordered_between(3.days.ago, Time.current)).to eq([ f1 ])
+    end
+  end
+
+  describe "#status_badge_classes" do
+    it "returns correct classes for known statuses" do
+      fulfillment = build(:fulfillment, tracking_status: "Delivered")
+      expect(fulfillment.status_badge_classes).to eq("bg-green-100 text-green-800")
+    end
+
+    it "returns default for unknown status" do
+      fulfillment = build(:fulfillment, tracking_status: "Unknown")
+      expect(fulfillment.status_badge_classes).to eq("bg-gray-100 text-gray-700")
+    end
+  end
+
+  describe "#tracking_status_display" do
+    it "inserts spaces between camelCase words" do
+      fulfillment = build(:fulfillment, tracking_status: "InfoReceived")
+      expect(fulfillment.tracking_status_display).to eq("Info Received")
+    end
+
+    it "handles single-word statuses" do
+      fulfillment = build(:fulfillment, tracking_status: "Delivered")
+      expect(fulfillment.tracking_status_display).to eq("Delivered")
+    end
+  end
+
+  describe "#update_from_tracking_result" do
+    let(:fulfillment) { create(:fulfillment, tracking_number: "TRACK123") }
+    let(:result) do
+      {
+        tracking_number: "TRACK123",
+        status: "InTransit",
+        sub_status: "InTransit_Collected",
+        last_event: "Package collected",
+        last_event_time: "2026-03-24T08:00:00+08:00",
+        origin_country: "CN",
+        destination_country: "US",
+        origin_carrier: "China Post",
+        destination_carrier: "USPS",
+        transit_days: 3,
+        events: [
+          { description: "Package collected", time: "2026-03-24T08:00:00+08:00", location: "Shanghai" }
+        ]
+      }
+    end
+
+    it "updates all tracking fields from result hash" do
+      fulfillment.update_from_tracking_result(result)
+      fulfillment.reload
+
+      expect(fulfillment.tracking_status).to eq("InTransit")
+      expect(fulfillment.tracking_sub_status).to eq("InTransit_Collected")
+      expect(fulfillment.origin_country).to eq("CN")
+      expect(fulfillment.destination_country).to eq("US")
+      expect(fulfillment.origin_carrier).to eq("China Post")
+      expect(fulfillment.destination_carrier).to eq("USPS")
+      expect(fulfillment.transit_days).to eq(3)
+      expect(fulfillment.latest_event_description).to eq("Package collected")
+      expect(fulfillment.last_event_at).to be_present
+      expect(fulfillment.tracking_details).to be_present
+    end
+
+    it "extracts shipped_at from first transit event" do
+      fulfillment.update_from_tracking_result(result)
+      expect(fulfillment.shipped_at).to be_present
+    end
+
+    it "extracts delivered_at when status is Delivered" do
+      delivered_result = result.merge(status: "Delivered")
+      fulfillment.update_from_tracking_result(delivered_result)
+      expect(fulfillment.delivered_at).to be_present
+    end
+
+    it "does not set delivered_at for non-Delivered status" do
+      fulfillment.update_from_tracking_result(result)
+      expect(fulfillment.delivered_at).to be_nil
+    end
+  end
+
   describe "tracking helpers" do
     let(:fulfillment) do
       build(:fulfillment, tracking_details: {
@@ -42,18 +227,6 @@ RSpec.describe Fulfillment, type: :model do
           { "description" => "Delivered", "time" => "2026-03-25 10:00", "location" => "NYC" }
         ]
       })
-    end
-
-    it "#tracking_status returns status" do
-      expect(fulfillment.tracking_status).to eq("Delivered")
-    end
-
-    it "#last_tracking_event returns last event" do
-      expect(fulfillment.last_tracking_event).to eq("Delivered to recipient")
-    end
-
-    it "#last_tracking_time returns last event time" do
-      expect(fulfillment.last_tracking_time).to eq("2026-03-25 10:00:00")
     end
 
     it "#tracking_events returns events in reverse chronological order" do
@@ -73,8 +246,6 @@ RSpec.describe Fulfillment, type: :model do
 
     it "handles nil tracking_details gracefully" do
       fulfillment.tracking_details = nil
-      expect(fulfillment.tracking_status).to be_nil
-      expect(fulfillment.last_tracking_event).to be_nil
       expect(fulfillment.tracking_events).to eq([])
       expect(fulfillment.tracking_loaded?).to be false
     end
