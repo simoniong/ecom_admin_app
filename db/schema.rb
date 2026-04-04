@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_04_02_171010) do
+ActiveRecord::Schema[8.1].define(version: 2026_04_04_024841) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -121,18 +121,36 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_02_171010) do
 
   create_table "fulfillments", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.datetime "created_at", null: false
+    t.datetime "delivered_at"
+    t.string "destination_carrier"
+    t.string "destination_country"
+    t.datetime "last_event_at"
+    t.string "latest_event_description"
     t.uuid "order_id", null: false
+    t.string "origin_carrier"
+    t.string "origin_country"
+    t.datetime "shipped_at"
     t.jsonb "shopify_data", default: {}
     t.bigint "shopify_fulfillment_id", null: false
     t.string "status"
+    t.string "tags", default: [], array: true
     t.string "tracking_company"
     t.jsonb "tracking_details", default: {}
     t.string "tracking_number"
+    t.string "tracking_status"
+    t.string "tracking_sub_status"
     t.string "tracking_url"
+    t.integer "transit_days"
     t.datetime "updated_at", null: false
+    t.index ["delivered_at"], name: "index_fulfillments_on_delivered_at"
+    t.index ["destination_country"], name: "index_fulfillments_on_destination_country"
+    t.index ["last_event_at"], name: "index_fulfillments_on_last_event_at"
     t.index ["order_id"], name: "index_fulfillments_on_order_id"
+    t.index ["origin_carrier"], name: "index_fulfillments_on_origin_carrier"
+    t.index ["shipped_at"], name: "index_fulfillments_on_shipped_at"
     t.index ["shopify_fulfillment_id"], name: "index_fulfillments_on_shopify_fulfillment_id", unique: true
     t.index ["tracking_number"], name: "index_fulfillments_on_tracking_number"
+    t.index ["tracking_status"], name: "index_fulfillments_on_tracking_status"
   end
 
   create_table "messages", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|

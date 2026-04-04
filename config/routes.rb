@@ -12,6 +12,9 @@ Rails.application.routes.draw do
   # Shopify Webhooks (outside locale scope, no auth required — HMAC verified)
   post "shopify/webhooks", to: "shopify_webhooks#receive"
 
+  # 17Track Webhooks (outside locale scope, token verified)
+  post "tracking/webhooks", to: "tracking_webhooks#receive"
+
   # Meta OAuth callbacks (outside locale scope — Meta redirects to a fixed URL)
   get "meta/auth", to: "meta_oauth#auth", as: :meta_auth
   get "meta/callback", to: "meta_oauth#callback", as: :meta_callback
@@ -38,6 +41,9 @@ Rails.application.routes.draw do
     resources :ad_campaigns, only: [ :index ]
     resources :campaign_display_templates, only: [ :create, :update, :destroy ]
     resources :orders, only: [ :index ] do
+      post :sync, on: :collection
+    end
+    resources :shipments, only: [ :index ] do
       post :sync, on: :collection
     end
     resources :tickets, only: [ :index, :show, :update ]
