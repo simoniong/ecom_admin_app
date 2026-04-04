@@ -1,0 +1,464 @@
+<div class="space-y-4" data-controller="shipment-filter" data-action="click@window->shipment-filter#closeSortDropdown">
+  <%# Header %>
+  <div class="flex items-center justify-between">
+    <h1 class="text-2xl font-bold text-gray-900"><%= t("shipments.title") %></h1>
+    <%= button_to sync_shipments_path, method: :post,
+        class: "inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-gray-900 rounded-md hover:bg-gray-800" do %>
+      <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182M2.985 14.652" />
+      </svg>
+      <%= t("shipments.sync_orders") %>
+    <% end %>
+  </div>
+
+  <%# Form wrapping all filters %>
+  <%= form_tag shipments_path, method: :get, data: { shipment_filter_target: "filterForm" }, class: "space-y-4" do %>
+    <input type="hidden" name="status_tab" value="<%= @status_tab || 'All' %>" data-shipment-filter-target="statusTab">
+    <input type="hidden" name="sort_field" value="<%= @sort_field %>" data-shipment-filter-target="sortField">
+    <input type="hidden" name="sort_direction" value="<%= @sort_direction %>" data-shipment-filter-target="sortDirection">
+
+    <%# Status tabs %>
+    <div class="flex flex-wrap gap-1 bg-white rounded-lg border border-gray-200 p-2">
+      <% status_tabs = [["All", @status_counts["All"]]] + Fulfillment::TRACKING_STATUSES.map { |s| [s, @status_counts[s] || 0] } %>
+      <% status_tabs.each do |status, count| %>
+        <button type="button"
+                data-action="click->shipment-filter#selectTab"
+                data-status="<%= status %>"
+                class="px-3 py-1.5 text-sm font-medium rounded-md whitespace-nowrap transition-colors
+                       <%= (@status_tab || 'All') == status ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-100' %>">
+          <%= status.gsub(/([a-z])([A-Z])/, '\1 \2') %> (<%= count %>)
+        </button>
+      <% end %>
+    </div>
+
+    <%# Search + Filter dropdowns + Sort + Column toggle %>
+    <div class="flex flex-wrap items-center gap-3">
+      <%# Search %>
+      <div class="flex-1 min-w-[250px]">
+        <div class="relative">
+          <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+          </svg>
+          <input type="text" name="search" value="<%= @search %>"
+                 placeholder="<%= t("shipments.search_placeholder") %>"
+                 data-shipment-filter-target="searchInput"
+                 data-action="keydown->shipment-filter#submitOnEnter"
+                 class="block w-full pl-10 pr-3 py-2 rounded-md border border-gray-300 shadow-sm text-sm focus:border-blue-500 focus:ring-blue-500">
+        </div>
+      </div>
+
+      <%# Status dropdown %>
+      <select name="status" data-action="change->shipment-filter#filterChanged"
+              class="rounded-md border-gray-300 shadow-sm text-sm focus:border-blue-500 focus:ring-blue-500">
+        <option value=""><%= t("shipments.filters.status") %></option>
+        <% Fulfillment::TRACKING_STATUSES.each do |s| %>
+          <option value="<%= s %>" <%= "selected" if @status_filter == s %>><%= s.gsub(/([a-z])([A-Z])/, '\1 \2') %></option>
+        <% end %>
+      </select>
+
+      <%# Destination dropdown %>
+      <select name="destination" data-action="change->shipment-filter#filterChanged"
+              class="rounded-md border-gray-300 shadow-sm text-sm focus:border-blue-500 focus:ring-blue-500">
+        <option value=""><%= t("shipments.filters.destination") %></option>
+        <% @destinations.each do |country| %>
+          <option value="<%= country %>" <%= "selected" if @destination == country %>><%= country %></option>
+        <% end %>
+      </select>
+
+      <%# Origin carrier dropdown %>
+      <select name="origin_carrier" data-action="change->shipment-filter#filterChanged"
+              class="rounded-md border-gray-300 shadow-sm text-sm focus:border-blue-500 focus:ring-blue-500">
+        <option value=""><%= t("shipments.filters.origin_carrier") %></option>
+        <% @origin_carriers.each do |carrier| %>
+          <option value="<%= carrier %>" <%= "selected" if @origin_carrier_filter == carrier %>><%= carrier %></option>
+        <% end %>
+      </select>
+
+      <%# More filters toggle %>
+      <button type="button" data-action="click->shipment-filter#toggleMoreFilters"
+              class="inline-flex items-center gap-1 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
+        <%= t("shipments.filters.more_filters") %>
+        <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+        </svg>
+      </button>
+
+      <%# Sort dropdown %>
+      <div class="relative">
+        <button type="button" data-action="click->shipment-filter#toggleSortDropdown"
+                class="inline-flex items-center p-2 text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
+          <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3 7.5 7.5 3m0 0L12 7.5M7.5 3v13.5m13.5 0L16.5 21m0 0L12 16.5m4.5 4.5V7.5" />
+          </svg>
+        </button>
+        <div data-shipment-filter-target="sortDropdown" class="hidden absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-lg border border-gray-200 z-20 py-2">
+          <% sort_fields = [
+            ["input_time", t("shipments.sort.input_time")],
+            ["order_time", t("shipments.sort.order_time")],
+            ["latest_event_update_time", t("shipments.sort.latest_event_update_time")],
+            ["shipping_time", t("shipments.sort.shipping_time")],
+            ["transit_time", t("shipments.sort.transit_time")]
+          ] %>
+          <% sort_fields.each do |field, label| %>
+            <button type="button" data-action="click->shipment-filter#selectSortField" data-sort-field="<%= field %>"
+                    class="flex items-center w-full px-4 py-2 text-sm hover:bg-gray-50">
+              <span class="w-5 h-5 mr-3 flex items-center justify-center">
+                <% if @sort_field == field %>
+                  <span class="w-4 h-4 rounded-full border-4 border-gray-900"></span>
+                <% else %>
+                  <span class="w-4 h-4 rounded-full border-2 border-gray-300"></span>
+                <% end %>
+              </span>
+              <%= label %>
+            </button>
+          <% end %>
+          <div class="border-t border-gray-200 mt-1 pt-1">
+            <button type="button" data-action="click->shipment-filter#selectSortDirection" data-sort-direction="asc"
+                    class="flex items-center w-full px-4 py-2 text-sm hover:bg-gray-50 <%= @sort_direction == 'asc' ? 'bg-gray-100 font-medium' : '' %>">
+              <svg class="w-4 h-4 mr-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 10.5 12 3m0 0 7.5 7.5M12 3v18" />
+              </svg>
+              <%= t("shipments.sort.oldest_to_newest") %>
+            </button>
+            <button type="button" data-action="click->shipment-filter#selectSortDirection" data-sort-direction="desc"
+                    class="flex items-center w-full px-4 py-2 text-sm hover:bg-gray-50 <%= @sort_direction == 'desc' ? 'bg-gray-100 font-medium' : '' %>">
+              <svg class="w-4 h-4 mr-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 13.5 12 21m0 0-7.5-7.5M12 21V3" />
+              </svg>
+              <%= t("shipments.sort.newest_to_oldest") %>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <%# Column toggle %>
+      <div class="relative" data-controller="column-toggle" data-action="click@window->column-toggle#close">
+        <button type="button" data-action="click->column-toggle#toggle"
+                class="inline-flex items-center p-2 text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
+          <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 4.5v15m6-15v15m-10.875 0h15.75c.621 0 1.125-.504 1.125-1.125V5.625c0-.621-.504-1.125-1.125-1.125H4.125C3.504 4.5 3 5.004 3 5.625v12.75c0 .621.504 1.125 1.125 1.125Z" />
+          </svg>
+        </button>
+        <div data-column-toggle-target="dropdown" class="hidden absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 z-20 py-2 max-h-80 overflow-y-auto">
+          <%
+            toggleable_columns = [
+              ["order_info", t("shipments.columns.order_info"), true],
+              ["status", t("shipments.columns.status"), true],
+              ["sub_status", t("shipments.columns.sub_status"), true],
+              ["latest_event", t("shipments.columns.latest_event"), true],
+              ["origin_carrier", t("shipments.columns.origin_carrier"), true],
+              ["destination_carrier", t("shipments.columns.destination_carrier"), true],
+              ["destination", t("shipments.columns.destination"), true],
+              ["transit_time", t("shipments.columns.transit_time"), true],
+              ["tags", t("shipments.columns.tags"), false],
+              ["shop_name", t("shipments.columns.shop_name"), true],
+              ["origin", t("shipments.columns.origin"), false],
+              ["input_time", t("shipments.columns.input_time"), false],
+              ["ordered_time", t("shipments.columns.ordered_time"), false],
+              ["shipping_time", t("shipments.columns.shipping_time"), false],
+              ["shopify_order_tag", t("shipments.columns.shopify_order_tag"), false],
+              ["latest_event_update_time", t("shipments.columns.latest_event_update_time"), false],
+              ["order_amount", t("shipments.columns.order_amount"), false],
+              ["customer_name", t("shipments.columns.customer_name"), false],
+              ["customer_email", t("shipments.columns.customer_email"), false]
+            ]
+          %>
+          <% toggleable_columns.each do |col_id, label, default_visible| %>
+            <label class="flex items-center px-4 py-1.5 text-sm hover:bg-gray-50 cursor-pointer">
+              <input type="checkbox" data-column-toggle-target="checkbox" data-column="<%= col_id %>"
+                     data-action="change->column-toggle#columnChanged"
+                     <%= "checked" if default_visible %>
+                     class="rounded border-gray-300 text-blue-600 focus:ring-blue-500 mr-3">
+              <%= label %>
+            </label>
+          <% end %>
+        </div>
+      </div>
+    </div>
+
+    <%# More filters panel (hidden by default) %>
+    <div data-shipment-filter-target="moreFilters" class="hidden bg-white rounded-lg border border-gray-200 p-4">
+      <div class="flex flex-wrap gap-4">
+        <div>
+          <label class="block text-xs font-medium text-gray-500 mb-1"><%= t("shipments.filters.destination_carrier") %></label>
+          <select name="destination_carrier" data-action="change->shipment-filter#filterChanged"
+                  class="w-40 rounded-md border-gray-300 shadow-sm text-sm focus:border-blue-500 focus:ring-blue-500">
+            <option value=""><%= t("shipments.all") %></option>
+            <% @destination_carriers.each do |carrier| %>
+              <option value="<%= carrier %>" <%= "selected" if @destination_carrier_filter == carrier %>><%= carrier %></option>
+            <% end %>
+          </select>
+        </div>
+        <% if @stores.count > 1 %>
+          <div>
+            <label class="block text-xs font-medium text-gray-500 mb-1"><%= t("shipments.filters.store") %></label>
+            <select name="store_id" data-action="change->shipment-filter#filterChanged"
+                    class="w-48 rounded-md border-gray-300 shadow-sm text-sm focus:border-blue-500 focus:ring-blue-500">
+              <option value=""><%= t("shipments.all") %></option>
+              <% @stores.each do |store| %>
+                <option value="<%= store.id %>" <%= "selected" if @store_filter == store.id.to_s %>><%= store.shop_domain %></option>
+              <% end %>
+            </select>
+          </div>
+        <% end %>
+      </div>
+    </div>
+
+    <%# Active filters display %>
+    <% active_filters = [] %>
+    <% active_filters << ["destination", "Destination: #{@destination}"] if @destination %>
+    <% active_filters << ["origin_carrier", "Origin carrier: #{@origin_carrier_filter}"] if @origin_carrier_filter %>
+    <% active_filters << ["destination_carrier", "Dest carrier: #{@destination_carrier_filter}"] if @destination_carrier_filter %>
+    <% active_filters << ["status", "Status: #{@status_filter}"] if @status_filter %>
+    <% active_filters << ["store_id", "Store: #{@stores.find { |s| s.id.to_s == @store_filter }&.shop_domain}"] if @store_filter %>
+    <% if active_filters.any? %>
+      <div class="flex flex-wrap items-center gap-2">
+        <% active_filters.each do |filter_name, label| %>
+          <span class="inline-flex items-center gap-1 px-2.5 py-1 text-sm bg-blue-50 text-blue-700 rounded-md border border-blue-200">
+            <%= label %>
+            <button type="button" data-action="click->shipment-filter#clearFilter" data-filter-name="<%= filter_name %>"
+                    class="text-blue-400 hover:text-blue-600">
+              <svg class="w-3.5 h-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </span>
+        <% end %>
+        <button type="button" data-action="click->shipment-filter#clearAllFilters"
+                class="text-sm text-gray-500 hover:text-gray-700"><%= t("shipments.clear_all") %></button>
+      </div>
+    <% end %>
+  <% end %>
+
+  <%# Table %>
+  <% if @shipments.any? %>
+    <div class="bg-white rounded-lg border border-gray-200 overflow-x-auto">
+      <table class="min-w-full divide-y divide-gray-200">
+        <thead class="bg-gray-50">
+          <tr>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
+              <%= t("shipments.columns.tracking_no") %>
+            </th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" data-column="order_info">
+              <%= t("shipments.columns.order_info") %>
+            </th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" data-column="status">
+              <%= t("shipments.columns.status") %>
+            </th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" data-column="sub_status">
+              <%= t("shipments.columns.sub_status") %>
+            </th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" data-column="latest_event">
+              <%= t("shipments.columns.latest_event") %>
+            </th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" data-column="origin_carrier">
+              <%= t("shipments.columns.origin_carrier") %>
+            </th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" data-column="destination_carrier">
+              <%= t("shipments.columns.destination_carrier") %>
+            </th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" data-column="destination">
+              <%= t("shipments.columns.destination") %>
+            </th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" data-column="transit_time">
+              <%= t("shipments.columns.transit_time") %>
+            </th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap hidden" data-column="tags">
+              <%= t("shipments.columns.tags") %>
+            </th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" data-column="shop_name">
+              <%= t("shipments.columns.shop_name") %>
+            </th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap hidden" data-column="origin">
+              <%= t("shipments.columns.origin") %>
+            </th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap hidden" data-column="input_time">
+              <%= t("shipments.columns.input_time") %>
+            </th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap hidden" data-column="ordered_time">
+              <%= t("shipments.columns.ordered_time") %>
+            </th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap hidden" data-column="shipping_time">
+              <%= t("shipments.columns.shipping_time") %>
+            </th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap hidden" data-column="shopify_order_tag">
+              <%= t("shipments.columns.shopify_order_tag") %>
+            </th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap hidden" data-column="latest_event_update_time">
+              <%= t("shipments.columns.latest_event_update_time") %>
+            </th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap hidden" data-column="order_amount">
+              <%= t("shipments.columns.order_amount") %>
+            </th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap hidden" data-column="customer_name">
+              <%= t("shipments.columns.customer_name") %>
+            </th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap hidden" data-column="customer_email">
+              <%= t("shipments.columns.customer_email") %>
+            </th>
+          </tr>
+        </thead>
+        <tbody class="bg-white divide-y divide-gray-200">
+          <% @shipments.each do |shipment| %>
+            <% order = shipment.order %>
+            <% customer = order.customer %>
+            <% tz = order.shopify_store&.active_timezone || ActiveSupport::TimeZone["UTC"] %>
+            <tr class="hover:bg-gray-50">
+              <%# Tracking No. (always visible) %>
+              <td class="px-4 py-3 text-sm font-mono text-gray-900 whitespace-nowrap">
+                <% if shipment.tracking_url.present? %>
+                  <%= link_to shipment.tracking_number, shipment.tracking_url, target: "_blank", rel: "noopener", class: "text-blue-600 hover:underline" %>
+                <% else %>
+                  <%= shipment.tracking_number %>
+                <% end %>
+              </td>
+
+              <%# Order info %>
+              <td class="px-4 py-3 text-sm whitespace-nowrap" data-column="order_info">
+                <span class="text-blue-600 font-medium"><%= order.name || "##{order.shopify_order_id}" %></span>
+              </td>
+
+              <%# Status %>
+              <td class="px-4 py-3 whitespace-nowrap" data-column="status">
+                <% if shipment.tracking_status.present? %>
+                  <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium <%= shipment.status_badge_classes %>">
+                    <span class="w-1.5 h-1.5 rounded-full <%= shipment.status_dot_class %>"></span>
+                    <%= shipment.tracking_status_display %>
+                  </span>
+                <% else %>
+                  <span class="text-xs text-gray-400">--</span>
+                <% end %>
+              </td>
+
+              <%# Sub-status %>
+              <td class="px-4 py-3 text-sm text-gray-600 whitespace-nowrap" data-column="sub_status">
+                <%= shipment.tracking_sub_status.present? ? shipment.tracking_sub_status.gsub(/([a-z])([A-Z])/, '\1 \2').gsub("_", " ") : "--" %>
+              </td>
+
+              <%# Latest event %>
+              <td class="px-4 py-3 text-sm text-gray-600 whitespace-nowrap max-w-xs truncate" data-column="latest_event">
+                <% if shipment.last_event_at.present? && shipment.latest_event_description.present? %>
+                  <%= shipment.last_event_at.in_time_zone(tz).strftime("%-d %b, %Y %H:%M:%S") %>, <%= shipment.latest_event_description.truncate(40) %>
+                <% else %>
+                  --
+                <% end %>
+              </td>
+
+              <%# Origin carrier %>
+              <td class="px-4 py-3 text-sm text-gray-600 whitespace-nowrap" data-column="origin_carrier">
+                <%= shipment.origin_carrier || "--" %>
+              </td>
+
+              <%# Destination carrier %>
+              <td class="px-4 py-3 text-sm text-gray-600 whitespace-nowrap" data-column="destination_carrier">
+                <%= shipment.destination_carrier || "--" %>
+              </td>
+
+              <%# Destination %>
+              <td class="px-4 py-3 text-sm text-gray-600 whitespace-nowrap" data-column="destination">
+                <%= shipment.destination_country || "--" %>
+              </td>
+
+              <%# Transit time %>
+              <td class="px-4 py-3 text-sm text-gray-600 whitespace-nowrap" data-column="transit_time">
+                <%= shipment.transit_days.present? ? "#{shipment.transit_days} days" : "--" %>
+              </td>
+
+              <%# Tags %>
+              <td class="px-4 py-3 text-sm whitespace-nowrap hidden" data-column="tags">
+                <% if shipment.tags.present? %>
+                  <% shipment.tags.each do |tag| %>
+                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-gray-100 text-gray-700 mr-1"><%= tag %></span>
+                  <% end %>
+                <% else %>
+                  --
+                <% end %>
+              </td>
+
+              <%# Shop name %>
+              <td class="px-4 py-3 text-sm text-gray-600 whitespace-nowrap" data-column="shop_name">
+                <%= order.shopify_store&.shop_domain&.gsub(".myshopify.com", "") || "--" %>
+              </td>
+
+              <%# Origin %>
+              <td class="px-4 py-3 text-sm text-gray-600 whitespace-nowrap hidden" data-column="origin">
+                <%= shipment.origin_country || "--" %>
+              </td>
+
+              <%# Input time %>
+              <td class="px-4 py-3 text-sm text-gray-500 whitespace-nowrap hidden" data-column="input_time">
+                <%= shipment.created_at.in_time_zone(tz).strftime("%-d %b, %Y %H:%M") %>
+              </td>
+
+              <%# Ordered time %>
+              <td class="px-4 py-3 text-sm text-gray-500 whitespace-nowrap hidden" data-column="ordered_time">
+                <%= order.ordered_at ? order.ordered_at.in_time_zone(tz).strftime("%-d %b, %Y %H:%M") : "--" %>
+              </td>
+
+              <%# Shipping time %>
+              <td class="px-4 py-3 text-sm text-gray-500 whitespace-nowrap hidden" data-column="shipping_time">
+                <%= shipment.shipped_at ? shipment.shipped_at.in_time_zone(tz).strftime("%-d %b, %Y %H:%M") : "--" %>
+              </td>
+
+              <%# Shopify order tag %>
+              <td class="px-4 py-3 text-sm text-gray-600 whitespace-nowrap hidden" data-column="shopify_order_tag">
+                <%= order.shopify_data&.dig("tags").presence || "--" %>
+              </td>
+
+              <%# Latest event update time %>
+              <td class="px-4 py-3 text-sm text-gray-500 whitespace-nowrap hidden" data-column="latest_event_update_time">
+                <%= shipment.last_event_at ? shipment.last_event_at.in_time_zone(tz).strftime("%-d %b, %Y %H:%M") : "--" %>
+              </td>
+
+              <%# Order amount %>
+              <td class="px-4 py-3 text-sm text-gray-600 whitespace-nowrap hidden" data-column="order_amount">
+                <%= number_to_currency(order.total_price, unit: order.currency == "USD" ? "$" : "#{order.currency} ") %>
+              </td>
+
+              <%# Customer name %>
+              <td class="px-4 py-3 text-sm text-gray-600 whitespace-nowrap hidden" data-column="customer_name">
+                <%= customer&.full_name || "--" %>
+              </td>
+
+              <%# Customer email %>
+              <td class="px-4 py-3 text-sm text-gray-600 whitespace-nowrap hidden" data-column="customer_email">
+                <%= order.email || customer&.email || "--" %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+
+    <%# Pagination %>
+    <% if @total_pages > 1 %>
+      <nav class="flex items-center justify-between">
+        <p class="text-sm text-gray-600">
+          <%= t("shipments.showing", from: (@page - 1) * ShipmentsController::PER_PAGE + 1, to: [(@page) * ShipmentsController::PER_PAGE, @total_count].min, total: @total_count) %>
+        </p>
+        <div class="flex gap-1">
+          <% if @page > 1 %>
+            <%= link_to t("shipments.prev"), request.params.merge(page: @page - 1),
+                class: "px-3 py-1 text-sm rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50" %>
+          <% end %>
+          <% pagination_range(@page, @total_pages).each do |p| %>
+            <% if p == :gap %>
+              <span class="px-2 py-1 text-sm text-gray-400">...</span>
+            <% else %>
+              <%= link_to p, request.params.merge(page: p),
+                  class: "px-3 py-1 text-sm rounded-md border #{p == @page ? 'border-blue-500 bg-blue-50 text-blue-700 font-medium' : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'}" %>
+            <% end %>
+          <% end %>
+          <% if @page < @total_pages %>
+            <%= link_to t("shipments.next"), request.params.merge(page: @page + 1),
+                class: "px-3 py-1 text-sm rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50" %>
+          <% end %>
+        </div>
+      </nav>
+    <% end %>
+  <% else %>
+    <div class="bg-white rounded-lg border border-gray-200 p-12 text-center">
+      <p class="text-gray-500"><%= t("shipments.empty") %></p>
+    </div>
+  <% end %>
+</div>

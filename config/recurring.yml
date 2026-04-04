@@ -4,7 +4,7 @@ production:
     schedule: every 10 minutes
   tracking_refresh:
     class: TrackingRefreshJob
-    schedule: every 10 minutes
+    schedule: every 3 hours
   sync_ad_metrics:
     class: SyncAdMetricsJob
     schedule: every 30 minutes
@@ -30,7 +30,7 @@ development:
     schedule: every 10 minutes
   tracking_refresh:
     class: TrackingRefreshJob
-    schedule: every 10 minutes
+    schedule: every 3 hours
   sync_ad_metrics:
     class: SyncAdMetricsJob
     schedule: every 30 minutes

@@ -1,23 +1,18 @@
-class TrackingRefreshJob < ApplicationJob
+class TrackingBackfillJob < ApplicationJob
   queue_as :default
 
   BATCH_SIZE = 40
 
   def perform
-    fulfillments = Fulfillment.with_tracking.non_terminal
+    fulfillments = Fulfillment.with_tracking.where(tracking_status: nil)
     return if fulfillments.empty?
 
     service = TrackingService.new
-
-    # Backfill: register any tracking numbers that haven't been registered yet
-    unregistered = fulfillments.where(tracking_details: {}).pluck(:tracking_number).uniq
-    unregistered.each_slice(BATCH_SIZE) { |batch| service.register(batch) } if unregistered.any?
-
-    # Fetch tracking info in batches
     tracking_numbers = fulfillments.pluck(:tracking_number).uniq
     results_by_number = {}
 
     tracking_numbers.each_slice(BATCH_SIZE) do |batch|
+      service.register(batch)
       results = service.track(batch)
       results.each { |r| results_by_number[r[:tracking_number]] = r }
     end
@@ -27,8 +22,10 @@ class TrackingRefreshJob < ApplicationJob
       next unless result
 
       fulfillment.update_from_tracking_result(result)
+    rescue => e
+      Rails.logger.error("[TrackingBackfill] Failed for #{fulfillment.tracking_number}: #{e.message}")
     end
   rescue => e
-    Rails.logger.error("[TrackingRefresh] Failed: #{e.message}")
+    Rails.logger.error("[TrackingBackfill] Failed: #{e.message}")
   end
 end
