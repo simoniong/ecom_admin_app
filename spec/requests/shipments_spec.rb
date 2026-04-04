@@ -96,6 +96,46 @@ RSpec.describe "Shipments", type: :request do
       expect(response.body).not_to include("T2")
     end
 
+    it "filters by latest event update time range" do
+      order = create(:order, customer: customer, shopify_store: store)
+      create(:fulfillment, order: order, tracking_number: "OLD", tracking_status: "InTransit", last_event_at: 10.days.ago)
+      create(:fulfillment, order: order, tracking_number: "RECENT", tracking_status: "InTransit", last_event_at: 1.day.ago)
+
+      get shipments_path, params: { event_from: 3.days.ago.to_date.to_s }
+      expect(response.body).to include("RECENT")
+      expect(response.body).not_to include("OLD")
+    end
+
+    it "filters by latest event update time range with end date" do
+      order = create(:order, customer: customer, shopify_store: store)
+      create(:fulfillment, order: order, tracking_number: "OLD", tracking_status: "InTransit", last_event_at: 10.days.ago)
+      create(:fulfillment, order: order, tracking_number: "RECENT", tracking_status: "InTransit", last_event_at: 1.day.ago)
+
+      get shipments_path, params: { event_to: 5.days.ago.to_date.to_s }
+      expect(response.body).to include("OLD")
+      expect(response.body).not_to include("RECENT")
+    end
+
+    it "filters by transit time min days" do
+      order = create(:order, customer: customer, shopify_store: store)
+      create(:fulfillment, order: order, tracking_number: "FAST", tracking_status: "Delivered", transit_days: 3)
+      create(:fulfillment, order: order, tracking_number: "SLOW", tracking_status: "Delivered", transit_days: 15)
+
+      get shipments_path, params: { transit_min: "10" }
+      expect(response.body).to include("SLOW")
+      expect(response.body).not_to include("FAST")
+    end
+
+    it "filters by transit time max days" do
+      order = create(:order, customer: customer, shopify_store: store)
+      create(:fulfillment, order: order, tracking_number: "FAST", tracking_status: "Delivered", transit_days: 3)
+      create(:fulfillment, order: order, tracking_number: "SLOW", tracking_status: "Delivered", transit_days: 15)
+
+      get shipments_path, params: { transit_max: "5" }
+      expect(response.body).to include("FAST")
+      expect(response.body).not_to include("SLOW")
+    end
+
     it "filters by sub_status" do
       order = create(:order, customer: customer, shopify_store: store)
       create(:fulfillment, order: order, tracking_number: "T1", tracking_status: "InTransit", tracking_sub_status: "InTransit_Collected")

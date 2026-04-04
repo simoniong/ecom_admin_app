@@ -25,12 +25,12 @@
       <input type="date" data-dashboard-target="startDate"
              value="<%= @range_key == 'custom' ? @metrics[:date_range].first : '' %>"
              max="<%= Date.current %>"
-             class="px-2 py-1 text-sm border border-gray-300 rounded-md focus:border-gray-900 focus:ring-gray-900" />
+             class="px-3 py-2 bg-white text-sm text-gray-700 border border-gray-300 rounded-md focus:border-gray-900 focus:ring-gray-900" />
       <span class="text-sm text-gray-400">—</span>
       <input type="date" data-dashboard-target="endDate"
              value="<%= @range_key == 'custom' ? @metrics[:date_range].last : '' %>"
              max="<%= Date.current %>"
-             class="px-2 py-1 text-sm border border-gray-300 rounded-md focus:border-gray-900 focus:ring-gray-900" />
+             class="px-3 py-2 bg-white text-sm text-gray-700 border border-gray-300 rounded-md focus:border-gray-900 focus:ring-gray-900" />
       <button type="button" data-action="click->dashboard#submitCustomRange"
               class="px-3 py-1.5 text-sm font-medium rounded-md transition text-gray-600 hover:bg-gray-100">
         <%= t("dashboard.apply") %>
