@@ -147,14 +147,34 @@ RSpec.describe Fulfillment, type: :model do
 
     it "returns default for unknown status" do
       fulfillment = build(:fulfillment, tracking_status: "Unknown")
-      expect(fulfillment.status_badge_classes).to eq("bg-gray-100 text-gray-700")
+      expect(fulfillment.status_badge_classes).to eq("bg-gray-100 text-gray-600")
     end
   end
 
   describe "#tracking_status_display" do
-    it "inserts spaces between camelCase words" do
+    it "maps Exception to Alert" do
+      fulfillment = build(:fulfillment, tracking_status: "Exception")
+      expect(fulfillment.tracking_status_display).to eq("Alert")
+    end
+
+    it "maps AvailableForPickup to Pick Up" do
+      fulfillment = build(:fulfillment, tracking_status: "AvailableForPickup")
+      expect(fulfillment.tracking_status_display).to eq("Pick Up")
+    end
+
+    it "maps DeliveryFailure to Undelivered" do
+      fulfillment = build(:fulfillment, tracking_status: "DeliveryFailure")
+      expect(fulfillment.tracking_status_display).to eq("Undelivered")
+    end
+
+    it "uses display name for known statuses" do
       fulfillment = build(:fulfillment, tracking_status: "InfoReceived")
       expect(fulfillment.tracking_status_display).to eq("Info Received")
+    end
+
+    it "falls back to camelCase splitting for unknown statuses" do
+      fulfillment = build(:fulfillment, tracking_status: "SomeNewStatus")
+      expect(fulfillment.tracking_status_display).to eq("Some New Status")
     end
 
     it "handles single-word statuses" do
