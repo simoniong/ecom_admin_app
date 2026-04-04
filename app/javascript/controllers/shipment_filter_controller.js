@@ -62,10 +62,8 @@ export default class extends Controller {
   }
 
   clearAllFilters() {
-    const selects = this.filterFormTarget.querySelectorAll("select")
-    selects.forEach(select => select.value = "")
-    const searchInput = this.filterFormTarget.querySelector("[name='search']")
-    if (searchInput) searchInput.value = ""
+    this.filterFormTarget.querySelectorAll("select").forEach(s => s.value = "")
+    this.filterFormTarget.querySelectorAll("input[type='text'], input[type='date'], input[type='number']").forEach(i => i.value = "")
     this.statusTabTarget.value = "All"
     this.filterFormTarget.requestSubmit()
   }
