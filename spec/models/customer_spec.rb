@@ -32,6 +32,13 @@ RSpec.describe Customer, type: :model do
     expect { customer.destroy }.to change(Order, :count).by(-1)
   end
 
+  it "nullifies tickets when destroyed instead of deleting them" do
+    customer = create(:customer)
+    ticket = create(:ticket, customer: customer)
+    expect { customer.destroy }.not_to change(Ticket, :count)
+    expect(ticket.reload.customer_id).to be_nil
+  end
+
   describe "#full_name" do
     it "returns first and last name" do
       customer = build(:customer, first_name: "Jane", last_name: "Smith")
