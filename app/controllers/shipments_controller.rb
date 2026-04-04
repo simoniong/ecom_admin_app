@@ -49,6 +49,10 @@ class ShipmentsController < AdminController
     @origin_carrier_filter = params[:origin_carrier].presence
     @destination_carrier_filter = params[:destination_carrier].presence
     @store_filter = params[:store_id].presence
+    @event_from = params[:event_from].presence
+    @event_to = params[:event_to].presence
+    @transit_min = params[:transit_min].presence
+    @transit_max = params[:transit_max].presence
 
     @filtered_scope = @base_scope
     @filtered_scope = @filtered_scope.search_by(@search) if @search
@@ -56,6 +60,10 @@ class ShipmentsController < AdminController
     @filtered_scope = @filtered_scope.by_origin_carrier(@origin_carrier_filter) if @origin_carrier_filter
     @filtered_scope = @filtered_scope.by_destination_carrier(@destination_carrier_filter) if @destination_carrier_filter
     @filtered_scope = @filtered_scope.where(tracking_sub_status: @sub_status_filter) if @sub_status_filter
+    @filtered_scope = @filtered_scope.where(last_event_at: Date.parse(@event_from).beginning_of_day..) if @event_from
+    @filtered_scope = @filtered_scope.where(last_event_at: ..Date.parse(@event_to).end_of_day) if @event_to
+    @filtered_scope = @filtered_scope.where(transit_days: @transit_min.to_i..) if @transit_min
+    @filtered_scope = @filtered_scope.where(transit_days: ..@transit_max.to_i) if @transit_max
 
     if @store_filter
       @filtered_scope = @filtered_scope.joins(:order).where(orders: { shopify_store_id: @store_filter })

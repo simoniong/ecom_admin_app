@@ -257,6 +257,9 @@ en:
       origin_carrier: "Origin carrier"
       destination_carrier: "Destination carrier"
       more_filters: "More filters"
+      event_time: "Latest event time"
+      transit_days: "Transit time"
+      days: "days"
       store: "Store"
     sort:
       input_time: "Input time"
