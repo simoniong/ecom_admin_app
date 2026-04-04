@@ -147,7 +147,7 @@ RSpec.describe Fulfillment, type: :model do
 
     it "returns default for unknown status" do
       fulfillment = build(:fulfillment, tracking_status: "Unknown")
-      expect(fulfillment.status_badge_classes).to eq("bg-gray-100 text-gray-700")
+      expect(fulfillment.status_badge_classes).to eq("bg-gray-100 text-gray-600")
     end
   end
 

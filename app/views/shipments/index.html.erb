@@ -26,7 +26,7 @@
                 data-status="<%= status %>"
                 class="px-3 py-1.5 text-sm font-medium rounded-md whitespace-nowrap transition-colors
                        <%= (@status_tab || 'All') == status ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-100' %>">
-          <%= status.gsub(/([a-z])([A-Z])/, '\1 \2') %> (<%= count %>)
+          <%= Fulfillment::STATUS_DISPLAY_NAMES[status] || status %> (<%= count %>)
         </button>
       <% end %>
     </div>
@@ -52,7 +52,7 @@
               class="rounded-md border-gray-300 shadow-sm text-sm focus:border-blue-500 focus:ring-blue-500">
         <option value=""><%= t("shipments.filters.status") %></option>
         <% Fulfillment::TRACKING_STATUSES.each do |s| %>
-          <option value="<%= s %>" <%= "selected" if @status_filter == s %>><%= s.gsub(/([a-z])([A-Z])/, '\1 \2') %></option>
+          <option value="<%= s %>" <%= "selected" if @status_filter == s %>><%= Fulfillment::STATUS_DISPLAY_NAMES[s] || s %></option>
         <% end %>
       </select>
 
