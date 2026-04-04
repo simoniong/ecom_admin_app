@@ -3,31 +3,42 @@ class Fulfillment < ApplicationRecord
 
   validates :shopify_fulfillment_id, presence: true, uniqueness: true
 
-  TRACKING_STATUSES = %w[Pending NotFound InfoReceived InTransit PickUp OutForDelivery Undelivered Delivered Alert Expired].freeze
+  TRACKING_STATUSES = %w[NotFound InfoReceived InTransit AvailableForPickup OutForDelivery DeliveryFailure Delivered Exception Expired].freeze
+
+  # Display names for UI (camelCase → human readable)
+  STATUS_DISPLAY_NAMES = {
+    "NotFound" => "Not Found",
+    "InfoReceived" => "Info Received",
+    "InTransit" => "In Transit",
+    "AvailableForPickup" => "Pick Up",
+    "OutForDelivery" => "Out for Delivery",
+    "DeliveryFailure" => "Undelivered",
+    "Delivered" => "Delivered",
+    "Exception" => "Alert",
+    "Expired" => "Expired"
+  }.freeze
 
   STATUS_COLORS = {
-    "Pending" => "bg-gray-100 text-gray-700",
     "NotFound" => "bg-gray-100 text-gray-600",
     "InfoReceived" => "bg-cyan-100 text-cyan-800",
     "InTransit" => "bg-blue-100 text-blue-800",
-    "PickUp" => "bg-indigo-100 text-indigo-800",
+    "AvailableForPickup" => "bg-indigo-100 text-indigo-800",
     "OutForDelivery" => "bg-violet-100 text-violet-800",
-    "Undelivered" => "bg-orange-100 text-orange-800",
+    "DeliveryFailure" => "bg-orange-100 text-orange-800",
     "Delivered" => "bg-green-100 text-green-800",
-    "Alert" => "bg-red-100 text-red-800",
+    "Exception" => "bg-red-100 text-red-800",
     "Expired" => "bg-gray-100 text-gray-500"
   }.freeze
 
   STATUS_DOT_COLORS = {
-    "Pending" => "bg-gray-400",
     "NotFound" => "bg-gray-400",
     "InfoReceived" => "bg-cyan-500",
     "InTransit" => "bg-blue-500",
-    "PickUp" => "bg-indigo-500",
+    "AvailableForPickup" => "bg-indigo-500",
     "OutForDelivery" => "bg-violet-500",
-    "Undelivered" => "bg-orange-500",
+    "DeliveryFailure" => "bg-orange-500",
     "Delivered" => "bg-green-500",
-    "Alert" => "bg-red-500",
+    "Exception" => "bg-red-500",
     "Expired" => "bg-gray-400"
   }.freeze
 
@@ -53,17 +64,17 @@ class Fulfillment < ApplicationRecord
   after_commit :register_tracking, if: :should_register_tracking?
 
   def status_badge_classes
-    STATUS_COLORS[tracking_status] || STATUS_COLORS["Pending"]
+    STATUS_COLORS[tracking_status] || "bg-gray-100 text-gray-600"
   end
 
   def status_dot_class
-    STATUS_DOT_COLORS[tracking_status] || STATUS_DOT_COLORS["Pending"]
+    STATUS_DOT_COLORS[tracking_status] || "bg-gray-400"
   end
 
   def tracking_status_display
     return tracking_status if tracking_status.blank?
 
-    tracking_status.gsub(/([a-z])([A-Z])/, '\1 \2')
+    STATUS_DISPLAY_NAMES[tracking_status] || tracking_status.gsub(/([a-z])([A-Z])/, '\1 \2')
   end
 
   def update_from_tracking_result(result)
