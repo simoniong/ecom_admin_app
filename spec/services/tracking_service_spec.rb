@@ -55,9 +55,9 @@ RSpec.describe TrackingService do
                       time_iso: "2026-03-25T10:00:00+08:00",
                       location: "New York, US"
                     },
-                    misc_info: {
-                      original: { country: "CN" },
-                      destination: { country: "US" }
+                    shipping_info: {
+                      shipper_address: { country: "CN" },
+                      recipient_address: { country: "US" }
                     },
                     time_metrics: { days_of_transit: 5 },
                     tracking: {
