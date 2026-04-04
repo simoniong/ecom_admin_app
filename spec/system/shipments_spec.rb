@@ -26,7 +26,9 @@ RSpec.describe "Shipments", type: :system do
 
     def toggle_column_checkbox(column)
       page.execute_script(<<~JS)
-        document.querySelector("input[data-column='#{column}']").click();
+        var cb = document.querySelector("input[data-column='#{column}']");
+        cb.checked = !cb.checked;
+        cb.dispatchEvent(new Event('change', { bubbles: true }));
       JS
     end
 
