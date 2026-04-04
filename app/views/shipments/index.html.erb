@@ -163,15 +163,19 @@
               ["customer_email", t("shipments.columns.customer_email"), false]
             ]
           %>
-          <% toggleable_columns.each do |col_id, label, default_visible| %>
-            <label class="flex items-center px-4 py-1.5 text-sm hover:bg-gray-50 cursor-pointer">
-              <input type="checkbox" data-column-toggle-target="checkbox" data-column="<%= col_id %>"
-                     data-action="change->column-toggle#columnChanged"
-                     <%= "checked" if default_visible %>
-                     class="rounded border-gray-300 text-blue-600 focus:ring-blue-500 mr-3">
-              <%= label %>
-            </label>
-          <% end %>
+          <div data-column-toggle-target="list">
+            <% toggleable_columns.each do |col_id, label, default_visible| %>
+              <label class="flex items-center px-4 py-1.5 text-sm hover:bg-gray-50 cursor-pointer"
+                     data-column-toggle-target="item" data-column="<%= col_id %>">
+                <span data-drag-handle class="cursor-grab text-gray-400 mr-2 select-none" title="Drag to reorder">&#10495;</span>
+                <input type="checkbox" data-column-toggle-target="checkbox" data-column="<%= col_id %>"
+                       data-action="change->column-toggle#columnChanged"
+                       <%= "checked" if default_visible %>
+                       class="rounded border-gray-300 text-blue-600 focus:ring-blue-500 mr-3">
+                <%= label %>
+              </label>
+            <% end %>
+          </div>
         </div>
       </div>
     </div>
