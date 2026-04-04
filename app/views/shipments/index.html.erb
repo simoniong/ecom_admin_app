@@ -48,31 +48,46 @@
       </div>
 
       <%# Status dropdown %>
-      <select name="status" data-action="change->shipment-filter#filterChanged"
-              class="rounded-md border-gray-300 shadow-sm text-sm focus:border-blue-500 focus:ring-blue-500">
-        <option value=""><%= t("shipments.filters.status") %></option>
-        <% Fulfillment::TRACKING_STATUSES.each do |s| %>
-          <option value="<%= s %>" <%= "selected" if @status_filter == s %>><%= Fulfillment::STATUS_DISPLAY_NAMES[s] || s %></option>
-        <% end %>
-      </select>
+      <div class="relative">
+        <select name="status" data-action="change->shipment-filter#filterChanged"
+                class="appearance-none pl-3 pr-8 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-700 focus:border-blue-500 focus:ring-blue-500 cursor-pointer">
+          <option value=""><%= t("shipments.filters.status") %></option>
+          <% Fulfillment::TRACKING_STATUSES.each do |s| %>
+            <option value="<%= s %>" <%= "selected" if @status_filter == s %>><%= Fulfillment::STATUS_DISPLAY_NAMES[s] || s %></option>
+          <% end %>
+        </select>
+        <svg class="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+        </svg>
+      </div>
 
       <%# Destination dropdown %>
-      <select name="destination" data-action="change->shipment-filter#filterChanged"
-              class="rounded-md border-gray-300 shadow-sm text-sm focus:border-blue-500 focus:ring-blue-500">
-        <option value=""><%= t("shipments.filters.destination") %></option>
-        <% @destinations.each do |country| %>
-          <option value="<%= country %>" <%= "selected" if @destination == country %>><%= country %></option>
-        <% end %>
-      </select>
+      <div class="relative">
+        <select name="destination" data-action="change->shipment-filter#filterChanged"
+                class="appearance-none pl-3 pr-8 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-700 focus:border-blue-500 focus:ring-blue-500 cursor-pointer">
+          <option value=""><%= t("shipments.filters.destination") %></option>
+          <% @destinations.each do |country| %>
+            <option value="<%= country %>" <%= "selected" if @destination == country %>><%= country %></option>
+          <% end %>
+        </select>
+        <svg class="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+        </svg>
+      </div>
 
       <%# Origin carrier dropdown %>
-      <select name="origin_carrier" data-action="change->shipment-filter#filterChanged"
-              class="rounded-md border-gray-300 shadow-sm text-sm focus:border-blue-500 focus:ring-blue-500">
-        <option value=""><%= t("shipments.filters.origin_carrier") %></option>
-        <% @origin_carriers.each do |carrier| %>
-          <option value="<%= carrier %>" <%= "selected" if @origin_carrier_filter == carrier %>><%= carrier %></option>
-        <% end %>
-      </select>
+      <div class="relative">
+        <select name="origin_carrier" data-action="change->shipment-filter#filterChanged"
+                class="appearance-none pl-3 pr-8 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-700 focus:border-blue-500 focus:ring-blue-500 cursor-pointer">
+          <option value=""><%= t("shipments.filters.origin_carrier") %></option>
+          <% @origin_carriers.each do |carrier| %>
+            <option value="<%= carrier %>" <%= "selected" if @origin_carrier_filter == carrier %>><%= carrier %></option>
+          <% end %>
+        </select>
+        <svg class="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+        </svg>
+      </div>
 
       <%# More filters toggle %>
       <button type="button" data-action="click->shipment-filter#toggleMoreFilters"
@@ -185,13 +200,18 @@
       <div class="flex flex-wrap gap-4">
         <div>
           <label class="block text-xs font-medium text-gray-500 mb-1"><%= t("shipments.filters.destination_carrier") %></label>
-          <select name="destination_carrier" data-action="change->shipment-filter#filterChanged"
-                  class="w-40 rounded-md border-gray-300 shadow-sm text-sm focus:border-blue-500 focus:ring-blue-500">
-            <option value=""><%= t("shipments.all") %></option>
-            <% @destination_carriers.each do |carrier| %>
-              <option value="<%= carrier %>" <%= "selected" if @destination_carrier_filter == carrier %>><%= carrier %></option>
-            <% end %>
-          </select>
+          <div class="relative">
+            <select name="destination_carrier" data-action="change->shipment-filter#filterChanged"
+                    class="appearance-none w-40 pl-3 pr-8 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-700 focus:border-blue-500 focus:ring-blue-500 cursor-pointer">
+              <option value=""><%= t("shipments.all") %></option>
+              <% @destination_carriers.each do |carrier| %>
+                <option value="<%= carrier %>" <%= "selected" if @destination_carrier_filter == carrier %>><%= carrier %></option>
+              <% end %>
+            </select>
+            <svg class="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+            </svg>
+          </div>
         </div>
 
         <%# Latest event update time range %>
@@ -200,11 +220,11 @@
           <div class="flex items-center gap-2">
             <input type="date" name="event_from" value="<%= @event_from %>"
                    data-action="change->shipment-filter#filterChanged"
-                   class="w-36 rounded-md border-gray-300 shadow-sm text-sm focus:border-blue-500 focus:ring-blue-500">
+                   class="w-36 px-3 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-700 focus:border-blue-500 focus:ring-blue-500">
             <span class="text-gray-400 text-sm">–</span>
             <input type="date" name="event_to" value="<%= @event_to %>"
                    data-action="change->shipment-filter#filterChanged"
-                   class="w-36 rounded-md border-gray-300 shadow-sm text-sm focus:border-blue-500 focus:ring-blue-500">
+                   class="w-36 px-3 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-700 focus:border-blue-500 focus:ring-blue-500">
           </div>
         </div>
 
@@ -214,11 +234,11 @@
           <div class="flex items-center gap-2">
             <input type="number" name="transit_min" value="<%= @transit_min %>" min="0" placeholder="<%= t("shipments.filters.min") %>"
                    data-action="change->shipment-filter#filterChanged"
-                   class="w-20 rounded-md border-gray-300 shadow-sm text-sm focus:border-blue-500 focus:ring-blue-500">
+                   class="w-20 px-3 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-700 focus:border-blue-500 focus:ring-blue-500">
             <span class="text-gray-400 text-sm">–</span>
             <input type="number" name="transit_max" value="<%= @transit_max %>" min="0" placeholder="<%= t("shipments.filters.max") %>"
                    data-action="change->shipment-filter#filterChanged"
-                   class="w-20 rounded-md border-gray-300 shadow-sm text-sm focus:border-blue-500 focus:ring-blue-500">
+                   class="w-20 px-3 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-700 focus:border-blue-500 focus:ring-blue-500">
             <span class="text-xs text-gray-400"><%= t("shipments.filters.days") %></span>
           </div>
         </div>
@@ -226,13 +246,18 @@
         <% if @stores.count > 1 %>
           <div>
             <label class="block text-xs font-medium text-gray-500 mb-1"><%= t("shipments.filters.store") %></label>
-            <select name="store_id" data-action="change->shipment-filter#filterChanged"
-                    class="w-48 rounded-md border-gray-300 shadow-sm text-sm focus:border-blue-500 focus:ring-blue-500">
-              <option value=""><%= t("shipments.all") %></option>
-              <% @stores.each do |store| %>
-                <option value="<%= store.id %>" <%= "selected" if @store_filter == store.id.to_s %>><%= store.shop_domain %></option>
-              <% end %>
-            </select>
+            <div class="relative">
+              <select name="store_id" data-action="change->shipment-filter#filterChanged"
+                      class="appearance-none w-48 pl-3 pr-8 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-700 focus:border-blue-500 focus:ring-blue-500 cursor-pointer">
+                <option value=""><%= t("shipments.all") %></option>
+                <% @stores.each do |store| %>
+                  <option value="<%= store.id %>" <%= "selected" if @store_filter == store.id.to_s %>><%= store.shop_domain %></option>
+                <% end %>
+              </select>
+              <svg class="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+              </svg>
+            </div>
           </div>
         <% end %>
       </div>

@@ -23,7 +23,7 @@
                placeholder="<%= t("orders.search_placeholder") %>"
                data-order-filter-target="searchInput"
                data-action="keydown.enter->order-filter#submit"
-               class="block w-full rounded-md border-gray-300 shadow-sm text-sm focus:border-blue-500 focus:ring-blue-500">
+               class="block w-full px-3 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-700 focus:border-blue-500 focus:ring-blue-500">
       </div>
 
       <%# Date range inputs %>
@@ -32,42 +32,52 @@
         <input type="date" name="from_date" value="<%= @from_date %>"
                data-order-filter-target="fromDate"
                data-action="change->order-filter#submit"
-               class="block w-40 rounded-md border-gray-300 shadow-sm text-sm focus:border-blue-500 focus:ring-blue-500">
+               class="block w-40 px-3 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-700 focus:border-blue-500 focus:ring-blue-500">
       </div>
       <div>
         <label class="block text-sm font-medium text-gray-700 mb-1"><%= t("orders.to_date") %></label>
         <input type="date" name="to_date" value="<%= @to_date %>"
                data-order-filter-target="toDate"
                data-action="change->order-filter#submit"
-               class="block w-40 rounded-md border-gray-300 shadow-sm text-sm focus:border-blue-500 focus:ring-blue-500">
+               class="block w-40 px-3 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-700 focus:border-blue-500 focus:ring-blue-500">
       </div>
 
       <%# Financial status filter %>
       <div>
         <label class="block text-sm font-medium text-gray-700 mb-1"><%= t("orders.financial_status") %></label>
-        <select name="financial_status" data-action="change->order-filter#submit"
-                class="block w-40 rounded-md border-gray-300 shadow-sm text-sm focus:border-blue-500 focus:ring-blue-500">
-          <option value="" <%= "selected" if @financial_status.blank? %>><%= t("orders.all") %></option>
-          <% %w[paid pending refunded partially_refunded voided authorized].each do |s| %>
-            <option value="<%= s %>" <%= "selected" if @financial_status == s %>><%= t("orders.financial_statuses.#{s}") %></option>
-          <% end %>
-        </select>
+        <div class="relative">
+          <select name="financial_status" data-action="change->order-filter#submit"
+                  class="appearance-none block w-40 pl-3 pr-8 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-700 focus:border-blue-500 focus:ring-blue-500 cursor-pointer">
+            <option value="" <%= "selected" if @financial_status.blank? %>><%= t("orders.all") %></option>
+            <% %w[paid pending refunded partially_refunded voided authorized].each do |s| %>
+              <option value="<%= s %>" <%= "selected" if @financial_status == s %>><%= t("orders.financial_statuses.#{s}") %></option>
+            <% end %>
+          </select>
+          <svg class="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+          </svg>
+        </div>
       </div>
 
       <%# Fulfillment status filter %>
       <div>
         <label class="block text-sm font-medium text-gray-700 mb-1"><%= t("orders.fulfillment") %></label>
-        <select name="fulfillment_status" data-action="change->order-filter#submit"
-                class="block w-40 rounded-md border-gray-300 shadow-sm text-sm focus:border-blue-500 focus:ring-blue-500">
-          <option value="" <%= "selected" if @fulfillment_status.blank? %>><%= t("orders.all") %></option>
-          <% %w[fulfilled unfulfilled partial].each do |s| %>
-            <option value="<%= s %>" <%= "selected" if @fulfillment_status == s %>><%= t("orders.fulfillment_statuses.#{s}") %></option>
-          <% end %>
-        </select>
+        <div class="relative">
+          <select name="fulfillment_status" data-action="change->order-filter#submit"
+                  class="appearance-none block w-40 pl-3 pr-8 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-700 focus:border-blue-500 focus:ring-blue-500 cursor-pointer">
+            <option value="" <%= "selected" if @fulfillment_status.blank? %>><%= t("orders.all") %></option>
+            <% %w[fulfilled unfulfilled partial].each do |s| %>
+              <option value="<%= s %>" <%= "selected" if @fulfillment_status == s %>><%= t("orders.fulfillment_statuses.#{s}") %></option>
+            <% end %>
+          </select>
+          <svg class="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+          </svg>
+        </div>
       </div>
 
       <%# Search button %>
-      <button type="submit" class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700">
+      <button type="submit" class="px-4 py-2 text-sm font-medium text-white bg-gray-900 rounded-md hover:bg-gray-800">
         <%= t("orders.filter") %>
       </button>
     </div>
