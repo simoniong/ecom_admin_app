@@ -56,8 +56,9 @@ export default class extends Controller {
   }
 
   toggleColumn(column, visible) {
-    const elements = document.querySelectorAll(`[data-column="${column}"]`)
-    elements.forEach(el => {
+    const table = document.querySelector("table")
+    if (!table) return
+    table.querySelectorAll(`[data-column="${column}"]`).forEach(el => {
       el.classList.toggle("hidden", !visible)
     })
   }

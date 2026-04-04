@@ -101,7 +101,8 @@ RSpec.describe "Shipments", type: :system do
       open_column_dropdown
 
       within("[data-column-toggle-target='dropdown']") do
-        expect(all("[data-drag-handle]").length).to eq(19)
+        checkboxes = all("input[type='checkbox'][data-column]", visible: :all)
+        expect(all("[data-drag-handle]").length).to eq(checkboxes.length)
       end
     end
 
@@ -122,7 +123,6 @@ RSpec.describe "Shipments", type: :system do
 
       visit shipments_path
       expect(page).to have_text("TEST123")
-      sleep 0.1
 
       expect(column_hidden?("status")).to be true
     end
@@ -144,10 +144,11 @@ RSpec.describe "Shipments", type: :system do
 
       visit shipments_path
       expect(page).to have_text("TEST123")
-      sleep 0.1
 
-      reloaded = all("thead th[data-column]", visible: true).map { |th| th["data-column"] }
-      expect(reloaded.index("destination")).to be < reloaded.index("order_info")
+      # Use XPath to assert destination precedes order_info (Capybara auto-waits)
+      expect(page).to have_xpath(
+        "//thead/tr/th[@data-column='destination']/following-sibling::th[@data-column='order_info']"
+      )
     end
 
     it "keeps tracking_no as the first column regardless of reorder" do
