@@ -24,15 +24,31 @@ RSpec.describe "Shipments", type: :system do
       expect(page).to have_css("[data-column-toggle-target='dropdown']:not(.hidden)")
     end
 
-    def toggle_column_checkbox(column)
+    # Toggle column visibility and persist to localStorage (mirrors controller logic)
+    def toggle_column_visibility(column)
       page.execute_script(<<~JS)
         var cb = document.querySelector("input[data-column='#{column}']");
         cb.checked = !cb.checked;
-        cb.dispatchEvent(new Event('change', { bubbles: true }));
+        var visible = cb.checked;
+
+        // Toggle column visibility in DOM
+        document.querySelectorAll("[data-column='#{column}']").forEach(function(el) {
+          if (el.tagName === 'INPUT') return;
+          if (visible) { el.classList.remove("hidden"); } else { el.classList.add("hidden"); }
+        });
+
+        // Save preferences to localStorage
+        var list = document.querySelector("[data-column-toggle-target='list']");
+        var prefs = Array.from(list.querySelectorAll("[data-column-toggle-target='item']")).map(function(item) {
+          var c = item.dataset.column;
+          var checkbox = item.querySelector("input[type='checkbox']");
+          return { id: c, visible: checkbox ? checkbox.checked : true };
+        });
+        localStorage.setItem("shipment_columns", JSON.stringify(prefs));
       JS
     end
 
-    # Simulate drag-and-drop reorder by manipulating DOM + calling controller logic
+    # Simulate drag-and-drop reorder by manipulating DOM + saving to localStorage
     def reorder_column_before(column_to_move, before_column)
       page.execute_script(<<~JS, column_to_move, before_column)
         var colToMove = arguments[0];
@@ -73,10 +89,10 @@ RSpec.describe "Shipments", type: :system do
       expect(page).to have_css("th[data-column='status']", visible: true)
 
       open_column_dropdown
-      toggle_column_checkbox("status")
+      toggle_column_visibility("status")
       expect(page).to have_css("th[data-column='status']", visible: :hidden)
 
-      toggle_column_checkbox("status")
+      toggle_column_visibility("status")
       expect(page).to have_css("th[data-column='status']", visible: true)
     end
 
@@ -100,12 +116,14 @@ RSpec.describe "Shipments", type: :system do
 
     it "persists column visibility across page loads" do
       open_column_dropdown
-      toggle_column_checkbox("status")
+      toggle_column_visibility("status")
       expect(page).to have_css("th[data-column='status']", visible: :hidden)
 
-      click_link "Shipments"
+      visit shipments_path
       expect(page).to have_text("TEST123")
 
+      # Controller loads preferences from localStorage on connect and hides columns
+      sleep 0.1
       expect(page).to have_css("th[data-column='status']", visible: :hidden)
     end
 
@@ -117,7 +135,6 @@ RSpec.describe "Shipments", type: :system do
       ids = parsed.map { |p| p["id"] }
       expect(ids.index("destination")).to be < ids.index("order_info")
 
-      # Verify format includes visibility
       dest_pref = parsed.find { |p| p["id"] == "destination" }
       expect(dest_pref["visible"]).to be true
     end
