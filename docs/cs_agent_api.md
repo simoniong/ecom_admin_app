@@ -132,7 +132,24 @@ Returns a single ticket with full context: messages, customer profile, orders, a
           "delivered_at": null,
           "last_event_at": "2026-04-03T18:00:00Z",
           "latest_event_description": "Shipment departed from facility",
-          "transit_days": 5
+          "transit_days": 5,
+          "tracking_events": [
+            {
+              "description": "Shipment departed from facility",
+              "time": "2026-04-03T18:00:00+08:00",
+              "location": "Shanghai, CN"
+            },
+            {
+              "description": "Arrived at destination hub",
+              "time": "2026-04-02T10:00:00+08:00",
+              "location": "Los Angeles, US"
+            },
+            {
+              "description": "Picked up by carrier",
+              "time": "2026-03-31T14:00:00+08:00",
+              "location": "Shenzhen, CN"
+            }
+          ]
         }
       ]
     }
@@ -215,6 +232,18 @@ new_ticket ──→ draft ──→ draft_confirmed ──→ closed
 ---
 
 ## Data Model Reference
+
+### Fulfillment Tracking Events
+
+The `tracking_events` array contains the full shipment tracking history from 17Track. Events are sorted **most recent first**. Each event has:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `description` | string | Event description (e.g. "Shipment departed from facility") |
+| `time` | string | Event timestamp in ISO8601 format with timezone offset |
+| `location` | string or null | Event location (e.g. "Shanghai, CN") |
+
+The array may be empty (`[]`) if no tracking history is available yet (e.g. tracking number just registered, or 17Track hasn't polled yet).
 
 ### Fulfillment Shipping Timestamps
 

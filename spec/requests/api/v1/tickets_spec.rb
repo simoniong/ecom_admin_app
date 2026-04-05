@@ -81,7 +81,13 @@ RSpec.describe "Api::V1::Tickets", type: :request do
         last_event_at: "2026-04-03T18:00:00Z",
         latest_event_description: "Shipment departed from facility",
         transit_days: 5,
-        shopify_data: { "created_at" => "2026-03-31T10:00:00Z" }
+        shopify_data: { "created_at" => "2026-03-31T10:00:00Z" },
+        tracking_details: {
+          "events" => [
+            { "description" => "Shipment departed from facility", "time" => "2026-04-03T18:00:00+08:00", "location" => "Shanghai, CN" },
+            { "description" => "Picked up by carrier", "time" => "2026-03-31T14:00:00+08:00", "location" => "Shenzhen, CN" }
+          ]
+        }
       )
       ticket = create(:ticket, email_account: email_account, customer: customer)
 
@@ -102,6 +108,15 @@ RSpec.describe "Api::V1::Tickets", type: :request do
       expect(f["last_event_at"]).to be_present
       expect(f["latest_event_description"]).to eq("Shipment departed from facility")
       expect(f["transit_days"]).to eq(5)
+
+      events = f["tracking_events"]
+      expect(events.length).to eq(2)
+      expect(events.first["description"]).to eq("Shipment departed from facility")
+      expect(events.first["location"]).to eq("Shanghai, CN")
+      expect(events.first["time"]).to be_present
+      expect(events.last["description"]).to eq("Picked up by carrier")
+      expect(events.last["time"]).to be_present
+      expect(Time.zone.parse(events.first["time"])).to be >= Time.zone.parse(events.last["time"])
     end
   end
 
