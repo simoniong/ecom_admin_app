@@ -180,6 +180,7 @@ class GmailSyncService
         ShopifyLookupService.new.lookup(ticket)
       rescue => e
         Rails.logger.error("[ShopifyLookup] Failed for Ticket##{ticket.id}: #{e.message}")
+        ShopifyLookupRetryJob.perform_later(ticket.id)
       end
     end
   end

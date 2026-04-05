@@ -182,6 +182,59 @@ RSpec.describe SyncAllOrdersService do
     end
   end
 
+  describe "#call link_orphaned_tickets" do
+    let(:shopify_customer) do
+      { "id" => 100, "email" => "orphan@example.com", "first_name" => "Jane", "last_name" => "Buyer" }
+    end
+
+    before do
+      allow(shopify_service).to receive(:fetch_all_customers).and_return([ shopify_customer ], [])
+      allow(shopify_service).to receive(:fetch_all_orders).and_return([])
+    end
+
+    it "links orphaned tickets to matching customers by email" do
+      email_account = create(:email_account, shopify_store: store, user: store.user)
+      ticket = create(:ticket, email_account: email_account, customer_email: "orphan@example.com", customer: nil)
+
+      service.call
+
+      expect(ticket.reload.customer).to be_present
+      expect(ticket.customer.email).to eq("orphan@example.com")
+    end
+
+    it "does not overwrite tickets that already have a customer" do
+      existing_customer = create(:customer, shopify_store: store, email: "other@example.com")
+      email_account = create(:email_account, shopify_store: store, user: store.user)
+      ticket = create(:ticket, email_account: email_account, customer_email: "orphan@example.com", customer: existing_customer)
+
+      service.call
+
+      expect(ticket.reload.customer).to eq(existing_customer)
+    end
+
+    it "skips tickets with no customer_email" do
+      email_account = create(:email_account, shopify_store: store, user: store.user)
+      ticket = create(:ticket, email_account: email_account, customer_email: "unknown", customer: nil)
+
+      service.call
+
+      expect(ticket.reload.customer).to be_nil
+    end
+
+    it "skips tickets from email accounts not linked to this store" do
+      other_store = create(:shopify_store)
+      other_email_account = create(:email_account, shopify_store: other_store, user: other_store.user)
+      ticket = create(:ticket, email_account: other_email_account, customer_email: "orphan@example.com", customer: nil)
+
+      # Create a customer in the current store with matching email
+      create(:customer, shopify_store: store, email: "orphan@example.com")
+
+      service.call
+
+      expect(ticket.reload.customer).to be_nil
+    end
+  end
+
   describe "#sync_single_order" do
     let(:shopify_customer) do
       { "id" => 100, "email" => "buyer@example.com", "first_name" => "Jane", "last_name" => "Buyer" }
