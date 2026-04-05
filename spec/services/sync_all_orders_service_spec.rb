@@ -111,6 +111,52 @@ RSpec.describe SyncAllOrdersService do
       expect(Fulfillment.count).to eq(1)
     end
 
+    it "handles order save race condition via RecordNotUnique" do
+      service.call
+      existing_order = Order.find_by(shopify_order_id: 200)
+
+      # Stub find_or_initialize_by to return a new (unsaved) Order that will collide
+      allow(Order).to receive(:find_or_initialize_by).and_wrap_original do |method, **args|
+        result = method.call(**args)
+        if result.persisted?
+          # Return a new record to force the unique constraint path
+          new_record = Order.new(args)
+          allow(new_record).to receive(:save!).and_raise(ActiveRecord::RecordNotUnique)
+          new_record
+        else
+          result
+        end
+      end
+
+      allow(shopify_service).to receive(:fetch_all_customers).and_return([ shopify_customer ], [])
+      allow(shopify_service).to receive(:fetch_all_orders).and_return([ shopify_order ], [])
+
+      expect { described_class.new(store).call }.not_to raise_error
+      expect(existing_order.reload.name).to eq("#1001")
+    end
+
+    it "handles customer save race condition via RecordNotUnique" do
+      service.call
+      existing = Customer.find_by(shopify_customer_id: 100)
+
+      allow(Customer).to receive(:find_or_initialize_by).and_wrap_original do |method, **args|
+        result = method.call(**args)
+        if result.persisted?
+          new_record = Customer.new(args)
+          allow(new_record).to receive(:save!).and_raise(ActiveRecord::RecordNotUnique)
+          new_record
+        else
+          result
+        end
+      end
+
+      allow(shopify_service).to receive(:fetch_all_customers).and_return([ shopify_customer ], [])
+      allow(shopify_service).to receive(:fetch_all_orders).and_return([])
+
+      expect { described_class.new(store).call }.not_to raise_error
+      expect(existing.reload).to be_present
+    end
+
     it "updates existing fulfillment found globally instead of raising uniqueness error" do
       service.call
 
@@ -130,6 +176,21 @@ RSpec.describe SyncAllOrdersService do
       expect { described_class.new(store).call }.not_to change(Fulfillment, :count)
       expect(existing_fulfillment.reload.tracking_number).to eq("TRACK_UPDATED")
       expect(existing_fulfillment.tracking_company).to eq("FedEx")
+    end
+
+    it "handles fulfillment save race condition via RecordNotUnique" do
+      service.call
+      existing = Fulfillment.find_by(shopify_fulfillment_id: 300)
+
+      new_fulfillment = Fulfillment.new(shopify_fulfillment_id: 300)
+      allow(Fulfillment).to receive(:find_or_initialize_by).and_return(new_fulfillment)
+      allow(new_fulfillment).to receive(:save!).and_raise(ActiveRecord::RecordNotUnique)
+
+      allow(shopify_service).to receive(:fetch_all_customers).and_return([ shopify_customer ], [])
+      allow(shopify_service).to receive(:fetch_all_orders).and_return([ shopify_order ], [])
+
+      expect { described_class.new(store).call }.not_to raise_error
+      expect(existing.reload).to be_present
     end
 
     it "continues syncing when an individual order fails" do
