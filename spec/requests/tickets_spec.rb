@@ -95,16 +95,30 @@ RSpec.describe "Tickets", type: :request do
       expect(response.body).to include("Fulfilled")
     end
 
-    it "shows shipped time and tracking status for fulfillments" do
+    it "shows shipped time from Shopify fulfillment data" do
       customer = create(:customer, first_name: "Jane", last_name: "Buyer", email: "jane@example.com")
       order = create(:order, customer: customer, name: "#3002")
       create(:fulfillment, order: order, tracking_number: "SHIP456",
-             tracking_status: "InTransit", shipped_at: Time.zone.parse("2026-04-01 08:00:00"))
+             tracking_status: "InTransit",
+             shopify_data: { "created_at" => "2026-04-01T08:00:00-07:00" })
       ticket = create(:ticket, email_account: email_account, customer: customer)
       sign_in user
       get ticket_path(id: ticket.id)
       expect(response.body).to include("SHIP456")
       expect(response.body).to include("In Transit")
+      expect(response.body).to include("Shipped:")
+    end
+
+    it "does not show shipped time when shopify_data has no created_at" do
+      customer = create(:customer, first_name: "Jane", last_name: "Buyer", email: "jane@example.com")
+      order = create(:order, customer: customer, name: "#3004")
+      create(:fulfillment, order: order, tracking_number: "SHIP999",
+             tracking_status: "InTransit", shopify_data: {})
+      ticket = create(:ticket, email_account: email_account, customer: customer)
+      sign_in user
+      get ticket_path(id: ticket.id)
+      expect(response.body).to include("SHIP999")
+      expect(response.body).not_to include("Shipped:")
     end
 
     it "falls back to humanized Shopify status when tracking_status is nil" do
