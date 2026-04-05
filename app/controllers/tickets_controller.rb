@@ -13,6 +13,7 @@ class TicketsController < AdminController
     @messages = @ticket.messages.order(sent_at: :desc)
     @customer = @ticket.customer
     @orders = @customer&.orders&.by_recency || []
+    @ticket_timezone = @ticket.email_account&.shopify_store&.active_timezone || store_timezone
   end
 
   def update
@@ -66,6 +67,7 @@ class TicketsController < AdminController
       @messages = @ticket.messages.order(sent_at: :desc)
       @customer = @ticket.customer
       @orders = @customer&.orders&.by_recency || []
+      @ticket_timezone = @ticket.email_account&.shopify_store&.active_timezone || store_timezone
       render :show, status: :unprocessable_entity
     end
   end

@@ -33,7 +33,7 @@
       <%# Order header %>
       <div class="flex items-center justify-between mb-2">
         <span class="text-sm font-semibold text-gray-900"><%= order.name %></span>
-        <span class="text-xs text-gray-500"><%= order.ordered_at ? l(order.ordered_at.in_time_zone("Asia/Shanghai"), format: :short) : "—" %></span>
+        <span class="text-xs text-gray-500"><%= order.ordered_at ? l(order.ordered_at.in_time_zone(@ticket_timezone), format: :short) : "—" %></span>
       </div>
       <div class="flex items-center gap-2 mb-1">
         <span class="text-sm text-gray-700"><%= number_to_currency(order.total_price, unit: order.currency.to_s + " ") %></span>
@@ -43,7 +43,7 @@
         <% if order.ordered_at %>
           <div class="flex justify-between">
             <dt><%= t("tickets.show.paid_at") %></dt>
-            <dd class="text-gray-700"><%= l(order.ordered_at.in_time_zone("Asia/Shanghai"), format: :short) %></dd>
+            <dd class="text-gray-700"><%= l(order.ordered_at.in_time_zone(@ticket_timezone), format: :short) %></dd>
           </div>
         <% end %>
         <% if order.fulfillment_status.present? %>
@@ -80,7 +80,7 @@
                   <% end %>
                   <% shipped_time = f.shopify_shipped_at %>
                   <% if shipped_time.present? %>
-                    <span class="text-xs text-gray-400"><%= t("tickets.show.shipped_at") %> <%= l(shipped_time.in_time_zone("Asia/Shanghai"), format: :short) %></span>
+                    <span class="text-xs text-gray-400"><%= t("tickets.show.shipped_at") %> <%= l(shipped_time.in_time_zone(@ticket_timezone), format: :short) %></span>
                   <% end %>
                 </div>
 
