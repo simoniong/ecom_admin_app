@@ -96,7 +96,14 @@ class Api::V1::TicketsController < Api::BaseController
               delivered_at: f.delivered_at,
               last_event_at: f.last_event_at,
               latest_event_description: f.latest_event_description,
-              transit_days: f.transit_days
+              transit_days: f.transit_days,
+              tracking_events: f.tracking_events.map do |e|
+                {
+                  description: e["description"],
+                  time: e["time"],
+                  location: e["location"]
+                }
+              end
             }
           end
         }

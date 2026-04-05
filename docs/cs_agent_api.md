@@ -132,7 +132,24 @@ Returns a single ticket with full context: messages, customer profile, orders, a
           "delivered_at": null,
           "last_event_at": "2026-04-03T18:00:00Z",
           "latest_event_description": "Shipment departed from facility",
-          "transit_days": 5
+          "transit_days": 5,
+          "tracking_events": [
+            {
+              "description": "Shipment departed from facility",
+              "time": "2026-04-03T18:00:00+08:00",
+              "location": "Shanghai, CN"
+            },
+            {
+              "description": "Arrived at destination hub",
+              "time": "2026-04-02T10:00:00+08:00",
+              "location": "Los Angeles, US"
+            },
+            {
+              "description": "Picked up by carrier",
+              "time": "2026-03-31T14:00:00+08:00",
+              "location": "Shenzhen, CN"
+            }
+          ]
         }
       ]
     }
