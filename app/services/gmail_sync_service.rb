@@ -217,17 +217,21 @@ class GmailSyncService
     email = nil
     name = nil
 
+    # Convert block-level HTML boundaries to newlines, then strip remaining tags
+    plain_body = body.gsub(/<\s*(?:br|\/p|\/div|\/tr|\/li|\/h[1-6])[^>]*>/i, "\n")
+    plain_body = ActionController::Base.helpers.strip_tags(plain_body)
+
     # Match email patterns in body
-    email_match = body.match(/[\w.+-]+@[\w.-]+\.\w{2,}/)
+    email_match = plain_body.match(/[\w.+-]+@[\w.-]+\.\w{2,}/)
     email = email_match[0] if email_match
 
     # Common Shopify form patterns:
     # "Name: John Doe" or "From: John Doe"
-    name_match = body.match(/(?:Name|From|Customer|送信者|名前)\s*[:：]\s*(.+)/i)
+    name_match = plain_body.match(/(?:Name|From|Customer|送信者|名前)\s*[:：]\s*(.+)/i)
     name = name_match[1].strip if name_match
 
     # "Email: john@example.com" — more specific email extraction
-    email_field_match = body.match(/(?:Email|E-mail|メール)\s*[:：]\s*([\w.+-]+@[\w.-]+\.\w{2,})/i)
+    email_field_match = plain_body.match(/(?:Email|E-mail|メール)\s*[:：]\s*([\w.+-]+@[\w.-]+\.\w{2,})/i)
     email = email_field_match[1] if email_field_match
 
     { email: email, name: name }
