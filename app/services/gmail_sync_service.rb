@@ -218,7 +218,7 @@ class GmailSyncService
     name = nil
 
     # Convert block-level HTML boundaries to newlines, then strip remaining tags
-    plain_body = body.gsub(/<\s*(?:br|\/p|\/div|\/tr|\/li|\/h[1-6])[^>]*>/i, "\n")
+    plain_body = body.gsub(/<\s*(?:br\b|\/p\b|\/div\b|\/tr\b|\/li\b|\/h[1-6]\b)[^>]*>/i, "\n")
     plain_body = ActionController::Base.helpers.strip_tags(plain_body)
 
     # Match email patterns in body
