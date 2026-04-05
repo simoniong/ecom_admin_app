@@ -113,7 +113,10 @@ RSpec.describe "Api::V1::Tickets", type: :request do
       expect(events.length).to eq(2)
       expect(events.first["description"]).to eq("Shipment departed from facility")
       expect(events.first["location"]).to eq("Shanghai, CN")
+      expect(events.first["time"]).to be_present
       expect(events.last["description"]).to eq("Picked up by carrier")
+      expect(events.last["time"]).to be_present
+      expect(Time.zone.parse(events.first["time"])).to be >= Time.zone.parse(events.last["time"])
     end
   end
 

@@ -233,6 +233,18 @@ new_ticket ──→ draft ──→ draft_confirmed ──→ closed
 
 ## Data Model Reference
 
+### Fulfillment Tracking Events
+
+The `tracking_events` array contains the full shipment tracking history from 17Track. Events are sorted **most recent first**. Each event has:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `description` | string | Event description (e.g. "Shipment departed from facility") |
+| `time` | string | Event timestamp in ISO8601 format with timezone offset |
+| `location` | string or null | Event location (e.g. "Shanghai, CN") |
+
+The array may be empty (`[]`) if no tracking history is available yet (e.g. tracking number just registered, or 17Track hasn't polled yet).
+
 ### Fulfillment Shipping Timestamps
 
 | Field | Source | Description |
