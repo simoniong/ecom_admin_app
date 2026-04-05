@@ -5,6 +5,7 @@ class Fulfillment < ApplicationRecord
 
   TRACKING_STATUSES = %w[NotFound InfoReceived InTransit AvailableForPickup OutForDelivery DeliveryFailure Delivered Exception Expired].freeze
 
+  # Display names for UI (camelCase → human readable)
   STATUS_DISPLAY_NAMES = {
     "NotFound" => "Not Found",
     "InfoReceived" => "Info Received",
