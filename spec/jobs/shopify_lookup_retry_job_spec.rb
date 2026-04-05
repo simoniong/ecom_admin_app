@@ -37,4 +37,14 @@ RSpec.describe ShopifyLookupRetryJob do
 
     expect(lookup).not_to have_received(:lookup)
   end
+
+  it "retries on failure" do
+    lookup = instance_double(ShopifyLookupService)
+    allow(ShopifyLookupService).to receive(:new).and_return(lookup)
+    allow(lookup).to receive(:lookup).and_raise(RuntimeError, "API down")
+
+    expect {
+      described_class.perform_now(ticket.id)
+    }.to have_enqueued_job(described_class).with(ticket.id)
+  end
 end

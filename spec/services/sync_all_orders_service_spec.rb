@@ -233,6 +233,27 @@ RSpec.describe SyncAllOrdersService do
 
       expect(ticket.reload.customer).to be_nil
     end
+
+    it "links multiple orphaned tickets in one sync run" do
+      email_account = create(:email_account, shopify_store: store, user: store.user)
+      ticket_a = create(:ticket, email_account: email_account, customer_email: "orphan@example.com", customer: nil)
+      ticket_b = create(:ticket, email_account: email_account, customer_email: "orphan@example.com", customer: nil)
+
+      service.call
+
+      expect(ticket_a.reload.customer).to be_present
+      expect(ticket_b.reload.customer).to be_present
+      expect(ticket_a.customer).to eq(ticket_b.customer)
+    end
+
+    it "does not link tickets when no customer matches the email" do
+      email_account = create(:email_account, shopify_store: store, user: store.user)
+      ticket = create(:ticket, email_account: email_account, customer_email: "nomatch@example.com", customer: nil)
+
+      service.call
+
+      expect(ticket.reload.customer).to be_nil
+    end
   end
 
   describe "#sync_single_order" do

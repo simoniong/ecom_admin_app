@@ -83,6 +83,41 @@ RSpec.describe "Tickets", type: :request do
       expect(response.body).to include("SHIP123")
     end
 
+    it "shows paid time and fulfillment status for orders" do
+      customer = create(:customer, first_name: "Jane", last_name: "Buyer", email: "jane@example.com")
+      order = create(:order, customer: customer, name: "#3001", total_price: 79.99,
+                     financial_status: "paid", fulfillment_status: "fulfilled",
+                     ordered_at: Time.zone.parse("2026-03-28 10:00:00"))
+      ticket = create(:ticket, email_account: email_account, customer: customer)
+      sign_in user
+      get ticket_path(id: ticket.id)
+      expect(response.body).to include("#3001")
+      expect(response.body).to include("Fulfilled")
+    end
+
+    it "shows shipped time and tracking status for fulfillments" do
+      customer = create(:customer, first_name: "Jane", last_name: "Buyer", email: "jane@example.com")
+      order = create(:order, customer: customer, name: "#3002")
+      create(:fulfillment, order: order, tracking_number: "SHIP456",
+             tracking_status: "InTransit", shipped_at: Time.zone.parse("2026-04-01 08:00:00"))
+      ticket = create(:ticket, email_account: email_account, customer: customer)
+      sign_in user
+      get ticket_path(id: ticket.id)
+      expect(response.body).to include("SHIP456")
+      expect(response.body).to include("In Transit")
+    end
+
+    it "falls back to humanized Shopify status when tracking_status is nil" do
+      customer = create(:customer, first_name: "Jane", last_name: "Buyer", email: "jane@example.com")
+      order = create(:order, customer: customer, name: "#3003")
+      create(:fulfillment, order: order, tracking_number: "SHIP789",
+             status: "success", tracking_status: nil)
+      ticket = create(:ticket, email_account: email_account, customer: customer)
+      sign_in user
+      get ticket_path(id: ticket.id)
+      expect(response.body).to include("Success")
+    end
+
     it "returns 404 for another user's ticket" do
       other_account = create(:email_account)
       ticket = create(:ticket, email_account: other_account)
