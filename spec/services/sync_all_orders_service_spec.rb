@@ -273,9 +273,18 @@ RSpec.describe SyncAllOrdersService do
       expect(ticket.reload.customer).to eq(existing_customer)
     end
 
-    it "skips tickets with no customer_email" do
+    it "skips tickets with 'unknown' sentinel email" do
       email_account = create(:email_account, shopify_store: store, user: store.user)
       ticket = create(:ticket, email_account: email_account, customer_email: "unknown", customer: nil)
+
+      service.call
+
+      expect(ticket.reload.customer).to be_nil
+    end
+
+    it "skips tickets with email missing @ sign" do
+      email_account = create(:email_account, shopify_store: store, user: store.user)
+      ticket = create(:ticket, email_account: email_account, customer_email: "not-an-email", customer: nil)
 
       service.call
 

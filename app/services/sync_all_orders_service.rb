@@ -137,14 +137,20 @@ class SyncAllOrdersService
     email_accounts = EmailAccount.where(shopify_store: @store)
     return if email_accounts.empty?
 
-    Ticket.where(email_account: email_accounts, customer_id: nil)
-          .where.not(customer_email: [ nil, "" ])
-          .find_each do |ticket|
-      customer = @store.customers.find_by(email: ticket.customer_email)
+    orphaned_tickets = Ticket.where(email_account: email_accounts, customer_id: nil)
+                             .where.not(customer_email: [ nil, "", "unknown" ])
+                             .where("customer_email LIKE '%@%'")
+    return if orphaned_tickets.empty?
+
+    emails = orphaned_tickets.distinct.pluck(:customer_email).map(&:downcase)
+    customers_by_email = @store.customers.where("LOWER(email) IN (?)", emails).index_by { |c| c.email&.downcase }
+
+    orphaned_tickets.find_each do |ticket|
+      customer = customers_by_email[ticket.customer_email.downcase]
       next unless customer
 
       ticket.update!(customer: customer)
-      Rails.logger.info("[SyncAllOrders] Linked Ticket##{ticket.id} to Customer##{customer.id} via email #{ticket.customer_email}")
+      Rails.logger.info("[SyncAllOrders] Linked Ticket##{ticket.id} to Customer##{customer.id}")
     end
   end
 

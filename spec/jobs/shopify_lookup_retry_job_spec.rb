@@ -38,6 +38,30 @@ RSpec.describe ShopifyLookupRetryJob do
     expect(lookup).not_to have_received(:lookup)
   end
 
+  it "skips if customer_email is 'unknown'" do
+    ticket.update_column(:customer_email, "unknown")
+
+    lookup = instance_double(ShopifyLookupService)
+    allow(ShopifyLookupService).to receive(:new).and_return(lookup)
+    allow(lookup).to receive(:lookup)
+
+    described_class.perform_now(ticket.id)
+
+    expect(lookup).not_to have_received(:lookup)
+  end
+
+  it "skips if customer_email has no @" do
+    ticket.update_column(:customer_email, "not-an-email")
+
+    lookup = instance_double(ShopifyLookupService)
+    allow(ShopifyLookupService).to receive(:new).and_return(lookup)
+    allow(lookup).to receive(:lookup)
+
+    described_class.perform_now(ticket.id)
+
+    expect(lookup).not_to have_received(:lookup)
+  end
+
   it "retries on failure" do
     lookup = instance_double(ShopifyLookupService)
     allow(ShopifyLookupService).to receive(:new).and_return(lookup)

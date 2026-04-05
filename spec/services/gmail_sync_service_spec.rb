@@ -308,7 +308,11 @@ RSpec.describe GmailSyncService do
       allow(ShopifyLookupService).to receive(:new).and_return(shopify)
       allow(shopify).to receive(:lookup).and_raise(RuntimeError, "Shopify down")
 
-      expect { service.sync! }.to have_enqueued_job(ShopifyLookupRetryJob)
+      service.sync!
+
+      ticket = Ticket.last
+      expect(ticket.customer_email).to eq("retry@example.com")
+      expect(ShopifyLookupRetryJob).to have_been_enqueued.with(ticket.id)
     end
   end
 
