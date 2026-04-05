@@ -34,7 +34,7 @@ Unauthorized requests return `401`:
 ### 1. List New Tickets
 
 ```
-GET /api/v1/tickets
+GET /tickets
 ```
 
 Returns all tickets with `status: "new_ticket"`, ordered by most recent message first.
@@ -72,7 +72,7 @@ Returns all tickets with `status: "new_ticket"`, ordered by most recent message 
 ### 2. Get Ticket Detail
 
 ```
-GET /api/v1/tickets/:id
+GET /tickets/:id
 ```
 
 Returns a single ticket with full context: messages, customer profile, orders, and fulfillment/tracking info. **Only returns tickets with `status: "new_ticket"`.**
@@ -151,7 +151,7 @@ Returns a single ticket with full context: messages, customer profile, orders, a
 ### 3. Submit Draft Reply
 
 ```
-POST /api/v1/tickets/:id/draft_reply
+POST /tickets/:id/draft_reply
 ```
 
 Submit a draft reply for a ticket. Transitions ticket status from `new_ticket` → `draft`.
