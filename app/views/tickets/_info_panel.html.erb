@@ -78,7 +78,7 @@
                   <% if f.tracking_company.present? %>
                     <span class="text-xs text-gray-400"><%= f.tracking_company %></span>
                   <% end %>
-                  <% shipped_time = f.shopify_data&.dig("created_at")&.then { |t| Time.zone.parse(t) rescue nil } %>
+                  <% shipped_time = f.shopify_shipped_at %>
                   <% if shipped_time.present? %>
                     <span class="text-xs text-gray-400"><%= t("tickets.show.shipped_at") %> <%= l(shipped_time.in_time_zone("Asia/Shanghai"), format: :short) %></span>
                   <% end %>
