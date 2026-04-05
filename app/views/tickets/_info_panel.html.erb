@@ -35,10 +35,24 @@
         <span class="text-sm font-semibold text-gray-900"><%= order.name %></span>
         <span class="text-xs text-gray-500"><%= order.ordered_at ? l(order.ordered_at.in_time_zone("Asia/Shanghai"), format: :short) : "—" %></span>
       </div>
-      <div class="flex items-center gap-2 mb-3">
+      <div class="flex items-center gap-2 mb-1">
         <span class="text-sm text-gray-700"><%= number_to_currency(order.total_price, unit: order.currency.to_s + " ") %></span>
         <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700"><%= order.financial_status %></span>
       </div>
+      <dl class="text-xs text-gray-500 space-y-0.5 mb-3">
+        <% if order.ordered_at %>
+          <div class="flex justify-between">
+            <dt><%= t("tickets.show.paid_at") %></dt>
+            <dd class="text-gray-700"><%= l(order.ordered_at.in_time_zone("Asia/Shanghai"), format: :short) %></dd>
+          </div>
+        <% end %>
+        <% if order.fulfillment_status.present? %>
+          <div class="flex justify-between">
+            <dt><%= t("tickets.show.fulfillment_status") %></dt>
+            <dd class="text-gray-700"><%= order.fulfillment_status == "fulfilled" ? t("tickets.show.fulfillment_fulfilled") : order.fulfillment_status.humanize %></dd>
+          </div>
+        <% end %>
+      </dl>
 
       <%# Fulfillment cards %>
       <% if order.fulfillments.any? %>
@@ -50,7 +64,7 @@
                       class="w-full text-left px-3 py-2.5 hover:bg-gray-50 transition">
                 <div class="flex items-center justify-between">
                   <div class="flex items-center gap-2">
-                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-purple-50 text-purple-700"><%= f.status %></span>
+                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium <%= f.status_badge_classes %>"><%= f.tracking_status_display.presence || f.status&.humanize %></span>
                     <% if f.tracking_number.present? %>
                       <span class="text-xs font-mono text-gray-600"><%= f.tracking_number %></span>
                     <% end %>
@@ -60,9 +74,14 @@
                   </svg>
                 </div>
 
-                <% if f.tracking_company.present? %>
-                  <p class="text-xs text-gray-400 mt-1"><%= f.tracking_company %></p>
-                <% end %>
+                <div class="flex items-center gap-3 mt-1">
+                  <% if f.tracking_company.present? %>
+                    <span class="text-xs text-gray-400"><%= f.tracking_company %></span>
+                  <% end %>
+                  <% if f.shipped_at.present? %>
+                    <span class="text-xs text-gray-400"><%= t("tickets.show.shipped_at") %> <%= l(f.shipped_at.in_time_zone("Asia/Shanghai"), format: :short) %></span>
+                  <% end %>
+                </div>
 
                 <%# Last tracking event preview %>
                 <% if f.last_tracking_event.present? %>

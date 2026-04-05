@@ -111,6 +111,52 @@ RSpec.describe SyncAllOrdersService do
       expect(Fulfillment.count).to eq(1)
     end
 
+    it "handles order save race condition via RecordNotUnique" do
+      service.call
+      existing_order = Order.find_by(shopify_order_id: 200)
+
+      # Stub find_or_initialize_by to return a new (unsaved) Order that will collide
+      allow(Order).to receive(:find_or_initialize_by).and_wrap_original do |method, **args|
+        result = method.call(**args)
+        if result.persisted?
+          # Return a new record to force the unique constraint path
+          new_record = Order.new(args)
+          allow(new_record).to receive(:save!).and_raise(ActiveRecord::RecordNotUnique)
+          new_record
+        else
+          result
+        end
+      end
+
+      allow(shopify_service).to receive(:fetch_all_customers).and_return([ shopify_customer ], [])
+      allow(shopify_service).to receive(:fetch_all_orders).and_return([ shopify_order ], [])
+
+      expect { described_class.new(store).call }.not_to raise_error
+      expect(existing_order.reload.name).to eq("#1001")
+    end
+
+    it "handles customer save race condition via RecordNotUnique" do
+      service.call
+      existing = Customer.find_by(shopify_customer_id: 100)
+
+      allow(Customer).to receive(:find_or_initialize_by).and_wrap_original do |method, **args|
+        result = method.call(**args)
+        if result.persisted?
+          new_record = Customer.new(args)
+          allow(new_record).to receive(:save!).and_raise(ActiveRecord::RecordNotUnique)
+          new_record
+        else
+          result
+        end
+      end
+
+      allow(shopify_service).to receive(:fetch_all_customers).and_return([ shopify_customer ], [])
+      allow(shopify_service).to receive(:fetch_all_orders).and_return([])
+
+      expect { described_class.new(store).call }.not_to raise_error
+      expect(existing.reload).to be_present
+    end
+
     it "updates existing fulfillment found globally instead of raising uniqueness error" do
       service.call
 
@@ -130,6 +176,21 @@ RSpec.describe SyncAllOrdersService do
       expect { described_class.new(store).call }.not_to change(Fulfillment, :count)
       expect(existing_fulfillment.reload.tracking_number).to eq("TRACK_UPDATED")
       expect(existing_fulfillment.tracking_company).to eq("FedEx")
+    end
+
+    it "handles fulfillment save race condition via RecordNotUnique" do
+      service.call
+      existing = Fulfillment.find_by(shopify_fulfillment_id: 300)
+
+      new_fulfillment = Fulfillment.new(shopify_fulfillment_id: 300)
+      allow(Fulfillment).to receive(:find_or_initialize_by).and_return(new_fulfillment)
+      allow(new_fulfillment).to receive(:save!).and_raise(ActiveRecord::RecordNotUnique)
+
+      allow(shopify_service).to receive(:fetch_all_customers).and_return([ shopify_customer ], [])
+      allow(shopify_service).to receive(:fetch_all_orders).and_return([ shopify_order ], [])
+
+      expect { described_class.new(store).call }.not_to raise_error
+      expect(existing.reload).to be_present
     end
 
     it "continues syncing when an individual order fails" do
@@ -179,6 +240,89 @@ RSpec.describe SyncAllOrdersService do
       service.call(incremental: true)
 
       expect(shopify_service).to have_received(:fetch_all_orders).with(since_id: nil, updated_at_min: nil)
+    end
+  end
+
+  describe "#call link_orphaned_tickets" do
+    let(:shopify_customer) do
+      { "id" => 100, "email" => "orphan@example.com", "first_name" => "Jane", "last_name" => "Buyer" }
+    end
+
+    before do
+      allow(shopify_service).to receive(:fetch_all_customers).and_return([ shopify_customer ], [])
+      allow(shopify_service).to receive(:fetch_all_orders).and_return([])
+    end
+
+    it "links orphaned tickets to matching customers by email" do
+      email_account = create(:email_account, shopify_store: store, user: store.user)
+      ticket = create(:ticket, email_account: email_account, customer_email: "orphan@example.com", customer: nil)
+
+      service.call
+
+      expect(ticket.reload.customer).to be_present
+      expect(ticket.customer.email).to eq("orphan@example.com")
+    end
+
+    it "does not overwrite tickets that already have a customer" do
+      existing_customer = create(:customer, shopify_store: store, email: "other@example.com")
+      email_account = create(:email_account, shopify_store: store, user: store.user)
+      ticket = create(:ticket, email_account: email_account, customer_email: "orphan@example.com", customer: existing_customer)
+
+      service.call
+
+      expect(ticket.reload.customer).to eq(existing_customer)
+    end
+
+    it "skips tickets with 'unknown' sentinel email" do
+      email_account = create(:email_account, shopify_store: store, user: store.user)
+      ticket = create(:ticket, email_account: email_account, customer_email: "unknown", customer: nil)
+
+      service.call
+
+      expect(ticket.reload.customer).to be_nil
+    end
+
+    it "skips tickets with email missing @ sign" do
+      email_account = create(:email_account, shopify_store: store, user: store.user)
+      ticket = create(:ticket, email_account: email_account, customer_email: "not-an-email", customer: nil)
+
+      service.call
+
+      expect(ticket.reload.customer).to be_nil
+    end
+
+    it "skips tickets from email accounts not linked to this store" do
+      other_store = create(:shopify_store)
+      other_email_account = create(:email_account, shopify_store: other_store, user: other_store.user)
+      ticket = create(:ticket, email_account: other_email_account, customer_email: "orphan@example.com", customer: nil)
+
+      # Create a customer in the current store with matching email
+      create(:customer, shopify_store: store, email: "orphan@example.com")
+
+      service.call
+
+      expect(ticket.reload.customer).to be_nil
+    end
+
+    it "links multiple orphaned tickets in one sync run" do
+      email_account = create(:email_account, shopify_store: store, user: store.user)
+      ticket_a = create(:ticket, email_account: email_account, customer_email: "orphan@example.com", customer: nil)
+      ticket_b = create(:ticket, email_account: email_account, customer_email: "orphan@example.com", customer: nil)
+
+      service.call
+
+      expect(ticket_a.reload.customer).to be_present
+      expect(ticket_b.reload.customer).to be_present
+      expect(ticket_a.customer).to eq(ticket_b.customer)
+    end
+
+    it "does not link tickets when no customer matches the email" do
+      email_account = create(:email_account, shopify_store: store, user: store.user)
+      ticket = create(:ticket, email_account: email_account, customer_email: "nomatch@example.com", customer: nil)
+
+      service.call
+
+      expect(ticket.reload.customer).to be_nil
     end
   end
 
