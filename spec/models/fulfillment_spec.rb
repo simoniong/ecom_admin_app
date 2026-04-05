@@ -183,6 +183,28 @@ RSpec.describe Fulfillment, type: :model do
     end
   end
 
+  describe "#shopify_shipped_at" do
+    it "parses created_at from shopify_data" do
+      fulfillment = build(:fulfillment, shopify_data: { "created_at" => "2026-04-01T08:00:00-07:00" })
+      expect(fulfillment.shopify_shipped_at).to be_a(ActiveSupport::TimeWithZone)
+    end
+
+    it "returns nil when shopify_data has no created_at" do
+      fulfillment = build(:fulfillment, shopify_data: {})
+      expect(fulfillment.shopify_shipped_at).to be_nil
+    end
+
+    it "returns nil when shopify_data is nil" do
+      fulfillment = build(:fulfillment, shopify_data: nil)
+      expect(fulfillment.shopify_shipped_at).to be_nil
+    end
+
+    it "returns nil for unparseable timestamps" do
+      fulfillment = build(:fulfillment, shopify_data: { "created_at" => "not-a-date" })
+      expect(fulfillment.shopify_shipped_at).to be_nil
+    end
+  end
+
   describe "#update_from_tracking_result" do
     let(:fulfillment) { create(:fulfillment, tracking_number: "TRACK123") }
     let(:result) do

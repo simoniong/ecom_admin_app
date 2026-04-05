@@ -94,6 +94,15 @@ class Fulfillment < ApplicationRecord
     )
   end
 
+  def shopify_shipped_at
+    created_at_str = shopify_data&.dig("created_at")
+    return nil unless created_at_str.present?
+
+    Time.zone.parse(created_at_str)
+  rescue ArgumentError
+    nil
+  end
+
   def last_tracking_event
     latest_event_description || tracking_details&.dig("last_event")
   end
