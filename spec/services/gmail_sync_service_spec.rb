@@ -258,6 +258,62 @@ RSpec.describe GmailSyncService do
       expect { service.sync! }.not_to raise_error
       expect(Ticket.last.customer_email).to eq("fail@example.com")
     end
+
+    it "does not enqueue ShopifyLookupRetryJob when lookup succeeds" do
+      gmail = instance_double(GmailService)
+      allow(GmailService).to receive(:new).and_return(gmail)
+
+      profile = Google::Apis::GmailV1::Profile.new(history_id: 99)
+      allow(gmail).to receive(:user_profile).and_return(profile)
+
+      thread_list = Google::Apis::GmailV1::ListThreadsResponse.new(
+        threads: [ Google::Apis::GmailV1::Thread.new(id: "t-ok-lookup") ],
+        next_page_token: nil
+      )
+      allow(gmail).to receive(:list_threads).and_return(thread_list)
+
+      full_thread = build_gmail_thread(
+        id: "t-ok-lookup",
+        messages: [ build_gmail_message(id: "m-ok-lookup", thread_id: "t-ok-lookup", from: "ok@example.com") ]
+      )
+      allow(gmail).to receive(:get_thread).with("t-ok-lookup").and_return(full_thread)
+
+      shopify = instance_double(ShopifyLookupService)
+      allow(ShopifyLookupService).to receive(:new).and_return(shopify)
+      allow(shopify).to receive(:lookup)
+
+      expect { service.sync! }.not_to have_enqueued_job(ShopifyLookupRetryJob)
+    end
+
+    it "enqueues ShopifyLookupRetryJob when lookup fails" do
+      gmail = instance_double(GmailService)
+      allow(GmailService).to receive(:new).and_return(gmail)
+
+      profile = Google::Apis::GmailV1::Profile.new(history_id: 99)
+      allow(gmail).to receive(:user_profile).and_return(profile)
+
+      thread_list = Google::Apis::GmailV1::ListThreadsResponse.new(
+        threads: [ Google::Apis::GmailV1::Thread.new(id: "t-retry") ],
+        next_page_token: nil
+      )
+      allow(gmail).to receive(:list_threads).and_return(thread_list)
+
+      full_thread = build_gmail_thread(
+        id: "t-retry",
+        messages: [ build_gmail_message(id: "m-retry", thread_id: "t-retry", from: "retry@example.com") ]
+      )
+      allow(gmail).to receive(:get_thread).with("t-retry").and_return(full_thread)
+
+      shopify = instance_double(ShopifyLookupService)
+      allow(ShopifyLookupService).to receive(:new).and_return(shopify)
+      allow(shopify).to receive(:lookup).and_raise(RuntimeError, "Shopify down")
+
+      service.sync!
+
+      ticket = Ticket.last
+      expect(ticket.customer_email).to eq("retry@example.com")
+      expect(ShopifyLookupRetryJob).to have_been_enqueued.with(ticket.id)
+    end
   end
 
   describe "multipart message body extraction" do

@@ -29,6 +29,20 @@ RSpec.describe "Shipments", type: :request do
       expect(response.body).to include("Delivered (2)")
     end
 
+    it "shows shipments across multiple stores when no store selected" do
+      store2 = create(:shopify_store, user: user)
+      customer2 = create(:customer, shopify_store: store2)
+      order1 = create(:order, customer: customer, shopify_store: store)
+      order2 = create(:order, customer: customer2, shopify_store: store2)
+      create(:fulfillment, order: order1, tracking_number: "STORE1-T", tracking_status: "InTransit")
+      create(:fulfillment, order: order2, tracking_number: "STORE2-T", tracking_status: "InTransit")
+
+      get shipments_path
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include("STORE1-T")
+      expect(response.body).to include("STORE2-T")
+    end
+
     it "filters by status tab" do
       order = create(:order, customer: customer, shopify_store: store)
       create(:fulfillment, order: order, tracking_number: "T1", tracking_status: "InTransit")

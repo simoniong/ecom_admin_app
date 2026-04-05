@@ -16,6 +16,8 @@ class SyncAllOrdersService
     sync_all_customers(updated_at_min: updated_since)
     sync_all_orders(updated_at_min: updated_since)
 
+    link_orphaned_tickets
+
     @store.update!(orders_synced_at: sync_started_at)
 
     Rails.logger.info("[SyncAllOrders] Completed for store=#{@store.shop_domain}: #{@synced_customers} customers, #{@synced_orders} orders")
@@ -128,6 +130,27 @@ class SyncAllOrdersService
     else
       fetched = @shopify.fetch_fulfillments(order.shopify_order_id)
       fetched.each { |sf| upsert_fulfillment(order, sf) }
+    end
+  end
+
+  def link_orphaned_tickets
+    email_accounts = EmailAccount.where(shopify_store: @store)
+    return if email_accounts.empty?
+
+    orphaned_tickets = Ticket.where(email_account: email_accounts, customer_id: nil)
+                             .where.not(customer_email: [ nil, "", "unknown" ])
+                             .where("customer_email LIKE '%@%'")
+    return if orphaned_tickets.empty?
+
+    emails = orphaned_tickets.distinct.pluck(:customer_email).map(&:downcase)
+    customers_by_email = @store.customers.where("LOWER(email) IN (?)", emails).index_by { |c| c.email&.downcase }
+
+    orphaned_tickets.find_each do |ticket|
+      customer = customers_by_email[ticket.customer_email.downcase]
+      next unless customer
+
+      ticket.update!(customer: customer)
+      Rails.logger.info("[SyncAllOrders] Linked Ticket##{ticket.id} to Customer##{customer.id}")
     end
   end
 

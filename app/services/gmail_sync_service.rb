@@ -175,11 +175,12 @@ class GmailSyncService
       end
     end
 
-    if is_new && ticket.customer_email.present?
+    if is_new && ticket.customer_email.present? && ticket.customer_email.include?("@")
       begin
         ShopifyLookupService.new.lookup(ticket)
       rescue => e
         Rails.logger.error("[ShopifyLookup] Failed for Ticket##{ticket.id}: #{e.message}")
+        ShopifyLookupRetryJob.perform_later(ticket.id)
       end
     end
   end
