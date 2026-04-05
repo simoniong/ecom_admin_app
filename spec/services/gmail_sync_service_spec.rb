@@ -183,6 +183,58 @@ RSpec.describe GmailSyncService do
       expect(ticket.customer_name).to eq("Jane Customer")
     end
 
+    it "strips HTML tags from customer name when body is HTML-only" do
+      gmail = instance_double(GmailService)
+      allow(GmailService).to receive(:new).and_return(gmail)
+
+      profile = Google::Apis::GmailV1::Profile.new(history_id: 99)
+      allow(gmail).to receive(:user_profile).and_return(profile)
+
+      thread_list = Google::Apis::GmailV1::ListThreadsResponse.new(
+        threads: [ Google::Apis::GmailV1::Thread.new(id: "t-html") ],
+        next_page_token: nil
+      )
+      allow(gmail).to receive(:list_threads).and_return(thread_list)
+
+      html_body = <<~HTML
+        <p>Name: Krisztina B.</p>
+        <p><img src="https://loox.io/img/star.png"/><img src="https://loox.io/img/star.png"/></p>
+        <p>Email: krisztina@example.com</p>
+        <p style="white-space: pre-wrap;">Great quality canvas and paint...</p>
+      HTML
+
+      # Build message with HTML-only body (no text/plain part)
+      encoded_body = Base64.urlsafe_encode64(html_body)
+      full_thread = Google::Apis::GmailV1::Thread.new(
+        id: "t-html",
+        messages: [
+          Google::Apis::GmailV1::Message.new(
+            id: "m-html", thread_id: "t-html",
+            internal_date: (Time.current.to_f * 1000).to_i,
+            payload: Google::Apis::GmailV1::MessagePart.new(
+              headers: [
+                Google::Apis::GmailV1::MessagePartHeader.new(name: "From", value: "Loox <no-reply@loox.io>"),
+                Google::Apis::GmailV1::MessagePartHeader.new(name: "Subject", value: "New review (5★) by Krisztina B.")
+              ],
+              parts: [
+                Google::Apis::GmailV1::MessagePart.new(
+                  mime_type: "text/html",
+                  body: Google::Apis::GmailV1::MessagePartBody.new(data: encoded_body)
+                )
+              ]
+            )
+          )
+        ]
+      )
+      allow(gmail).to receive(:get_thread).with("t-html").and_return(full_thread)
+
+      service.sync!
+      ticket = Ticket.last
+      expect(ticket.customer_name).to eq("Krisztina B.")
+      expect(ticket.customer_email).to eq("krisztina@example.com")
+      expect(ticket.customer_name).not_to include("<")
+    end
+
     it "detects customer from To header when sender is account email" do
       gmail = instance_double(GmailService)
       allow(GmailService).to receive(:new).and_return(gmail)
