@@ -71,7 +71,18 @@ RSpec.describe "Api::V1::Tickets", type: :request do
     it "includes customer and orders in detail" do
       customer = create(:customer)
       order = create(:order, customer: customer)
-      create(:fulfillment, order: order)
+      fulfillment = create(:fulfillment, order: order,
+        tracking_status: "InTransit",
+        tracking_sub_status: "InTransit_PickedUp",
+        origin_country: "CN",
+        destination_country: "US",
+        shipped_at: "2026-03-31T12:00:00Z",
+        delivered_at: nil,
+        last_event_at: "2026-04-03T18:00:00Z",
+        latest_event_description: "Shipment departed from facility",
+        transit_days: 5,
+        shopify_data: { "created_at" => "2026-03-31T10:00:00Z" }
+      )
       ticket = create(:ticket, email_account: email_account, customer: customer)
 
       get "/api/v1/tickets/#{ticket.id}", headers: auth_headers
@@ -79,7 +90,18 @@ RSpec.describe "Api::V1::Tickets", type: :request do
 
       expect(body["customer"]["email"]).to eq(customer.email)
       expect(body["orders"].length).to eq(1)
-      expect(body["orders"].first["fulfillments"]).to be_present
+
+      f = body["orders"].first["fulfillments"].first
+      expect(f["tracking_status"]).to eq("InTransit")
+      expect(f["tracking_sub_status"]).to eq("InTransit_PickedUp")
+      expect(f["origin_country"]).to eq("CN")
+      expect(f["destination_country"]).to eq("US")
+      expect(f["shipped_at"]).to be_present
+      expect(f["shopify_shipped_at"]).to be_present
+      expect(f["delivered_at"]).to be_nil
+      expect(f["last_event_at"]).to be_present
+      expect(f["latest_event_description"]).to eq("Shipment departed from facility")
+      expect(f["transit_days"]).to eq(5)
     end
   end
 

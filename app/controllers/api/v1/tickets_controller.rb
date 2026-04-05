@@ -86,7 +86,17 @@ class Api::V1::TicketsController < Api::BaseController
               status: f.status,
               tracking_number: f.tracking_number,
               tracking_company: f.tracking_company,
-              tracking_url: f.tracking_url
+              tracking_url: f.tracking_url,
+              tracking_status: f.tracking_status,
+              tracking_sub_status: f.tracking_sub_status,
+              origin_country: f.origin_country,
+              destination_country: f.destination_country,
+              shipped_at: f.shipped_at,
+              shopify_shipped_at: f.shopify_shipped_at,
+              delivered_at: f.delivered_at,
+              last_event_at: f.last_event_at,
+              latest_event_description: f.latest_event_description,
+              transit_days: f.transit_days
             }
           end
         }
