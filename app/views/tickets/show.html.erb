@@ -37,7 +37,7 @@
       <div class="flex items-center justify-between mb-3">
         <h2 class="text-sm font-semibold <%= @ticket.draft? ? 'text-yellow-800' : 'text-blue-800' %>"><%= t("tickets.show.draft_reply") %></h2>
         <% if @ticket.draft_reply_at %>
-          <span class="text-xs <%= @ticket.draft? ? 'text-yellow-600' : 'text-blue-600' %>"><%= t("tickets.show.draft_by_agent") %> · <%= l(@ticket.draft_reply_at.in_time_zone("Asia/Shanghai"), format: :short) %></span>
+          <span class="text-xs <%= @ticket.draft? ? 'text-yellow-600' : 'text-blue-600' %>"><%= t("tickets.show.draft_by_agent") %> · <%= l(@ticket.draft_reply_at.in_time_zone(@ticket_timezone), format: :short) %></span>
         <% end %>
       </div>
       <%= form_with(model: @ticket, url: ticket_path(id: @ticket.id), method: :patch, class: "space-y-3") do |f| %>
@@ -99,7 +99,7 @@
               <div class="flex items-center gap-2 mb-1">
                 <span class="text-xs font-medium <%= is_customer ? 'text-gray-700' : 'text-blue-700' %>"><%= message.from %></span>
                 <span class="text-xs text-gray-400">
-                  <%= message.sent_at ? l(message.sent_at.in_time_zone("Asia/Shanghai"), format: :short) : "—" %>
+                  <%= message.sent_at ? l(message.sent_at.in_time_zone(@ticket_timezone), format: :short) : "—" %>
                 </span>
               </div>
               <%= render_message_body(message.body) %>
