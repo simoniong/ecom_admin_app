@@ -24,6 +24,7 @@ Rails.application.routes.draw do
   namespace :api do
     namespace :v1 do
       resources :tickets, only: [ :index, :show ] do
+        get :count, on: :collection
         post :draft_reply, on: :member
       end
       resources :ad_campaigns, only: [ :index ]

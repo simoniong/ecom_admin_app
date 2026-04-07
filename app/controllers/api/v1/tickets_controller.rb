@@ -1,10 +1,15 @@
 class Api::V1::TicketsController < Api::BaseController
   def index
     tickets = Ticket.where(status: :new_ticket)
-                    .includes(:messages, :email_account, :customer)
+                    .includes(:email_account, :customer)
                     .by_recency
 
     render json: tickets.map { |t| ticket_json(t) }
+  end
+
+  def count
+    count = Ticket.where(status: :new_ticket).count
+    render json: { count: count }
   end
 
   def show
@@ -51,15 +56,17 @@ class Api::V1::TicketsController < Api::BaseController
       created_at: ticket.created_at
     }
 
-    json[:messages] = ticket.messages.sort_by { |m| m.sent_at || Time.at(0) }.reverse.map do |m|
-      {
-        id: m.id,
-        from: m.from,
-        to: m.to,
-        subject: m.subject,
-        body: m.body,
-        sent_at: m.sent_at
-      }
+    if detail
+      json[:messages] = ticket.messages.sort_by { |m| m.sent_at || Time.at(0) }.reverse.map do |m|
+        {
+          id: m.id,
+          from: m.from,
+          to: m.to,
+          subject: m.subject,
+          body: m.body,
+          sent_at: m.sent_at
+        }
+      end
     end
 
     if detail && ticket.customer
