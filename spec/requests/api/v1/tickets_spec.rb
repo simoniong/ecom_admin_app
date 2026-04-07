@@ -36,15 +36,36 @@ RSpec.describe "Api::V1::Tickets", type: :request do
       expect(body.first["id"]).to eq(new_ticket.id)
     end
 
-    it "includes messages" do
+    it "does not include messages" do
       ticket = create(:ticket, email_account: email_account)
       create(:message, ticket: ticket, body: "Help me")
 
       get "/api/v1/tickets", headers: auth_headers
       body = JSON.parse(response.body)
 
-      expect(body.first["messages"].length).to eq(1)
-      expect(body.first["messages"].first["body"]).to eq("Help me")
+      expect(body.first).not_to have_key("messages")
+    end
+  end
+
+  describe "GET /api/v1/tickets/count" do
+    it "returns count of new_ticket status tickets" do
+      create_list(:ticket, 3, email_account: email_account, status: :new_ticket)
+      create(:ticket, :draft, email_account: email_account)
+      create(:ticket, :closed, email_account: email_account)
+
+      get "/api/v1/tickets/count", headers: auth_headers
+      body = JSON.parse(response.body)
+
+      expect(response).to have_http_status(:ok)
+      expect(body["count"]).to eq(3)
+    end
+
+    it "returns 0 when no new tickets exist" do
+      get "/api/v1/tickets/count", headers: auth_headers
+      body = JSON.parse(response.body)
+
+      expect(response).to have_http_status(:ok)
+      expect(body["count"]).to eq(0)
     end
   end
 
@@ -145,7 +166,7 @@ RSpec.describe "Api::V1::Tickets", type: :request do
            params: { draft_reply: "New draft" },
            headers: auth_headers
 
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
     end
 
     it "returns 422 when draft_reply is blank" do
@@ -155,7 +176,7 @@ RSpec.describe "Api::V1::Tickets", type: :request do
            params: { draft_reply: "" },
            headers: auth_headers
 
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
     end
 
     it "returns 404 for non-existent ticket" do
