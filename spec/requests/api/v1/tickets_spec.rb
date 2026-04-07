@@ -64,6 +64,7 @@ RSpec.describe "Api::V1::Tickets", type: :request do
       get "/api/v1/tickets/count", headers: auth_headers
       body = JSON.parse(response.body)
 
+      expect(response).to have_http_status(:ok)
       expect(body["count"]).to eq(0)
     end
   end

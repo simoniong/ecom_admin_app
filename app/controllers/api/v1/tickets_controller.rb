@@ -1,7 +1,6 @@
 class Api::V1::TicketsController < Api::BaseController
   def index
     tickets = Ticket.where(status: :new_ticket)
-                    .includes(:email_account, :customer)
                     .by_recency
 
     render json: tickets.map { |t| ticket_json(t) }
