@@ -9,11 +9,17 @@ export default class extends Controller {
       this.menuTarget.classList.remove("hidden")
       this.arrowTarget.classList.add("rotate-90")
     }
+    this.#syncAria()
   }
 
   toggle() {
     this.openValue = !this.openValue
     this.menuTarget.classList.toggle("hidden")
     this.arrowTarget.classList.toggle("rotate-90")
+    this.#syncAria()
+  }
+
+  #syncAria() {
+    this.element.querySelector("button").setAttribute("aria-expanded", this.openValue)
   }
 }

@@ -9,8 +9,10 @@ module SystemHelpers
   end
 
   def navigate_to_settings_item(label)
-    click_button "Settings"
-    click_link label
+    within("aside") do
+      click_button "Settings" unless page.has_link?(label, visible: true)
+      click_link label
+    end
   end
 
   # Rack-level sign in — fast and reliable for tests that only need an authenticated session
