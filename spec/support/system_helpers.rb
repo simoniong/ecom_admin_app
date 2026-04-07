@@ -8,6 +8,11 @@ module SystemHelpers
     expect(page).to have_selector("aside", wait: 15)
   end
 
+  def navigate_to_settings_item(label)
+    click_button "Settings"
+    click_link label
+  end
+
   # Rack-level sign in — fast and reliable for tests that only need an authenticated session
   def sign_in_as(user)
     login_as(user, scope: :user)
