@@ -16,7 +16,7 @@ RSpec.describe "Authentication", type: :system do
     expect(page).to have_text("Dashboard")
     expect(page).to have_text("Welcome back")
     expect(page).to have_selector("aside")
-    expect(page).to have_link("Email Accounts")
+    expect(page).to have_button("Settings")
     expect(page).to have_link("Tickets")
   end
 
@@ -28,7 +28,7 @@ RSpec.describe "Authentication", type: :system do
 
   it "navigates to email accounts page" do
     sign_in_as(user)
-    click_link "Email Accounts"
+    navigate_to_settings_item "Email Accounts"
     expect(page).to have_text("Email Accounts")
     expect(page).to have_text("No email accounts linked yet.")
   end

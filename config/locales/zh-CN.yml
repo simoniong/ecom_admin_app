@@ -9,6 +9,7 @@
     orders: "订单"
     ad_accounts: "广告账户"
     ad_campaigns: "广告活动"
+    settings: "设置"
     sign_out: "登出"
   auth:
     sign_in: "登录"

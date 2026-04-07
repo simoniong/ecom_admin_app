@@ -10,6 +10,7 @@ en:
     shipments: "Shipments"
     ad_accounts: "Ad Accounts"
     ad_campaigns: "Ad Campaigns"
+    settings: "Settings"
     sign_out: "Sign out"
   auth:
     sign_in: "Sign in"
