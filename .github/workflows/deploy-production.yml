@@ -33,6 +33,9 @@ jobs:
       META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
       SHOPIFY_CLIENT_ID: ${{ secrets.SHOPIFY_CLIENT_ID }}
       SHOPIFY_CLIENT_SECRET: ${{ secrets.SHOPIFY_CLIENT_SECRET }}
+      SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+      GMAIL_SMTP_USER: ${{ secrets.GMAIL_SMTP_USER }}
+      GMAIL_SMTP_PASSWORD: ${{ secrets.GMAIL_SMTP_PASSWORD }}
 
     steps:
       - name: Checkout code

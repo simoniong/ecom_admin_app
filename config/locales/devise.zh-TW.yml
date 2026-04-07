@@ -13,8 +13,15 @@
       signed_in: "登入成功。"
       signed_out: "已登出。"
       already_signed_out: "已登出。"
+    mailer:
+      reset_password_instructions:
+        subject: "重設密碼說明"
+      password_change:
+        subject: "密碼已更改"
     passwords:
+      no_token: "無法在沒有密碼重設郵件的情況下存取此頁面。如果您來自密碼重設郵件，請確保使用了完整的連結。"
       send_instructions: "您將在幾分鐘內收到重設密碼的郵件。"
+      send_paranoid_instructions: "如果您的郵箱存在於我們的資料庫中，您將會收到一封密碼重設郵件。"
       updated: "密碼修改成功，您已登入。"
     unlocks:
       send_instructions: "您將在幾分鐘內收到解鎖帳戶的郵件。"
