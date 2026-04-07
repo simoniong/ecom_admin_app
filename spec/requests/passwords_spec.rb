@@ -46,5 +46,28 @@ RSpec.describe "Passwords", type: :request do
       user.reload
       expect(user.valid_password?("newpassword123")).to be true
     end
+
+    it "fails with invalid token" do
+      put user_password_path, params: {
+        user: {
+          reset_password_token: "invalid-token",
+          password: "newpassword123",
+          password_confirmation: "newpassword123"
+        }
+      }
+      expect(response).to have_http_status(:unprocessable_content)
+    end
+
+    it "fails with mismatched passwords" do
+      raw_token = user.send_reset_password_instructions
+      put user_password_path, params: {
+        user: {
+          reset_password_token: raw_token,
+          password: "newpassword123",
+          password_confirmation: "differentpassword"
+        }
+      }
+      expect(response).to have_http_status(:unprocessable_content)
+    end
   end
 end

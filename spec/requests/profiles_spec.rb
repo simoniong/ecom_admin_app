@@ -69,5 +69,28 @@ RSpec.describe "Profiles", type: :request do
       }
       expect(response).to have_http_status(:unprocessable_content)
     end
+
+    it "fails when new password is too short" do
+      patch profile_path, params: {
+        user: {
+          first_name: "John",
+          last_name: "Doe",
+          current_password: "password123",
+          password: "short",
+          password_confirmation: "short"
+        }
+      }
+      expect(response).to have_http_status(:unprocessable_content)
+    end
+
+    it "does not change password when password field is blank" do
+      patch profile_path, params: {
+        user: { first_name: "Jane", last_name: "Smith", password: "", password_confirmation: "" }
+      }
+      expect(response).to redirect_to(edit_profile_path)
+      user.reload
+      expect(user.first_name).to eq("Jane")
+      expect(user.valid_password?("password123")).to be true
+    end
   end
 end
