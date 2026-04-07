@@ -9,6 +9,7 @@
     orders: "訂單"
     ad_accounts: "廣告帳戶"
     ad_campaigns: "廣告活動"
+    settings: "設定"
     sign_out: "登出"
   auth:
     sign_in: "登入"

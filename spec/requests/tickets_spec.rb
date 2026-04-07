@@ -201,7 +201,7 @@ RSpec.describe "Tickets", type: :request do
       ticket = create(:ticket, email_account: email_account, status: :closed)
       sign_in user
       patch ticket_path(id: ticket.id), params: { ticket: { status: "draft_confirmed" } }, as: :json
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
     end
 
     it "allows new_ticket → closed via JSON (spam)" do
@@ -228,7 +228,7 @@ RSpec.describe "Tickets", type: :request do
       ticket = create(:ticket, :draft, email_account: email_account)
       sign_in user
       patch ticket_path(id: ticket.id), params: { ticket: { draft_reply: "" } }
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
     end
 
     it "reorders tickets within a lane via JSON" do

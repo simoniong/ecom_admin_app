@@ -21,23 +21,42 @@ Unauthorized requests return `401`:
 ## Workflow
 
 ```
-1. GET /tickets          → List all new (unprocessed) tickets
-2. GET /tickets/:id      → Get ticket detail with customer, orders, fulfillments
-3. POST /tickets/:id/draft_reply  → Submit draft reply, ticket transitions to "draft"
-4. (Human reviews draft in admin UI → confirms → system schedules email send)
+1. GET /tickets/count    → Get count of new (unprocessed) tickets
+2. GET /tickets          → List all new (unprocessed) tickets (basic info only)
+3. GET /tickets/:id      → Get ticket detail with messages, customer, orders, fulfillments
+4. POST /tickets/:id/draft_reply  → Submit draft reply, ticket transitions to "draft"
+5. (Human reviews draft in admin UI → confirms → system schedules email send)
 ```
 
 ---
 
 ## Endpoints
 
-### 1. List New Tickets
+### 1. Count New Tickets
+
+```
+GET /tickets/count
+```
+
+Returns the count of tickets with `status: "new_ticket"`.
+
+**Response** `200 OK`
+
+```json
+{
+  "count": 5
+}
+```
+
+---
+
+### 2. List New Tickets
 
 ```
 GET /tickets
 ```
 
-Returns all tickets with `status: "new_ticket"`, ordered by most recent message first.
+Returns all tickets with `status: "new_ticket"`, ordered by most recent message first. Returns basic ticket info only — use the detail endpoint to get messages, customer, and order data.
 
 **Response** `200 OK`
 
@@ -52,24 +71,14 @@ Returns all tickets with `status: "new_ticket"`, ordered by most recent message 
     "draft_reply": null,
     "draft_reply_at": null,
     "last_message_at": "2026-04-05T10:30:00Z",
-    "created_at": "2026-04-05T10:00:00Z",
-    "messages": [
-      {
-        "id": "a1b2c3d4-...",
-        "from": "jane@example.com",
-        "to": "support@shop.com",
-        "subject": "Where is my order?",
-        "body": "Hi, I ordered 5 days ago and haven't received any tracking...",
-        "sent_at": "2026-04-05T10:30:00Z"
-      }
-    ]
+    "created_at": "2026-04-05T10:00:00Z"
   }
 ]
 ```
 
 ---
 
-### 2. Get Ticket Detail
+### 3. Get Ticket Detail
 
 ```
 GET /tickets/:id
@@ -165,7 +174,7 @@ Returns a single ticket with full context: messages, customer profile, orders, a
 
 ---
 
-### 3. Submit Draft Reply
+### 4. Submit Draft Reply
 
 ```
 POST /tickets/:id/draft_reply
@@ -197,8 +206,7 @@ Submit a draft reply for a ticket. Transitions ticket status from `new_ticket` �
   "draft_reply": "Hi Jane,\n\nThank you for reaching out! ...",
   "draft_reply_at": "2026-04-05T11:00:00Z",
   "last_message_at": "2026-04-05T10:30:00Z",
-  "created_at": "2026-04-05T10:00:00Z",
-  "messages": [...]
+  "created_at": "2026-04-05T10:00:00Z"
 }
 ```
 

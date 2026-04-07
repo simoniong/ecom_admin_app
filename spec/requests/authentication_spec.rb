@@ -26,7 +26,7 @@ RSpec.describe "Authentication", type: :request do
     post user_session_path, params: {
       user: { email: user.email, password: "wrongpassword" }
     }
-    expect(response).to have_http_status(:unprocessable_entity)
+    expect(response).to have_http_status(:unprocessable_content)
   end
 
   it "logs out and redirects to login" do
@@ -67,6 +67,6 @@ RSpec.describe "Authentication", type: :request do
     post user_session_path, params: {
       user: { email: user.email, password: user.password }
     }
-    expect(response).to have_http_status(:unprocessable_entity)
+    expect(response).to have_http_status(:unprocessable_content)
   end
 end
