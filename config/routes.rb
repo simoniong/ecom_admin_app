@@ -1,5 +1,5 @@
 Rails.application.routes.draw do
-  devise_for :users, controllers: { sessions: "users/sessions" }
+  devise_for :users, controllers: { sessions: "users/sessions", passwords: "users/passwords" }
 
   # OmniAuth callbacks (outside locale scope — Google redirects to a fixed URL)
   get "auth/google_oauth2/callback", to: "oauth_callbacks#google_oauth2"
@@ -35,6 +35,8 @@ Rails.application.routes.draw do
     authenticated :user do
       root "dashboard#show", as: :authenticated_root
     end
+
+    resource :profile, only: [ :edit, :update ]
 
     resources :email_accounts, only: [ :index, :show, :destroy ]
     resources :shopify_stores, only: [ :index, :show, :update, :destroy ]
