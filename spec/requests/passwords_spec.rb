@@ -15,7 +15,7 @@ RSpec.describe "Passwords", type: :request do
       post user_password_path, params: { user: { email: user.email } }
       expect(response).to redirect_to(new_user_session_path)
       follow_redirect!
-      expect(response.body).to include("You will receive an email with instructions")
+      expect(response.body).to include(I18n.t("devise.passwords.send_instructions"))
     end
 
     it "returns error for invalid email when not in paranoid mode" do

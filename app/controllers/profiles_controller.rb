@@ -7,7 +7,7 @@ class ProfilesController < ApplicationController
 
   def update
     if needs_password_change?
-      unless current_user.valid_password?(params[:user][:current_password])
+      unless current_user.valid_password?(params.dig(:user, :current_password).to_s)
         current_user.errors.add(:current_password, :invalid)
         render :edit, status: :unprocessable_entity
         return
@@ -39,6 +39,6 @@ class ProfilesController < ApplicationController
   end
 
   def needs_password_change?
-    params[:user][:password].present?
+    params.dig(:user, :password).present?
   end
 end
