@@ -10,7 +10,7 @@ class InvitationAcceptancesController < ApplicationController
         return
       end
       @state = :accept
-    elsif User.exists?(email: @invitation.email)
+    elsif find_user_by_invitation_email.present?
       @state = :login
     else
       @state = :register
@@ -22,8 +22,8 @@ class InvitationAcceptancesController < ApplicationController
     if user_signed_in?
       accept_and_redirect(current_user)
     elsif params[:state] == "login"
-      user = User.find_by(email: @invitation.email)
-      if user&.valid_password?(params[:password])
+      user = find_user_by_invitation_email
+      if user&.valid_for_authentication? { user.valid_password?(params[:password]) }
         sign_in(user)
         accept_and_redirect(user)
       else
@@ -55,6 +55,10 @@ class InvitationAcceptancesController < ApplicationController
 
   def set_invitation
     @invitation = Invitation.pending.find_by!(token: params[:token])
+  end
+
+  def find_user_by_invitation_email
+    User.find_for_database_authentication(email: @invitation.email)
   end
 
   def accept_and_redirect(user)
