@@ -1,6 +1,5 @@
 class InvitationsController < AdminController
-  before_action :require_owner!, only: [ :index, :create, :destroy ]
-  skip_before_action :authorize_page!, only: [ :show, :accept ]
+  before_action :require_owner!
 
   def index
     @memberships = current_company.memberships.includes(:user).order(created_at: :asc)
@@ -27,23 +26,6 @@ class InvitationsController < AdminController
     invitation = current_company.invitations.pending.find(params[:id])
     invitation.destroy
     redirect_to invitations_path, notice: t("invitations.cancelled")
-  end
-
-  def show
-    @invitation = Invitation.pending.find_by!(token: params[:token])
-  end
-
-  def accept
-    @invitation = Invitation.pending.find_by!(token: params[:token])
-
-    if current_user.membership_for(@invitation.company).present?
-      redirect_to authenticated_root_path, alert: t("invitations.already_member")
-      return
-    end
-
-    @invitation.accept!(current_user)
-    session[:company_id] = @invitation.company_id
-    redirect_to authenticated_root_path, notice: t("invitations.accepted", company: @invitation.company.name)
   end
 
   private

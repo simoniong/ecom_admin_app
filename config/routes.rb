@@ -20,9 +20,9 @@ Rails.application.routes.draw do
   get "meta/callback", to: "meta_oauth#callback", as: :meta_callback
   post "meta/select_accounts", to: "meta_oauth#select_accounts", as: :meta_select_accounts
 
-  # Invitation accept (outside locale scope — token-based URLs)
-  get "invitations/:token", to: "invitations#show", as: :accept_invitation
-  post "invitations/:token/accept", to: "invitations#accept", as: :accept_invitation_confirm
+  # Invitation accept (outside locale scope — token-based URLs, no auth required)
+  get "invitations/:token", to: "invitation_acceptances#show", as: :accept_invitation
+  post "invitations/:token/accept", to: "invitation_acceptances#accept", as: :accept_invitation_confirm
 
   # Agent API
   namespace :api do
