@@ -49,7 +49,9 @@ Rails.application.routes.draw do
     resources :email_accounts, only: [ :index, :show, :destroy ]
     resources :shopify_stores, only: [ :index, :show, :update, :destroy ]
     resources :ad_accounts, only: [ :index, :show, :destroy ]
-    resources :ad_campaigns, only: [ :index ]
+    resources :ad_campaigns, only: [ :index ] do
+      post :sync, on: :collection
+    end
     resources :campaign_display_templates, only: [ :create, :update, :destroy ]
     resources :orders, only: [ :index ] do
       post :sync, on: :collection
