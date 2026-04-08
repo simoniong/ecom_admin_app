@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_04_07_162710) do
+ActiveRecord::Schema[8.1].define(version: 2026_04_08_100006) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -19,6 +19,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_07_162710) do
     t.text "access_token", null: false
     t.string "account_id", null: false
     t.string "account_name"
+    t.uuid "company_id", null: false
     t.datetime "created_at", null: false
     t.string "platform", default: "meta", null: false
     t.uuid "shopify_store_id"
@@ -26,6 +27,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_07_162710) do
     t.datetime "token_expires_at"
     t.datetime "updated_at", null: false
     t.uuid "user_id", null: false
+    t.index ["company_id"], name: "index_ad_accounts_on_company_id"
     t.index ["shopify_store_id"], name: "index_ad_accounts_on_shopify_store_id"
     t.index ["user_id", "platform", "account_id"], name: "index_ad_accounts_on_user_id_and_platform_and_account_id", unique: true
     t.index ["user_id"], name: "index_ad_accounts_on_user_id"
@@ -74,14 +76,22 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_07_162710) do
   end
 
   create_table "campaign_display_templates", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "company_id", null: false
     t.datetime "created_at", null: false
     t.datetime "last_active_at"
     t.string "name", null: false
     t.datetime "updated_at", null: false
     t.uuid "user_id", null: false
     t.jsonb "visible_columns", default: [], null: false
+    t.index ["company_id"], name: "index_campaign_display_templates_on_company_id"
     t.index ["user_id", "last_active_at"], name: "index_campaign_display_templates_on_user_id_and_last_active_at"
     t.index ["user_id"], name: "index_campaign_display_templates_on_user_id"
+  end
+
+  create_table "companies", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "name", null: false
+    t.datetime "updated_at", null: false
   end
 
   create_table "customers", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -102,6 +112,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_07_162710) do
 
   create_table "email_accounts", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.text "access_token", null: false
+    t.uuid "company_id", null: false
     t.datetime "created_at", null: false
     t.string "email", null: false
     t.string "google_uid", null: false
@@ -113,6 +124,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_07_162710) do
     t.datetime "token_expires_at"
     t.datetime "updated_at", null: false
     t.uuid "user_id", null: false
+    t.index ["company_id"], name: "index_email_accounts_on_company_id"
     t.index ["google_uid"], name: "index_email_accounts_on_google_uid", unique: true
     t.index ["shopify_store_id"], name: "index_email_accounts_on_shopify_store_id"
     t.index ["user_id", "email"], name: "index_email_accounts_on_user_id_and_email", unique: true
@@ -153,6 +165,34 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_07_162710) do
     t.index ["tracking_number"], name: "index_fulfillments_on_tracking_number"
     t.index ["tracking_status"], name: "index_fulfillments_on_tracking_status"
     t.index ["transit_days"], name: "index_fulfillments_on_transit_days"
+  end
+
+  create_table "invitations", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.datetime "accepted_at"
+    t.uuid "company_id", null: false
+    t.datetime "created_at", null: false
+    t.string "email", null: false
+    t.uuid "invited_by_id", null: false
+    t.jsonb "permissions", default: [], null: false
+    t.integer "role", default: 0, null: false
+    t.string "token", null: false
+    t.datetime "updated_at", null: false
+    t.index ["company_id", "email"], name: "index_invitations_on_company_id_and_email", unique: true, where: "(accepted_at IS NULL)"
+    t.index ["company_id"], name: "index_invitations_on_company_id"
+    t.index ["invited_by_id"], name: "index_invitations_on_invited_by_id"
+    t.index ["token"], name: "index_invitations_on_token", unique: true
+  end
+
+  create_table "memberships", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "company_id", null: false
+    t.datetime "created_at", null: false
+    t.jsonb "permissions", default: [], null: false
+    t.integer "role", default: 0, null: false
+    t.datetime "updated_at", null: false
+    t.uuid "user_id", null: false
+    t.index ["company_id", "user_id"], name: "index_memberships_on_company_id_and_user_id", unique: true
+    t.index ["company_id"], name: "index_memberships_on_company_id"
+    t.index ["user_id"], name: "index_memberships_on_user_id"
   end
 
   create_table "messages", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -206,6 +246,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_07_162710) do
 
   create_table "shopify_stores", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.text "access_token", null: false
+    t.uuid "company_id", null: false
     t.datetime "created_at", null: false
     t.datetime "installed_at"
     t.datetime "orders_synced_at"
@@ -215,6 +256,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_07_162710) do
     t.datetime "updated_at", null: false
     t.uuid "user_id", null: false
     t.datetime "webhooks_registered_at"
+    t.index ["company_id"], name: "index_shopify_stores_on_company_id"
     t.index ["shop_domain"], name: "index_shopify_stores_on_shop_domain", unique: true
     t.index ["user_id"], name: "index_shopify_stores_on_user_id"
   end
@@ -383,19 +425,27 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_07_162710) do
     t.index ["unlock_token"], name: "index_users_on_unlock_token", unique: true
   end
 
+  add_foreign_key "ad_accounts", "companies"
   add_foreign_key "ad_accounts", "shopify_stores"
   add_foreign_key "ad_accounts", "users"
   add_foreign_key "ad_campaign_daily_metrics", "ad_campaigns"
   add_foreign_key "ad_campaigns", "ad_accounts"
   add_foreign_key "ad_daily_metrics", "ad_accounts"
+  add_foreign_key "campaign_display_templates", "companies"
   add_foreign_key "campaign_display_templates", "users"
   add_foreign_key "customers", "shopify_stores"
+  add_foreign_key "email_accounts", "companies"
   add_foreign_key "email_accounts", "shopify_stores"
   add_foreign_key "email_accounts", "users"
   add_foreign_key "fulfillments", "orders"
+  add_foreign_key "invitations", "companies"
+  add_foreign_key "invitations", "users", column: "invited_by_id"
+  add_foreign_key "memberships", "companies"
+  add_foreign_key "memberships", "users"
   add_foreign_key "messages", "tickets"
   add_foreign_key "orders", "customers"
   add_foreign_key "orders", "shopify_stores"
+  add_foreign_key "shopify_stores", "companies"
   add_foreign_key "shopify_stores", "users"
   add_foreign_key "solid_queue_blocked_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
   add_foreign_key "solid_queue_claimed_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade

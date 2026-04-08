@@ -7,7 +7,8 @@ class OauthCallbacksController < AdminController
       return
     end
 
-    email_account = current_user.email_accounts.find_or_initialize_by(google_uid: auth.uid)
+    email_account = current_company.email_accounts.find_or_initialize_by(google_uid: auth.uid)
+    email_account.user = current_user
     email_account.assign_attributes(
       email: auth.info.email,
       access_token: auth.credentials.token,

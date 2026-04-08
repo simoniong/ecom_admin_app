@@ -10,6 +10,28 @@
     </button>
   </div>
 
+  <%# Company Switcher %>
+  <% if current_company %>
+    <% user_companies = current_user.companies.order(:name) %>
+    <% if user_companies.size > 1 %>
+      <div class="px-4 py-2 border-b border-gray-200" data-controller="company-switcher">
+        <select data-action="change->company-switcher#switch"
+                class="w-full text-sm border-gray-300 rounded-md focus:ring-gray-500 focus:border-gray-500">
+          <% user_companies.each do |company| %>
+            <option value="<%= switch_company_path(id: company.id) %>"
+                    <%= "selected" if company == current_company %>>
+              <%= company.name %>
+            </option>
+          <% end %>
+        </select>
+      </div>
+    <% else %>
+      <div class="px-6 py-2 border-b border-gray-200">
+        <span class="text-xs text-gray-500"><%= current_company.name %></span>
+      </div>
+    <% end %>
+  <% end %>
+
   <%# Navigation %>
   <nav class="flex-1 p-4 space-y-1">
     <%= link_to authenticated_root_path, data: { action: "click->sidebar#close" },
@@ -53,7 +75,7 @@
     <% end %>
 
     <%# Settings group %>
-    <% settings_active = %w[shopify_stores ad_accounts email_accounts].include?(controller_name) %>
+    <% settings_active = %w[shopify_stores ad_accounts email_accounts companies invitations].include?(controller_name) %>
     <div data-controller="nav-group" data-nav-group-open-value="<%= settings_active %>">
       <button type="button" data-action="click->nav-group#toggle"
               aria-expanded="<%= settings_active %>" aria-controls="settings-menu"
@@ -69,6 +91,14 @@
       </button>
 
       <div id="settings-menu" data-nav-group-target="menu" class="ml-4 mt-1 space-y-1 <%= settings_active ? '' : 'hidden' %>">
+        <%= link_to edit_company_path, data: { action: "click->sidebar#close" },
+            class: "flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md #{%w[companies invitations].include?(controller_name) ? 'bg-gray-100 text-gray-900' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'}" do %>
+          <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 21h19.5M3.75 3v18m16.5-18v18M5.25 6h.008v.008H5.25V6Zm0 3h.008v.008H5.25V9Zm0 3h.008v.008H5.25V12Zm0 3h.008v.008H5.25V15Zm4.5-9h.008v.008H9.75V6Zm0 3h.008v.008H9.75V9Zm0 3h.008v.008H9.75V12Zm0 3h.008v.008H9.75V15Zm4.5-9h.008v.008h-.008V6Zm0 3h.008v.008h-.008V9Zm0 3h.008v.008h-.008V12Zm0 3h.008v.008h-.008V15Z" />
+          </svg>
+          <%= t("nav.company") %>
+        <% end %>
+
         <%= link_to shopify_stores_path, data: { action: "click->sidebar#close" },
             class: "flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md #{current_page?(shopify_stores_path) ? 'bg-gray-100 text-gray-900' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'}" do %>
           <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
