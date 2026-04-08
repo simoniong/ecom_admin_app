@@ -7,6 +7,14 @@ class AdCampaignsController < AdminController
     spend conversion_value roas
   ].freeze
 
+  def sync
+    SyncAdCampaignsJob.perform_later(company_id: current_company.id)
+    respond_to do |format|
+      format.html { redirect_to ad_campaigns_path, notice: t("ad_campaigns.sync_enqueued") }
+      format.json { render json: { message: t("ad_campaigns.sync_enqueued") } }
+    end
+  end
+
   def index
     @shopify_stores = current_company.shopify_stores.order(:shop_domain)
     @show_store_selector = @shopify_stores.size > 1

@@ -1,9 +1,12 @@
 class SyncAdCampaignsJob < ApplicationJob
   queue_as :default
 
+  # company_id: optional — scope sync to one company; nil = all companies
   # days: number of past days of insights to sync (default: 2 for timezone safety)
-  def perform(days: 2)
-    AdAccount.meta.find_each do |account|
+  def perform(company_id: nil, days: 2)
+    scope = AdAccount.meta
+    scope = scope.where(company_id: company_id) if company_id
+    scope.find_each do |account|
       next if account.token_expired?
 
       service = MetaAdsService.new(account)

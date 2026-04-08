@@ -117,11 +117,19 @@ RSpec.describe "AdCampaigns", type: :request do
       get ad_campaigns_path, params: { template_id: template.id }
 
       doc = Nokogiri::HTML(response.body)
-      headers = doc.css("thead th").map(&:text).map(&:strip)
-      expect(headers).to include("Impressions")
-      expect(headers).to include("ROAS")
-      expect(headers).not_to include("Cost/ATC")
-      expect(headers).not_to include("CPC")
+      # Visible columns should not have the hidden class
+      impressions_th = doc.at_css('thead th[data-column="impressions"]')
+      roas_th = doc.at_css('thead th[data-column="roas"]')
+      expect(impressions_th).to be_present
+      expect(impressions_th["class"]).not_to include("hidden")
+      expect(roas_th).to be_present
+      expect(roas_th["class"]).not_to include("hidden")
+
+      # Hidden columns should have the hidden class
+      cpc_th = doc.at_css('thead th[data-column="cpc"]')
+      cost_per_atc_th = doc.at_css('thead th[data-column="cost_per_atc"]')
+      expect(cpc_th["class"]).to include("hidden")
+      expect(cost_per_atc_th["class"]).to include("hidden")
     end
 
     it "shows all columns when no template selected" do
@@ -254,6 +262,22 @@ RSpec.describe "AdCampaigns", type: :request do
       get ad_campaigns_path, params: { sort_column: "daily_budget", sort_direction: "desc" }
       body = response.body
       expect(body.index("Active Low")).to be < body.index("Paused High")
+    end
+  end
+
+  describe "POST /ad_campaigns/sync" do
+    it "enqueues SyncAdCampaignsJob and redirects" do
+      sign_in user
+      expect {
+        post sync_ad_campaigns_path
+      }.to have_enqueued_job(SyncAdCampaignsJob).with(company_id: user.companies.first.id)
+      expect(response).to redirect_to(ad_campaigns_path)
+      expect(flash[:notice]).to eq(I18n.t("ad_campaigns.sync_enqueued"))
+    end
+
+    it "redirects unauthenticated user" do
+      post sync_ad_campaigns_path
+      expect(response).to redirect_to(new_user_session_path)
     end
   end
 end

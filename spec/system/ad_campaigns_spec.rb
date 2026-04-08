@@ -76,28 +76,18 @@ RSpec.describe "Ad Campaigns", type: :system do
     expect(page).to have_button("Maximum")
   end
 
-  it "creates and uses a display template" do
+  it "shows column toggle popover with checkboxes" do
     create(:ad_campaign, ad_account: ad_account, campaign_name: "Test Camp")
 
     sign_in_as(user)
     click_link "Ad Campaigns"
 
-    # Verify the modal element exists (may be hidden)
-    expect(page).to have_css("#template-modal", visible: :all)
+    # Open column toggle modal (first match is the column icon button)
+    find("[data-action*='ad-column-toggle#toggle']", match: :first).click
 
-    # Open modal via JS
-    page.execute_script("document.getElementById('template-modal').classList.remove('hidden')")
-
-    within("#template-modal") do
-      fill_in "campaign_display_template[name]", with: "Minimal View"
-
-      # Uncheck all, then check only impressions and roas
-      all("input[name='campaign_display_template[visible_columns][]'][type='checkbox']").each { |cb| cb.uncheck }
-      check "Impressions"
-      check "ROAS"
-      click_button "Save"
-    end
-
-    expect(page).to have_text("Template created")
+    # Popover shows column checkboxes and save-as-new button
+    expect(page).to have_css("[data-ad-column-toggle-target='dropdown']", visible: true)
+    expect(page).to have_css("[data-ad-column-toggle-target='checkbox']", minimum: 1)
+    expect(page).to have_button(I18n.t("campaign_display_templates.save_as_new"))
   end
 end
