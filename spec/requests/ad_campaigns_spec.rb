@@ -270,7 +270,7 @@ RSpec.describe "AdCampaigns", type: :request do
       sign_in user
       expect {
         post sync_ad_campaigns_path
-      }.to have_enqueued_job(SyncAdCampaignsJob)
+      }.to have_enqueued_job(SyncAdCampaignsJob).with(company_id: user.companies.first.id)
       expect(response).to redirect_to(ad_campaigns_path)
       expect(flash[:notice]).to eq(I18n.t("ad_campaigns.sync_enqueued"))
     end

@@ -169,6 +169,9 @@ export default class extends Controller {
         })
       })
 
+      if (response.redirected) { window.location.href = response.url; return }
+      if (!response.ok) { this.handleResponseError(response); return }
+
       const data = await response.json()
       if (data.redirect_url) {
         window.location.href = data.redirect_url
@@ -201,6 +204,9 @@ export default class extends Controller {
         })
       })
 
+      if (response.redirected) { window.location.href = response.url; return }
+      if (!response.ok) { this.handleResponseError(response); return }
+
       const data = await response.json()
       if (data.redirect_url) {
         window.location.href = data.redirect_url
@@ -229,6 +235,9 @@ export default class extends Controller {
         }
       })
 
+      if (response.redirected) { window.location.href = response.url; return }
+      if (!response.ok) { this.handleResponseError(response); return }
+
       const data = await response.json()
       if (data.redirect_url) {
         window.location.href = data.redirect_url
@@ -248,20 +257,26 @@ export default class extends Controller {
     const token = document.querySelector('meta[name="csrf-token"]')?.content
     const originalLabel = this.syncLabelTarget.textContent
 
-    // Disable button and show spinning state
     btn.disabled = true
     this.syncIconTarget.classList.add("animate-spin")
     this.syncLabelTarget.textContent = this.syncLabelTarget.dataset.syncingText || "..."
 
     try {
-      await fetch(url, {
+      const response = await fetch(url, {
         method: "POST",
         headers: {
           "X-CSRF-Token": token,
           "Accept": "application/json"
         }
       })
-      this.syncLabelTarget.textContent = this.syncLabelTarget.dataset.doneText || "✓"
+
+      if (response.redirected) { window.location.href = response.url; return }
+
+      if (response.ok) {
+        this.syncLabelTarget.textContent = this.syncLabelTarget.dataset.doneText || "✓"
+      } else {
+        this.syncLabelTarget.textContent = "Error"
+      }
       setTimeout(() => {
         this.syncLabelTarget.textContent = originalLabel
         btn.disabled = false
@@ -271,6 +286,19 @@ export default class extends Controller {
       this.syncLabelTarget.textContent = originalLabel
       btn.disabled = false
       this.syncIconTarget.classList.remove("animate-spin")
+    }
+  }
+
+  async handleResponseError(response) {
+    if (response.status === 401 || response.status === 403) {
+      window.location.reload()
+      return
+    }
+    try {
+      const data = await response.json()
+      if (data.errors) { alert(data.errors.join(", ")) }
+    } catch {
+      alert("Request failed. Please try again.")
     }
   }
 

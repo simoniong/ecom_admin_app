@@ -62,16 +62,18 @@
         <%# Scrollable column list %>
         <div class="flex-1 overflow-y-auto px-6 py-4" data-ad-column-toggle-target="list">
           <% ordered_columns.each do |col_id| %>
+            <% checkbox_id = "column_toggle_#{col_id}" %>
             <div data-ad-column-toggle-target="item" data-column="<%= col_id %>"
                  class="flex items-center gap-3 px-3 py-2.5 rounded-md hover:bg-gray-50 transition-colors">
               <span data-drag-handle class="cursor-grab text-gray-300 hover:text-gray-500 select-none text-lg">&#10495;</span>
               <input type="checkbox"
+                     id="<%= checkbox_id %>"
                      data-ad-column-toggle-target="checkbox"
                      data-column="<%= col_id %>"
                      data-action="change->ad-column-toggle#columnChanged"
                      <%= "checked" if visible.include?(col_id) %>
                      class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
-              <label class="text-sm text-gray-700 select-none cursor-pointer flex-1"><%= t("ad_campaigns.columns.#{col_id}") %></label>
+              <label for="<%= checkbox_id %>" class="text-sm text-gray-700 select-none cursor-pointer flex-1"><%= t("ad_campaigns.columns.#{col_id}") %></label>
             </div>
           <% end %>
         </div>
@@ -349,7 +351,7 @@
                 <% if formatter %>
                   <td data-column="<%= col %>" class="px-3 py-3 text-sm font-semibold text-gray-900 <%= align %> whitespace-nowrap <%= 'hidden' unless visible.include?(col) %>"><%= formatter.call %></td>
                 <% else %>
-                  <td data-column="<%= col %>" class="<%= 'hidden' unless visible.include?(col) %>"></td>
+                  <td data-column="<%= col %>" class="px-3 py-3 text-sm font-semibold text-gray-900 <%= align %> whitespace-nowrap <%= 'hidden' unless visible.include?(col) %>"></td>
                 <% end %>
               <% end %>
             </tr>

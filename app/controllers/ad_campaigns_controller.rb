@@ -8,7 +8,7 @@ class AdCampaignsController < AdminController
   ].freeze
 
   def sync
-    SyncAdCampaignsJob.perform_later
+    SyncAdCampaignsJob.perform_later(company_id: current_company.id)
     respond_to do |format|
       format.html { redirect_to ad_campaigns_path, notice: t("ad_campaigns.sync_enqueued") }
       format.json { render json: { message: t("ad_campaigns.sync_enqueued") } }
