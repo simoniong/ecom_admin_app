@@ -2,7 +2,7 @@
   <div class="flex items-center justify-between mb-6">
     <div>
       <h1 class="text-2xl font-semibold text-gray-900"><%= t("dashboard.title") %></h1>
-      <p class="mt-1 text-sm text-gray-600"><%= t("dashboard.welcome", email: current_user.email) %></p>
+      <p class="mt-1 text-sm text-gray-600"><%= t("dashboard.welcome", name: current_user.first_name.presence || current_user.email) %></p>
     </div>
   </div>
 

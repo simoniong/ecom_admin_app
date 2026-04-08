@@ -1,0 +1,5 @@
+<h2><%= t("invitations.email_greeting") %></h2>
+
+<p><%= t("invitations.email_body", company: @invitation.company.name, inviter: @invitation.invited_by.email) %></p>
+
+<p><%= link_to t("invitations.accept_button"), @accept_url %></p>

@@ -2,7 +2,8 @@ class CampaignDisplayTemplatesController < AdminController
   before_action :set_template, only: [ :update, :destroy ]
 
   def create
-    @template = current_user.campaign_display_templates.build(template_params)
+    @template = current_company.campaign_display_templates.build(template_params)
+    @template.user = current_user
     @template.last_active_at = Time.current
 
     if @template.save
@@ -29,7 +30,7 @@ class CampaignDisplayTemplatesController < AdminController
   private
 
   def set_template
-    @template = current_user.campaign_display_templates.find(params[:id])
+    @template = current_company.campaign_display_templates.find(params[:id])
   end
 
   def template_params

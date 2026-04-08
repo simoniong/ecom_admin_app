@@ -2,7 +2,7 @@ class TicketsController < AdminController
   before_action :set_ticket, only: [ :show, :update ]
 
   def index
-    tickets = Ticket.for_user(current_user).includes(:email_account).by_position.to_a
+    tickets = Ticket.for_company(current_company).includes(:email_account).by_position.to_a
     grouped = tickets.group_by(&:status)
     @tickets_by_status = Ticket.statuses.keys.index_with do |status|
       grouped[status] || []
@@ -32,7 +32,7 @@ class TicketsController < AdminController
     @ticket.transition_status!(params.dig(:ticket, :status))
 
     if params.dig(:ticket, :position_ids).present?
-      Ticket.for_user(current_user).reorder_positions!(params.dig(:ticket, :position_ids))
+      Ticket.for_company(current_company).reorder_positions!(params.dig(:ticket, :position_ids))
     end
 
     respond_to do |format|
@@ -47,7 +47,7 @@ class TicketsController < AdminController
   end
 
   def handle_reorder
-    Ticket.for_user(current_user).reorder_positions!(params.dig(:ticket, :position_ids))
+    Ticket.for_company(current_company).reorder_positions!(params.dig(:ticket, :position_ids))
 
     respond_to do |format|
       format.json { render json: { success: true }, status: :ok }
@@ -73,7 +73,7 @@ class TicketsController < AdminController
   end
 
   def set_ticket
-    @ticket = Ticket.for_user(current_user).includes(customer: { orders: :fulfillments }).find(params[:id])
+    @ticket = Ticket.for_company(current_company).includes(customer: { orders: :fulfillments }).find(params[:id])
   end
 
   def ticket_params

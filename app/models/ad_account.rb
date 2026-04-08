@@ -1,5 +1,6 @@
 class AdAccount < ApplicationRecord
   belongs_to :user
+  belongs_to :company
   belongs_to :shopify_store, optional: true
   has_many :ad_campaigns, dependent: :destroy
   has_many :ad_daily_metrics, dependent: :destroy

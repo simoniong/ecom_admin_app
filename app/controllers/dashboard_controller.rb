@@ -9,7 +9,7 @@ class DashboardController < AdminController
     end
 
     @metrics = DashboardMetricsService.new(
-      current_user,
+      current_company,
       range_key: @range_key,
       start_date: params[:start_date],
       end_date: params[:end_date]

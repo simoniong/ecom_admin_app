@@ -1,5 +1,6 @@
 class ShopifyStore < ApplicationRecord
   belongs_to :user
+  belongs_to :company
   has_many :email_accounts, dependent: :nullify
   has_many :ad_accounts, dependent: :nullify
   has_many :customers, dependent: :destroy

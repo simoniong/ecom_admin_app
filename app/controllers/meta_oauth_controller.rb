@@ -60,7 +60,8 @@ class MetaOauthController < AdminController
     account_ids.each do |acct_id|
       name = params.dig(:account_names, acct_id)
       timezone = params.dig(:account_timezones, acct_id)
-      ad_account = current_user.ad_accounts.find_or_initialize_by(platform: "meta", account_id: "act_#{acct_id}")
+      ad_account = current_company.ad_accounts.find_or_initialize_by(platform: "meta", account_id: "act_#{acct_id}")
+      ad_account.user = current_user
       validated_tz = ActiveSupport::TimeZone[timezone.to_s] ? timezone : "UTC"
       ad_account.assign_attributes(account_name: name, access_token: token, token_expires_at: expires_at, timezone: validated_tz)
       ad_account.save!
