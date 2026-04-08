@@ -29,6 +29,8 @@ env:
     - SHOPIFY_CLIENT_ID
     - SHOPIFY_CLIENT_SECRET
     - SENTRY_DSN
+    - GMAIL_SMTP_USER
+    - GMAIL_SMTP_PASSWORD
 
 builder:
   arch: amd64
