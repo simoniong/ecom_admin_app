@@ -2,7 +2,7 @@ class AdAccountsController < AdminController
   before_action :set_ad_account, only: [ :show, :destroy ]
 
   def index
-    @ad_accounts = current_user.ad_accounts.order(created_at: :desc)
+    @ad_accounts = current_company.ad_accounts.order(created_at: :desc)
   end
 
   def show; end
@@ -15,6 +15,6 @@ class AdAccountsController < AdminController
   private
 
   def set_ad_account
-    @ad_account = current_user.ad_accounts.find(params[:id])
+    @ad_account = current_company.ad_accounts.find(params[:id])
   end
 end

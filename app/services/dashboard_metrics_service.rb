@@ -8,8 +8,8 @@ class DashboardMetricsService
     "past_30_days" => -> { 29.days.ago.to_date..Date.current }
   }.freeze
 
-  def initialize(user, range_key: "past_7_days", start_date: nil, end_date: nil)
-    @user = user
+  def initialize(scope, range_key: "past_7_days", start_date: nil, end_date: nil)
+    @scope = scope
     if start_date.present? && end_date.present?
       @range_key = "custom"
       @date_range = begin
@@ -43,12 +43,11 @@ class DashboardMetricsService
     shopify = ShopifyDailyMetric.for_date_range(range)
     ad = AdDailyMetric.for_date_range(range)
 
-    # Scope to user's stores if association exists
-    if @user.respond_to?(:shopify_stores)
-      shopify = shopify.where(shopify_store_id: @user.shopify_stores.select(:id))
+    if @scope.respond_to?(:shopify_stores)
+      shopify = shopify.where(shopify_store_id: @scope.shopify_stores.select(:id))
     end
-    if @user.respond_to?(:ad_accounts)
-      ad = ad.where(ad_account_id: @user.ad_accounts.select(:id))
+    if @scope.respond_to?(:ad_accounts)
+      ad = ad.where(ad_account_id: @scope.ad_accounts.select(:id))
     end
 
     sessions = shopify.sum(:sessions)

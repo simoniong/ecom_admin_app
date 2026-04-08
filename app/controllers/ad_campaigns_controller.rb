@@ -8,7 +8,7 @@ class AdCampaignsController < AdminController
   ].freeze
 
   def index
-    @shopify_stores = current_user.shopify_stores.order(:shop_domain)
+    @shopify_stores = current_company.shopify_stores.order(:shop_domain)
     @show_store_selector = @shopify_stores.size > 1
 
     if params[:shopify_store_id].present?
@@ -17,9 +17,9 @@ class AdCampaignsController < AdminController
     @selected_store ||= @shopify_stores.first
 
     @ad_accounts = if @selected_store
-      current_user.ad_accounts.where(shopify_store: @selected_store).order(:account_name)
+      current_company.ad_accounts.where(shopify_store: @selected_store).order(:account_name)
     else
-      current_user.ad_accounts.order(:account_name)
+      current_company.ad_accounts.order(:account_name)
     end
 
     @selected_account = if params[:ad_account_id].present? && params[:ad_account_id] != "all"
@@ -97,7 +97,7 @@ class AdCampaignsController < AdminController
   end
 
   def load_display_templates
-    @templates = current_user.campaign_display_templates.by_last_active
+    @templates = current_company.campaign_display_templates.by_last_active
     @active_template = if params[:template_id].present?
       tpl = @templates.find_by(id: params[:template_id])
       tpl&.touch_active!

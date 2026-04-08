@@ -60,7 +60,8 @@ class ShopifyOauthController < AdminController
       return
     end
 
-    store = current_user.shopify_stores.find_or_initialize_by(shop_domain: shop)
+    store = current_company.shopify_stores.find_or_initialize_by(shop_domain: shop)
+    store.user = current_user
     store.assign_attributes(
       access_token: access_token_response["access_token"],
       scopes: access_token_response["scope"],

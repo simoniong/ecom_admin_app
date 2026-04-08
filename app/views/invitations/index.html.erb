@@ -1,0 +1,97 @@
+<div class="max-w-4xl mx-auto">
+  <div class="flex items-center justify-between">
+    <h1 class="text-2xl font-semibold text-gray-900"><%= t("invitations.title") %></h1>
+  </div>
+
+  <%# Current Members %>
+  <div class="mt-6 bg-white shadow-sm rounded-lg border border-gray-200">
+    <div class="px-6 py-4 border-b border-gray-200">
+      <h2 class="text-sm font-medium text-gray-900"><%= t("invitations.members") %></h2>
+    </div>
+    <div class="divide-y divide-gray-200">
+      <% @memberships.each do |membership| %>
+        <div class="flex items-center justify-between px-6 py-4">
+          <div class="flex items-center gap-3">
+            <div class="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center text-xs font-medium text-gray-600 shrink-0">
+              <%= membership.user.email.first.upcase %>
+            </div>
+            <div>
+              <span class="text-sm font-medium text-gray-900"><%= membership.user.email %></span>
+              <% unless membership.owner? %>
+                <p class="text-xs text-gray-500">
+                  <%= membership.permissions.map { |p| t("invitations.permission_labels.#{p}", default: p.humanize) }.join(", ") %>
+                </p>
+              <% end %>
+            </div>
+          </div>
+          <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium <%= membership.owner? ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-700' %>">
+            <%= t("invitations.roles.#{membership.role}") %>
+          </span>
+        </div>
+      <% end %>
+    </div>
+  </div>
+
+  <%# Pending Invitations %>
+  <% if @invitations.any? %>
+    <div class="mt-6 bg-white shadow-sm rounded-lg border border-gray-200">
+      <div class="px-6 py-4 border-b border-gray-200">
+        <h2 class="text-sm font-medium text-gray-900"><%= t("invitations.pending") %></h2>
+      </div>
+      <div class="divide-y divide-gray-200">
+        <% @invitations.each do |invitation| %>
+          <div class="flex items-center justify-between px-6 py-4">
+            <div>
+              <span class="text-sm font-medium text-gray-900"><%= invitation.email %></span>
+              <span class="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                <%= t("invitations.pending_label") %>
+              </span>
+            </div>
+            <%= button_to invitation_path(invitation), method: :delete,
+                data: { turbo_confirm: t("invitations.cancel_confirm") },
+                class: "text-sm text-red-600 hover:text-red-800" do %>
+              <%= t("invitations.cancel") %>
+            <% end %>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  <% end %>
+
+  <%# Invite Form %>
+  <div class="mt-6 bg-white shadow-sm rounded-lg border border-gray-200 p-6">
+    <h2 class="text-sm font-medium text-gray-900 mb-4"><%= t("invitations.invite_user") %></h2>
+
+    <%= form_with model: @invitation, url: invitations_path do |f| %>
+      <div class="space-y-4">
+        <div>
+          <%= f.label :email, t("invitations.email"), class: "block text-sm font-medium text-gray-700 mb-1" %>
+          <%= f.email_field :email, class: "block w-full px-3 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-700 focus:border-gray-900 focus:ring-gray-900", placeholder: "user@example.com" %>
+          <% if @invitation.errors[:email].any? %>
+            <p class="mt-1 text-sm text-red-600"><%= @invitation.errors[:email].first %></p>
+          <% end %>
+        </div>
+
+        <div>
+          <%= f.label :role, t("invitations.role"), class: "block text-sm font-medium text-gray-700 mb-1" %>
+          <%= f.select :role, Invitation.roles.keys.map { |r| [t("invitations.roles.#{r}"), r] },
+              {}, class: "block w-full px-3 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-700 focus:border-gray-900 focus:ring-gray-900" %>
+        </div>
+
+        <div>
+          <span class="block text-sm font-medium text-gray-700 mb-2"><%= t("invitations.page_permissions") %></span>
+          <div class="grid grid-cols-2 gap-2">
+            <% Membership::AVAILABLE_PERMISSIONS.each do |perm| %>
+              <label class="flex items-center gap-2 text-sm text-gray-700">
+                <%= check_box_tag "invitation[permissions][]", perm, false, id: "perm_#{perm}" %>
+                <%= t("invitations.permission_labels.#{perm}", default: perm.humanize) %>
+              </label>
+            <% end %>
+          </div>
+        </div>
+
+        <%= f.submit t("invitations.send_invite"), class: "inline-flex items-center px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2 cursor-pointer" %>
+      </div>
+    <% end %>
+  </div>
+</div>

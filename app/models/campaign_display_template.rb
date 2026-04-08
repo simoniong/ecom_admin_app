@@ -1,5 +1,6 @@
 class CampaignDisplayTemplate < ApplicationRecord
   belongs_to :user
+  belongs_to :company
 
   before_validation :strip_blank_columns
 

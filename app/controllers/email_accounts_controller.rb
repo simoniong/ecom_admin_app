@@ -2,7 +2,7 @@ class EmailAccountsController < AdminController
   before_action :set_email_account, only: [ :show, :destroy ]
 
   def index
-    @email_accounts = current_user.email_accounts.order(created_at: :desc)
+    @email_accounts = current_company.email_accounts.order(created_at: :desc)
   end
 
   def show
@@ -16,6 +16,6 @@ class EmailAccountsController < AdminController
   private
 
   def set_email_account
-    @email_account = current_user.email_accounts.find(params[:id])
+    @email_account = current_company.email_accounts.find(params[:id])
   end
 end

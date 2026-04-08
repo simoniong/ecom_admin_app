@@ -50,6 +50,12 @@ RSpec.describe "Dashboard", type: :request do
       expect(response.body).to include("250")
     end
 
+    it "accepts custom date range" do
+      sign_in user
+      get authenticated_root_path(start_date: "2026-04-01", end_date: "2026-04-07")
+      expect(response).to have_http_status(:success)
+    end
+
     it "responds to turbo frame requests" do
       sign_in user
       get authenticated_root_path(range: "yesterday"), headers: { "Turbo-Frame" => "dashboard_metrics" }

@@ -1,6 +1,5 @@
-class ProfilesController < ApplicationController
-  before_action :authenticate_user!
-  layout "admin"
+class ProfilesController < AdminController
+  skip_before_action :authorize_page!
 
   def edit
   end
