@@ -368,5 +368,16 @@ en:
       shopify_stores: "Shopify Stores"
       ad_accounts: "Ad Accounts"
       email_accounts: "Email Accounts"
+  memberships:
+    edit_title: "Edit Permissions"
+    edit: "Edit"
+    save: "Save Changes"
+    cancel: "Cancel"
+    updated: "Permissions updated."
+    remove: "Remove"
+    removed: "Member removed from company."
+    remove_confirm: "Remove %{email} from this company? They will lose access but their account will not be deleted."
+    cannot_modify_self: "You cannot modify your own membership."
+    cannot_modify_owner: "Owner memberships cannot be modified."
   locale_switcher:
     label: "Language"
