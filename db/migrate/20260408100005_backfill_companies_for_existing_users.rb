@@ -1,16 +1,22 @@
 class BackfillCompaniesForExistingUsers < ActiveRecord::Migration[8.1]
   def up
+    # Create one company per user deterministically by iterating through users.
+    # This avoids nondeterministic joins when two users share the same email local-part.
     execute <<~SQL
-      INSERT INTO companies (id, name, created_at, updated_at)
-      SELECT gen_random_uuid(), split_part(email, '@', 1) || '''s Company', NOW(), NOW()
-      FROM users;
-    SQL
+      DO $$
+      DECLARE
+        u RECORD;
+        new_company_id UUID;
+      BEGIN
+        FOR u IN SELECT id, email FROM users LOOP
+          INSERT INTO companies (id, name, created_at, updated_at)
+          VALUES (gen_random_uuid(), split_part(u.email, '@', 1) || '''s Company', NOW(), NOW())
+          RETURNING id INTO new_company_id;
 
-    execute <<~SQL
-      INSERT INTO memberships (id, company_id, user_id, role, permissions, created_at, updated_at)
-      SELECT gen_random_uuid(), c.id, u.id, 1, '[]'::jsonb, NOW(), NOW()
-      FROM users u
-      JOIN companies c ON c.name = split_part(u.email, '@', 1) || '''s Company';
+          INSERT INTO memberships (id, company_id, user_id, role, permissions, created_at, updated_at)
+          VALUES (gen_random_uuid(), new_company_id, u.id, 1, '[]'::jsonb, NOW(), NOW());
+        END LOOP;
+      END $$;
     SQL
 
     execute <<~SQL

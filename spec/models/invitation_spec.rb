@@ -12,6 +12,20 @@ RSpec.describe Invitation, type: :model do
       expect(invitation).not_to be_valid
     end
 
+    it "rejects duplicate pending invitation for same company and email" do
+      existing = create(:invitation)
+      duplicate = build(:invitation, company: existing.company, email: existing.email)
+      expect(duplicate).not_to be_valid
+      expect(duplicate.errors[:email]).to be_present
+    end
+
+    it "allows re-inviting after previous invitation was accepted" do
+      existing = create(:invitation)
+      existing.accept!(create(:user))
+      new_inv = build(:invitation, company: existing.company, email: existing.email)
+      expect(new_inv).to be_valid
+    end
+
     it "auto-generates a token" do
       invitation = build(:invitation)
       invitation.valid?

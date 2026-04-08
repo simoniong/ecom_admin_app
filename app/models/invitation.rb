@@ -5,6 +5,8 @@ class Invitation < ApplicationRecord
   enum :role, { member: 0, owner: 1 }
 
   validates :email, presence: true, format: { with: URI::MailTo::EMAIL_REGEXP }
+  validates :email, uniqueness: { scope: :company_id, message: :already_invited,
+                                  conditions: -> { where(accepted_at: nil) } }
   validates :token, presence: true, uniqueness: true
 
   before_validation :generate_token, on: :create

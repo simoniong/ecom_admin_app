@@ -133,5 +133,19 @@ RSpec.describe "Invitations", type: :request do
       get tickets_path
       expect(response).to have_http_status(:success)
     end
+
+    it "maps campaign_display_templates permission to ad_campaigns" do
+      member = create(:user)
+      create(:membership, company: company, user: member, role: :member, permissions: %w[dashboard ad_campaigns])
+      ad_account = create(:ad_account, user: owner, company: company)
+      campaign = create(:ad_campaign, ad_account: ad_account)
+      sign_in member
+      patch switch_company_path(id: company.id)
+
+      post campaign_display_templates_path, params: {
+        campaign_display_template: { name: "My Template", visible_columns: %w[impressions clicks] }
+      }
+      expect(response).to redirect_to(ad_campaigns_path(template_id: CampaignDisplayTemplate.last.id))
+    end
   end
 end

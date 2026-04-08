@@ -30,10 +30,21 @@ class AdminController < ApplicationController
   end
   helper_method :current_membership
 
+  PERMISSION_KEY_MAP = {
+    "shopify_oauth" => "shopify_stores",
+    "oauth_callbacks" => "email_accounts",
+    "meta_oauth" => "ad_accounts",
+    "campaign_display_templates" => "ad_campaigns"
+  }.freeze
+
   def authorize_page!
-    unless current_membership&.has_permission?(controller_name)
+    unless current_membership&.has_permission?(permission_key)
       redirect_to authenticated_root_path, alert: t("companies.no_permission")
     end
+  end
+
+  def permission_key
+    PERMISSION_KEY_MAP.fetch(controller_name, controller_name)
   end
 
   def current_shopify_store
