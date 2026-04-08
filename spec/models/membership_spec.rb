@@ -32,8 +32,13 @@ RSpec.describe Membership, type: :model do
 
     it "returns true for member with matching permission" do
       other_company = create(:company)
-      membership = create(:membership, company: other_company, user: user, role: :member, permissions: %w[orders dashboard])
+      membership = create(:membership, company: other_company, user: user, role: :member, permissions: %w[orders])
       expect(membership.has_permission?("orders")).to be true
+    end
+
+    it "always grants dashboard permission to members" do
+      other_company = create(:company)
+      membership = create(:membership, company: other_company, user: user, role: :member, permissions: %w[orders])
       expect(membership.has_permission?("dashboard")).to be true
     end
 
