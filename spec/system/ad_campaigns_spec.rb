@@ -82,8 +82,8 @@ RSpec.describe "Ad Campaigns", type: :system do
     sign_in_as(user)
     click_link "Ad Campaigns"
 
-    # Open column toggle popover
-    find("[data-action*='ad-column-toggle#toggle']").click
+    # Open column toggle modal (first match is the column icon button)
+    find("[data-action*='ad-column-toggle#toggle']", match: :first).click
 
     # Popover shows column checkboxes and save-as-new button
     expect(page).to have_css("[data-ad-column-toggle-target='dropdown']", visible: true)
