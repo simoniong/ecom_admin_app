@@ -7,24 +7,39 @@ class CampaignDisplayTemplatesController < AdminController
     @template.last_active_at = Time.current
 
     if @template.save
-      redirect_to ad_campaigns_path(template_id: @template.id), notice: t("campaign_display_templates.created")
+      respond_to do |format|
+        format.html { redirect_to ad_campaigns_path(template_id: @template.id), notice: t("campaign_display_templates.created") }
+        format.json { render json: { redirect_url: ad_campaigns_path(template_id: @template.id) } }
+      end
     else
-      redirect_to ad_campaigns_path, alert: @template.errors.full_messages.join(", ")
+      respond_to do |format|
+        format.html { redirect_to ad_campaigns_path, alert: @template.errors.full_messages.join(", ") }
+        format.json { render json: { errors: @template.errors.full_messages }, status: :unprocessable_entity }
+      end
     end
   end
 
   def update
     if @template.update(template_params)
       @template.touch_active!
-      redirect_to ad_campaigns_path(template_id: @template.id), notice: t("campaign_display_templates.updated")
+      respond_to do |format|
+        format.html { redirect_to ad_campaigns_path(template_id: @template.id), notice: t("campaign_display_templates.updated") }
+        format.json { render json: { redirect_url: ad_campaigns_path(template_id: @template.id) } }
+      end
     else
-      redirect_to ad_campaigns_path, alert: @template.errors.full_messages.join(", ")
+      respond_to do |format|
+        format.html { redirect_to ad_campaigns_path, alert: @template.errors.full_messages.join(", ") }
+        format.json { render json: { errors: @template.errors.full_messages }, status: :unprocessable_entity }
+      end
     end
   end
 
   def destroy
     @template.destroy
-    redirect_to ad_campaigns_path, notice: t("campaign_display_templates.deleted")
+    respond_to do |format|
+      format.html { redirect_to ad_campaigns_path, notice: t("campaign_display_templates.deleted") }
+      format.json { render json: { redirect_url: ad_campaigns_path } }
+    end
   end
 
   private
