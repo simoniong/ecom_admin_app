@@ -8,7 +8,7 @@ RSpec.describe InvitationMailer, type: :mailer do
     let(:mail) { described_class.invite(invitation) }
 
     it "renders the headers" do
-      expect(mail.to).to eq(["newbie@example.com"])
+      expect(mail.to).to eq(%w[newbie@example.com])
       expect(mail.subject).to include(company.name)
     end
 
