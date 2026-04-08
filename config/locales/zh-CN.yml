@@ -27,6 +27,7 @@
   profile:
     title: "个人资料"
     personal_info: "基本信息"
+    email: "邮箱"
     first_name: "名字"
     last_name: "姓氏"
     change_password: "修改密码"
@@ -38,7 +39,7 @@
     updated: "个人资料更新成功。"
   dashboard:
     title: "仪表盘"
-    welcome: "欢迎回来，%{email}"
+    welcome: "欢迎回来，%{name}"
     sessions: "访客数"
     orders: "订单数"
     revenue: "销售额"

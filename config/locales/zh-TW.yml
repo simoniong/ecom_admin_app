@@ -27,6 +27,7 @@
   profile:
     title: "個人資料"
     personal_info: "基本資訊"
+    email: "郵箱"
     first_name: "名字"
     last_name: "姓氏"
     change_password: "修改密碼"
@@ -38,7 +39,7 @@
     updated: "個人資料更新成功。"
   dashboard:
     title: "儀表板"
-    welcome: "歡迎回來，%{email}"
+    welcome: "歡迎回來，%{name}"
     sessions: "訪客數"
     orders: "訂單數"
     revenue: "銷售額"

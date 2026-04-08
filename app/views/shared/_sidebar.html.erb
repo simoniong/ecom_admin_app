@@ -143,9 +143,9 @@
     <%# Profile %>
     <%= link_to edit_profile_path, class: "flex items-center gap-3 px-3 py-2 rounded-md hover:bg-gray-50", data: { action: "click->sidebar#close" } do %>
       <div class="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center text-xs font-medium text-gray-600 shrink-0">
-        <%= current_user.email.first.upcase %>
+        <%= (current_user.first_name.presence || current_user.email).first.upcase %>
       </div>
-      <span class="text-sm text-gray-700 truncate"><%= current_user.email %></span>
+      <span class="text-sm text-gray-700 truncate"><%= current_user.first_name.present? ? [current_user.first_name, current_user.last_name].compact_blank.join(" ") : current_user.email %></span>
     <% end %>
 
     <%# Logout %>

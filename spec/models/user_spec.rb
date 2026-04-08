@@ -52,6 +52,34 @@ RSpec.describe User, type: :model do
     end
   end
 
+  describe "#owned_companies" do
+    it "returns only companies where user is owner" do
+      user = create(:user)
+      owned = user.companies.first # auto-created as owner
+      other = create(:company)
+      create(:membership, company: other, user: user, role: :member, permissions: %w[dashboard])
+
+      expect(user.owned_companies).to include(owned)
+      expect(user.owned_companies).not_to include(other)
+    end
+  end
+
+  describe "#membership_for" do
+    it "returns the membership for a given company" do
+      user = create(:user)
+      company = user.companies.first
+      membership = user.membership_for(company)
+      expect(membership).to be_present
+      expect(membership.company).to eq(company)
+    end
+
+    it "returns nil for unrelated company" do
+      user = create(:user)
+      other = create(:company)
+      expect(user.membership_for(other)).to be_nil
+    end
+  end
+
   it "has many email_accounts with dependent destroy" do
     user = create(:user)
     create(:email_account, user: user)
