@@ -325,5 +325,6 @@
     removed: "已将成员从公司移除。"
     remove_confirm: "确定要将 %{email} 从此公司移除吗？该用户将失去访问权限，但帐号不会被删除。"
     cannot_modify_self: "无法修改自己的成员资格。"
+    cannot_modify_owner: "无法修改管理员的成员资格。"
   locale_switcher:
     label: "语言"

@@ -326,5 +326,6 @@
     removed: "已將成員從公司移除。"
     remove_confirm: "確定要將 %{email} 從此公司移除嗎？該用戶將失去存取權限，但帳號不會被刪除。"
     cannot_modify_self: "無法修改自己的成員資格。"
+    cannot_modify_owner: "無法修改管理員的成員資格。"
   locale_switcher:
     label: "語言"

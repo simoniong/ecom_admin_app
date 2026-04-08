@@ -41,12 +41,26 @@ RSpec.describe "Memberships", type: :request do
       expect(member_membership.reload.permissions).to eq(%w[orders shipments ad_campaigns])
     end
 
-    it "clears all permissions when none selected" do
+    it "clears all permissions when the form submits a blank hidden value" do
       patch membership_path(id: member_membership.id), params: {
         membership: { permissions: [ "" ] }
       }
       expect(response).to redirect_to(invitations_path)
-      expect(member_membership.reload.permissions).to eq([ "" ])
+      expect(member_membership.reload.permissions).to eq([])
+    end
+
+    it "clears all permissions when no membership param is sent" do
+      patch membership_path(id: member_membership.id), params: {}
+      expect(response).to redirect_to(invitations_path)
+      expect(member_membership.reload.permissions).to eq([])
+    end
+
+    it "filters out invalid permission values" do
+      patch membership_path(id: member_membership.id), params: {
+        membership: { permissions: %w[orders hacked_permission tickets] }
+      }
+      expect(response).to redirect_to(invitations_path)
+      expect(member_membership.reload.permissions).to eq(%w[orders tickets])
     end
 
     it "prevents updating own membership" do
@@ -77,6 +91,15 @@ RSpec.describe "Memberships", type: :request do
       owner_membership = owner.membership_for(company)
       expect {
         delete membership_path(id: owner_membership.id)
+      }.not_to change(Membership, :count)
+      expect(response).to redirect_to(invitations_path)
+    end
+
+    it "prevents removing another owner's membership" do
+      other_owner_user = create(:user)
+      other_owner_membership = create(:membership, company: company, user: other_owner_user, role: :owner)
+      expect {
+        delete membership_path(id: other_owner_membership.id)
       }.not_to change(Membership, :count)
       expect(response).to redirect_to(invitations_path)
     end

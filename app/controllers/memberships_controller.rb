@@ -35,10 +35,16 @@ class MembershipsController < AdminController
   def prevent_self_action
     if @membership.user_id == current_user.id
       redirect_to invitations_path, alert: t("memberships.cannot_modify_self")
+    elsif @membership.owner?
+      redirect_to invitations_path, alert: t("memberships.cannot_modify_owner")
     end
   end
 
   def membership_params
-    params.require(:membership).permit(permissions: [])
+    permitted = params.fetch(:membership, {}).permit(permissions: [])
+    permitted[:permissions] = Array(permitted[:permissions]).reject(&:blank?).select do |p|
+      Membership::AVAILABLE_PERMISSIONS.include?(p)
+    end
+    permitted
   end
 end
