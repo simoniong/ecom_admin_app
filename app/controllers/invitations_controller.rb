@@ -11,6 +11,7 @@ class InvitationsController < AdminController
   def create
     @invitation = current_company.invitations.build(invitation_params)
     @invitation.invited_by = current_user
+    @invitation.role = params.dig(:invitation, :role).presence_in(Invitation.roles.keys) || "member"
 
     if @invitation.save
       InvitationMailer.invite(@invitation).deliver_later
@@ -54,6 +55,6 @@ class InvitationsController < AdminController
   end
 
   def invitation_params
-    params.require(:invitation).permit(:email, :role, permissions: [])
+    params.require(:invitation).permit(:email, permissions: [])
   end
 end
