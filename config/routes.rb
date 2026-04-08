@@ -44,6 +44,7 @@ Rails.application.routes.draw do
     resource :company, only: [ :edit, :update ]
     patch "switch_company/:id", to: "company_sessions#update", as: :switch_company
     resources :invitations, only: [ :index, :create, :destroy ]
+    resources :memberships, only: [ :edit, :update, :destroy ]
 
     resources :email_accounts, only: [ :index, :show, :destroy ]
     resources :shopify_stores, only: [ :index, :show, :update, :destroy ]

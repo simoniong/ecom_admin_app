@@ -315,5 +315,15 @@
       shopify_stores: "Shopify 商店"
       ad_accounts: "广告账户"
       email_accounts: "邮箱"
+  memberships:
+    edit_title: "编辑权限"
+    edit: "编辑"
+    save: "保存更改"
+    cancel: "取消"
+    updated: "权限已更新。"
+    remove: "移除"
+    removed: "已将成员从公司移除。"
+    remove_confirm: "确定要将 %{email} 从此公司移除吗？该用户将失去访问权限，但帐号不会被删除。"
+    cannot_modify_self: "无法修改自己的成员资格。"
   locale_switcher:
     label: "语言"
