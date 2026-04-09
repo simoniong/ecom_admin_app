@@ -44,6 +44,7 @@
     orders: "订单数"
     revenue: "销售额"
     conversion_rate: "转化率"
+    avg_order_value: "平均客单价"
     ad_spend: "广告花费"
     roas: "ROAS"
     apply: "查询"

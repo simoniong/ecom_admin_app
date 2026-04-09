@@ -44,6 +44,7 @@
     orders: "訂單數"
     revenue: "銷售額"
     conversion_rate: "轉化率"
+    avg_order_value: "平均客單價"
     ad_spend: "廣告花費"
     roas: "ROAS"
     apply: "查詢"

@@ -48,6 +48,18 @@ RSpec.describe DashboardMetricsService do
       expect(result[:current][:roas]).to eq(0)
     end
 
+    it "calculates average order value" do
+      create(:shopify_daily_metric, shopify_store: store, date: Date.current, sessions: 100, orders_count: 5, revenue: 500)
+
+      result = described_class.new(user, range_key: "today").call
+      expect(result[:current][:avg_order_value]).to eq(100.0)
+    end
+
+    it "returns zero avg order value when no orders" do
+      result = described_class.new(user, range_key: "today").call
+      expect(result[:current][:avg_order_value]).to eq(0)
+    end
+
     it "includes previous period metrics" do
       # Current period: today
       create(:shopify_daily_metric, shopify_store: store, date: Date.current, sessions: 100, orders_count: 5, revenue: 500)
@@ -96,8 +108,8 @@ RSpec.describe DashboardMetricsService do
     %w[today yesterday past_7_days this_month last_month past_30_days].each do |key|
       it "handles #{key} range" do
         result = described_class.new(user, range_key: key).call
-        expect(result[:current]).to include(:sessions, :orders, :revenue, :conversion_rate, :ad_spend, :roas)
-        expect(result[:previous]).to include(:sessions, :orders, :revenue, :conversion_rate, :ad_spend, :roas)
+        expect(result[:current]).to include(:sessions, :orders, :revenue, :avg_order_value, :conversion_rate, :ad_spend, :roas)
+        expect(result[:previous]).to include(:sessions, :orders, :revenue, :avg_order_value, :conversion_rate, :ad_spend, :roas)
       end
     end
   end
