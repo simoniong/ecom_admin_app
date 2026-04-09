@@ -59,6 +59,7 @@ class DashboardMetricsService
       sessions: sessions,
       orders: orders,
       revenue: revenue,
+      avg_order_value: orders > 0 ? (revenue / orders).round(2) : 0,
       conversion_rate: sessions > 0 ? (orders.to_f / sessions * 100).round(2) : 0,
       ad_spend: ad_spend,
       roas: ad_spend > 0 ? (revenue / ad_spend).round(2) : 0

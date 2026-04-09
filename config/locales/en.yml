@@ -44,6 +44,7 @@ en:
     orders: "Orders"
     revenue: "Revenue"
     conversion_rate: "Conversion Rate"
+    avg_order_value: "Avg Order Value"
     ad_spend: "Ad Spend"
     roas: "ROAS"
     apply: "Apply"
