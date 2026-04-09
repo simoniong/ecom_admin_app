@@ -16,6 +16,7 @@ RSpec.describe "Dashboard", type: :request do
       expect(response.body).to include(I18n.t("dashboard.orders"))
       expect(response.body).to include(I18n.t("dashboard.revenue"))
       expect(response.body).to include(I18n.t("dashboard.ad_spend"))
+      expect(response.body).to include(I18n.t("dashboard.avg_order_value"))
       expect(response.body).to include(I18n.t("dashboard.roas"))
     end
 

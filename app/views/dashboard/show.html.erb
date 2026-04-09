@@ -45,7 +45,7 @@
     </p>
 
     <%# Metric cards grid %>
-    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+    <div class="grid grid-cols-2 lg:grid-cols-5 gap-4">
       <%# Orders %>
       <%= render "dashboard/metric_card",
           title: t("dashboard.orders"),
@@ -59,6 +59,13 @@
           value: number_to_currency(@metrics[:current][:revenue]),
           previous: @metrics[:previous][:revenue],
           current_raw: @metrics[:current][:revenue] %>
+
+      <%# Avg Order Value %>
+      <%= render "dashboard/metric_card",
+          title: t("dashboard.avg_order_value"),
+          value: number_to_currency(@metrics[:current][:avg_order_value]),
+          previous: @metrics[:previous][:avg_order_value],
+          current_raw: @metrics[:current][:avg_order_value] %>
 
       <%# Ad Spend %>
       <%= render "dashboard/metric_card",
