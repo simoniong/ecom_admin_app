@@ -296,6 +296,66 @@ RSpec.describe "Shipments", type: :request do
     end
   end
 
+  describe "GET /shipments?archived=true" do
+    it "shows only archived shipments" do
+      order = create(:order, customer: customer, shopify_store: store)
+      create(:fulfillment, order: order, tracking_number: "ACTIVE1", tracking_status: "InTransit")
+      create(:fulfillment, order: order, tracking_number: "ARCH1", tracking_status: "InTransit", archived_at: Time.current)
+
+      get shipments_path(archived: "true")
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include("ARCH1")
+      expect(response.body).not_to include("ACTIVE1")
+      expect(response.body).to include("Archived Shipments")
+    end
+
+    it "hides archived from default index" do
+      order = create(:order, customer: customer, shopify_store: store)
+      create(:fulfillment, order: order, tracking_number: "ACTIVE2", tracking_status: "InTransit")
+      create(:fulfillment, order: order, tracking_number: "ARCH2", tracking_status: "InTransit", archived_at: Time.current)
+
+      get shipments_path
+      expect(response.body).to include("ACTIVE2")
+      expect(response.body).not_to include("ARCH2")
+    end
+  end
+
+  describe "POST /shipments/bulk_archive" do
+    it "archives selected shipments" do
+      order = create(:order, customer: customer, shopify_store: store)
+      f1 = create(:fulfillment, order: order, tracking_number: "BA1", tracking_status: "InTransit")
+      f2 = create(:fulfillment, order: order, tracking_number: "BA2", tracking_status: "InTransit")
+
+      post bulk_archive_shipments_path, params: { ids: [ f1.id, f2.id ] }
+      expect(response).to redirect_to(shipments_path)
+
+      expect(f1.reload.archived_at).to be_present
+      expect(f2.reload.archived_at).to be_present
+    end
+
+    it "does not archive shipments from another company" do
+      other_user = create(:user)
+      other_store = create(:shopify_store, user: other_user)
+      other_customer = create(:customer, shopify_store: other_store)
+      other_order = create(:order, customer: other_customer, shopify_store: other_store)
+      other_f = create(:fulfillment, order: other_order, tracking_number: "OTHER")
+
+      post bulk_archive_shipments_path, params: { ids: [ other_f.id ] }
+      expect(other_f.reload.archived_at).to be_nil
+    end
+  end
+
+  describe "POST /shipments/bulk_unarchive" do
+    it "unarchives selected shipments" do
+      order = create(:order, customer: customer, shopify_store: store)
+      f1 = create(:fulfillment, order: order, tracking_number: "UA1", tracking_status: "InTransit", archived_at: Time.current)
+
+      post bulk_unarchive_shipments_path, params: { ids: [ f1.id ], archived: "true" }
+      expect(response).to redirect_to(shipments_path(archived: "true"))
+      expect(f1.reload.archived_at).to be_nil
+    end
+  end
+
   describe "POST /shipments/sync" do
     it "enqueues sync jobs and redirects" do
       store # ensure store exists

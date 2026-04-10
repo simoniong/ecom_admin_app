@@ -38,6 +38,18 @@ class ShipmentsController < AdminController
     @tz = ActiveSupport::TimeZone["Asia/Shanghai"]
   end
 
+  def bulk_archive
+    ids = Array(params[:ids])
+    scoped_fulfillments(ids).where(archived_at: nil).update_all(archived_at: Time.current)
+    redirect_to shipments_path(archived: params[:archived]), notice: t("shipments.bulk.archived_notice", count: ids.size)
+  end
+
+  def bulk_unarchive
+    ids = Array(params[:ids])
+    scoped_fulfillments(ids).where.not(archived_at: nil).update_all(archived_at: nil)
+    redirect_to shipments_path(archived: params[:archived]), notice: t("shipments.bulk.unarchived_notice", count: ids.size)
+  end
+
   def sync
     current_company.shopify_stores.find_each do |store|
       SyncAllShopifyOrdersJob.perform_later(store.id)
@@ -57,8 +69,15 @@ class ShipmentsController < AdminController
     nil
   end
 
+  def scoped_fulfillments(ids)
+    store_ids = current_company.shopify_stores.pluck(:id)
+    Fulfillment.where(id: ids).joins(:order).where(orders: { shopify_store_id: store_ids })
+  end
+
   def build_base_scope
+    @archived = params[:archived] == "true"
     @base_scope = Fulfillment.with_tracking.joins(order: :customer)
+    @base_scope = @archived ? @base_scope.archived : @base_scope.active
 
     if current_shopify_store
       @base_scope = @base_scope.by_store(current_shopify_store.id)

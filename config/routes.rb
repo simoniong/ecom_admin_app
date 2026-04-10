@@ -58,6 +58,8 @@ Rails.application.routes.draw do
     end
     resources :shipments, only: [ :index, :show ] do
       post :sync, on: :collection
+      post :bulk_archive, on: :collection
+      post :bulk_unarchive, on: :collection
     end
     resources :tickets, only: [ :index, :show, :update ]
     resources :shipping_reminder_rules, only: [ :index, :create, :update ]

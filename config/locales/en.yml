@@ -277,6 +277,7 @@ en:
       partial: "Partial"
   shipments:
     title: "Shipments"
+    archived_title: "Archived Shipments"
     sync_orders: "Sync orders"
     sync_enqueued: "Order sync has been queued. Shipping data will update shortly."
     search_placeholder: "Order, tracking number or email"
@@ -335,6 +336,10 @@ en:
       select_shipment: "Select shipment %{tracking}"
       copy_tracking: "Copy tracking number"
       copy_tracking_simple: "Copy tracking number (simple)"
+      archive: "Archive"
+      unarchive: "Unarchive"
+      archived_notice: "%{count} shipment(s) archived."
+      unarchived_notice: "%{count} shipment(s) unarchived."
     show:
       back: "Back to shipments"
       copy_tracking_number: "Copy tracking number"

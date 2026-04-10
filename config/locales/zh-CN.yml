@@ -276,6 +276,7 @@
       partial: "部分发货"
   shipments:
     title: "物流"
+    archived_title: "已归档物流"
     sync_orders: "同步订单"
     sync_enqueued: "订单同步任务已加入队列，物流数据稍后更新。"
     search_placeholder: "订单号、运单号或邮箱"
@@ -334,6 +335,10 @@
       select_shipment: "选择物流 %{tracking}"
       copy_tracking: "复制运单号"
       copy_tracking_simple: "复制运单号 (简洁)"
+      archive: "归档"
+      unarchive: "取消归档"
+      archived_notice: "已归档 %{count} 条物流。"
+      unarchived_notice: "已取消归档 %{count} 条物流。"
     show:
       back: "返回物流列表"
       copy_tracking_number: "复制运单号"

@@ -277,6 +277,7 @@
       partial: "部分出貨"
   shipments:
     title: "物流"
+    archived_title: "已歸檔物流"
     sync_orders: "同步訂單"
     sync_enqueued: "訂單同步任務已加入佇列，物流資料稍後更新。"
     search_placeholder: "訂單號、運單號或郵箱"
@@ -335,6 +336,10 @@
       select_shipment: "選擇物流 %{tracking}"
       copy_tracking: "複製運單號"
       copy_tracking_simple: "複製運單號 (簡潔)"
+      archive: "歸檔"
+      unarchive: "取消歸檔"
+      archived_notice: "已歸檔 %{count} 筆物流。"
+      unarchived_notice: "已取消歸檔 %{count} 筆物流。"
     show:
       back: "返回物流列表"
       copy_tracking_number: "複製運單號"

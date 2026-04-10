@@ -1,7 +1,7 @@
 import { Controller } from "@hotwired/stimulus"
 
 export default class extends Controller {
-  static targets = ["selectAll", "checkbox", "bar", "count"]
+  static targets = ["selectAll", "checkbox", "bar", "count", "archiveForm"]
   static values = { copiedText: { type: String, default: "Copied!" } }
 
   connect() {
@@ -52,10 +52,40 @@ export default class extends Controller {
     return this.checkboxTargets
       .filter(cb => cb.checked)
       .map(cb => ({
+        id: cb.dataset.fulfillmentId,
         trackingNumber: cb.dataset.trackingNumber,
         lastEventDate: cb.dataset.lastEventDate,
         latestEvent: cb.dataset.latestEvent
       }))
+  }
+
+  submitBulkAction(event) {
+    const form = this.archiveFormTarget
+    const url = event.currentTarget.dataset.url
+
+    form.action = url
+    form.innerHTML = ""
+
+    // Add CSRF token
+    const csrfToken = document.querySelector("meta[name='csrf-token']")?.content
+    if (csrfToken) {
+      const input = document.createElement("input")
+      input.type = "hidden"
+      input.name = "authenticity_token"
+      input.value = csrfToken
+      form.appendChild(input)
+    }
+
+    // Add selected IDs
+    this.selectedData().forEach(d => {
+      const input = document.createElement("input")
+      input.type = "hidden"
+      input.name = "ids[]"
+      input.value = d.id
+      form.appendChild(input)
+    })
+
+    form.submit()
   }
 
   copyToClipboard(text) {
