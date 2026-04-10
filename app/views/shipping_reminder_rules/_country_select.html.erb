@@ -1,0 +1,24 @@
+<%# Renders a standard <select> for country with Top Countries optgroup %>
+<div class="relative">
+  <select name="shipping_reminder_rule[country_thresholds][][country]"
+          class="appearance-none pl-3 pr-8 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-700 focus:border-blue-500 focus:ring-blue-500 cursor-pointer w-48">
+    <option value=""><%= t("shipping_reminders.select_country") %></option>
+    <% if top_countries.present? %>
+      <optgroup label="<%= t("shipping_reminders.top_countries") %>">
+        <% top_countries.each do |code| %>
+          <% country = ISO3166::Country.find_country_by_alpha2(code) %>
+          <% next unless country %>
+          <option value="<%= code %>" <%= "selected" if selected == code %>><%= country.iso_short_name %></option>
+        <% end %>
+      </optgroup>
+    <% end %>
+    <optgroup label="<%= t("shipping_reminders.all_countries_label") %>">
+      <% all_countries.each do |name, code| %>
+        <option value="<%= code %>" <%= "selected" if selected == code %>><%= name %></option>
+      <% end %>
+    </optgroup>
+  </select>
+  <svg class="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+    <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+  </svg>
+</div>

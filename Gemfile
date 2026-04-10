@@ -35,6 +35,9 @@ gem "shopify_api", "~> 14.0"
 # HTTP client for 17Track API
 gem "httparty", "~> 0.22"
 
+# Country data (ISO 3166)
+gem "countries", "~> 8.0"
+
 # Error tracking [https://docs.sentry.io/platforms/ruby/guides/rails/]
 gem "sentry-ruby"
 gem "sentry-rails"
