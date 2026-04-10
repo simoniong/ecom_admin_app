@@ -62,6 +62,54 @@ class ShipmentsController < AdminController
     redirect_to shipments_path(archived: params[:archived]), notice: t("shipments.bulk.unarchived_notice", count: count)
   end
 
+  def bulk_add_tags
+    ids = sanitize_ids(params[:ids])
+    tags = Array(params[:tags]).map(&:strip).reject(&:blank?).uniq
+    return redirect_to shipments_path(archived: params[:archived]) if tags.empty?
+
+    scoped_fulfillments(ids).find_each do |f|
+      f.update!(tags: (f.tags | tags))
+    end
+    redirect_to shipments_path(archived: params[:archived]), notice: t("shipments.tags.added_notice")
+  end
+
+  def bulk_remove_tags
+    ids = sanitize_ids(params[:ids])
+    tags = Array(params[:tags]).map(&:strip).reject(&:blank?)
+    return redirect_to shipments_path(archived: params[:archived]) if tags.empty?
+
+    scoped_fulfillments(ids).find_each do |f|
+      f.update!(tags: (f.tags - tags))
+    end
+    redirect_to shipments_path(archived: params[:archived]), notice: t("shipments.tags.removed_notice")
+  end
+
+  def available_tags
+    store_ids = current_company.shopify_stores.pluck(:id)
+    tags = Fulfillment.with_tracking
+      .joins(:order)
+      .where(orders: { shopify_store_id: store_ids })
+      .where("tags IS NOT NULL AND tags != '{}'::varchar[]")
+      .pluck(:tags)
+      .flatten.uniq.sort
+
+    render json: tags
+  end
+
+  def add_tags
+    fulfillment = find_fulfillment
+    tags = Array(params[:tags]).map(&:strip).reject(&:blank?).uniq
+    fulfillment.update!(tags: (fulfillment.tags | tags)) if tags.any?
+    redirect_to shipment_path(id: fulfillment.id), notice: t("shipments.tags.added_notice")
+  end
+
+  def remove_tag
+    fulfillment = find_fulfillment
+    tag = params[:tag].to_s.strip
+    fulfillment.update!(tags: fulfillment.tags - [ tag ]) if tag.present?
+    redirect_to shipment_path(id: fulfillment.id), notice: t("shipments.tags.removed_notice")
+  end
+
   def sync
     current_company.shopify_stores.find_each do |store|
       SyncAllShopifyOrdersJob.perform_later(store.id)

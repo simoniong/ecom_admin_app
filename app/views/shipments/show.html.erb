@@ -207,4 +207,16 @@
       <%= render "shipments/sidebar" %>
     </div>
   </div>
+
+  <%# Tag modal for show page %>
+  <div data-controller="shipment-tags"
+       data-shipment-tags-available-tags-url-value="<%= available_tags_shipments_path %>"
+       data-add-title="<%= t("shipments.tags.add_tags") %>"
+       data-delete-title="<%= t("shipments.tags.delete_tags") %>"
+       data-search-placeholder="<%= t("shipments.tags.search_placeholder") %>"
+       data-no-tags-text="<%= t("shipments.tags.no_tags") %>"
+       data-no-tags-found-text="<%= t("shipments.tags.no_tags_found") %>">
+    <% content_for :tag_form_action, add_tags_shipment_path(id: @fulfillment.id) %>
+    <%= render "shipments/tag_modal" %>
+  </div>
 </div>

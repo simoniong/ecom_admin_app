@@ -338,6 +338,8 @@ en:
       copy_tracking_simple: "Copy tracking number (simple)"
       archive: "Archive"
       unarchive: "Unarchive"
+      add_tags: "Add tags"
+      delete_tags: "Delete tags"
       archived_notice: "%{count} shipment(s) archived."
       unarchived_notice: "%{count} shipment(s) unarchived."
     show:
@@ -380,6 +382,18 @@ en:
       recipient_name: "Recipient name"
       recipient_contact: "Recipient contact"
       recipient_address: "Recipient address"
+    tags:
+      shipment_tags: "Shipment tags"
+      add_tags: "Add tags"
+      delete_tags: "Delete tags"
+      search_placeholder: "Search or create tags"
+      create_tag: "Add tag"
+      no_tags: "No tags yet."
+      no_tags_found: "No tags found."
+      close: "Close"
+      confirm: "Confirm"
+      added_notice: "Tags updated successfully."
+      removed_notice: "Tags removed successfully."
   companies:
     title: "Company Settings"
     name: "Company Name"

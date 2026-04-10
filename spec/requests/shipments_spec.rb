@@ -356,6 +356,64 @@ RSpec.describe "Shipments", type: :request do
     end
   end
 
+  describe "POST /shipments/bulk_add_tags" do
+    it "adds tags to selected shipments" do
+      order = create(:order, customer: customer, shopify_store: store)
+      f1 = create(:fulfillment, order: order, tracking_number: "TAG1", tracking_status: "InTransit", tags: [ "existing" ])
+      f2 = create(:fulfillment, order: order, tracking_number: "TAG2", tracking_status: "InTransit", tags: [])
+
+      post bulk_add_tags_shipments_path, params: { ids: [ f1.id, f2.id ], tags: [ "new_tag", "another" ] }
+      expect(response).to redirect_to(shipments_path)
+      expect(f1.reload.tags).to match_array(%w[existing new_tag another])
+      expect(f2.reload.tags).to match_array(%w[new_tag another])
+    end
+  end
+
+  describe "POST /shipments/bulk_remove_tags" do
+    it "removes tags from selected shipments" do
+      order = create(:order, customer: customer, shopify_store: store)
+      f1 = create(:fulfillment, order: order, tracking_number: "RTAG1", tracking_status: "InTransit", tags: %w[keep remove_me])
+
+      post bulk_remove_tags_shipments_path, params: { ids: [ f1.id ], tags: [ "remove_me" ] }
+      expect(response).to redirect_to(shipments_path)
+      expect(f1.reload.tags).to eq(%w[keep])
+    end
+  end
+
+  describe "GET /shipments/available_tags" do
+    it "returns unique tags as JSON" do
+      order = create(:order, customer: customer, shopify_store: store)
+      create(:fulfillment, order: order, tracking_number: "AT1", tracking_status: "InTransit", tags: %w[alpha beta])
+      create(:fulfillment, order: order, tracking_number: "AT2", tracking_status: "InTransit", tags: %w[beta gamma])
+
+      get available_tags_shipments_path, as: :json
+      expect(response).to have_http_status(:ok)
+      expect(JSON.parse(response.body)).to match_array(%w[alpha beta gamma])
+    end
+  end
+
+  describe "POST /shipments/:id/add_tags" do
+    it "adds tags to a single shipment" do
+      order = create(:order, customer: customer, shopify_store: store)
+      f = create(:fulfillment, order: order, tracking_number: "STADD", tracking_status: "InTransit", tags: [ "old" ])
+
+      post add_tags_shipment_path(id: f.id), params: { tags: [ "new" ] }
+      expect(response).to redirect_to(shipment_path(id: f.id))
+      expect(f.reload.tags).to match_array(%w[old new])
+    end
+  end
+
+  describe "DELETE /shipments/:id/remove_tag" do
+    it "removes a single tag from a shipment" do
+      order = create(:order, customer: customer, shopify_store: store)
+      f = create(:fulfillment, order: order, tracking_number: "STREM", tracking_status: "InTransit", tags: %w[keep gone])
+
+      delete remove_tag_shipment_path(id: f.id), params: { tag: "gone" }
+      expect(response).to redirect_to(shipment_path(id: f.id))
+      expect(f.reload.tags).to eq(%w[keep])
+    end
+  end
+
   describe "POST /shipments/sync" do
     it "enqueues sync jobs and redirects" do
       store # ensure store exists

@@ -60,8 +60,13 @@ Rails.application.routes.draw do
       post :sync, on: :collection
       post :bulk_archive, on: :collection
       post :bulk_unarchive, on: :collection
+      post :bulk_add_tags, on: :collection
+      post :bulk_remove_tags, on: :collection
+      get :available_tags, on: :collection
       post :archive, on: :member
       post :unarchive, on: :member
+      post :add_tags, on: :member
+      delete :remove_tag, on: :member
     end
     resources :tickets, only: [ :index, :show, :update ]
     resources :shipping_reminder_rules, only: [ :index, :create, :update ]

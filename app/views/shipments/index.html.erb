@@ -423,6 +423,7 @@
                 <input type="checkbox" data-shipment-bulk-target="checkbox" data-action="change->shipment-bulk#toggleOne"
                        data-fulfillment-id="<%= shipment.id %>"
                        data-tracking-number="<%= shipment.tracking_number %>"
+                       data-tags="<%= shipment.tags.to_json %>"
                        data-last-event-date="<%= shipment.last_event_at&.in_time_zone(tz)&.strftime("%-m月%-d日") %>"
                        data-latest-event="<%= shipment.latest_event_description %>"
                        aria-label="<%= t("shipments.bulk.select_shipment", tracking: shipment.tracking_number) %>"
@@ -572,6 +573,24 @@
           </svg>
           <%= t("shipments.bulk.copy_tracking_simple") %>
         </button>
+        <button type="button" data-action="click->shipment-bulk#openTagModal"
+                data-tag-mode="add" data-url="<%= bulk_add_tags_shipments_path(archived: @archived ? "true" : nil) %>"
+                class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 transition-colors">
+          <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9.568 3H5.25A2.25 2.25 0 0 0 3 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 0 0 5.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 0 0 9.568 3Z" />
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 6h.008v.008H6V6Z" />
+          </svg>
+          <%= t("shipments.bulk.add_tags") %>
+        </button>
+        <button type="button" data-action="click->shipment-bulk#openTagModal"
+                data-tag-mode="delete" data-url="<%= bulk_remove_tags_shipments_path(archived: @archived ? "true" : nil) %>"
+                class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 transition-colors">
+          <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9.568 3H5.25A2.25 2.25 0 0 0 3 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 0 0 5.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 0 0 9.568 3Z" />
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 6h.008v.008H6V6Z" />
+          </svg>
+          <%= t("shipments.bulk.delete_tags") %>
+        </button>
         <div class="w-px h-5 bg-gray-200"></div>
         <% if @archived %>
           <button type="button" data-action="click->shipment-bulk#submitBulkAction"
@@ -595,6 +614,17 @@
       </div>
     </div>
     <form data-shipment-bulk-target="archiveForm" method="post" class="hidden"></form>
+
+    <%# Tag modal %>
+    <div data-controller="shipment-tags"
+         data-shipment-tags-available-tags-url-value="<%= available_tags_shipments_path %>"
+         data-add-title="<%= t("shipments.tags.add_tags") %>"
+         data-delete-title="<%= t("shipments.tags.delete_tags") %>"
+         data-search-placeholder="<%= t("shipments.tags.search_placeholder") %>"
+         data-no-tags-text="<%= t("shipments.tags.no_tags") %>"
+         data-no-tags-found-text="<%= t("shipments.tags.no_tags_found") %>">
+      <%= render "shipments/tag_modal" %>
+    </div>
     </div>
 
     <%# Pagination %>
