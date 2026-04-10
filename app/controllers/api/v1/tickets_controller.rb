@@ -1,23 +1,24 @@
 class Api::V1::TicketsController < Api::BaseController
   def index
-    tickets = Ticket.where(status: :new_ticket)
-                    .by_recency
+    tickets = Ticket.by_recency
+    tickets = tickets.where(status: resolved_status) if valid_status?
 
     render json: tickets.map { |t| ticket_json(t) }
   end
 
   def count
-    count = Ticket.where(status: :new_ticket).count
-    render json: { count: count }
+    tickets = Ticket.all
+    tickets = tickets.where(status: resolved_status) if valid_status?
+
+    render json: { count: tickets.count }
   end
 
   def show
-    ticket = Ticket.where(status: :new_ticket)
-                   .includes(:messages, customer: { orders: :fulfillments })
+    ticket = Ticket.includes(:messages, customer: { orders: :fulfillments })
                    .find(params[:id])
     render json: ticket_json(ticket, detail: true)
   rescue ActiveRecord::RecordNotFound
-    render json: { error: "Ticket not found or not in new status" }, status: :not_found
+    render json: { error: "Ticket not found" }, status: :not_found
   end
 
   def draft_reply
@@ -42,11 +43,30 @@ class Api::V1::TicketsController < Api::BaseController
 
   private
 
+  API_STATUS_MAP = {
+    "new" => "new_ticket",
+    "draft" => "draft",
+    "draft_confirmed" => "draft_confirmed",
+    "closed" => "closed"
+  }.freeze
+
+  def resolved_status
+    API_STATUS_MAP[params[:status]]
+  end
+
+  def valid_status?
+    params[:status].present? && resolved_status.present?
+  end
+
+  def api_status(ticket)
+    ticket.new_ticket? ? "new" : ticket.status
+  end
+
   def ticket_json(ticket, detail: false)
     json = {
       id: ticket.id,
       subject: ticket.subject,
-      status: ticket.status,
+      status: api_status(ticket),
       customer_email: ticket.customer_email,
       customer_name: ticket.customer_name,
       draft_reply: ticket.draft_reply,

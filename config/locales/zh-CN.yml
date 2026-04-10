@@ -81,6 +81,7 @@
     title: "工单"
     empty: "目前没有任何工单。"
     no_subject: "（无主题）"
+    search_placeholder: "搜索主题、客户或订单..."
     status_updated: "工单状态更新成功。"
     invalid_transition: "此状态转换不被允许。"
     status:

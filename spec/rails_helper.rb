@@ -1,6 +1,7 @@
 require "simplecov"
 SimpleCov.start "rails" do
   enable_coverage :branch
+  minimum_coverage line: 95 unless ENV["SKIP_COVERAGE_CHECK"]
 end
 
 require "spec_helper"
