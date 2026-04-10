@@ -172,7 +172,7 @@ class ShipmentsController < AdminController
     @shipped_to = params[:shipped_to].presence
     @transit_min = params[:transit_min].presence
     @transit_max = params[:transit_max].presence
-    @tag_filter = params[:tag].presence
+    @tag_filters = Array(params[:tags]).reject(&:blank?)
 
     @filtered_scope = @base_scope
     @filtered_scope = @filtered_scope.search_by(@search) if @search
@@ -202,8 +202,8 @@ class ShipmentsController < AdminController
     if @store_filter
       @filtered_scope = @filtered_scope.joins(:order).where(orders: { shopify_store_id: @store_filter })
     end
-    if @tag_filter
-      @filtered_scope = @filtered_scope.where("? = ANY(fulfillments.tags)", @tag_filter)
+    if @tag_filters.any?
+      @filtered_scope = @filtered_scope.where("fulfillments.tags && ARRAY[?]::varchar[]", @tag_filters)
     end
   end
 

@@ -198,14 +198,26 @@ RSpec.describe "Shipments", type: :request do
       expect(response.body).to include("No shipments found")
     end
 
-    it "filters by tag" do
+    it "filters by single tag" do
       order = create(:order, customer: customer, shopify_store: store)
       create(:fulfillment, order: order, tracking_number: "TAGGED", tracking_status: "InTransit", tags: %w[vip urgent])
       create(:fulfillment, order: order, tracking_number: "NOTAG", tracking_status: "InTransit", tags: [])
 
-      get shipments_path, params: { tag: "vip" }
+      get shipments_path, params: { tags: [ "vip" ] }
       expect(response.body).to include("TAGGED")
       expect(response.body).not_to include("NOTAG")
+    end
+
+    it "filters by multiple tags with OR logic" do
+      order = create(:order, customer: customer, shopify_store: store)
+      create(:fulfillment, order: order, tracking_number: "HAS_VIP", tracking_status: "InTransit", tags: %w[vip])
+      create(:fulfillment, order: order, tracking_number: "HAS_URGENT", tracking_status: "InTransit", tags: %w[urgent])
+      create(:fulfillment, order: order, tracking_number: "HAS_NONE", tracking_status: "InTransit", tags: %w[other])
+
+      get shipments_path, params: { tags: %w[vip urgent] }
+      expect(response.body).to include("HAS_VIP")
+      expect(response.body).to include("HAS_URGENT")
+      expect(response.body).not_to include("HAS_NONE")
     end
 
     it "only shows shipments for current user stores" do
