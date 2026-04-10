@@ -387,7 +387,7 @@
           <% @shipments.each do |shipment| %>
             <% order = shipment.order %>
             <% customer = order.customer %>
-            <% tz = order.shopify_store&.active_timezone || ActiveSupport::TimeZone["UTC"] %>
+            <% tz = ActiveSupport::TimeZone["Asia/Shanghai"] %>
             <tr class="hover:bg-gray-50">
               <%# Checkbox %>
               <td class="px-4 py-3 text-center w-10">
