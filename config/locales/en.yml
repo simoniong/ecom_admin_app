@@ -292,6 +292,7 @@ en:
       origin_carrier: "Origin carrier"
       destination_carrier: "Destination carrier"
       more_filters: "More filters"
+      shipped_time: "Shipped time"
       event_time: "Latest event time"
       transit_days: "Transit time"
       days: "days"
