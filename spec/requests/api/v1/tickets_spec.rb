@@ -23,17 +23,40 @@ RSpec.describe "Api::V1::Tickets", type: :request do
   end
 
   describe "GET /api/v1/tickets" do
-    it "returns only new_ticket status tickets" do
-      new_ticket = create(:ticket, email_account: email_account, status: :new_ticket, subject: "New one")
+    it "returns all tickets when no status filter" do
+      create(:ticket, email_account: email_account, status: :new_ticket, subject: "New one")
       create(:ticket, :draft, email_account: email_account, subject: "Draft one")
       create(:ticket, :closed, email_account: email_account, subject: "Closed one")
 
       get "/api/v1/tickets", headers: auth_headers
       body = JSON.parse(response.body)
 
+      expect(body.length).to eq(3)
+      statuses = body.map { |t| t["status"] }
+      expect(statuses).to contain_exactly("new", "draft", "closed")
+    end
+
+    it "filters by status when provided" do
+      create(:ticket, email_account: email_account, status: :new_ticket, subject: "New one")
+      create(:ticket, :draft, email_account: email_account, subject: "Draft one")
+      create(:ticket, :closed, email_account: email_account, subject: "Closed one")
+
+      get "/api/v1/tickets", params: { status: "new" }, headers: auth_headers
+      body = JSON.parse(response.body)
+
       expect(body.length).to eq(1)
       expect(body.first["subject"]).to eq("New one")
-      expect(body.first["id"]).to eq(new_ticket.id)
+      expect(body.first["status"]).to eq("new")
+    end
+
+    it "ignores invalid status filter and returns all" do
+      create(:ticket, email_account: email_account, subject: "Ticket A")
+      create(:ticket, :draft, email_account: email_account, subject: "Ticket B")
+
+      get "/api/v1/tickets", params: { status: "bogus" }, headers: auth_headers
+      body = JSON.parse(response.body)
+
+      expect(body.length).to eq(2)
     end
 
     it "does not include messages" do
@@ -48,7 +71,7 @@ RSpec.describe "Api::V1::Tickets", type: :request do
   end
 
   describe "GET /api/v1/tickets/count" do
-    it "returns count of new_ticket status tickets" do
+    it "returns total count when no status filter" do
       create_list(:ticket, 3, email_account: email_account, status: :new_ticket)
       create(:ticket, :draft, email_account: email_account)
       create(:ticket, :closed, email_account: email_account)
@@ -57,11 +80,25 @@ RSpec.describe "Api::V1::Tickets", type: :request do
       body = JSON.parse(response.body)
 
       expect(response).to have_http_status(:ok)
+      expect(body["count"]).to eq(5)
+    end
+
+    it "filters count by status when provided" do
+      create_list(:ticket, 3, email_account: email_account, status: :new_ticket)
+      create(:ticket, :draft, email_account: email_account)
+      create(:ticket, :closed, email_account: email_account)
+
+      get "/api/v1/tickets/count", params: { status: "new" }, headers: auth_headers
+      body = JSON.parse(response.body)
+
+      expect(response).to have_http_status(:ok)
       expect(body["count"]).to eq(3)
     end
 
-    it "returns 0 when no new tickets exist" do
-      get "/api/v1/tickets/count", headers: auth_headers
+    it "returns 0 when no tickets match status" do
+      create(:ticket, :draft, email_account: email_account)
+
+      get "/api/v1/tickets/count", params: { status: "closed" }, headers: auth_headers
       body = JSON.parse(response.body)
 
       expect(response).to have_http_status(:ok)
@@ -70,7 +107,7 @@ RSpec.describe "Api::V1::Tickets", type: :request do
   end
 
   describe "GET /api/v1/tickets/:id" do
-    it "returns ticket detail for new_ticket" do
+    it "returns ticket detail with status 'new' for new_ticket" do
       ticket = create(:ticket, email_account: email_account, status: :new_ticket)
       create(:message, ticket: ticket)
 
@@ -79,14 +116,26 @@ RSpec.describe "Api::V1::Tickets", type: :request do
 
       expect(response).to have_http_status(:ok)
       expect(body["id"]).to eq(ticket.id)
+      expect(body["status"]).to eq("new")
       expect(body["messages"]).to be_present
     end
 
-    it "returns 404 for non-new ticket" do
+    it "returns ticket with actual status for non-new ticket" do
       ticket = create(:ticket, :draft, email_account: email_account)
 
       get "/api/v1/tickets/#{ticket.id}", headers: auth_headers
-      expect(response).to have_http_status(:not_found)
+      expect(response).to have_http_status(:ok)
+      body = JSON.parse(response.body)
+      expect(body["status"]).to eq("draft")
+    end
+
+    it "returns closed ticket with closed status" do
+      ticket = create(:ticket, :closed, email_account: email_account)
+
+      get "/api/v1/tickets/#{ticket.id}", headers: auth_headers
+      expect(response).to have_http_status(:ok)
+      body = JSON.parse(response.body)
+      expect(body["status"]).to eq("closed")
     end
 
     it "includes customer and orders in detail" do

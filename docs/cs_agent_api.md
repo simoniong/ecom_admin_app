@@ -21,9 +21,9 @@ Unauthorized requests return `401`:
 ## Workflow
 
 ```
-1. GET /tickets/count    → Get count of new (unprocessed) tickets
-2. GET /tickets          → List all new (unprocessed) tickets (basic info only)
-3. GET /tickets/:id      → Get ticket detail with messages, customer, orders, fulfillments
+1. GET /tickets/count?status=new  → Get count of new (unprocessed) tickets
+2. GET /tickets?status=new        → List new tickets (basic info only)
+3. GET /tickets/:id               → Get ticket detail with messages, customer, orders, fulfillments
 4. POST /tickets/:id/draft_reply  → Submit draft reply, ticket transitions to "draft"
 5. (Human reviews draft in admin UI → confirms → system schedules email send)
 ```
@@ -32,13 +32,18 @@ Unauthorized requests return `401`:
 
 ## Endpoints
 
-### 1. Count New Tickets
+### 1. Count Tickets
 
 ```
 GET /tickets/count
+GET /tickets/count?status={status}
 ```
 
-Returns the count of tickets with `status: "new_ticket"`.
+Returns the count of tickets. When `status` is provided, counts only tickets matching that status. Without `status`, returns total count across all statuses.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `status` | string | No | Filter by status: `new`, `draft`, `draft_confirmed`, `closed`. Invalid values are ignored (returns total count). |
 
 **Response** `200 OK`
 
@@ -50,13 +55,18 @@ Returns the count of tickets with `status: "new_ticket"`.
 
 ---
 
-### 2. List New Tickets
+### 2. List Tickets
 
 ```
 GET /tickets
+GET /tickets?status={status}
 ```
 
-Returns all tickets with `status: "new_ticket"`, ordered by most recent message first. Returns basic ticket info only — use the detail endpoint to get messages, customer, and order data.
+Returns tickets ordered by most recent message first. When `status` is provided, returns only tickets matching that status. Without `status`, returns all tickets. Returns basic ticket info only — use the detail endpoint to get messages, customer, and order data.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `status` | string | No | Filter by status: `new`, `draft`, `draft_confirmed`, `closed`. Invalid values are ignored (returns all tickets). |
 
 **Response** `200 OK`
 
@@ -65,7 +75,7 @@ Returns all tickets with `status: "new_ticket"`, ordered by most recent message 
   {
     "id": "dc281958-9993-4b92-b99e-38a683e400d9",
     "subject": "Where is my order?",
-    "status": "new_ticket",
+    "status": "new",
     "customer_email": "jane@example.com",
     "customer_name": "Jane Doe",
     "draft_reply": null,
@@ -84,7 +94,7 @@ Returns all tickets with `status: "new_ticket"`, ordered by most recent message 
 GET /tickets/:id
 ```
 
-Returns a single ticket with full context: messages, customer profile, orders, and fulfillment/tracking info. **Only returns tickets with `status: "new_ticket"`.**
+Returns a single ticket with full context: messages, customer profile, orders, and fulfillment/tracking info. Returns the ticket regardless of its current status.
 
 **Response** `200 OK`
 
@@ -92,7 +102,7 @@ Returns a single ticket with full context: messages, customer profile, orders, a
 {
   "id": "dc281958-9993-4b92-b99e-38a683e400d9",
   "subject": "Where is my order?",
-  "status": "new_ticket",
+  "status": "new",
   "customer_email": "jane@example.com",
   "customer_name": "Jane Doe",
   "draft_reply": null,
@@ -166,10 +176,10 @@ Returns a single ticket with full context: messages, customer profile, orders, a
 }
 ```
 
-**Error** `404 Not Found` — ticket doesn't exist or is not in `new_ticket` status:
+**Error** `404 Not Found` — ticket doesn't exist:
 
 ```json
-{ "error": "Ticket not found or not in new status" }
+{ "error": "Ticket not found" }
 ```
 
 ---
@@ -180,7 +190,7 @@ Returns a single ticket with full context: messages, customer profile, orders, a
 POST /tickets/:id/draft_reply
 ```
 
-Submit a draft reply for a ticket. Transitions ticket status from `new_ticket` → `draft`.
+Submit a draft reply for a ticket. Transitions ticket status from `new` → `draft`.
 
 **Request Body** (`Content-Type: application/json`)
 
@@ -215,7 +225,7 @@ Submit a draft reply for a ticket. Transitions ticket status from `new_ticket` �
 | Status | Condition | Response |
 |--------|-----------|----------|
 | `404` | Ticket not found | `{ "error": "Ticket not found" }` |
-| `422` | Ticket not in `new_ticket` status | `{ "error": "Ticket is not in new status" }` |
+| `422` | Ticket not in `new` status | `{ "error": "Ticket is not in new status" }` |
 | `422` | `draft_reply` is blank | `{ "error": "Draft reply content is required" }` |
 | `422` | Validation failure | `{ "error": "Validation failed", "details": [...] }` |
 
@@ -224,18 +234,18 @@ Submit a draft reply for a ticket. Transitions ticket status from `new_ticket` �
 ## Ticket Status Flow
 
 ```
-new_ticket ──→ draft ──→ draft_confirmed ──→ closed
-   │            (API)       (human only)     (auto, after email sent)
-   │
-   └──→ closed (if thread already has our reply when synced)
+new ──→ draft ──→ draft_confirmed ──→ closed
+ │       (API)       (human only)     (auto, after email sent)
+ │
+ └──→ closed (if replied via Gmail directly, or manually closed)
 ```
 
-- **new_ticket**: Awaiting agent processing. Visible to the API.
+- **new**: Awaiting agent processing.
 - **draft**: Agent submitted a draft reply. Awaiting human review.
 - **draft_confirmed**: Human approved the draft. Email is scheduled for send (timezone-aware, 8am–10pm recipient local time).
-- **closed**: Email has been sent. If customer replies again, ticket reopens to `new_ticket`.
+- **closed**: Email has been sent, or ticket was replied to via Gmail directly, or manually closed. If customer replies again, ticket reopens to `new`.
 
-**The API can only perform the `new_ticket → draft` transition.**
+**The API can only perform the `new → draft` transition.**
 
 ---
 
