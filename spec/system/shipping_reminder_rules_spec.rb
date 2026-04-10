@@ -22,10 +22,8 @@ RSpec.describe "Shipping Reminder Rules", type: :system do
     sign_in_as(user)
     navigate_to_settings_item "Shipping Reminders"
 
-    # Click first rule accordion to expand
     click_button "Rule: Not delivered for over X days"
 
-    # Add an item
     first("[data-action='click->threshold-items#add']").click
     expect(page).to have_selector("[data-threshold-row]", count: 1)
   end
@@ -51,8 +49,7 @@ RSpec.describe "Shipping Reminder Rules", type: :system do
     navigate_to_settings_item "Shipping Reminders"
 
     expect(page).to have_text("Off")
-    # Click the switch (button_to form)
-    find("[action*='toggle']").click
+    find("form[action*='toggle'] button[type='submit']").click
     expect(page).to have_text("Email reminder turned on.")
     expect(page).to have_text("On")
   end
@@ -61,10 +58,13 @@ RSpec.describe "Shipping Reminder Rules", type: :system do
     sign_in_as(user)
     navigate_to_settings_item "Shipping Reminders"
 
-    # Click edit icon to reveal textarea
     find("[data-action='click->inline-edit#edit']").click
-    fill_in "shipping_reminder_setting[recipients_text]", with: "admin@example.com"
-    click_button "Save", match: :first
+
+    within("[data-inline-edit-target='editor']") do
+      fill_in "shipping_reminder_setting[recipients_text]", with: "admin@example.com"
+      click_button "Save"
+    end
+
     expect(page).to have_text("Email reminder settings updated successfully.")
     expect(page).to have_text("admin@example.com")
   end
@@ -81,11 +81,11 @@ RSpec.describe "Shipping Reminder Rules", type: :system do
     sign_in_as(user)
     navigate_to_settings_item "Shipping Reminders"
 
-    # Day selector hidden by default (daily)
-    expect(page).to have_selector("[data-frequency-toggle-target='dayOfWeek'].hidden", visible: :hidden)
+    # Day selector not visible by default (daily)
+    expect(page).to have_no_select("shipping_reminder_setting[send_day_of_week]", visible: :visible)
 
-    # Select weekly
+    # Select weekly — day selector becomes visible
     choose "Every week"
-    expect(page).not_to have_selector("[data-frequency-toggle-target='dayOfWeek'].hidden", visible: :hidden)
+    expect(page).to have_select("shipping_reminder_setting[send_day_of_week]", visible: :visible)
   end
 end

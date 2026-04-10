@@ -30,5 +30,4 @@ class ShippingReminderSettingsController < AdminController
     end
     raw
   end
-
 end
