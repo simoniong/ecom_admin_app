@@ -54,6 +54,10 @@ export default class extends Controller {
 
   clearFilter(event) {
     const filterName = event.currentTarget.dataset.filterName
+    if (filterName === "tags[]") {
+      this.clearTagFilter()
+      return
+    }
     const input = this.filterFormTarget.querySelector(`[name="${filterName}"]`)
     if (input) {
       input.value = ""
@@ -61,9 +65,15 @@ export default class extends Controller {
     this.filterFormTarget.requestSubmit()
   }
 
+  clearTagFilter() {
+    this.filterFormTarget.querySelectorAll("input[name='tags[]']").forEach(cb => cb.checked = false)
+    this.filterFormTarget.requestSubmit()
+  }
+
   clearAllFilters() {
     this.filterFormTarget.querySelectorAll("select").forEach(s => s.value = "")
     this.filterFormTarget.querySelectorAll("input[type='text'], input[type='date'], input[type='number']").forEach(i => i.value = "")
+    this.filterFormTarget.querySelectorAll("input[type='checkbox'][name='tags[]']").forEach(cb => cb.checked = false)
     this.statusTabTarget.value = "All"
     this.filterFormTarget.requestSubmit()
   }

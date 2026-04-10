@@ -59,6 +59,41 @@ export default class extends Controller {
       }))
   }
 
+  openTagModal(event) {
+    const mode = event.currentTarget.dataset.tagMode
+    const tagsController = this.application.getControllerForElementAndIdentifier(
+      document.querySelector("[data-controller='shipment-tags']"),
+      "shipment-tags"
+    )
+    if (!tagsController) return
+
+    // Set form action URL
+    const url = event.currentTarget.dataset.url
+    tagsController.formTarget.action = url
+
+    // Populate IDs
+    tagsController.idsContainerTarget.innerHTML = ""
+    this.selectedData().forEach(d => {
+      const input = document.createElement("input")
+      input.type = "hidden"
+      input.name = "ids[]"
+      input.value = d.id
+      tagsController.idsContainerTarget.appendChild(input)
+    })
+
+    // For delete mode, collect tags from selected shipments
+    if (mode === "delete") {
+      const allTags = this.checkboxTargets
+        .filter(cb => cb.checked)
+        .flatMap(cb => JSON.parse(cb.dataset.tags || "[]"))
+      const uniqueTags = [...new Set(allTags)].sort()
+      tagsController.element.dataset.selectedShipmentTags = JSON.stringify(uniqueTags)
+    }
+
+    // Trigger open on the tags controller
+    tagsController.open(event)
+  }
+
   submitBulkAction(event) {
     const form = this.archiveFormTarget
     const url = event.currentTarget.dataset.url

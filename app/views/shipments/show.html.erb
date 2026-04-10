@@ -1,4 +1,12 @@
-<div class="max-w-5xl mx-auto">
+<div class="max-w-5xl mx-auto" data-controller="shipment-tags"
+     data-shipment-tags-available-tags-url-value="<%= available_tags_shipments_path %>"
+     data-shipment-tags-add-title-value="<%= t("shipments.tags.add_tags") %>"
+     data-shipment-tags-delete-title-value="<%= t("shipments.tags.delete_tags") %>"
+     data-shipment-tags-added-label-value="<%= t("shipments.tags.added_label") %>"
+     data-shipment-tags-selected-label-value="<%= t("shipments.tags.selected_label") %>"
+     data-shipment-tags-available-label-value="<%= t("shipments.tags.available_label") %>"
+     data-shipment-tags-no-tags-text-value="<%= t("shipments.tags.no_tags") %>"
+     data-shipment-tags-no-tags-found-text-value="<%= t("shipments.tags.no_tags_found") %>">
   <%# Header %>
   <div class="flex items-center justify-between">
     <div class="flex items-center gap-3">
@@ -207,4 +215,7 @@
       <%= render "shipments/sidebar" %>
     </div>
   </div>
+
+  <%# Tag modal for show page %>
+  <%= render "shipments/tag_modal" %>
 </div>

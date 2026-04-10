@@ -1,0 +1,78 @@
+<%# Tag management modal — used by both index (bulk) and show (single) pages. %>
+<%# No locals required; form action and selected IDs are managed via the shipment-tags Stimulus controller. %>
+
+<div data-shipment-tags-target="modal" class="hidden fixed inset-0 z-50 flex items-center justify-center">
+  <%# Backdrop %>
+  <div class="fixed inset-0 bg-black/40" data-action="click->shipment-tags#close"></div>
+
+  <%# Modal content %>
+  <div class="relative bg-white rounded-xl shadow-2xl w-full max-w-lg mx-4 max-h-[80vh] flex flex-col">
+    <%# Header %>
+    <div class="flex items-center justify-between px-6 pt-5 pb-3">
+      <h2 data-shipment-tags-target="title" class="text-lg font-semibold text-gray-900"><%= t("shipments.tags.add_tags") %></h2>
+      <button type="button" data-action="click->shipment-tags#close" class="text-gray-400 hover:text-gray-600">
+        <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+        </svg>
+      </button>
+    </div>
+
+    <%# Search %>
+    <div class="px-6 pb-3">
+      <div class="relative">
+        <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+        </svg>
+        <input type="text" data-shipment-tags-target="search" data-action="input->shipment-tags#search"
+               placeholder="<%= t("shipments.tags.search_placeholder") %>"
+               class="block w-full pl-10 pr-10 py-2.5 rounded-lg border border-gray-300 bg-gray-50 text-sm focus:border-blue-500 focus:ring-blue-500">
+        <button type="button" data-action="click->shipment-tags#clearSearch"
+                class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 hidden"
+                data-shipment-tags-target="clearBtn">
+          <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="border-t border-gray-200"></div>
+
+    <%# Create new tag option (add mode only) %>
+    <div data-shipment-tags-target="createOption" class="hidden px-6 py-2">
+      <button type="button" data-action="click->shipment-tags#createTag"
+              class="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800">
+        <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+        </svg>
+        <span><%= t("shipments.tags.create_tag") %> <span data-tag-name></span></span>
+      </button>
+    </div>
+
+    <%# Tag list %>
+    <div data-shipment-tags-target="tagList" class="flex-1 overflow-y-auto px-6 py-2 min-h-[200px]">
+    </div>
+
+    <div class="border-t border-gray-200"></div>
+
+    <%# Footer %>
+    <div class="flex items-center justify-end gap-3 px-6 py-4">
+      <button type="button" data-action="click->shipment-tags#close"
+              class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
+        <%= t("shipments.tags.close") %>
+      </button>
+      <button type="button" data-action="click->shipment-tags#confirm" data-shipment-tags-target="confirmBtn"
+              disabled
+              class="px-4 py-2 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800 opacity-50 cursor-not-allowed">
+        <%= t("shipments.tags.confirm") %>
+      </button>
+    </div>
+
+    <%# Hidden form for submission %>
+    <form data-shipment-tags-target="form" method="post" class="hidden">
+      <input type="hidden" name="authenticity_token" value="<%= form_authenticity_token %>">
+      <div data-shipment-tags-target="idsContainer"></div>
+      <div data-shipment-tags-target="tagsContainer"></div>
+    </form>
+  </div>
+</div>
