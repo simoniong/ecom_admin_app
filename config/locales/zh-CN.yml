@@ -341,6 +341,10 @@
       unarchived_notice: "已取消归档 %{count} 条物流。"
     show:
       back: "返回物流列表"
+      archive_btn: "归档"
+      archived: "已归档"
+      archived_notice: "物流已归档。"
+      unarchived_notice: "物流已取消归档。"
       copy_tracking_number: "复制运单号"
       copy_tracking_link: "复制追踪链接"
       copied: "已复制！"

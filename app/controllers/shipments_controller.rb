@@ -38,6 +38,18 @@ class ShipmentsController < AdminController
     @tz = ActiveSupport::TimeZone["Asia/Shanghai"]
   end
 
+  def archive
+    fulfillment = find_fulfillment
+    fulfillment.update!(archived_at: Time.current)
+    redirect_to shipment_path(id: fulfillment.id), notice: t("shipments.show.archived_notice")
+  end
+
+  def unarchive
+    fulfillment = find_fulfillment
+    fulfillment.update!(archived_at: nil)
+    redirect_to shipment_path(id: fulfillment.id), notice: t("shipments.show.unarchived_notice")
+  end
+
   def bulk_archive
     ids = Array(params[:ids])
     scoped_fulfillments(ids).where(archived_at: nil).update_all(archived_at: Time.current)
@@ -67,6 +79,11 @@ class ShipmentsController < AdminController
     uri.is_a?(URI::HTTP) ? url : nil
   rescue URI::InvalidURIError
     nil
+  end
+
+  def find_fulfillment
+    store_ids = current_company.shopify_stores.pluck(:id)
+    Fulfillment.joins(:order).where(orders: { shopify_store_id: store_ids }).find(params[:id])
   end
 
   def scoped_fulfillments(ids)

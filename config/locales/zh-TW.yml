@@ -342,6 +342,10 @@
       unarchived_notice: "已取消歸檔 %{count} 筆物流。"
     show:
       back: "返回物流列表"
+      archive_btn: "歸檔"
+      archived: "已歸檔"
+      archived_notice: "物流已歸檔。"
+      unarchived_notice: "物流已取消歸檔。"
       copy_tracking_number: "複製運單號"
       copy_tracking_link: "複製追蹤連結"
       copied: "已複製！"

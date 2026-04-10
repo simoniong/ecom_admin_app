@@ -342,6 +342,10 @@ en:
       unarchived_notice: "%{count} shipment(s) unarchived."
     show:
       back: "Back to shipments"
+      archive_btn: "Archive"
+      archived: "Archived"
+      archived_notice: "Shipment archived."
+      unarchived_notice: "Shipment unarchived."
       copy_tracking_number: "Copy tracking number"
       copy_tracking_link: "Copy tracking link"
       copied: "Copied!"
