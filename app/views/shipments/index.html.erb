@@ -311,7 +311,6 @@
                            <%= "checked" if @tag_filters&.include?(tag) %>
                            class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
                     <span class="text-gray-700"><%= tag %></span>
-                    <span class="ml-auto text-xs text-gray-400">(<%= @tag_counts[tag] || 0 %>)</span>
                   </label>
                 <% end %>
                 <% if @available_tags.empty? %>

@@ -251,10 +251,8 @@ class ShipmentsController < AdminController
     @origin_carriers = @base_scope.where.not(origin_carrier: [ nil, "" ]).distinct.pluck(:origin_carrier).sort
     @destination_carriers = @base_scope.where.not(destination_carrier: [ nil, "" ]).distinct.pluck(:destination_carrier).sort
     @stores = current_company.shopify_stores
-    all_tags = @base_scope
+    @available_tags = @base_scope
       .where("tags IS NOT NULL AND tags != '{}'::varchar[]")
-      .pluck(:tags)
-    @tag_counts = all_tags.flatten.tally
-    @available_tags = @tag_counts.keys.sort
+      .pluck(:tags).flatten.uniq.sort
   end
 end
