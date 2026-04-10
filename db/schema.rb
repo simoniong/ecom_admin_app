@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_04_08_100006) do
+ActiveRecord::Schema[8.1].define(version: 2026_04_10_073037) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -27,10 +27,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_08_100006) do
     t.datetime "token_expires_at"
     t.datetime "updated_at", null: false
     t.uuid "user_id", null: false
-    t.index [ "company_id" ], name: "index_ad_accounts_on_company_id"
-    t.index [ "shopify_store_id" ], name: "index_ad_accounts_on_shopify_store_id"
-    t.index [ "user_id", "platform", "account_id" ], name: "index_ad_accounts_on_user_id_and_platform_and_account_id", unique: true
-    t.index [ "user_id" ], name: "index_ad_accounts_on_user_id"
+    t.index ["company_id"], name: "index_ad_accounts_on_company_id"
+    t.index ["shopify_store_id"], name: "index_ad_accounts_on_shopify_store_id"
+    t.index ["user_id", "platform", "account_id"], name: "index_ad_accounts_on_user_id_and_platform_and_account_id", unique: true
+    t.index ["user_id"], name: "index_ad_accounts_on_user_id"
   end
 
   create_table "ad_campaign_daily_metrics", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -45,8 +45,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_08_100006) do
     t.integer "purchases", default: 0
     t.decimal "spend", precision: 12, scale: 2, default: "0.0"
     t.datetime "updated_at", null: false
-    t.index [ "ad_campaign_id", "date" ], name: "idx_campaign_metrics_campaign_date", unique: true
-    t.index [ "ad_campaign_id" ], name: "index_ad_campaign_daily_metrics_on_ad_campaign_id"
+    t.index ["ad_campaign_id", "date"], name: "idx_campaign_metrics_campaign_date", unique: true
+    t.index ["ad_campaign_id"], name: "index_ad_campaign_daily_metrics_on_ad_campaign_id"
   end
 
   create_table "ad_campaigns", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -57,8 +57,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_08_100006) do
     t.decimal "daily_budget", precision: 12, scale: 2, default: "0.0"
     t.string "status", default: "active", null: false
     t.datetime "updated_at", null: false
-    t.index [ "ad_account_id", "campaign_id" ], name: "index_ad_campaigns_on_ad_account_id_and_campaign_id", unique: true
-    t.index [ "ad_account_id" ], name: "index_ad_campaigns_on_ad_account_id"
+    t.index ["ad_account_id", "campaign_id"], name: "index_ad_campaigns_on_ad_account_id_and_campaign_id", unique: true
+    t.index ["ad_account_id"], name: "index_ad_campaigns_on_ad_account_id"
   end
 
   create_table "ad_daily_metrics", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -71,8 +71,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_08_100006) do
     t.integer "impressions", default: 0
     t.decimal "spend", precision: 12, scale: 2, default: "0.0"
     t.datetime "updated_at", null: false
-    t.index [ "ad_account_id", "date" ], name: "index_ad_daily_metrics_on_ad_account_id_and_date", unique: true
-    t.index [ "ad_account_id" ], name: "index_ad_daily_metrics_on_ad_account_id"
+    t.index ["ad_account_id", "date"], name: "index_ad_daily_metrics_on_ad_account_id_and_date", unique: true
+    t.index ["ad_account_id"], name: "index_ad_daily_metrics_on_ad_account_id"
   end
 
   create_table "campaign_display_templates", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -83,13 +83,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_08_100006) do
     t.datetime "updated_at", null: false
     t.uuid "user_id", null: false
     t.jsonb "visible_columns", default: [], null: false
-    t.index [ "company_id" ], name: "index_campaign_display_templates_on_company_id"
-    t.index [ "user_id", "last_active_at" ], name: "index_campaign_display_templates_on_user_id_and_last_active_at"
-    t.index [ "user_id" ], name: "index_campaign_display_templates_on_user_id"
+    t.index ["company_id"], name: "index_campaign_display_templates_on_company_id"
+    t.index ["user_id", "last_active_at"], name: "index_campaign_display_templates_on_user_id_and_last_active_at"
+    t.index ["user_id"], name: "index_campaign_display_templates_on_user_id"
   end
 
   create_table "companies", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.datetime "created_at", null: false
+    t.string "locale", default: "en", null: false
     t.string "name", null: false
     t.datetime "updated_at", null: false
   end
@@ -105,9 +106,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_08_100006) do
     t.uuid "shopify_store_id"
     t.string "timezone", default: "UTC", null: false
     t.datetime "updated_at", null: false
-    t.index [ "email" ], name: "index_customers_on_email"
-    t.index [ "shopify_store_id", "shopify_customer_id" ], name: "idx_customers_store_shopify_id", unique: true
-    t.index [ "shopify_store_id" ], name: "index_customers_on_shopify_store_id"
+    t.index ["email"], name: "index_customers_on_email"
+    t.index ["shopify_store_id", "shopify_customer_id"], name: "idx_customers_store_shopify_id", unique: true
+    t.index ["shopify_store_id"], name: "index_customers_on_shopify_store_id"
   end
 
   create_table "email_accounts", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -124,11 +125,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_08_100006) do
     t.datetime "token_expires_at"
     t.datetime "updated_at", null: false
     t.uuid "user_id", null: false
-    t.index [ "company_id" ], name: "index_email_accounts_on_company_id"
-    t.index [ "google_uid" ], name: "index_email_accounts_on_google_uid", unique: true
-    t.index [ "shopify_store_id" ], name: "index_email_accounts_on_shopify_store_id"
-    t.index [ "user_id", "email" ], name: "index_email_accounts_on_user_id_and_email", unique: true
-    t.index [ "user_id" ], name: "index_email_accounts_on_user_id"
+    t.index ["company_id"], name: "index_email_accounts_on_company_id"
+    t.index ["google_uid"], name: "index_email_accounts_on_google_uid", unique: true
+    t.index ["shopify_store_id"], name: "index_email_accounts_on_shopify_store_id"
+    t.index ["user_id", "email"], name: "index_email_accounts_on_user_id_and_email", unique: true
+    t.index ["user_id"], name: "index_email_accounts_on_user_id"
   end
 
   create_table "fulfillments", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -154,17 +155,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_08_100006) do
     t.string "tracking_url"
     t.integer "transit_days"
     t.datetime "updated_at", null: false
-    t.index [ "delivered_at" ], name: "index_fulfillments_on_delivered_at"
-    t.index [ "destination_carrier" ], name: "index_fulfillments_on_destination_carrier"
-    t.index [ "destination_country" ], name: "index_fulfillments_on_destination_country"
-    t.index [ "last_event_at" ], name: "index_fulfillments_on_last_event_at"
-    t.index [ "order_id" ], name: "index_fulfillments_on_order_id"
-    t.index [ "origin_carrier" ], name: "index_fulfillments_on_origin_carrier"
-    t.index [ "shipped_at" ], name: "index_fulfillments_on_shipped_at"
-    t.index [ "shopify_fulfillment_id" ], name: "index_fulfillments_on_shopify_fulfillment_id", unique: true
-    t.index [ "tracking_number" ], name: "index_fulfillments_on_tracking_number"
-    t.index [ "tracking_status" ], name: "index_fulfillments_on_tracking_status"
-    t.index [ "transit_days" ], name: "index_fulfillments_on_transit_days"
+    t.index ["delivered_at"], name: "index_fulfillments_on_delivered_at"
+    t.index ["destination_carrier"], name: "index_fulfillments_on_destination_carrier"
+    t.index ["destination_country"], name: "index_fulfillments_on_destination_country"
+    t.index ["last_event_at"], name: "index_fulfillments_on_last_event_at"
+    t.index ["order_id"], name: "index_fulfillments_on_order_id"
+    t.index ["origin_carrier"], name: "index_fulfillments_on_origin_carrier"
+    t.index ["shipped_at"], name: "index_fulfillments_on_shipped_at"
+    t.index ["shopify_fulfillment_id"], name: "index_fulfillments_on_shopify_fulfillment_id", unique: true
+    t.index ["tracking_number"], name: "index_fulfillments_on_tracking_number"
+    t.index ["tracking_status"], name: "index_fulfillments_on_tracking_status"
+    t.index ["transit_days"], name: "index_fulfillments_on_transit_days"
   end
 
   create_table "invitations", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -177,10 +178,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_08_100006) do
     t.integer "role", default: 0, null: false
     t.string "token", null: false
     t.datetime "updated_at", null: false
-    t.index [ "company_id", "email" ], name: "index_invitations_on_company_id_and_email", unique: true, where: "(accepted_at IS NULL)"
-    t.index [ "company_id" ], name: "index_invitations_on_company_id"
-    t.index [ "invited_by_id" ], name: "index_invitations_on_invited_by_id"
-    t.index [ "token" ], name: "index_invitations_on_token", unique: true
+    t.index ["company_id", "email"], name: "index_invitations_on_company_id_and_email", unique: true, where: "(accepted_at IS NULL)"
+    t.index ["company_id"], name: "index_invitations_on_company_id"
+    t.index ["invited_by_id"], name: "index_invitations_on_invited_by_id"
+    t.index ["token"], name: "index_invitations_on_token", unique: true
   end
 
   create_table "memberships", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -190,9 +191,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_08_100006) do
     t.integer "role", default: 0, null: false
     t.datetime "updated_at", null: false
     t.uuid "user_id", null: false
-    t.index [ "company_id", "user_id" ], name: "index_memberships_on_company_id_and_user_id", unique: true
-    t.index [ "company_id" ], name: "index_memberships_on_company_id"
-    t.index [ "user_id" ], name: "index_memberships_on_user_id"
+    t.index ["company_id", "user_id"], name: "index_memberships_on_company_id_and_user_id", unique: true
+    t.index ["company_id"], name: "index_memberships_on_company_id"
+    t.index ["user_id"], name: "index_memberships_on_user_id"
   end
 
   create_table "messages", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -207,9 +208,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_08_100006) do
     t.uuid "ticket_id", null: false
     t.string "to"
     t.datetime "updated_at", null: false
-    t.index [ "gmail_message_id" ], name: "index_messages_on_gmail_message_id", unique: true
-    t.index [ "ticket_id", "sent_at" ], name: "index_messages_on_ticket_id_and_sent_at"
-    t.index [ "ticket_id" ], name: "index_messages_on_ticket_id"
+    t.index ["gmail_message_id"], name: "index_messages_on_gmail_message_id", unique: true
+    t.index ["ticket_id", "sent_at"], name: "index_messages_on_ticket_id_and_sent_at"
+    t.index ["ticket_id"], name: "index_messages_on_ticket_id"
   end
 
   create_table "orders", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -226,9 +227,34 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_08_100006) do
     t.uuid "shopify_store_id"
     t.decimal "total_price", precision: 10, scale: 2
     t.datetime "updated_at", null: false
-    t.index [ "customer_id" ], name: "index_orders_on_customer_id"
-    t.index [ "shopify_store_id", "shopify_order_id" ], name: "idx_orders_store_shopify_id", unique: true
-    t.index [ "shopify_store_id" ], name: "index_orders_on_shopify_store_id"
+    t.index ["customer_id"], name: "index_orders_on_customer_id"
+    t.index ["shopify_store_id", "shopify_order_id"], name: "idx_orders_store_shopify_id", unique: true
+    t.index ["shopify_store_id"], name: "index_orders_on_shopify_store_id"
+  end
+
+  create_table "shipping_reminder_rules", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "company_id", null: false
+    t.jsonb "country_thresholds", default: [], null: false
+    t.datetime "created_at", null: false
+    t.boolean "enabled", default: true, null: false
+    t.string "rule_type", null: false
+    t.datetime "updated_at", null: false
+    t.index ["company_id", "rule_type"], name: "index_shipping_reminder_rules_on_company_id_and_rule_type", unique: true
+    t.index ["company_id"], name: "index_shipping_reminder_rules_on_company_id"
+  end
+
+  create_table "shipping_reminder_settings", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "company_id", null: false
+    t.datetime "created_at", null: false
+    t.boolean "enabled", default: false, null: false
+    t.string "frequency", default: "every_day", null: false
+    t.datetime "last_sent_at"
+    t.string "recipients", default: [], null: false, array: true
+    t.integer "send_day_of_week"
+    t.integer "send_hour", default: 9, null: false
+    t.string "timezone", default: "UTC", null: false
+    t.datetime "updated_at", null: false
+    t.index ["company_id"], name: "index_shipping_reminder_settings_on_company_id", unique: true
   end
 
   create_table "shopify_daily_metrics", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -240,8 +266,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_08_100006) do
     t.integer "sessions", default: 0
     t.uuid "shopify_store_id", null: false
     t.datetime "updated_at", null: false
-    t.index [ "shopify_store_id", "date" ], name: "idx_shopify_metrics_store_date", unique: true
-    t.index [ "shopify_store_id" ], name: "index_shopify_daily_metrics_on_shopify_store_id"
+    t.index ["shopify_store_id", "date"], name: "idx_shopify_metrics_store_date", unique: true
+    t.index ["shopify_store_id"], name: "index_shopify_daily_metrics_on_shopify_store_id"
   end
 
   create_table "shopify_stores", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -256,9 +282,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_08_100006) do
     t.datetime "updated_at", null: false
     t.uuid "user_id", null: false
     t.datetime "webhooks_registered_at"
-    t.index [ "company_id" ], name: "index_shopify_stores_on_company_id"
-    t.index [ "shop_domain" ], name: "index_shopify_stores_on_shop_domain", unique: true
-    t.index [ "user_id" ], name: "index_shopify_stores_on_user_id"
+    t.index ["company_id"], name: "index_shopify_stores_on_company_id"
+    t.index ["shop_domain"], name: "index_shopify_stores_on_shop_domain", unique: true
+    t.index ["user_id"], name: "index_shopify_stores_on_user_id"
   end
 
   create_table "solid_queue_blocked_executions", force: :cascade do |t|
@@ -268,24 +294,24 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_08_100006) do
     t.bigint "job_id", null: false
     t.integer "priority", default: 0, null: false
     t.string "queue_name", null: false
-    t.index [ "concurrency_key", "priority", "job_id" ], name: "index_solid_queue_blocked_executions_for_release"
-    t.index [ "expires_at", "concurrency_key" ], name: "index_solid_queue_blocked_executions_for_maintenance"
-    t.index [ "job_id" ], name: "index_solid_queue_blocked_executions_on_job_id", unique: true
+    t.index ["concurrency_key", "priority", "job_id"], name: "index_solid_queue_blocked_executions_for_release"
+    t.index ["expires_at", "concurrency_key"], name: "index_solid_queue_blocked_executions_for_maintenance"
+    t.index ["job_id"], name: "index_solid_queue_blocked_executions_on_job_id", unique: true
   end
 
   create_table "solid_queue_claimed_executions", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.bigint "job_id", null: false
     t.bigint "process_id"
-    t.index [ "job_id" ], name: "index_solid_queue_claimed_executions_on_job_id", unique: true
-    t.index [ "process_id", "job_id" ], name: "index_solid_queue_claimed_executions_on_process_id_and_job_id"
+    t.index ["job_id"], name: "index_solid_queue_claimed_executions_on_job_id", unique: true
+    t.index ["process_id", "job_id"], name: "index_solid_queue_claimed_executions_on_process_id_and_job_id"
   end
 
   create_table "solid_queue_failed_executions", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.text "error"
     t.bigint "job_id", null: false
-    t.index [ "job_id" ], name: "index_solid_queue_failed_executions_on_job_id", unique: true
+    t.index ["job_id"], name: "index_solid_queue_failed_executions_on_job_id", unique: true
   end
 
   create_table "solid_queue_jobs", force: :cascade do |t|
@@ -299,17 +325,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_08_100006) do
     t.string "queue_name", null: false
     t.datetime "scheduled_at"
     t.datetime "updated_at", null: false
-    t.index [ "active_job_id" ], name: "index_solid_queue_jobs_on_active_job_id"
-    t.index [ "class_name" ], name: "index_solid_queue_jobs_on_class_name"
-    t.index [ "finished_at" ], name: "index_solid_queue_jobs_on_finished_at"
-    t.index [ "queue_name", "finished_at" ], name: "index_solid_queue_jobs_for_filtering"
-    t.index [ "scheduled_at", "finished_at" ], name: "index_solid_queue_jobs_for_alerting"
+    t.index ["active_job_id"], name: "index_solid_queue_jobs_on_active_job_id"
+    t.index ["class_name"], name: "index_solid_queue_jobs_on_class_name"
+    t.index ["finished_at"], name: "index_solid_queue_jobs_on_finished_at"
+    t.index ["queue_name", "finished_at"], name: "index_solid_queue_jobs_for_filtering"
+    t.index ["scheduled_at", "finished_at"], name: "index_solid_queue_jobs_for_alerting"
   end
 
   create_table "solid_queue_pauses", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.string "queue_name", null: false
-    t.index [ "queue_name" ], name: "index_solid_queue_pauses_on_queue_name", unique: true
+    t.index ["queue_name"], name: "index_solid_queue_pauses_on_queue_name", unique: true
   end
 
   create_table "solid_queue_processes", force: :cascade do |t|
@@ -321,9 +347,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_08_100006) do
     t.string "name", null: false
     t.integer "pid", null: false
     t.bigint "supervisor_id"
-    t.index [ "last_heartbeat_at" ], name: "index_solid_queue_processes_on_last_heartbeat_at"
-    t.index [ "name", "supervisor_id" ], name: "index_solid_queue_processes_on_name_and_supervisor_id", unique: true
-    t.index [ "supervisor_id" ], name: "index_solid_queue_processes_on_supervisor_id"
+    t.index ["last_heartbeat_at"], name: "index_solid_queue_processes_on_last_heartbeat_at"
+    t.index ["name", "supervisor_id"], name: "index_solid_queue_processes_on_name_and_supervisor_id", unique: true
+    t.index ["supervisor_id"], name: "index_solid_queue_processes_on_supervisor_id"
   end
 
   create_table "solid_queue_ready_executions", force: :cascade do |t|
@@ -331,9 +357,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_08_100006) do
     t.bigint "job_id", null: false
     t.integer "priority", default: 0, null: false
     t.string "queue_name", null: false
-    t.index [ "job_id" ], name: "index_solid_queue_ready_executions_on_job_id", unique: true
-    t.index [ "priority", "job_id" ], name: "index_solid_queue_poll_all"
-    t.index [ "queue_name", "priority", "job_id" ], name: "index_solid_queue_poll_by_queue"
+    t.index ["job_id"], name: "index_solid_queue_ready_executions_on_job_id", unique: true
+    t.index ["priority", "job_id"], name: "index_solid_queue_poll_all"
+    t.index ["queue_name", "priority", "job_id"], name: "index_solid_queue_poll_by_queue"
   end
 
   create_table "solid_queue_recurring_executions", force: :cascade do |t|
@@ -341,8 +367,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_08_100006) do
     t.bigint "job_id", null: false
     t.datetime "run_at", null: false
     t.string "task_key", null: false
-    t.index [ "job_id" ], name: "index_solid_queue_recurring_executions_on_job_id", unique: true
-    t.index [ "task_key", "run_at" ], name: "index_solid_queue_recurring_executions_on_task_key_and_run_at", unique: true
+    t.index ["job_id"], name: "index_solid_queue_recurring_executions_on_job_id", unique: true
+    t.index ["task_key", "run_at"], name: "index_solid_queue_recurring_executions_on_task_key_and_run_at", unique: true
   end
 
   create_table "solid_queue_recurring_tasks", force: :cascade do |t|
@@ -357,8 +383,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_08_100006) do
     t.string "schedule", null: false
     t.boolean "static", default: true, null: false
     t.datetime "updated_at", null: false
-    t.index [ "key" ], name: "index_solid_queue_recurring_tasks_on_key", unique: true
-    t.index [ "static" ], name: "index_solid_queue_recurring_tasks_on_static"
+    t.index ["key"], name: "index_solid_queue_recurring_tasks_on_key", unique: true
+    t.index ["static"], name: "index_solid_queue_recurring_tasks_on_static"
   end
 
   create_table "solid_queue_scheduled_executions", force: :cascade do |t|
@@ -367,8 +393,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_08_100006) do
     t.integer "priority", default: 0, null: false
     t.string "queue_name", null: false
     t.datetime "scheduled_at", null: false
-    t.index [ "job_id" ], name: "index_solid_queue_scheduled_executions_on_job_id", unique: true
-    t.index [ "scheduled_at", "priority", "job_id" ], name: "index_solid_queue_dispatch_all"
+    t.index ["job_id"], name: "index_solid_queue_scheduled_executions_on_job_id", unique: true
+    t.index ["scheduled_at", "priority", "job_id"], name: "index_solid_queue_dispatch_all"
   end
 
   create_table "solid_queue_semaphores", force: :cascade do |t|
@@ -377,9 +403,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_08_100006) do
     t.string "key", null: false
     t.datetime "updated_at", null: false
     t.integer "value", default: 1, null: false
-    t.index [ "expires_at" ], name: "index_solid_queue_semaphores_on_expires_at"
-    t.index [ "key", "value" ], name: "index_solid_queue_semaphores_on_key_and_value"
-    t.index [ "key" ], name: "index_solid_queue_semaphores_on_key", unique: true
+    t.index ["expires_at"], name: "index_solid_queue_semaphores_on_expires_at"
+    t.index ["key", "value"], name: "index_solid_queue_semaphores_on_key_and_value"
+    t.index ["key"], name: "index_solid_queue_semaphores_on_key", unique: true
   end
 
   create_table "tickets", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -398,13 +424,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_08_100006) do
     t.integer "status", default: 0, null: false
     t.string "subject"
     t.datetime "updated_at", null: false
-    t.index [ "customer_id" ], name: "index_tickets_on_customer_id"
-    t.index [ "email_account_id", "gmail_thread_id" ], name: "index_tickets_on_email_account_id_and_gmail_thread_id", unique: true
-    t.index [ "email_account_id" ], name: "index_tickets_on_email_account_id"
-    t.index [ "last_message_at" ], name: "index_tickets_on_last_message_at"
-    t.index [ "scheduled_send_at" ], name: "index_tickets_on_scheduled_send_at"
-    t.index [ "status", "position" ], name: "index_tickets_on_status_and_position"
-    t.index [ "status" ], name: "index_tickets_on_status"
+    t.index ["customer_id"], name: "index_tickets_on_customer_id"
+    t.index ["email_account_id", "gmail_thread_id"], name: "index_tickets_on_email_account_id_and_gmail_thread_id", unique: true
+    t.index ["email_account_id"], name: "index_tickets_on_email_account_id"
+    t.index ["last_message_at"], name: "index_tickets_on_last_message_at"
+    t.index ["scheduled_send_at"], name: "index_tickets_on_scheduled_send_at"
+    t.index ["status", "position"], name: "index_tickets_on_status_and_position"
+    t.index ["status"], name: "index_tickets_on_status"
   end
 
   create_table "users", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -414,15 +440,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_08_100006) do
     t.integer "failed_attempts", default: 0, null: false
     t.string "first_name"
     t.string "last_name"
+    t.string "locale", default: "en", null: false
     t.datetime "locked_at"
     t.datetime "remember_created_at"
     t.datetime "reset_password_sent_at"
     t.string "reset_password_token"
     t.string "unlock_token"
     t.datetime "updated_at", null: false
-    t.index [ "email" ], name: "index_users_on_email", unique: true
-    t.index [ "reset_password_token" ], name: "index_users_on_reset_password_token", unique: true
-    t.index [ "unlock_token" ], name: "index_users_on_unlock_token", unique: true
+    t.index ["email"], name: "index_users_on_email", unique: true
+    t.index ["reset_password_token"], name: "index_users_on_reset_password_token", unique: true
+    t.index ["unlock_token"], name: "index_users_on_unlock_token", unique: true
   end
 
   add_foreign_key "ad_accounts", "companies"
@@ -445,6 +472,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_08_100006) do
   add_foreign_key "messages", "tickets"
   add_foreign_key "orders", "customers"
   add_foreign_key "orders", "shopify_stores"
+  add_foreign_key "shipping_reminder_rules", "companies"
+  add_foreign_key "shipping_reminder_settings", "companies"
   add_foreign_key "shopify_stores", "companies"
   add_foreign_key "shopify_stores", "users"
   add_foreign_key "solid_queue_blocked_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade

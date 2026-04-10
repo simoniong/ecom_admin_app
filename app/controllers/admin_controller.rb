@@ -34,7 +34,8 @@ class AdminController < ApplicationController
     "shopify_oauth" => "shopify_stores",
     "oauth_callbacks" => "email_accounts",
     "meta_oauth" => "ad_accounts",
-    "campaign_display_templates" => "ad_campaigns"
+    "campaign_display_templates" => "ad_campaigns",
+    "shipping_reminder_settings" => "shipping_reminder_rules"
   }.freeze
 
   def authorize_page!

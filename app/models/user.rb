@@ -4,6 +4,10 @@ class User < ApplicationRecord
   devise :database_authenticatable, :recoverable, :rememberable,
          :validatable, :lockable
 
+  AVAILABLE_LOCALES = I18n.available_locales.map(&:to_s).freeze
+
+  validates :locale, inclusion: { in: AVAILABLE_LOCALES }, allow_nil: true
+
   has_many :memberships, dependent: :destroy
   has_many :companies, through: :memberships
 

@@ -23,6 +23,6 @@ class CompaniesController < AdminController
   end
 
   def company_params
-    params.require(:company).permit(:name)
+    params.require(:company).permit(:name, :locale)
   end
 end

@@ -30,11 +30,11 @@ class ProfilesController < AdminController
   private
 
   def profile_params
-    params.require(:user).permit(:first_name, :last_name)
+    params.require(:user).permit(:first_name, :last_name, :locale)
   end
 
   def profile_params_with_password
-    params.require(:user).permit(:first_name, :last_name, :password, :password_confirmation)
+    params.require(:user).permit(:first_name, :last_name, :locale, :password, :password_confirmation)
   end
 
   def needs_password_change?
