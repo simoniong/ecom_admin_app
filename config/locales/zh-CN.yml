@@ -348,7 +348,7 @@
       copy_tracking_number: "复制运单号"
       copy_tracking_link: "复制追踪链接"
       copied: "已复制！"
-      last_mile: "末端运单号：%{carrier}"
+      carrier_label: "承运商：%{carrier}"
       carrier_route: "%{origin} → %{destination}"
       in_transit_days: "运输中 %{count} 天"
       shipped_at: "发货时间"

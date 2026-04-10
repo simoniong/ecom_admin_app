@@ -349,7 +349,7 @@ en:
       copy_tracking_number: "Copy tracking number"
       copy_tracking_link: "Copy tracking link"
       copied: "Copied!"
-      last_mile: "Last-mile tracking number: %{carrier}"
+      carrier_label: "Carrier: %{carrier}"
       carrier_route: "%{origin} → %{destination}"
       in_transit_days: "%{count} days in transit"
       shipped_at: "Shipped"

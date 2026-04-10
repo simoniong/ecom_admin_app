@@ -270,7 +270,7 @@ RSpec.describe "Shipments", type: :request do
       get shipment_path(id: fulfillment.id)
       expect(response).to have_http_status(:ok)
       expect(response.body).to include("MINIMAL1")
-      expect(response.body).to include("Tracking information not yet available")
+      expect(response.body).to include(I18n.t("shipments.show.no_tracking"))
     end
 
     it "returns 404 for shipments belonging to another company" do

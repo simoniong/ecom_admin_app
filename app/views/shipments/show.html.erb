@@ -2,14 +2,14 @@
   <%# Header %>
   <div class="flex items-center justify-between">
     <div class="flex items-center gap-3">
-      <%= link_to shipments_path, class: "text-gray-400 hover:text-gray-600" do %>
+      <%= link_to shipments_path, class: "text-gray-400 hover:text-gray-600", aria: { label: t("shipments.show.back") } do %>
         <svg class="w-5 h-5" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
         </svg>
       <% end %>
       <div>
         <h1 class="text-2xl font-semibold text-gray-900 font-mono"><%= @fulfillment.tracking_number %></h1>
-        <p class="text-sm text-gray-500"><%= t("shipments.show.last_mile", carrier: @fulfillment.tracking_company.presence || "—") %></p>
+        <p class="text-sm text-gray-500"><%= t("shipments.show.carrier_label", carrier: @fulfillment.tracking_company.presence || "—") %></p>
       </div>
     </div>
     <div class="flex items-center gap-2">
