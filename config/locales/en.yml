@@ -328,6 +328,13 @@ en:
       order_amount: "Order amount"
       customer_name: "Customer name"
       customer_email: "Customer email"
+    bulk:
+      selected: "selected"
+      copied: "Copied!"
+      select_all: "Select all shipments"
+      select_shipment: "Select shipment %{tracking}"
+      copy_tracking: "Copy tracking number"
+      copy_tracking_simple: "Copy tracking number (simple)"
   companies:
     title: "Company Settings"
     name: "Company Name"
