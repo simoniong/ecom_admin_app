@@ -218,9 +218,13 @@ RSpec.describe "Shipments", type: :request do
     it "renders the show page with tracking and order data" do
       order = create(:order, customer: customer, shopify_store: store, name: "PKS#9999",
                      shopify_data: {
-                       "line_items" => [{ "title" => "Widget", "variant_title" => "Red / Large", "sku" => "WDG-001", "price" => "19.99", "quantity" => 2 }],
+                       "line_items" => [
+                         { "title" => "Widget", "variant_title" => "Red / Large", "sku" => "WDG-001", "price" => "19.99", "quantity" => 2 }
+                       ],
                        "shipping_address" => { "name" => "Jane Doe", "phone" => "+1234567890", "address1" => "123 Main St", "city" => "Springfield", "province" => "IL", "zip" => "62704", "country" => "United States" },
-                       "shipping_lines" => [{ "title" => "Standard Shipping", "price" => "5.99" }]
+                       "shipping_lines" => [
+                         { "title" => "Standard Shipping", "price" => "5.99" }
+                       ]
                      })
       fulfillment = create(:fulfillment, order: order, tracking_number: "SHOW123", tracking_status: "InTransit",
                            tracking_company: "USPS", origin_country: "CN", destination_country: "US",

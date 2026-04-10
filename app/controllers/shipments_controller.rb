@@ -34,6 +34,7 @@ class ShipmentsController < AdminController
     @line_items = @fulfillment.shopify_data&.dig("line_items") || @order.shopify_data&.dig("line_items") || []
     @shipping_address = @order.shopify_data&.dig("shipping_address") || {}
     @shipping_lines = @order.shopify_data&.dig("shipping_lines") || []
+    @tracking_url = safe_tracking_url(@fulfillment.tracking_url)
     @tz = ActiveSupport::TimeZone["Asia/Shanghai"]
   end
 
@@ -46,6 +47,15 @@ class ShipmentsController < AdminController
   end
 
   private
+
+  def safe_tracking_url(url)
+    return nil if url.blank?
+
+    uri = URI.parse(url)
+    uri.is_a?(URI::HTTP) ? url : nil
+  rescue URI::InvalidURIError
+    nil
+  end
 
   def build_base_scope
     @base_scope = Fulfillment.with_tracking.joins(order: :customer)

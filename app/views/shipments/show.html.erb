@@ -125,8 +125,8 @@
       <div class="bg-white shadow-sm rounded-lg border border-gray-200 p-5">
         <div class="flex items-center justify-between mb-4">
           <h3 class="text-sm font-semibold text-gray-900"><%= t("shipments.show.tracking_details") %></h3>
-          <% if @fulfillment.tracking_url.present? %>
-            <%= link_to t("shipments.show.view_on_carrier"), @fulfillment.tracking_url,
+          <% if @tracking_url.present? %>
+            <%= link_to t("shipments.show.view_on_carrier"), @tracking_url,
                 target: "_blank", rel: "noopener",
                 class: "text-sm text-blue-600 hover:underline" %>
           <% end %>
