@@ -115,6 +115,8 @@ export default class extends Controller {
   flashCopied() {
     const flash = document.createElement("div")
     flash.textContent = this.copiedTextValue
+    flash.setAttribute("role", "status")
+    flash.setAttribute("aria-live", "polite")
     flash.className = "fixed top-4 right-4 z-50 px-4 py-2 bg-gray-900 text-white text-sm rounded-lg shadow-lg transition-opacity duration-300"
     document.body.appendChild(flash)
     setTimeout(() => {

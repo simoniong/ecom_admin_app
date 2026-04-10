@@ -40,9 +40,9 @@
         </svg>
         <%= t("shipments.show.copy_tracking_number") %>
       </button>
-      <% if @fulfillment.tracking_url.present? %>
+      <% if @tracking_url.present? %>
         <button data-controller="clipboard"
-                data-clipboard-text-value="<%= @fulfillment.tracking_url %>"
+                data-clipboard-text-value="<%= @tracking_url %>"
                 data-clipboard-success-message-value="<%= t("shipments.show.copied") %>"
                 data-action="click->clipboard#copy"
                 class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
@@ -181,7 +181,11 @@
                   </p>
                   <p class="text-xs text-gray-400 mt-0.5">
                     <% if event["time"].present? %>
-                      <%= Time.zone.parse(event["time"]).in_time_zone(@tz).strftime("%-d %b, %Y %H:%M:%S") rescue event["time"] %>
+                      <% begin %>
+                        <%= Time.zone.parse(event["time"]).in_time_zone(@tz).strftime("%-d %b, %Y %H:%M:%S") %>
+                      <% rescue ArgumentError, TypeError %>
+                        <%= event["time"] %>
+                      <% end %>
                     <% end %>
                     <% if event["location"].present? %>
                       <% if event["time"].present? %> &middot; <% end %>

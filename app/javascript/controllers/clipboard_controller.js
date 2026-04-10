@@ -33,6 +33,8 @@ export default class extends Controller {
   flash() {
     const el = document.createElement("div")
     el.textContent = this.successMessageValue
+    el.setAttribute("role", "status")
+    el.setAttribute("aria-live", "polite")
     el.className = "fixed top-4 right-4 z-50 px-4 py-2 bg-gray-900 text-white text-sm rounded-lg shadow-lg transition-opacity duration-300"
     document.body.appendChild(el)
     setTimeout(() => {

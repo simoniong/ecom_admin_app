@@ -51,15 +51,15 @@ class ShipmentsController < AdminController
   end
 
   def bulk_archive
-    ids = Array(params[:ids])
-    scoped_fulfillments(ids).where(archived_at: nil).update_all(archived_at: Time.current)
-    redirect_to shipments_path(archived: params[:archived]), notice: t("shipments.bulk.archived_notice", count: ids.size)
+    ids = sanitize_ids(params[:ids])
+    count = scoped_fulfillments(ids).where(archived_at: nil).update_all(archived_at: Time.current)
+    redirect_to shipments_path(archived: params[:archived]), notice: t("shipments.bulk.archived_notice", count: count)
   end
 
   def bulk_unarchive
-    ids = Array(params[:ids])
-    scoped_fulfillments(ids).where.not(archived_at: nil).update_all(archived_at: nil)
-    redirect_to shipments_path(archived: params[:archived]), notice: t("shipments.bulk.unarchived_notice", count: ids.size)
+    ids = sanitize_ids(params[:ids])
+    count = scoped_fulfillments(ids).where.not(archived_at: nil).update_all(archived_at: nil)
+    redirect_to shipments_path(archived: params[:archived]), notice: t("shipments.bulk.unarchived_notice", count: count)
   end
 
   def sync
@@ -79,6 +79,11 @@ class ShipmentsController < AdminController
     uri.is_a?(URI::HTTP) ? url : nil
   rescue URI::InvalidURIError
     nil
+  end
+
+  def sanitize_ids(ids)
+    uuid_regex = /\A[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\z/i
+    Array(ids).select { |id| id.match?(uuid_regex) }
   end
 
   def find_fulfillment
