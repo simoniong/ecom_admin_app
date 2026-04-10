@@ -62,6 +62,60 @@ class ShipmentsController < AdminController
     redirect_to shipments_path(archived: params[:archived]), notice: t("shipments.bulk.unarchived_notice", count: count)
   end
 
+  def bulk_add_tags
+    ids = sanitize_ids(params[:ids])
+    tags = Array(params[:tags]).map(&:strip).reject(&:blank?).uniq
+    return redirect_to shipments_path(archived: params[:archived]) if tags.empty?
+
+    Fulfillment.transaction do
+      scoped_fulfillments(ids).find_each do |f|
+        f.update!(tags: (f.tags | tags))
+      end
+    end
+    redirect_to shipments_path(archived: params[:archived]), notice: t("shipments.tags.added_notice")
+  end
+
+  def bulk_remove_tags
+    ids = sanitize_ids(params[:ids])
+    tags = Array(params[:tags]).map(&:strip).reject(&:blank?)
+    return redirect_to shipments_path(archived: params[:archived]) if tags.empty?
+
+    Fulfillment.transaction do
+      scoped_fulfillments(ids).find_each do |f|
+        f.update!(tags: (f.tags - tags))
+      end
+    end
+    redirect_to shipments_path(archived: params[:archived]), notice: t("shipments.tags.removed_notice")
+  end
+
+  def available_tags
+    store_ids = current_company.shopify_stores.pluck(:id)
+    subquery = Fulfillment.with_tracking
+      .joins(:order)
+      .where(orders: { shopify_store_id: store_ids })
+      .where("tags IS NOT NULL AND tags != '{}'::varchar[]")
+      .select(:tags).to_sql
+    tags = Fulfillment.connection.select_values(
+      "SELECT DISTINCT unnest(tags) AS tag FROM (#{subquery}) AS t ORDER BY tag"
+    )
+
+    render json: tags
+  end
+
+  def add_tags
+    fulfillment = find_fulfillment
+    tags = Array(params[:tags]).map(&:strip).reject(&:blank?).uniq
+    fulfillment.update!(tags: (fulfillment.tags | tags)) if tags.any?
+    redirect_to shipment_path(id: fulfillment.id), notice: t("shipments.tags.added_notice")
+  end
+
+  def remove_tag
+    fulfillment = find_fulfillment
+    tag = params[:tag].to_s.strip
+    fulfillment.update!(tags: fulfillment.tags - [ tag ]) if tag.present?
+    redirect_to shipment_path(id: fulfillment.id), notice: t("shipments.tags.removed_notice")
+  end
+
   def sync
     current_company.shopify_stores.find_each do |store|
       SyncAllShopifyOrdersJob.perform_later(store.id)
@@ -124,6 +178,7 @@ class ShipmentsController < AdminController
     @shipped_to = params[:shipped_to].presence
     @transit_min = params[:transit_min].presence
     @transit_max = params[:transit_max].presence
+    @tag_filters = Array(params[:tags]).reject(&:blank?)
 
     @filtered_scope = @base_scope
     @filtered_scope = @filtered_scope.search_by(@search) if @search
@@ -152,6 +207,9 @@ class ShipmentsController < AdminController
 
     if @store_filter
       @filtered_scope = @filtered_scope.joins(:order).where(orders: { shopify_store_id: @store_filter })
+    end
+    if @tag_filters.any?
+      @filtered_scope = @filtered_scope.where("fulfillments.tags && ARRAY[?]::varchar[]", @tag_filters)
     end
   end
 
@@ -199,5 +257,9 @@ class ShipmentsController < AdminController
     @origin_carriers = @base_scope.where.not(origin_carrier: [ nil, "" ]).distinct.pluck(:origin_carrier).sort
     @destination_carriers = @base_scope.where.not(destination_carrier: [ nil, "" ]).distinct.pluck(:destination_carrier).sort
     @stores = current_company.shopify_stores
+    subquery = @base_scope.where("tags IS NOT NULL AND tags != '{}'::varchar[]").select(:tags).to_sql
+    @available_tags = Fulfillment.connection.select_values(
+      "SELECT DISTINCT unnest(tags) AS tag FROM (#{subquery}) AS t ORDER BY tag"
+    )
   end
 end

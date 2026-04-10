@@ -286,6 +286,49 @@
           </div>
         </div>
 
+        <%# Tag filter (dropdown with checkboxes, OR logic) %>
+        <div>
+          <label class="block text-xs font-medium text-gray-500 mb-1"><%= t("shipments.filters.tag") %></label>
+          <div class="relative" data-controller="dropdown">
+            <button type="button" data-action="click->dropdown#toggle" aria-haspopup="true" aria-expanded="false" data-dropdown-target="button"
+                    class="inline-flex items-center justify-between w-48 pl-3 pr-8 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-50 cursor-pointer">
+              <span class="truncate">
+                <% if @tag_filters&.any? %>
+                  <%= @tag_filters.join(", ") %>
+                <% else %>
+                  <%= t("shipments.all") %>
+                <% end %>
+              </span>
+              <svg class="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+              </svg>
+            </button>
+            <div data-dropdown-target="menu" role="menu" class="hidden absolute left-0 mt-1 w-56 bg-white rounded-lg shadow-lg border border-gray-200 z-20">
+              <div class="py-2 max-h-48 overflow-y-auto">
+                <% @available_tags.each do |tag| %>
+                  <label class="flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-gray-50 cursor-pointer">
+                    <input type="checkbox" name="tags[]" value="<%= tag %>"
+                           <%= "checked" if @tag_filters&.include?(tag) %>
+                           class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                    <span class="text-gray-700"><%= tag %></span>
+                  </label>
+                <% end %>
+                <% if @available_tags.empty? %>
+                  <p class="px-3 py-2 text-sm text-gray-500"><%= t("shipments.tags.no_tags") %></p>
+                <% end %>
+              </div>
+              <% if @available_tags.any? %>
+                <div class="flex items-center justify-between px-3 py-2 border-t border-gray-200">
+                  <button type="button" data-action="click->shipment-filter#clearTagFilter"
+                          class="text-sm text-blue-600 hover:text-blue-800"><%= t("shipments.clear_all") %></button>
+                  <button type="button" data-action="click->shipment-filter#filterChanged"
+                          class="px-3 py-1 text-sm font-medium text-white bg-gray-900 rounded-md hover:bg-gray-800"><%= t("shipments.tags.apply") %></button>
+                </div>
+              <% end %>
+            </div>
+          </div>
+        </div>
+
         <% if @stores.count > 1 %>
           <div>
             <label class="block text-xs font-medium text-gray-500 mb-1"><%= t("shipments.filters.store") %></label>
@@ -313,6 +356,7 @@
     <% active_filters << ["destination_carrier", "Dest carrier: #{@destination_carrier_filter}"] if @destination_carrier_filter %>
     <% active_filters << ["status", "Status: #{@status_filter}"] if @status_filter %>
     <% active_filters << ["store_id", "Store: #{@stores.find { |s| s.id.to_s == @store_filter }&.shop_domain}"] if @store_filter %>
+    <% active_filters << ["tags[]", "Tags: #{@tag_filters.join(", ")}"] if @tag_filters&.any? %>
     <% active_filters << ["event_from", "Event from: #{@event_from}"] if @event_from %>
     <% active_filters << ["event_to", "Event to: #{@event_to}"] if @event_to %>
     <% active_filters << ["shipped_from", "Shipped from: #{@shipped_from}"] if @shipped_from %>
@@ -423,6 +467,7 @@
                 <input type="checkbox" data-shipment-bulk-target="checkbox" data-action="change->shipment-bulk#toggleOne"
                        data-fulfillment-id="<%= shipment.id %>"
                        data-tracking-number="<%= shipment.tracking_number %>"
+                       data-tags="<%= shipment.tags.to_json %>"
                        data-last-event-date="<%= shipment.last_event_at&.in_time_zone(tz)&.strftime("%-m月%-d日") %>"
                        data-latest-event="<%= shipment.latest_event_description %>"
                        aria-label="<%= t("shipments.bulk.select_shipment", tracking: shipment.tracking_number) %>"
@@ -572,6 +617,24 @@
           </svg>
           <%= t("shipments.bulk.copy_tracking_simple") %>
         </button>
+        <button type="button" data-action="click->shipment-bulk#openTagModal"
+                data-tag-mode="add" data-url="<%= bulk_add_tags_shipments_path(archived: @archived ? "true" : nil) %>"
+                class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 transition-colors">
+          <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9.568 3H5.25A2.25 2.25 0 0 0 3 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 0 0 5.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 0 0 9.568 3Z" />
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 6h.008v.008H6V6Z" />
+          </svg>
+          <%= t("shipments.bulk.add_tags") %>
+        </button>
+        <button type="button" data-action="click->shipment-bulk#openTagModal"
+                data-tag-mode="delete" data-url="<%= bulk_remove_tags_shipments_path(archived: @archived ? "true" : nil) %>"
+                class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 transition-colors">
+          <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9.568 3H5.25A2.25 2.25 0 0 0 3 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 0 0 5.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 0 0 9.568 3Z" />
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 6h.008v.008H6V6Z" />
+          </svg>
+          <%= t("shipments.bulk.delete_tags") %>
+        </button>
         <div class="w-px h-5 bg-gray-200"></div>
         <% if @archived %>
           <button type="button" data-action="click->shipment-bulk#submitBulkAction"
@@ -595,6 +658,19 @@
       </div>
     </div>
     <form data-shipment-bulk-target="archiveForm" method="post" class="hidden"></form>
+
+    <%# Tag modal %>
+    <div data-controller="shipment-tags"
+         data-shipment-tags-available-tags-url-value="<%= available_tags_shipments_path %>"
+         data-shipment-tags-add-title-value="<%= t("shipments.tags.add_tags") %>"
+         data-shipment-tags-delete-title-value="<%= t("shipments.tags.delete_tags") %>"
+         data-shipment-tags-added-label-value="<%= t("shipments.tags.added_label") %>"
+         data-shipment-tags-selected-label-value="<%= t("shipments.tags.selected_label") %>"
+         data-shipment-tags-available-label-value="<%= t("shipments.tags.available_label") %>"
+         data-shipment-tags-no-tags-text-value="<%= t("shipments.tags.no_tags") %>"
+         data-shipment-tags-no-tags-found-text-value="<%= t("shipments.tags.no_tags_found") %>">
+      <%= render "shipments/tag_modal" %>
+    </div>
     </div>
 
     <%# Pagination %>
