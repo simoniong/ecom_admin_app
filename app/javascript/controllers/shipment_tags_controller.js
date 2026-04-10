@@ -4,7 +4,14 @@ export default class extends Controller {
   static targets = ["modal", "title", "search", "tagList", "confirmBtn", "form", "idsContainer", "tagsContainer", "createOption"]
   static values = {
     availableTagsUrl: String,
-    mode: { type: String, default: "add" } // "add" or "delete"
+    mode: { type: String, default: "add" },
+    addedLabel: { type: String, default: "Added" },
+    selectedLabel: { type: String, default: "Selected" },
+    availableLabel: { type: String, default: "Available" },
+    noTagsText: { type: String, default: "No tags yet." },
+    noTagsFoundText: { type: String, default: "No tags found." },
+    addTitle: { type: String, default: "Add tags" },
+    deleteTitle: { type: String, default: "Delete tags" }
   }
 
   connect() {
@@ -17,15 +24,12 @@ export default class extends Controller {
     this.modeValue = mode
     this.selectedTags.clear()
 
-    // Set form action URL if provided on the trigger button
     const url = event.currentTarget.dataset.url
     if (url && this.hasFormTarget) {
       this.formTarget.action = url
     }
 
-    this.titleTarget.textContent = mode === "add"
-      ? this.element.dataset.addTitle
-      : this.element.dataset.deleteTitle
+    this.titleTarget.textContent = mode === "add" ? this.addTitleValue : this.deleteTitleValue
 
     if (this.hasSearchTarget) {
       this.searchTarget.value = ""
@@ -56,7 +60,6 @@ export default class extends Controller {
   }
 
   loadSelectedShipmentTags() {
-    // Collect all tags from selected shipments (passed via data attribute)
     const tagsStr = this.element.dataset.selectedShipmentTags || "[]"
     try {
       this.allTags = JSON.parse(tagsStr)
@@ -87,7 +90,9 @@ export default class extends Controller {
 
   createTag() {
     const newTag = this.searchTarget.value.trim()
-    if (newTag && !this.allTags.includes(newTag)) {
+    if (!newTag) return
+
+    if (!this.allTags.includes(newTag)) {
       this.allTags.unshift(newTag)
     }
     this.selectedTags.add(newTag)
@@ -100,37 +105,33 @@ export default class extends Controller {
     const query = (this.hasSearchTarget ? this.searchTarget.value : "").trim().toLowerCase()
     const filtered = this.allTags.filter(t => t.toLowerCase().includes(query))
 
-    // Split into added (selected) and available
     const added = filtered.filter(t => this.selectedTags.has(t))
     const available = filtered.filter(t => !this.selectedTags.has(t))
 
-    let html = ""
+    const container = this.tagListTarget
+    container.innerHTML = ""
 
     if (added.length > 0) {
-      html += `<div class="px-1 py-2"><p class="text-sm font-semibold text-gray-900 mb-2">${this.modeValue === "add" ? "Added" : "Selected"}</p>`
-      added.forEach(tag => {
-        html += this.tagCheckboxHtml(tag, true)
-      })
-      html += `</div><div class="border-t border-gray-200"></div>`
+      container.appendChild(this.buildSection(
+        this.modeValue === "add" ? this.addedLabelValue : this.selectedLabelValue,
+        added, true
+      ))
+      const divider = document.createElement("div")
+      divider.className = "border-t border-gray-200"
+      container.appendChild(divider)
     }
 
     if (available.length > 0) {
-      html += `<div class="px-1 py-2"><p class="text-sm font-semibold text-gray-900 mb-2">Available</p>`
-      available.forEach(tag => {
-        html += this.tagCheckboxHtml(tag, false)
-      })
-      html += `</div>`
+      container.appendChild(this.buildSection(this.availableLabelValue, available, false))
     }
 
-    if (filtered.length === 0 && !query) {
-      html = `<div class="py-8 text-center text-sm text-gray-500">${this.element.dataset.noTagsText || "No tags yet."}</div>`
-    } else if (filtered.length === 0 && query) {
-      html = `<div class="py-8 text-center text-sm text-gray-500">${this.element.dataset.noTagsFoundText || "No tags found."}</div>`
+    if (filtered.length === 0) {
+      const empty = document.createElement("div")
+      empty.className = "py-8 text-center text-sm text-gray-500"
+      empty.textContent = query ? this.noTagsFoundTextValue : this.noTagsTextValue
+      container.appendChild(empty)
     }
 
-    this.tagListTarget.innerHTML = html
-
-    // Show/hide create option for add mode
     if (this.hasCreateOptionTarget) {
       const showCreate = this.modeValue === "add" && query && !this.allTags.some(t => t.toLowerCase() === query)
       this.createOptionTarget.classList.toggle("hidden", !showCreate)
@@ -140,17 +141,40 @@ export default class extends Controller {
     }
   }
 
-  tagCheckboxHtml(tag, checked) {
-    const escapedTag = tag.replace(/"/g, "&quot;").replace(/</g, "&lt;")
-    return `
-      <label class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-50 cursor-pointer">
-        <input type="checkbox" ${checked ? "checked" : ""}
-               data-action="change->shipment-tags#toggleTag"
-               data-tag="${escapedTag}"
-               class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
-        <span class="text-sm text-gray-700">${escapedTag}</span>
-      </label>
-    `
+  buildSection(title, tags, checked) {
+    const section = document.createElement("div")
+    section.className = "px-1 py-2"
+
+    const heading = document.createElement("p")
+    heading.className = "text-sm font-semibold text-gray-900 mb-2"
+    heading.textContent = title
+    section.appendChild(heading)
+
+    tags.forEach(tag => {
+      section.appendChild(this.buildTagCheckbox(tag, checked))
+    })
+
+    return section
+  }
+
+  buildTagCheckbox(tag, checked) {
+    const label = document.createElement("label")
+    label.className = "flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-50 cursor-pointer"
+
+    const input = document.createElement("input")
+    input.type = "checkbox"
+    input.checked = checked
+    input.dataset.action = "change->shipment-tags#toggleTag"
+    input.dataset.tag = tag
+    input.className = "rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+
+    const span = document.createElement("span")
+    span.className = "text-sm text-gray-700"
+    span.textContent = tag
+
+    label.appendChild(input)
+    label.appendChild(span)
+    return label
   }
 
   updateConfirmBtn() {
@@ -166,7 +190,6 @@ export default class extends Controller {
     if (this.selectedTags.size === 0) return
 
     const form = this.formTarget
-    // Clear previous inputs
     this.tagsContainerTarget.innerHTML = ""
 
     this.selectedTags.forEach(tag => {

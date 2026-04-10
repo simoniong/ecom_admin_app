@@ -662,11 +662,13 @@
     <%# Tag modal %>
     <div data-controller="shipment-tags"
          data-shipment-tags-available-tags-url-value="<%= available_tags_shipments_path %>"
-         data-add-title="<%= t("shipments.tags.add_tags") %>"
-         data-delete-title="<%= t("shipments.tags.delete_tags") %>"
-         data-search-placeholder="<%= t("shipments.tags.search_placeholder") %>"
-         data-no-tags-text="<%= t("shipments.tags.no_tags") %>"
-         data-no-tags-found-text="<%= t("shipments.tags.no_tags_found") %>">
+         data-shipment-tags-add-title-value="<%= t("shipments.tags.add_tags") %>"
+         data-shipment-tags-delete-title-value="<%= t("shipments.tags.delete_tags") %>"
+         data-shipment-tags-added-label-value="<%= t("shipments.tags.added_label") %>"
+         data-shipment-tags-selected-label-value="<%= t("shipments.tags.selected_label") %>"
+         data-shipment-tags-available-label-value="<%= t("shipments.tags.available_label") %>"
+         data-shipment-tags-no-tags-text-value="<%= t("shipments.tags.no_tags") %>"
+         data-shipment-tags-no-tags-found-text-value="<%= t("shipments.tags.no_tags_found") %>">
       <%= render "shipments/tag_modal" %>
     </div>
     </div>

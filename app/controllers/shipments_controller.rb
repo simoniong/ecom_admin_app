@@ -67,8 +67,10 @@ class ShipmentsController < AdminController
     tags = Array(params[:tags]).map(&:strip).reject(&:blank?).uniq
     return redirect_to shipments_path(archived: params[:archived]) if tags.empty?
 
-    scoped_fulfillments(ids).find_each do |f|
-      f.update!(tags: (f.tags | tags))
+    Fulfillment.transaction do
+      scoped_fulfillments(ids).find_each do |f|
+        f.update!(tags: (f.tags | tags))
+      end
     end
     redirect_to shipments_path(archived: params[:archived]), notice: t("shipments.tags.added_notice")
   end
@@ -78,20 +80,24 @@ class ShipmentsController < AdminController
     tags = Array(params[:tags]).map(&:strip).reject(&:blank?)
     return redirect_to shipments_path(archived: params[:archived]) if tags.empty?
 
-    scoped_fulfillments(ids).find_each do |f|
-      f.update!(tags: (f.tags - tags))
+    Fulfillment.transaction do
+      scoped_fulfillments(ids).find_each do |f|
+        f.update!(tags: (f.tags - tags))
+      end
     end
     redirect_to shipments_path(archived: params[:archived]), notice: t("shipments.tags.removed_notice")
   end
 
   def available_tags
     store_ids = current_company.shopify_stores.pluck(:id)
-    tags = Fulfillment.with_tracking
+    subquery = Fulfillment.with_tracking
       .joins(:order)
       .where(orders: { shopify_store_id: store_ids })
       .where("tags IS NOT NULL AND tags != '{}'::varchar[]")
-      .pluck(:tags)
-      .flatten.uniq.sort
+      .select(:tags).to_sql
+    tags = Fulfillment.connection.select_values(
+      "SELECT DISTINCT unnest(tags) AS tag FROM (#{subquery}) AS t ORDER BY tag"
+    )
 
     render json: tags
   end
@@ -251,8 +257,9 @@ class ShipmentsController < AdminController
     @origin_carriers = @base_scope.where.not(origin_carrier: [ nil, "" ]).distinct.pluck(:origin_carrier).sort
     @destination_carriers = @base_scope.where.not(destination_carrier: [ nil, "" ]).distinct.pluck(:destination_carrier).sort
     @stores = current_company.shopify_stores
-    @available_tags = @base_scope
-      .where("tags IS NOT NULL AND tags != '{}'::varchar[]")
-      .pluck(:tags).flatten.uniq.sort
+    subquery = @base_scope.where("tags IS NOT NULL AND tags != '{}'::varchar[]").select(:tags).to_sql
+    @available_tags = Fulfillment.connection.select_values(
+      "SELECT DISTINCT unnest(tags) AS tag FROM (#{subquery}) AS t ORDER BY tag"
+    )
   end
 end
