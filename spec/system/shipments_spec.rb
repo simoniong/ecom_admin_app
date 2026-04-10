@@ -197,4 +197,41 @@ RSpec.describe "Shipments", type: :system do
       checkboxes.each { |cb| expect(cb).not_to be_checked }
     end
   end
+
+  describe "show page" do
+    let!(:detailed_shipment) do
+      create(:fulfillment, order: order, tracking_number: "DETAIL123", tracking_status: "InTransit",
+             tracking_company: "USPS", origin_country: "CN", destination_country: "US",
+             origin_carrier: "China Post", destination_carrier: "USPS",
+             last_event_at: 1.day.ago, latest_event_description: "Customs cleared",
+             tracking_details: {
+               "events" => [
+                 { "description" => "Customs cleared", "time" => "2026-04-02T08:14:00+08:00", "location" => "Los Angeles" },
+                 { "description" => "Departed origin", "time" => "2026-04-01T05:20:00+08:00", "location" => "Guangzhou" }
+               ]
+             })
+    end
+
+    it "navigates from index to show page" do
+      click_link "Shipments"
+      click_link "DETAIL123"
+
+      expect(page).to have_current_path(shipment_path(id: detailed_shipment.id))
+      expect(page).to have_text("DETAIL123")
+      expect(page).to have_text("In Transit")
+    end
+
+    it "displays tracking timeline events" do
+      visit shipment_path(id: detailed_shipment.id)
+      expect(page).to have_text("Customs cleared")
+      expect(page).to have_text("Departed origin")
+      expect(page).to have_text("Los Angeles")
+    end
+
+    it "navigates back to index via back button" do
+      visit shipment_path(id: detailed_shipment.id)
+      find("a[href='#{shipments_path}']", match: :first).click
+      expect(page).to have_current_path(shipments_path)
+    end
+  end
 end

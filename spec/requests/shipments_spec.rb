@@ -214,6 +214,148 @@ RSpec.describe "Shipments", type: :request do
     end
   end
 
+  describe "GET /shipments/:id" do
+    it "renders the show page with tracking and order data" do
+      order = create(:order, customer: customer, shopify_store: store, name: "PKS#9999",
+                     shopify_data: {
+                       "line_items" => [
+                         { "title" => "Widget", "variant_title" => "Red / Large", "sku" => "WDG-001", "price" => "19.99", "quantity" => 2 }
+                       ],
+                       "shipping_address" => { "name" => "Jane Doe", "phone" => "+1234567890", "address1" => "123 Main St", "city" => "Springfield", "province" => "IL", "zip" => "62704", "country" => "United States" },
+                       "shipping_lines" => [
+                         { "title" => "Standard Shipping", "price" => "5.99" }
+                       ]
+                     })
+      fulfillment = create(:fulfillment, order: order, tracking_number: "SHOW123", tracking_status: "InTransit",
+                           tracking_company: "USPS", origin_country: "CN", destination_country: "US",
+                           origin_carrier: "China Post", destination_carrier: "USPS", transit_days: 12,
+                           last_event_at: 1.day.ago, latest_event_description: "Arrived at destination port",
+                           tracking_details: {
+                             "events" => [
+                               { "description" => "Arrived at destination port", "time" => "2026-04-02T08:14:00+08:00", "location" => "Los Angeles" },
+                               { "description" => "Departed sorting center", "time" => "2026-04-01T05:20:00+08:00", "location" => "Guangzhou" }
+                             ]
+                           })
+
+      get shipment_path(id: fulfillment.id)
+      expect(response).to have_http_status(:ok)
+
+      body = response.body
+      # Header
+      expect(body).to include("SHOW123")
+      expect(body).to include("USPS")
+      # Status
+      expect(body).to include("In Transit")
+      # Timeline events
+      expect(body).to include("Arrived at destination port")
+      expect(body).to include("Departed sorting center")
+      expect(body).to include("Los Angeles")
+      # Order info
+      expect(body).to include("PKS#9999")
+      # Products
+      expect(body).to include("Widget")
+      expect(body).to include("WDG-001")
+      expect(body).to include("Red / Large")
+      # Customer / Shipping address
+      expect(body).to include("Jane Doe")
+      expect(body).to include("123 Main St")
+      expect(body).to include("Springfield")
+    end
+
+    it "renders gracefully when optional data is missing" do
+      order = create(:order, customer: customer, shopify_store: store)
+      fulfillment = create(:fulfillment, order: order, tracking_number: "MINIMAL1",
+                           tracking_status: "NotFound", tracking_details: {}, shopify_data: {})
+
+      get shipment_path(id: fulfillment.id)
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include("MINIMAL1")
+      expect(response.body).to include(I18n.t("shipments.show.no_tracking"))
+    end
+
+    it "returns 404 for shipments belonging to another company" do
+      other_user = create(:user)
+      other_store = create(:shopify_store, user: other_user)
+      other_customer = create(:customer, shopify_store: other_store)
+      other_order = create(:order, customer: other_customer, shopify_store: other_store)
+      other_fulfillment = create(:fulfillment, order: other_order, tracking_number: "NOTMINE")
+
+      get shipment_path(id: other_fulfillment.id)
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "displays times in UTC+8" do
+      order = create(:order, customer: customer, shopify_store: store)
+      fulfillment = create(:fulfillment, order: order, tracking_number: "TZTEST",
+                           tracking_status: "InTransit",
+                           shipped_at: Time.zone.parse("2026-04-03T00:14:00Z"))
+
+      get shipment_path(id: fulfillment.id)
+      # 2026-04-03 00:14 UTC = 2026-04-03 08:14 in Asia/Shanghai (UTC+8)
+      expect(response.body).to include("3 Apr, 2026 08:14")
+    end
+  end
+
+  describe "GET /shipments?archived=true" do
+    it "shows only archived shipments" do
+      order = create(:order, customer: customer, shopify_store: store)
+      create(:fulfillment, order: order, tracking_number: "ACTIVE1", tracking_status: "InTransit")
+      create(:fulfillment, order: order, tracking_number: "ARCH1", tracking_status: "InTransit", archived_at: Time.current)
+
+      get shipments_path(archived: "true")
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include("ARCH1")
+      expect(response.body).not_to include("ACTIVE1")
+      expect(response.body).to include("Archived Shipments")
+    end
+
+    it "hides archived from default index" do
+      order = create(:order, customer: customer, shopify_store: store)
+      create(:fulfillment, order: order, tracking_number: "ACTIVE2", tracking_status: "InTransit")
+      create(:fulfillment, order: order, tracking_number: "ARCH2", tracking_status: "InTransit", archived_at: Time.current)
+
+      get shipments_path
+      expect(response.body).to include("ACTIVE2")
+      expect(response.body).not_to include("ARCH2")
+    end
+  end
+
+  describe "POST /shipments/bulk_archive" do
+    it "archives selected shipments" do
+      order = create(:order, customer: customer, shopify_store: store)
+      f1 = create(:fulfillment, order: order, tracking_number: "BA1", tracking_status: "InTransit")
+      f2 = create(:fulfillment, order: order, tracking_number: "BA2", tracking_status: "InTransit")
+
+      post bulk_archive_shipments_path, params: { ids: [ f1.id, f2.id ] }
+      expect(response).to redirect_to(shipments_path)
+
+      expect(f1.reload.archived_at).to be_present
+      expect(f2.reload.archived_at).to be_present
+    end
+
+    it "does not archive shipments from another company" do
+      other_user = create(:user)
+      other_store = create(:shopify_store, user: other_user)
+      other_customer = create(:customer, shopify_store: other_store)
+      other_order = create(:order, customer: other_customer, shopify_store: other_store)
+      other_f = create(:fulfillment, order: other_order, tracking_number: "OTHER")
+
+      post bulk_archive_shipments_path, params: { ids: [ other_f.id ] }
+      expect(other_f.reload.archived_at).to be_nil
+    end
+  end
+
+  describe "POST /shipments/bulk_unarchive" do
+    it "unarchives selected shipments" do
+      order = create(:order, customer: customer, shopify_store: store)
+      f1 = create(:fulfillment, order: order, tracking_number: "UA1", tracking_status: "InTransit", archived_at: Time.current)
+
+      post bulk_unarchive_shipments_path, params: { ids: [ f1.id ], archived: "true" }
+      expect(response).to redirect_to(shipments_path(archived: "true"))
+      expect(f1.reload.archived_at).to be_nil
+    end
+  end
+
   describe "POST /shipments/sync" do
     it "enqueues sync jobs and redirects" do
       store # ensure store exists

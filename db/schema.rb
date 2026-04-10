@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_04_10_073037) do
+ActiveRecord::Schema[8.1].define(version: 2026_04_10_142146) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -133,6 +133,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_10_073037) do
   end
 
   create_table "fulfillments", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.datetime "archived_at"
     t.datetime "created_at", null: false
     t.datetime "delivered_at"
     t.string "destination_carrier"
@@ -155,6 +156,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_10_073037) do
     t.string "tracking_url"
     t.integer "transit_days"
     t.datetime "updated_at", null: false
+    t.index ["archived_at"], name: "index_fulfillments_on_archived_at"
     t.index ["delivered_at"], name: "index_fulfillments_on_delivered_at"
     t.index ["destination_carrier"], name: "index_fulfillments_on_destination_carrier"
     t.index ["destination_country"], name: "index_fulfillments_on_destination_country"

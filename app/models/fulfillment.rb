@@ -43,6 +43,8 @@ class Fulfillment < ApplicationRecord
   }.freeze
 
   scope :with_tracking, -> { where.not(tracking_number: [ nil, "" ]) }
+  scope :active, -> { where(archived_at: nil) }
+  scope :archived, -> { where.not(archived_at: nil) }
   scope :non_terminal, -> { where(tracking_status: [ nil, "" ]).or(where.not(tracking_status: %w[Delivered Expired])) }
   scope :by_tracking_status, ->(status) { where(tracking_status: status) }
   scope :by_destination, ->(country) { where(destination_country: country) }

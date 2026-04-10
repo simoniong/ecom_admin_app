@@ -1,0 +1,127 @@
+<%# Order panel %>
+<div class="bg-white shadow-sm rounded-lg border border-gray-200 p-4">
+  <h3 class="text-sm font-semibold text-gray-900 mb-3"><%= t("shipments.show.order") %></h3>
+  <dl class="space-y-2 text-sm">
+    <div class="flex justify-between">
+      <dt class="text-gray-500"><%= t("shipments.show.order_number") %></dt>
+      <dd class="text-right font-medium">
+        <% if @store&.shop_domain.present? %>
+          <%= link_to @order.name || "##{@order.shopify_order_id}",
+              "https://#{@store.shop_domain}/admin/orders/#{@order.shopify_order_id}",
+              target: "_blank", rel: "noopener", class: "text-blue-600 hover:underline" %>
+        <% else %>
+          <%= @order.name || "##{@order.shopify_order_id}" %>
+        <% end %>
+      </dd>
+    </div>
+    <div class="flex justify-between">
+      <dt class="text-gray-500"><%= t("shipments.show.store") %></dt>
+      <dd class="text-right text-gray-900"><%= @store&.shop_domain&.gsub(".myshopify.com", "") || "—" %></dd>
+    </div>
+    <div class="flex justify-between">
+      <dt class="text-gray-500"><%= t("shipments.show.order_amount") %></dt>
+      <dd class="text-right text-gray-900"><%= number_to_currency(@order.total_price, unit: @order.currency == "USD" ? "$" : "#{@order.currency} ") %></dd>
+    </div>
+    <div class="flex justify-between">
+      <dt class="text-gray-500"><%= t("shipments.show.order_status") %></dt>
+      <dd class="text-right text-gray-900"><%= [@order.financial_status, @order.fulfillment_status].compact.map(&:capitalize).join(", ").presence || "—" %></dd>
+    </div>
+    <div class="flex justify-between">
+      <dt class="text-gray-500"><%= t("shipments.show.ordered_time") %></dt>
+      <dd class="text-right text-gray-900"><%= @order.ordered_at ? @order.ordered_at.in_time_zone(@tz).strftime("%-d %b, %Y %H:%M:%S") : "—" %></dd>
+    </div>
+    <div class="flex justify-between">
+      <dt class="text-gray-500"><%= t("shipments.show.shipping_method") %></dt>
+      <dd class="text-right text-gray-900"><%= @shipping_lines.dig(0, "title").presence || @fulfillment.shopify_data&.dig("service")&.capitalize || "—" %></dd>
+    </div>
+    <div class="flex justify-between">
+      <dt class="text-gray-500"><%= t("shipments.show.locations") %></dt>
+      <dd class="text-right text-gray-900"><%= @fulfillment.origin_country.presence || "—" %></dd>
+    </div>
+    <div class="flex justify-between">
+      <dt class="text-gray-500"><%= t("shipments.show.shipping_time") %></dt>
+      <dd class="text-right text-gray-900"><%= @fulfillment.shipped_at ? @fulfillment.shipped_at.in_time_zone(@tz).strftime("%-d %b, %Y %H:%M:%S") : "—" %></dd>
+    </div>
+  </dl>
+</div>
+
+<%# Products panel %>
+<div class="bg-white shadow-sm rounded-lg border border-gray-200 p-4">
+  <h3 class="text-sm font-semibold text-gray-900 mb-3"><%= t("shipments.show.products") %></h3>
+  <% if @line_items.any? %>
+    <div class="space-y-4">
+      <% @line_items.each do |item| %>
+        <div class="text-sm">
+          <p class="font-medium text-gray-900"><%= item["title"] %></p>
+          <% if item["variant_title"].present? %>
+            <p class="text-gray-500 mt-0.5"><%= t("shipments.show.variant") %>: <%= item["variant_title"] %></p>
+          <% end %>
+          <% if item["sku"].present? %>
+            <p class="text-gray-500"><%= t("shipments.show.sku") %>: <%= item["sku"] %></p>
+          <% end %>
+          <div class="flex justify-between mt-1">
+            <span class="text-gray-500"><%= t("shipments.show.price") %></span>
+            <span class="text-gray-900"><%= number_to_currency(item["price"].to_f, unit: @order.currency == "USD" ? "$" : "#{@order.currency} ") %></span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-gray-500"><%= t("shipments.show.quantity") %></span>
+            <span class="text-gray-900"><%= item["quantity"] %></span>
+          </div>
+        </div>
+        <% unless item == @line_items.last %>
+          <div class="border-t border-gray-100"></div>
+        <% end %>
+      <% end %>
+      <div class="border-t border-gray-200 pt-2">
+        <div class="flex justify-between text-sm font-medium">
+          <span class="text-gray-900"><%= t("shipments.show.items_subtotal") %></span>
+          <span class="text-gray-900"><%= number_to_currency(@line_items.sum { |i| i["price"].to_f * i["quantity"].to_i }, unit: @order.currency == "USD" ? "$" : "#{@order.currency} ") %></span>
+        </div>
+      </div>
+    </div>
+  <% else %>
+    <p class="text-sm text-gray-500"><%= t("shipments.show.no_products") %></p>
+  <% end %>
+</div>
+
+<%# Customer panel %>
+<div class="bg-white shadow-sm rounded-lg border border-gray-200 p-4">
+  <h3 class="text-sm font-semibold text-gray-900 mb-3"><%= t("shipments.show.customer") %></h3>
+  <dl class="space-y-2 text-sm">
+    <div class="flex justify-between">
+      <dt class="text-gray-500"><%= t("shipments.show.customer_name") %></dt>
+      <dd class="text-right text-gray-900"><%= @customer&.full_name.presence || "—" %></dd>
+    </div>
+    <div class="flex justify-between">
+      <dt class="text-gray-500"><%= t("shipments.show.customer_email") %></dt>
+      <dd class="text-right text-gray-900 truncate max-w-[200px]"><%= @order.email || @customer&.email || "—" %></dd>
+    </div>
+  </dl>
+
+  <% if @shipping_address.present? %>
+    <h4 class="text-sm font-medium text-gray-900 mt-4 mb-2"><%= t("shipments.show.recipient_info") %></h4>
+    <dl class="space-y-2 text-sm">
+      <div class="flex justify-between">
+        <dt class="text-gray-500"><%= t("shipments.show.recipient_name") %></dt>
+        <dd class="text-right text-gray-900"><%= @shipping_address["name"].presence || "—" %></dd>
+      </div>
+      <div class="flex justify-between">
+        <dt class="text-gray-500"><%= t("shipments.show.recipient_contact") %></dt>
+        <dd class="text-right text-gray-900"><%= @shipping_address["phone"].presence || "—" %></dd>
+      </div>
+      <div>
+        <dt class="text-gray-500 mb-1"><%= t("shipments.show.recipient_address") %></dt>
+        <dd class="text-gray-900">
+          <%= [
+            @shipping_address["address1"],
+            @shipping_address["address2"],
+            @shipping_address["city"],
+            @shipping_address["province"],
+            @shipping_address["zip"],
+            @shipping_address["country"]
+          ].compact_blank.join(", ") %>
+        </dd>
+      </div>
+    </dl>
+  <% end %>
+</div>

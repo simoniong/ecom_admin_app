@@ -19,6 +19,49 @@ class ShipmentsController < AdminController
     load_filter_options
   end
 
+  def show
+    store_ids = current_company.shopify_stores.pluck(:id)
+    @fulfillment = Fulfillment.with_tracking
+      .joins(:order)
+      .where(orders: { shopify_store_id: store_ids })
+      .includes(order: [ :customer, :shopify_store ])
+      .find(params[:id])
+
+    @order = @fulfillment.order
+    @customer = @order.customer
+    @store = @order.shopify_store
+    @events = @fulfillment.tracking_events
+    @line_items = @fulfillment.shopify_data&.dig("line_items") || @order.shopify_data&.dig("line_items") || []
+    @shipping_address = @order.shopify_data&.dig("shipping_address") || {}
+    @shipping_lines = @order.shopify_data&.dig("shipping_lines") || []
+    @tracking_url = safe_tracking_url(@fulfillment.tracking_url)
+    @tz = ActiveSupport::TimeZone["Asia/Shanghai"]
+  end
+
+  def archive
+    fulfillment = find_fulfillment
+    fulfillment.update!(archived_at: Time.current)
+    redirect_to shipment_path(id: fulfillment.id), notice: t("shipments.show.archived_notice")
+  end
+
+  def unarchive
+    fulfillment = find_fulfillment
+    fulfillment.update!(archived_at: nil)
+    redirect_to shipment_path(id: fulfillment.id), notice: t("shipments.show.unarchived_notice")
+  end
+
+  def bulk_archive
+    ids = sanitize_ids(params[:ids])
+    count = scoped_fulfillments(ids).where(archived_at: nil).update_all(archived_at: Time.current)
+    redirect_to shipments_path(archived: params[:archived]), notice: t("shipments.bulk.archived_notice", count: count)
+  end
+
+  def bulk_unarchive
+    ids = sanitize_ids(params[:ids])
+    count = scoped_fulfillments(ids).where.not(archived_at: nil).update_all(archived_at: nil)
+    redirect_to shipments_path(archived: params[:archived]), notice: t("shipments.bulk.unarchived_notice", count: count)
+  end
+
   def sync
     current_company.shopify_stores.find_each do |store|
       SyncAllShopifyOrdersJob.perform_later(store.id)
@@ -29,8 +72,34 @@ class ShipmentsController < AdminController
 
   private
 
+  def safe_tracking_url(url)
+    return nil if url.blank?
+
+    uri = URI.parse(url)
+    uri.is_a?(URI::HTTP) ? url : nil
+  rescue URI::InvalidURIError
+    nil
+  end
+
+  def sanitize_ids(ids)
+    uuid_regex = /\A[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\z/i
+    Array(ids).select { |id| id.match?(uuid_regex) }
+  end
+
+  def find_fulfillment
+    store_ids = current_company.shopify_stores.pluck(:id)
+    Fulfillment.joins(:order).where(orders: { shopify_store_id: store_ids }).find(params[:id])
+  end
+
+  def scoped_fulfillments(ids)
+    store_ids = current_company.shopify_stores.pluck(:id)
+    Fulfillment.where(id: ids).joins(:order).where(orders: { shopify_store_id: store_ids })
+  end
+
   def build_base_scope
+    @archived = params[:archived] == "true"
     @base_scope = Fulfillment.with_tracking.joins(order: :customer)
+    @base_scope = @archived ? @base_scope.archived : @base_scope.active
 
     if current_shopify_store
       @base_scope = @base_scope.by_store(current_shopify_store.id)
