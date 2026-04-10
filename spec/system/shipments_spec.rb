@@ -151,10 +151,10 @@ RSpec.describe "Shipments", type: :system do
       )
     end
 
-    it "keeps tracking_no as the first column regardless of reorder" do
-      first_th = find("thead tr th:first-child")
-      expect(first_th.text.downcase).to include("tracking no")
-      expect(first_th["data-column"]).to be_nil
+    it "keeps tracking_no as the first data column regardless of reorder" do
+      second_th = find("thead tr th:nth-child(2)")
+      expect(second_th.text.downcase).to include("tracking no")
+      expect(second_th["data-column"]).to be_nil
     end
   end
 end

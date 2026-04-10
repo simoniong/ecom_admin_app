@@ -327,6 +327,10 @@
       order_amount: "订单金额"
       customer_name: "客户姓名"
       customer_email: "客户邮箱"
+    bulk:
+      selected: "已选择"
+      copy_tracking: "复制运单号"
+      copy_tracking_simple: "复制运单号 (简洁)"
   companies:
     title: "公司设置"
     name: "公司名称"

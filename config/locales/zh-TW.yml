@@ -328,6 +328,10 @@
       order_amount: "訂單金額"
       customer_name: "客戶姓名"
       customer_email: "客戶郵箱"
+    bulk:
+      selected: "已選擇"
+      copy_tracking: "複製運單號"
+      copy_tracking_simple: "複製運單號 (簡潔)"
   companies:
     title: "公司設定"
     name: "公司名稱"
