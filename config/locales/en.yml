@@ -299,6 +299,7 @@ en:
       days: "days"
       min: "Min"
       max: "Max"
+      tag: "Tag"
       store: "Store"
     sort:
       input_time: "Input time"

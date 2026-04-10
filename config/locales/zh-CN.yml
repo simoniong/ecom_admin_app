@@ -298,6 +298,7 @@
       days: "天"
       min: "最小"
       max: "最大"
+      tag: "标签"
       store: "店铺"
     sort:
       input_time: "录入时间"

@@ -198,6 +198,16 @@ RSpec.describe "Shipments", type: :request do
       expect(response.body).to include("No shipments found")
     end
 
+    it "filters by tag" do
+      order = create(:order, customer: customer, shopify_store: store)
+      create(:fulfillment, order: order, tracking_number: "TAGGED", tracking_status: "InTransit", tags: %w[vip urgent])
+      create(:fulfillment, order: order, tracking_number: "NOTAG", tracking_status: "InTransit", tags: [])
+
+      get shipments_path, params: { tag: "vip" }
+      expect(response.body).to include("TAGGED")
+      expect(response.body).not_to include("NOTAG")
+    end
+
     it "only shows shipments for current user stores" do
       other_user = create(:user)
       other_store = create(:shopify_store, user: other_user)

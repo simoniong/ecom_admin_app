@@ -286,6 +286,23 @@
           </div>
         </div>
 
+        <%# Tag filter %>
+        <div>
+          <label class="block text-xs font-medium text-gray-500 mb-1"><%= t("shipments.filters.tag") %></label>
+          <div class="relative">
+            <select name="tag" data-action="change->shipment-filter#filterChanged"
+                    class="appearance-none w-48 pl-3 pr-8 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-700 focus:border-blue-500 focus:ring-blue-500 cursor-pointer">
+              <option value=""><%= t("shipments.all") %></option>
+              <% @available_tags.each do |tag| %>
+                <option value="<%= tag %>" <%= "selected" if @tag_filter == tag %>><%= tag %></option>
+              <% end %>
+            </select>
+            <svg class="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+            </svg>
+          </div>
+        </div>
+
         <% if @stores.count > 1 %>
           <div>
             <label class="block text-xs font-medium text-gray-500 mb-1"><%= t("shipments.filters.store") %></label>
@@ -313,6 +330,7 @@
     <% active_filters << ["destination_carrier", "Dest carrier: #{@destination_carrier_filter}"] if @destination_carrier_filter %>
     <% active_filters << ["status", "Status: #{@status_filter}"] if @status_filter %>
     <% active_filters << ["store_id", "Store: #{@stores.find { |s| s.id.to_s == @store_filter }&.shop_domain}"] if @store_filter %>
+    <% active_filters << ["tag", "Tag: #{@tag_filter}"] if @tag_filter %>
     <% active_filters << ["event_from", "Event from: #{@event_from}"] if @event_from %>
     <% active_filters << ["event_to", "Event to: #{@event_to}"] if @event_to %>
     <% active_filters << ["shipped_from", "Shipped from: #{@shipped_from}"] if @shipped_from %>

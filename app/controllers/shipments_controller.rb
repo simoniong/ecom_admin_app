@@ -172,6 +172,7 @@ class ShipmentsController < AdminController
     @shipped_to = params[:shipped_to].presence
     @transit_min = params[:transit_min].presence
     @transit_max = params[:transit_max].presence
+    @tag_filter = params[:tag].presence
 
     @filtered_scope = @base_scope
     @filtered_scope = @filtered_scope.search_by(@search) if @search
@@ -200,6 +201,9 @@ class ShipmentsController < AdminController
 
     if @store_filter
       @filtered_scope = @filtered_scope.joins(:order).where(orders: { shopify_store_id: @store_filter })
+    end
+    if @tag_filter
+      @filtered_scope = @filtered_scope.where("? = ANY(fulfillments.tags)", @tag_filter)
     end
   end
 
@@ -247,5 +251,8 @@ class ShipmentsController < AdminController
     @origin_carriers = @base_scope.where.not(origin_carrier: [ nil, "" ]).distinct.pluck(:origin_carrier).sort
     @destination_carriers = @base_scope.where.not(destination_carrier: [ nil, "" ]).distinct.pluck(:destination_carrier).sort
     @stores = current_company.shopify_stores
+    @available_tags = @base_scope
+      .where("tags IS NOT NULL AND tags != '{}'::varchar[]")
+      .pluck(:tags).flatten.uniq.sort
   end
 end

@@ -299,6 +299,7 @@
       days: "天"
       min: "最小"
       max: "最大"
+      tag: "標籤"
       store: "店鋪"
     sort:
       input_time: "錄入時間"
