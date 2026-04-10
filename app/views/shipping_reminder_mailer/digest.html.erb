@@ -3,7 +3,7 @@
 
 <% @alerts.each do |rule_type, fulfillments| %>
   <h3>
-    <%= t("shipping_reminders.rules.#{rule_type}") %>
+    <%= email_rule_heading(rule_type, @rules) %>
     <span style="font-weight: normal; color: #6b7280; font-size: 14px;">
       (<%= t("shipping_reminders.email.item_count", count: fulfillments.size) %>)
     </span>

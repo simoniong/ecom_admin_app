@@ -32,8 +32,8 @@ RSpec.describe ShippingReminderMailer, type: :mailer do
       expect(mail.subject).to eq("Shipping Tracking Alert - Test Co")
     end
 
-    it "includes rule type heading" do
-      expect(mail.body.encoded).to include("Not delivered for over X days")
+    it "includes rule type heading with configured days" do
+      expect(mail.body.encoded).to include("Not delivered for over 14 days")
     end
 
     it "includes item count" do

@@ -443,6 +443,10 @@ en:
       col_status: "Status"
       col_last_event: "Last Event"
       col_days: "Days"
+      rule_not_delivered: "Not delivered for over %{days} days"
+      rule_without_updates: "Without updates for over %{days} days"
+      rule_ready_for_pickup: "Ready for Pickup for over %{days} days"
+      rule_tracking_stopped: "Tracking stopped"
       item_count:
         one: "%{count} item"
         other: "%{count} items"

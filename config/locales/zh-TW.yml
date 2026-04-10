@@ -443,6 +443,10 @@
       col_status: "狀態"
       col_last_event: "最新事件"
       col_days: "天數"
+      rule_not_delivered: "超過 %{days} 天未妥投"
+      rule_without_updates: "超過 %{days} 天無更新"
+      rule_ready_for_pickup: "待取件超過 %{days} 天"
+      rule_tracking_stopped: "物流軌跡停止"
       item_count:
         one: "%{count} 條"
         other: "%{count} 條"
