@@ -1,7 +1,35 @@
 <div class="space-y-4" data-controller="shipment-filter" data-action="click@window->shipment-filter#closeSortDropdown">
   <%# Header %>
   <div class="flex items-center justify-between">
-    <h1 class="text-2xl font-bold text-gray-900"><%= t("shipments.title") %></h1>
+    <div class="relative" data-controller="dropdown">
+      <button data-action="click->dropdown#toggle" aria-haspopup="true" aria-expanded="false" data-dropdown-target="button"
+              class="flex items-center gap-1 text-2xl font-bold text-gray-900 hover:text-gray-700">
+        <%= @archived ? t("shipments.archived_title") : t("shipments.title") %>
+        <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+        </svg>
+      </button>
+      <div data-dropdown-target="menu" role="menu" class="hidden absolute left-0 mt-1 w-56 bg-white rounded-lg shadow-lg border border-gray-200 z-20 py-1">
+        <%= link_to shipments_path,
+            class: "flex items-center justify-between w-full px-4 py-2 text-sm hover:bg-gray-50 #{"font-medium" unless @archived}" do %>
+          <%= t("shipments.title") %>
+          <% unless @archived %>
+            <svg class="w-4 h-4 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+            </svg>
+          <% end %>
+        <% end %>
+        <%= link_to shipments_path(archived: "true"),
+            class: "flex items-center justify-between w-full px-4 py-2 text-sm hover:bg-gray-50 #{"font-medium" if @archived}" do %>
+          <%= t("shipments.archived_title") %>
+          <% if @archived %>
+            <svg class="w-4 h-4 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+            </svg>
+          <% end %>
+        <% end %>
+      </div>
+    </div>
     <%= button_to sync_shipments_path, method: :post,
         class: "inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-gray-900 rounded-md hover:bg-gray-800" do %>
       <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
@@ -13,6 +41,7 @@
 
   <%# Form wrapping all filters %>
   <%= form_tag shipments_path, method: :get, data: { shipment_filter_target: "filterForm" }, class: "space-y-4" do %>
+    <% if @archived %><input type="hidden" name="archived" value="true"><% end %>
     <input type="hidden" name="status_tab" value="<%= @status_tab || 'All' %>" data-shipment-filter-target="statusTab">
     <input type="hidden" name="sort_field" value="<%= @sort_field %>" data-shipment-filter-target="sortField">
     <input type="hidden" name="sort_direction" value="<%= @sort_direction %>" data-shipment-filter-target="sortDirection">
@@ -392,6 +421,7 @@
               <%# Checkbox %>
               <td class="px-4 py-3 text-center w-10">
                 <input type="checkbox" data-shipment-bulk-target="checkbox" data-action="change->shipment-bulk#toggleOne"
+                       data-fulfillment-id="<%= shipment.id %>"
                        data-tracking-number="<%= shipment.tracking_number %>"
                        data-last-event-date="<%= shipment.last_event_at&.in_time_zone(tz)&.strftime("%-m月%-d日") %>"
                        data-latest-event="<%= shipment.latest_event_description %>"
@@ -401,11 +431,7 @@
 
               <%# Tracking No. (always visible) %>
               <td class="px-4 py-3 text-sm font-mono text-gray-900 whitespace-nowrap">
-                <% if shipment.tracking_url.present? %>
-                  <%= link_to shipment.tracking_number, shipment.tracking_url, target: "_blank", rel: "noopener", class: "text-blue-600 hover:underline" %>
-                <% else %>
-                  <%= shipment.tracking_number %>
-                <% end %>
+                <%= link_to shipment.tracking_number, shipment_path(shipment), class: "text-blue-600 hover:underline" %>
               </td>
 
               <%# Order info %>
@@ -546,8 +572,29 @@
           </svg>
           <%= t("shipments.bulk.copy_tracking_simple") %>
         </button>
+        <div class="w-px h-5 bg-gray-200"></div>
+        <% if @archived %>
+          <button type="button" data-action="click->shipment-bulk#submitBulkAction"
+                  data-url="<%= bulk_unarchive_shipments_path(archived: "true") %>"
+                  class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 transition-colors">
+            <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="m20.25 7.5-.625 10.632a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5m6 4.125 2.25 2.25m0 0 2.25 2.25M12 13.875l2.25-2.25M12 13.875l-2.25 2.25M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z" />
+            </svg>
+            <%= t("shipments.bulk.unarchive") %>
+          </button>
+        <% else %>
+          <button type="button" data-action="click->shipment-bulk#submitBulkAction"
+                  data-url="<%= bulk_archive_shipments_path %>"
+                  class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 transition-colors">
+            <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="m20.25 7.5-.625 10.632a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z" />
+            </svg>
+            <%= t("shipments.bulk.archive") %>
+          </button>
+        <% end %>
       </div>
     </div>
+    <form data-shipment-bulk-target="archiveForm" method="post" class="hidden"></form>
     </div>
 
     <%# Pagination %>
