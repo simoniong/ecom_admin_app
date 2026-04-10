@@ -1,0 +1,50 @@
+<h2><%= t("shipping_reminders.email.title", company: @company.name) %></h2>
+<p><%= t("shipping_reminders.email.intro") %></p>
+
+<% @alerts.each do |rule_type, fulfillments| %>
+  <h3>
+    <%= email_rule_heading(rule_type, @rules) %>
+    <span style="font-weight: normal; color: #6b7280; font-size: 14px;">
+      (<%= t("shipping_reminders.email.item_count", count: fulfillments.size) %>)
+    </span>
+  </h3>
+
+  <table border="1" cellpadding="6" cellspacing="0" style="border-collapse: collapse; width: 100%; font-size: 14px;">
+    <thead>
+      <tr style="background-color: #f3f4f6;">
+        <th style="text-align: left;"><%= t("shipping_reminders.email.col_tracking") %></th>
+        <th style="text-align: left;"><%= t("shipping_reminders.email.col_order") %></th>
+        <th style="text-align: left;"><%= t("shipping_reminders.email.col_destination") %></th>
+        <th style="text-align: left;"><%= t("shipping_reminders.email.col_status") %></th>
+        <th style="text-align: left;"><%= t("shipping_reminders.email.col_last_event") %></th>
+        <th style="text-align: left;"><%= t("shipping_reminders.email.col_days") %></th>
+      </tr>
+    </thead>
+    <tbody>
+      <% fulfillments.each do |f| %>
+        <tr>
+          <td><%= f.tracking_number %></td>
+          <td><%= f.order&.name %></td>
+          <td><%= ISO3166::Country[f.destination_country]&.iso_short_name || f.destination_country %></td>
+          <td><%= f.tracking_status_display %></td>
+          <td><%= f.latest_event_description.to_s.truncate(80) %></td>
+          <td>
+            <% ref_time = rule_type == "not_delivered" ? f.shipped_at : f.last_event_at %>
+            <%= ref_time ? ((Time.current - ref_time) / 1.day).round : "—" %>
+          </td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+
+  <p style="margin-top: 8px;">
+    <a href="<%= shipments_link_for_rule(rule_type, fulfillments, @rules) %>" style="color: #2563eb; font-size: 14px; text-decoration: underline;">
+      <%= t("shipping_reminders.email.view_in_admin") %> &rarr;
+    </a>
+  </p>
+  <br>
+<% end %>
+
+<p style="font-size: 12px; color: #6b7280;">
+  <%= t("shipping_reminders.email.footer", company: @company.name) %>
+</p>

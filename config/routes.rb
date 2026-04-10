@@ -60,6 +60,10 @@ Rails.application.routes.draw do
       post :sync, on: :collection
     end
     resources :tickets, only: [ :index, :show, :update ]
+    resources :shipping_reminder_rules, only: [ :index, :create, :update ]
+    resource :shipping_reminder_setting, only: [ :update ] do
+      patch :toggle, on: :member
+    end
   end
 
   devise_scope :user do

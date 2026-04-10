@@ -10,8 +10,14 @@ class ApplicationController < ActionController::Base
   private
 
   def set_locale
-    I18n.locale = params[:locale] || session[:locale] || I18n.default_locale
+    locale = params[:locale] || session[:locale] || current_user&.locale || I18n.default_locale
+    I18n.locale = locale
     session[:locale] = I18n.locale
+
+    # Persist to user when explicitly switching via URL param
+    if params[:locale].present? && current_user && current_user.locale != I18n.locale.to_s
+      current_user.update!(locale: I18n.locale.to_s)
+    end
   end
 
   def default_url_options

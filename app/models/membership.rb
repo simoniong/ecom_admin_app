@@ -11,6 +11,7 @@ class Membership < ApplicationRecord
   AVAILABLE_PERMISSIONS = %w[
     orders shipments tickets ad_campaigns
     shopify_stores ad_accounts email_accounts
+    shipping_reminder_rules
   ].freeze
 
   def has_permission?(controller_name)

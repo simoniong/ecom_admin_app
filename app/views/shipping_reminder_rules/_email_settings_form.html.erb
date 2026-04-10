@@ -1,0 +1,143 @@
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+  <%# Left card: Switch + Recipients inline edit %>
+  <div class="bg-white rounded-lg border border-gray-200 p-6">
+    <div class="flex items-center justify-between mb-4">
+      <div class="flex items-center gap-2">
+        <h2 class="text-base font-medium text-gray-900"><%= t("shipping_reminders.email_reminder") %></h2>
+        <% if setting.enabled? %>
+          <span class="inline-flex items-center px-2 py-0.5 text-xs font-medium text-green-700 bg-green-100 rounded-full"><%= t("shipping_reminders.on") %></span>
+        <% else %>
+          <span class="inline-flex items-center px-2 py-0.5 text-xs font-medium text-gray-500 bg-gray-100 rounded-full"><%= t("shipping_reminders.off") %></span>
+        <% end %>
+      </div>
+      <%= button_to toggle_shipping_reminder_setting_path, method: :patch, class: "relative inline-flex items-center cursor-pointer" do %>
+        <div class="w-9 h-5 rounded-full transition-colors duration-200
+                    <%= setting.enabled? ? 'bg-gray-900' : 'bg-gray-200' %>
+                    after:content-[''] after:absolute after:top-[2px] after:start-[2px]
+                    after:bg-white after:border-gray-300 after:border after:rounded-full
+                    after:h-4 after:w-4 after:transition-all
+                    <%= setting.enabled? ? 'after:translate-x-full after:border-white' : '' %>"></div>
+      <% end %>
+    </div>
+
+    <p class="text-sm text-gray-500 mb-2"><%= t("shipping_reminders.send_to") %></p>
+
+    <div data-controller="inline-edit">
+      <%# Display mode: text + edit icon %>
+      <div data-inline-edit-target="display" class="flex items-start gap-2">
+        <div class="flex-1 text-sm text-gray-700">
+          <% if setting.recipients.present? %>
+            <% setting.recipients.each do |email| %>
+              <div><%= email %></div>
+            <% end %>
+          <% else %>
+            <span class="text-gray-400 italic">—</span>
+          <% end %>
+        </div>
+        <button type="button" data-action="click->inline-edit#edit" class="text-gray-400 hover:text-gray-600 shrink-0 mt-0.5">
+          <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
+          </svg>
+        </button>
+      </div>
+
+      <%# Edit mode: textarea + save/cancel %>
+      <div data-inline-edit-target="editor" class="hidden">
+        <%= form_with url: shipping_reminder_setting_path, method: :patch do |f| %>
+          <textarea name="shipping_reminder_setting[recipients_text]"
+                    data-inline-edit-target="textarea"
+                    data-action="keyup->inline-edit#checkKey blur->inline-edit#validateAll"
+                    rows="3" placeholder="<%= t("shipping_reminders.recipients_placeholder") %>"
+                    class="w-full px-3 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-700 focus:border-blue-500 focus:ring-blue-500 mb-1"><%= setting.recipients.join("\n") %></textarea>
+          <p class="text-xs text-gray-400 mb-2"><%= t("shipping_reminders.recipients_hint") %></p>
+          <p data-inline-edit-target="error" class="hidden text-xs text-red-600 mb-2"></p>
+          <div class="flex items-center gap-2">
+            <%= f.submit t("shipping_reminders.save"),
+                data: { inline_edit_target: "submitBtn" },
+                class: "px-3 py-1.5 text-sm font-medium text-white bg-gray-900 rounded-md hover:bg-gray-800 cursor-pointer" %>
+            <button type="button" data-action="click->inline-edit#cancel"
+                    class="px-3 py-1.5 text-sm font-medium text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50">
+              <%= t("shipping_reminders.cancel") %>
+            </button>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  </div>
+
+  <%# Right card: Schedule settings only %>
+  <div class="bg-white rounded-lg border border-gray-200 p-6">
+    <h2 class="text-base font-medium text-gray-900 mb-4"><%= t("shipping_reminders.email_reminder_settings") %></h2>
+
+    <%= form_with model: setting, url: shipping_reminder_setting_path, method: :patch, data: { controller: "frequency-toggle" } do |f| %>
+      <%# Timezone & Send Time %>
+      <div class="grid grid-cols-2 gap-4 mb-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1"><%= t("shipping_reminders.select_timezone") %></label>
+          <div class="relative">
+            <%= f.select :timezone,
+                ActiveSupport::TimeZone.all.map { |tz| ["(#{tz.formatted_offset}) #{tz.name}", tz.name] },
+                { selected: setting.timezone },
+                class: "appearance-none w-full pl-3 pr-8 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-700 focus:border-blue-500 focus:ring-blue-500 cursor-pointer" %>
+            <svg class="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+            </svg>
+          </div>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1"><%= t("shipping_reminders.select_send_time") %></label>
+          <div class="relative">
+            <%= f.select :send_hour,
+                (0..23).map { |h| [format("%02d:00", h), h] },
+                { selected: setting.send_hour },
+                class: "appearance-none w-full pl-3 pr-8 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-700 focus:border-blue-500 focus:ring-blue-500 cursor-pointer" %>
+            <svg class="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+            </svg>
+          </div>
+        </div>
+      </div>
+
+      <p class="text-xs text-gray-400 mb-4"><%= t("shipping_reminders.timezone_tip") %></p>
+
+      <%# Frequency %>
+      <div class="mb-4">
+        <label class="block text-sm font-medium text-gray-700 mb-2"><%= t("shipping_reminders.select_frequency") %></label>
+        <div class="space-y-2">
+          <label class="flex items-center gap-2">
+            <%= f.radio_button :frequency, "every_day",
+                checked: setting.frequency == "every_day",
+                data: { action: "change->frequency-toggle#toggle" },
+                class: "text-gray-900 focus:ring-gray-500" %>
+            <span class="text-sm text-gray-700"><%= t("shipping_reminders.every_day") %></span>
+          </label>
+          <label class="flex items-center gap-2">
+            <%= f.radio_button :frequency, "every_week",
+                checked: setting.frequency == "every_week",
+                data: { action: "change->frequency-toggle#toggle" },
+                class: "text-gray-900 focus:ring-gray-500" %>
+            <span class="text-sm text-gray-700"><%= t("shipping_reminders.every_week") %></span>
+          </label>
+        </div>
+      </div>
+
+      <%# Day of week (conditional) %>
+      <div data-frequency-toggle-target="dayOfWeek" class="mb-4 <%= setting.frequency == 'every_week' ? '' : 'hidden' %>">
+        <label class="block text-sm font-medium text-gray-700 mb-1"><%= t("shipping_reminders.select_day") %></label>
+        <div class="relative">
+          <%= f.select :send_day_of_week,
+              ShippingReminderSetting.days_of_week.map { |k, v| [v, k] },
+              { selected: setting.send_day_of_week, include_blank: "" },
+              class: "appearance-none w-full pl-3 pr-8 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-700 focus:border-blue-500 focus:ring-blue-500 cursor-pointer" %>
+          <svg class="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+          </svg>
+        </div>
+      </div>
+
+      <div class="flex justify-end">
+        <%= f.submit t("shipping_reminders.save_settings"), class: "px-4 py-2 text-sm font-medium text-white bg-gray-900 rounded-md hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-500 cursor-pointer" %>
+      </div>
+    <% end %>
+  </div>
+</div>
