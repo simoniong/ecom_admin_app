@@ -286,15 +286,45 @@
           </div>
         </div>
 
-        <%# Tag filter (multi-select, OR logic) %>
+        <%# Tag filter (dropdown with checkboxes, OR logic) %>
         <div>
           <label class="block text-xs font-medium text-gray-500 mb-1"><%= t("shipments.filters.tag") %></label>
-          <select name="tags[]" multiple data-action="change->shipment-filter#filterChanged"
-                  class="w-48 min-h-[38px] max-h-32 pl-3 pr-3 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-700 focus:border-blue-500 focus:ring-blue-500 cursor-pointer">
-            <% @available_tags.each do |tag| %>
-              <option value="<%= tag %>" <%= "selected" if @tag_filters&.include?(tag) %>><%= tag %></option>
-            <% end %>
-          </select>
+          <div class="relative" data-controller="dropdown">
+            <button type="button" data-action="click->dropdown#toggle" aria-haspopup="true" aria-expanded="false" data-dropdown-target="button"
+                    class="inline-flex items-center justify-between w-48 pl-3 pr-8 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-50 cursor-pointer">
+              <span class="truncate">
+                <% if @tag_filters&.any? %>
+                  <%= @tag_filters.join(", ") %>
+                <% else %>
+                  <%= t("shipments.all") %>
+                <% end %>
+              </span>
+              <svg class="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+              </svg>
+            </button>
+            <div data-dropdown-target="menu" role="menu" class="hidden absolute left-0 mt-1 w-56 bg-white rounded-lg shadow-lg border border-gray-200 z-20 py-2 max-h-64 overflow-y-auto">
+              <% @available_tags.each do |tag| %>
+                <label class="flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-gray-50 cursor-pointer">
+                  <input type="checkbox" name="tags[]" value="<%= tag %>"
+                         <%= "checked" if @tag_filters&.include?(tag) %>
+                         data-action="change->shipment-filter#filterChanged"
+                         class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                  <span class="text-gray-700"><%= tag %></span>
+                  <span class="ml-auto text-xs text-gray-400">(<%= @tag_counts[tag] || 0 %>)</span>
+                </label>
+              <% end %>
+              <% if @available_tags.any? && @tag_filters&.any? %>
+                <div class="px-3 pt-1 border-t border-gray-100 mt-1">
+                  <button type="button" data-action="click->shipment-filter#clearTagFilter"
+                          class="text-sm text-blue-600 hover:text-blue-800"><%= t("shipments.clear_all") %></button>
+                </div>
+              <% end %>
+              <% if @available_tags.empty? %>
+                <p class="px-3 py-2 text-sm text-gray-500"><%= t("shipments.tags.no_tags") %></p>
+              <% end %>
+            </div>
+          </div>
         </div>
 
         <% if @stores.count > 1 %>
