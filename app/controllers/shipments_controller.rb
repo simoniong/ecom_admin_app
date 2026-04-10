@@ -51,6 +51,8 @@ class ShipmentsController < AdminController
     @store_filter = params[:store_id].presence
     @event_from = params[:event_from].presence
     @event_to = params[:event_to].presence
+    @shipped_from = params[:shipped_from].presence
+    @shipped_to = params[:shipped_to].presence
     @transit_min = params[:transit_min].presence
     @transit_max = params[:transit_max].presence
 
@@ -65,6 +67,12 @@ class ShipmentsController < AdminController
     end
     if @event_to && (date = Date.iso8601(@event_to) rescue nil)
       @filtered_scope = @filtered_scope.where(last_event_at: ..date.end_of_day)
+    end
+    if @shipped_from && (date = Date.iso8601(@shipped_from) rescue nil)
+      @filtered_scope = @filtered_scope.where(shipped_at: date.beginning_of_day..)
+    end
+    if @shipped_to && (date = Date.iso8601(@shipped_to) rescue nil)
+      @filtered_scope = @filtered_scope.where(shipped_at: ..date.end_of_day)
     end
     if @transit_min && (val = Integer(@transit_min, exception: false)) && val >= 0
       @filtered_scope = @filtered_scope.where(transit_days: val..)
