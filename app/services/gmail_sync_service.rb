@@ -167,8 +167,8 @@ class GmailSyncService
       end
     end
 
-    # Auto-close new/draft tickets when we replied via Gmail directly
-    if !is_new && (ticket.new_ticket? || ticket.draft?)
+    # Auto-close new/draft/draft_confirmed tickets when we replied via Gmail directly
+    if !is_new && (ticket.new_ticket? || ticket.draft? || ticket.draft_confirmed?)
       new_messages = ticket.messages.select(&:new_record?)
       our_reply = new_messages.any? do |msg|
         msg_from = parse_email_address(msg.from)

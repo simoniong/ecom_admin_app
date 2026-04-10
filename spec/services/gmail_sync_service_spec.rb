@@ -720,6 +720,48 @@ RSpec.describe GmailSyncService do
       expect(existing.draft_reply).to be_nil
     end
 
+    it "closes a draft_confirmed ticket and cancels scheduled job when our reply is detected" do
+      existing = create(:ticket, :draft_confirmed, email_account: email_account, gmail_thread_id: "t-autoclose-confirmed",
+                        customer_email: "buyer3@example.com",
+                        scheduled_send_at: 1.hour.from_now, scheduled_job_id: SecureRandom.uuid)
+      create(:message, ticket: existing, gmail_message_id: "m-orig3", from: "buyer3@example.com",
+              sent_at: 1.day.ago, gmail_internal_date: (1.day.ago.to_f * 1000).to_i)
+
+      gmail = instance_double(GmailService)
+      allow(GmailService).to receive(:new).and_return(gmail)
+
+      email_account.update!(last_history_id: 60000)
+
+      message_added = Google::Apis::GmailV1::HistoryMessageAdded.new(
+        message: Google::Apis::GmailV1::Message.new(id: "m-our-direct3", thread_id: "t-autoclose-confirmed")
+      )
+      history = Google::Apis::GmailV1::History.new(messages_added: [ message_added ])
+      history_response = Google::Apis::GmailV1::ListHistoryResponse.new(
+        history: [ history ], history_id: 60400
+      )
+      allow(gmail).to receive(:list_history).and_return(history_response)
+
+      full_thread = build_gmail_thread(
+        id: "t-autoclose-confirmed",
+        messages: [
+          build_gmail_message(id: "m-orig3", thread_id: "t-autoclose-confirmed", from: "buyer3@example.com",
+                              internal_date: (1.day.ago.to_f * 1000).to_i),
+          build_gmail_message(id: "m-our-direct3", thread_id: "t-autoclose-confirmed", from: "shop@gmail.com",
+                              to: "buyer3@example.com", subject: "Re: Help",
+                              internal_date: (1.minute.ago.to_f * 1000).to_i)
+        ]
+      )
+      allow(gmail).to receive(:get_thread).with("t-autoclose-confirmed").and_return(full_thread)
+
+      service.sync!
+
+      existing.reload
+      expect(existing.status).to eq("closed")
+      expect(existing.draft_reply).to be_nil
+      expect(existing.scheduled_send_at).to be_nil
+      expect(existing.scheduled_job_id).to be_nil
+    end
+
     it "does not close new_ticket when customer sends another message" do
       existing = create(:ticket, email_account: email_account, gmail_thread_id: "t-stay-new",
                         status: :new_ticket, customer_email: "buyer@example.com")

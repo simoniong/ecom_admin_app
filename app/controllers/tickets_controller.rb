@@ -4,8 +4,9 @@ class TicketsController < AdminController
   def index
     tickets = Ticket.for_company(current_company).includes(:email_account, :customer)
 
-    if params[:q].present?
-      query = "%#{Ticket.sanitize_sql_like(params[:q])}%"
+    search_query = params[:q].to_s
+    if search_query.present?
+      query = "%#{Ticket.sanitize_sql_like(search_query)}%"
       tickets = tickets
         .left_joins(customer: :orders)
         .where(
