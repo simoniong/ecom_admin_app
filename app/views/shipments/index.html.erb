@@ -303,25 +303,28 @@
                 <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
               </svg>
             </button>
-            <div data-dropdown-target="menu" role="menu" class="hidden absolute left-0 mt-1 w-56 bg-white rounded-lg shadow-lg border border-gray-200 z-20 py-2 max-h-64 overflow-y-auto">
-              <% @available_tags.each do |tag| %>
-                <label class="flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-gray-50 cursor-pointer">
-                  <input type="checkbox" name="tags[]" value="<%= tag %>"
-                         <%= "checked" if @tag_filters&.include?(tag) %>
-                         data-action="change->shipment-filter#filterChanged"
-                         class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
-                  <span class="text-gray-700"><%= tag %></span>
-                  <span class="ml-auto text-xs text-gray-400">(<%= @tag_counts[tag] || 0 %>)</span>
-                </label>
-              <% end %>
-              <% if @available_tags.any? && @tag_filters&.any? %>
-                <div class="px-3 pt-1 border-t border-gray-100 mt-1">
+            <div data-dropdown-target="menu" role="menu" class="hidden absolute left-0 mt-1 w-56 bg-white rounded-lg shadow-lg border border-gray-200 z-20">
+              <div class="py-2 max-h-48 overflow-y-auto">
+                <% @available_tags.each do |tag| %>
+                  <label class="flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-gray-50 cursor-pointer">
+                    <input type="checkbox" name="tags[]" value="<%= tag %>"
+                           <%= "checked" if @tag_filters&.include?(tag) %>
+                           class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                    <span class="text-gray-700"><%= tag %></span>
+                    <span class="ml-auto text-xs text-gray-400">(<%= @tag_counts[tag] || 0 %>)</span>
+                  </label>
+                <% end %>
+                <% if @available_tags.empty? %>
+                  <p class="px-3 py-2 text-sm text-gray-500"><%= t("shipments.tags.no_tags") %></p>
+                <% end %>
+              </div>
+              <% if @available_tags.any? %>
+                <div class="flex items-center justify-between px-3 py-2 border-t border-gray-200">
                   <button type="button" data-action="click->shipment-filter#clearTagFilter"
                           class="text-sm text-blue-600 hover:text-blue-800"><%= t("shipments.clear_all") %></button>
+                  <button type="button" data-action="click->shipment-filter#filterChanged"
+                          class="px-3 py-1 text-sm font-medium text-white bg-gray-900 rounded-md hover:bg-gray-800"><%= t("shipments.tags.apply") %></button>
                 </div>
-              <% end %>
-              <% if @available_tags.empty? %>
-                <p class="px-3 py-2 text-sm text-gray-500"><%= t("shipments.tags.no_tags") %></p>
               <% end %>
             </div>
           </div>

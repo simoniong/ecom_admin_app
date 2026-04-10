@@ -393,6 +393,7 @@
       no_tags_found: "未找到匹配標籤。"
       close: "關閉"
       confirm: "確認"
+      apply: "套用"
       added_notice: "標籤更新成功。"
       removed_notice: "標籤刪除成功。"
   companies:
