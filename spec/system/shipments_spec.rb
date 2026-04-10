@@ -182,7 +182,7 @@ RSpec.describe "Shipments", type: :system do
       expect(page).to have_css("[data-shipment-bulk-target='bar']:not(.hidden)")
 
       row_checkbox.uncheck
-      expect(page).to have_css("[data-shipment-bulk-target='bar'].hidden", visible: :hidden)
+      expect(page).not_to have_css("[data-shipment-bulk-target='bar']:not(.hidden)")
     end
 
     it "select-all toggles all row checkboxes" do
