@@ -78,24 +78,24 @@ RSpec.describe ShippingReminderRule, type: :model do
     context "not_delivered rule" do
       let(:rule) do
         create(:shipping_reminder_rule, company: company, rule_type: "not_delivered",
-               country_thresholds: [ { "country" => "United States", "days" => 14 } ])
+               country_thresholds: [ { "country" => "US", "days" => 14 } ])
       end
 
       it "returns fulfillments shipped over X days ago and not delivered" do
         match = create(:fulfillment, order: order, tracking_number: "T1",
-                       destination_country: "United States", shipped_at: 20.days.ago,
+                       destination_country: "US", shipped_at: 20.days.ago,
                        tracking_status: "InTransit")
         # Delivered — should not match
         create(:fulfillment, order: order, tracking_number: "T2",
-               destination_country: "United States", shipped_at: 20.days.ago,
+               destination_country: "US", shipped_at: 20.days.ago,
                tracking_status: "Delivered")
         # Too recent — should not match
         create(:fulfillment, order: order, tracking_number: "T3",
-               destination_country: "United States", shipped_at: 5.days.ago,
+               destination_country: "US", shipped_at: 5.days.ago,
                tracking_status: "InTransit")
         # Wrong country — should not match
         create(:fulfillment, order: order, tracking_number: "T4",
-               destination_country: "Canada", shipped_at: 20.days.ago,
+               destination_country: "CA", shipped_at: 20.days.ago,
                tracking_status: "InTransit")
 
         results = rule.matching_fulfillments([ store.id ])
@@ -106,20 +106,20 @@ RSpec.describe ShippingReminderRule, type: :model do
     context "without_updates rule" do
       let(:rule) do
         create(:shipping_reminder_rule, company: company, rule_type: "without_updates",
-               country_thresholds: [ { "country" => "United States", "days" => 7 } ])
+               country_thresholds: [ { "country" => "US", "days" => 7 } ])
       end
 
       it "returns non-terminal fulfillments with stale last_event_at" do
         match = create(:fulfillment, order: order, tracking_number: "T1",
-                       destination_country: "United States", last_event_at: 10.days.ago,
+                       destination_country: "US", last_event_at: 10.days.ago,
                        tracking_status: "InTransit")
         # Terminal status — should not match
         create(:fulfillment, order: order, tracking_number: "T2",
-               destination_country: "United States", last_event_at: 10.days.ago,
+               destination_country: "US", last_event_at: 10.days.ago,
                tracking_status: "Delivered")
         # Recent event — should not match
         create(:fulfillment, order: order, tracking_number: "T3",
-               destination_country: "United States", last_event_at: 2.days.ago,
+               destination_country: "US", last_event_at: 2.days.ago,
                tracking_status: "InTransit")
 
         results = rule.matching_fulfillments([ store.id ])
@@ -130,16 +130,16 @@ RSpec.describe ShippingReminderRule, type: :model do
     context "ready_for_pickup rule" do
       let(:rule) do
         create(:shipping_reminder_rule, company: company, rule_type: "ready_for_pickup",
-               country_thresholds: [ { "country" => "United States", "days" => 3 } ])
+               country_thresholds: [ { "country" => "US", "days" => 3 } ])
       end
 
       it "returns AvailableForPickup fulfillments waiting over X days" do
         match = create(:fulfillment, order: order, tracking_number: "T1",
-                       destination_country: "United States", last_event_at: 5.days.ago,
+                       destination_country: "US", last_event_at: 5.days.ago,
                        tracking_status: "AvailableForPickup")
         # Different status — should not match
         create(:fulfillment, order: order, tracking_number: "T2",
-               destination_country: "United States", last_event_at: 5.days.ago,
+               destination_country: "US", last_event_at: 5.days.ago,
                tracking_status: "InTransit")
 
         results = rule.matching_fulfillments([ store.id ])
@@ -150,23 +150,23 @@ RSpec.describe ShippingReminderRule, type: :model do
     context "tracking_stopped rule" do
       let(:rule) do
         create(:shipping_reminder_rule, company: company, rule_type: "tracking_stopped",
-               country_thresholds: [ { "country" => "United States" } ])
+               country_thresholds: [ { "country" => "US" } ])
       end
 
       it "returns fulfillments with Exception or Expired status" do
         match_exception = create(:fulfillment, order: order, tracking_number: "T1",
-                                 destination_country: "United States",
+                                 destination_country: "US",
                                  tracking_status: "Exception")
         match_expired = create(:fulfillment, order: order, tracking_number: "T2",
-                               destination_country: "United States",
+                               destination_country: "US",
                                tracking_status: "Expired")
         # InTransit — should not match
         create(:fulfillment, order: order, tracking_number: "T3",
-               destination_country: "United States",
+               destination_country: "US",
                tracking_status: "InTransit")
         # Wrong country — should not match
         create(:fulfillment, order: order, tracking_number: "T4",
-               destination_country: "Canada",
+               destination_country: "CA",
                tracking_status: "Exception")
 
         results = rule.matching_fulfillments([ store.id ])

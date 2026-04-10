@@ -10,7 +10,7 @@ RSpec.describe ShippingReminderMailer, type: :mailer do
   end
   let(:fulfillment) do
     create(:fulfillment, order: order, tracking_number: "TRACK123",
-           destination_country: "United States", shipped_at: 20.days.ago,
+           destination_country: "US", shipped_at: 20.days.ago,
            tracking_status: "InTransit", latest_event_description: "In transit to destination")
   end
 

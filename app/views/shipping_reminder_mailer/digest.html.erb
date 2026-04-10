@@ -25,7 +25,7 @@
         <tr>
           <td><%= f.tracking_number %></td>
           <td><%= f.order&.name %></td>
-          <td><%= f.destination_country %></td>
+          <td><%= ISO3166::Country[f.destination_country]&.iso_short_name || f.destination_country %></td>
           <td><%= f.tracking_status_display %></td>
           <td><%= f.latest_event_description.to_s.truncate(80) %></td>
           <td>

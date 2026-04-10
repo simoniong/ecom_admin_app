@@ -1,6 +1,7 @@
 <%# Renders a standard <select> for country with Top Countries optgroup %>
 <div class="relative">
   <select name="shipping_reminder_rule[country_thresholds][][country]"
+          data-action="change->threshold-items#countryChanged"
           class="appearance-none pl-3 pr-8 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-700 focus:border-blue-500 focus:ring-blue-500 cursor-pointer w-48">
     <option value=""><%= t("shipping_reminders.select_country") %></option>
     <% if top_countries.present? %>

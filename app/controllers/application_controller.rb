@@ -16,7 +16,7 @@ class ApplicationController < ActionController::Base
 
     # Persist to user when explicitly switching via URL param
     if params[:locale].present? && current_user && current_user.locale != I18n.locale.to_s
-      current_user.update_column(:locale, I18n.locale.to_s)
+      current_user.update!(locale: I18n.locale.to_s)
     end
   end
 

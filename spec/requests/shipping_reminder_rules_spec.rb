@@ -29,14 +29,14 @@ RSpec.describe "ShippingReminderRules", type: :request do
       post shipping_reminder_rules_path, params: {
         shipping_reminder_rule: {
           rule_type: "not_delivered",
-          country_thresholds: [ { country: "United States", days: 14 } ]
+          country_thresholds: [ { country: "US", days: 14 } ]
         }
       }
       expect(response).to redirect_to(shipping_reminder_rules_path)
       expect(company.shipping_reminder_rules.count).to eq(1)
       rule = company.shipping_reminder_rules.first
       expect(rule.rule_type).to eq("not_delivered")
-      expect(rule.country_thresholds).to eq([ { "country" => "United States", "days" => "14" } ])
+      expect(rule.country_thresholds).to eq([ { "country" => "US", "days" => "14" } ])
     end
 
     it "returns unprocessable_entity with invalid params" do
@@ -52,7 +52,7 @@ RSpec.describe "ShippingReminderRules", type: :request do
       post shipping_reminder_rules_path, params: {
         shipping_reminder_rule: {
           rule_type: "not_delivered",
-          country_thresholds: [ { country: "Canada", days: 21 } ]
+          country_thresholds: [ { country: "CA", days: 21 } ]
         }
       }
       expect(response).to redirect_to(shipping_reminder_rules_path)
@@ -66,11 +66,11 @@ RSpec.describe "ShippingReminderRules", type: :request do
     it "updates rule country_thresholds" do
       patch shipping_reminder_rule_path(id: rule.id), params: {
         shipping_reminder_rule: {
-          country_thresholds: [ { country: "Canada", days: 21 } ]
+          country_thresholds: [ { country: "CA", days: 21 } ]
         }
       }
       expect(response).to redirect_to(shipping_reminder_rules_path)
-      expect(rule.reload.country_thresholds).to eq([ { "country" => "Canada", "days" => "21" } ])
+      expect(rule.reload.country_thresholds).to eq([ { "country" => "CA", "days" => "21" } ])
     end
 
     it "toggles enabled" do

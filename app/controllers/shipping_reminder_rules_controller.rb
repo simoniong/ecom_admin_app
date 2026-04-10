@@ -18,7 +18,7 @@ class ShippingReminderRulesController < AdminController
   def update
     @rule = current_company.shipping_reminder_rules.find(params[:id])
 
-    if @rule.update(rule_params)
+    if @rule.update(update_rule_params)
       redirect_to shipping_reminder_rules_path, notice: t("shipping_reminders.rule_updated")
     else
       load_all
@@ -30,6 +30,10 @@ class ShippingReminderRulesController < AdminController
 
   def rule_params
     params.require(:shipping_reminder_rule).permit(:rule_type, :enabled, country_thresholds: [ :country, :days ])
+  end
+
+  def update_rule_params
+    params.require(:shipping_reminder_rule).permit(:enabled, country_thresholds: [ :country, :days ])
   end
 
   def load_all

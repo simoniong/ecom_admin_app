@@ -2,8 +2,9 @@ class ShippingReminderSetting < ApplicationRecord
   belongs_to :company
 
   FREQUENCIES = %w[every_day every_week].freeze
-  DAYS_OF_WEEK = { 0 => "Sunday", 1 => "Monday", 2 => "Tuesday", 3 => "Wednesday",
-                   4 => "Thursday", 5 => "Friday", 6 => "Saturday" }.freeze
+  def self.days_of_week
+    I18n.t("date.day_names").each_with_index.to_h { |name, index| [ index, name ] }
+  end
 
   validates :timezone, presence: true
   validates :send_hour, presence: true, inclusion: { in: 0..23 }

@@ -41,7 +41,7 @@ export default class extends Controller {
 
   parseEmails() {
     return this.textareaTarget.value
-      .split(/[\n,]+/)
+      .split(/[\n,\s]+/)
       .map(l => l.trim())
       .filter(l => l !== "")
   }

@@ -3,6 +3,14 @@ import { Controller } from "@hotwired/stimulus"
 export default class extends Controller {
   static targets = ["container", "template"]
 
+  connect() {
+    this.disableUsedCountries()
+  }
+
+  countryChanged() {
+    this.disableUsedCountries()
+  }
+
   add() {
     const content = this.templateTarget.innerHTML
     this.containerTarget.insertAdjacentHTML("beforeend", content)

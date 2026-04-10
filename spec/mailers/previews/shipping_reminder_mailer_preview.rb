@@ -20,6 +20,8 @@ class ShippingReminderMailerPreview < ActionMailer::Preview
 
   def build_digest(locale)
     company = Company.first
+    return ActionMailer::Base.mail(to: "preview@example.com", subject: "No data", body: "Create a company first") unless company
+
     fulfillments = Fulfillment.joins(:order)
                               .where(orders: { shopify_store_id: company.shopify_stores.pluck(:id) })
                               .with_tracking

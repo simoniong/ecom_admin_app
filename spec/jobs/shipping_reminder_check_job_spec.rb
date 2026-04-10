@@ -34,9 +34,9 @@ RSpec.describe ShippingReminderCheckJob, type: :job do
       setting = create(:shipping_reminder_setting, company: company, enabled: true,
                        timezone: "UTC", send_hour: now.hour, recipients: [ "test@example.com" ])
       create(:shipping_reminder_rule, company: company, rule_type: "not_delivered",
-             country_thresholds: [ { "country" => "United States", "days" => 14 } ])
+             country_thresholds: [ { "country" => "US", "days" => 14 } ])
       create(:fulfillment, order: order, tracking_number: "T1",
-             destination_country: "United States", shipped_at: 20.days.ago,
+             destination_country: "US", shipped_at: 20.days.ago,
              tracking_status: "InTransit")
 
       expect { described_class.perform_now }
@@ -50,10 +50,10 @@ RSpec.describe ShippingReminderCheckJob, type: :job do
       create(:shipping_reminder_setting, company: company, enabled: true,
              timezone: "UTC", send_hour: now.hour, recipients: [ "test@example.com" ])
       create(:shipping_reminder_rule, company: company, rule_type: "not_delivered",
-             country_thresholds: [ { "country" => "United States", "days" => 14 } ])
+             country_thresholds: [ { "country" => "US", "days" => 14 } ])
       # Fulfillment is recent, won't match
       create(:fulfillment, order: order, tracking_number: "T1",
-             destination_country: "United States", shipped_at: 2.days.ago,
+             destination_country: "US", shipped_at: 2.days.ago,
              tracking_status: "InTransit")
 
       expect { described_class.perform_now }.not_to have_enqueued_mail

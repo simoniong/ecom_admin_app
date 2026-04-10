@@ -426,6 +426,7 @@
     every_week: "每周"
     select_day: "选择星期"
     save_settings: "保存设置"
+    rule_prefix: "规则："
     rules:
       not_delivered: "超过 X 天未妥投"
       without_updates: "超过 X 天无更新"
@@ -450,6 +451,6 @@
       not_delivered: "的包裹超过"
       without_updates: "的包裹超过"
       ready_for_pickup: "的包裹等待取件超过"
-      tracking_stopped: "的包裹轨迹停止超过"
+      tracking_stopped: "的包裹物流轨迹已停止"
   locale_switcher:
     label: "语言"

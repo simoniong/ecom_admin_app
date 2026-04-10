@@ -427,6 +427,7 @@ en:
     every_week: "Every week"
     select_day: "Select Day"
     save_settings: "Save Settings"
+    rule_prefix: "Rule:"
     rules:
       not_delivered: "Not delivered for over X days"
       without_updates: "Without updates for over X days"
