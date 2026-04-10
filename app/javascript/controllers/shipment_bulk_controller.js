@@ -2,6 +2,7 @@ import { Controller } from "@hotwired/stimulus"
 
 export default class extends Controller {
   static targets = ["selectAll", "checkbox", "bar", "count"]
+  static values = { copiedText: { type: String, default: "Copied!" } }
 
   connect() {
     this.updateState()
@@ -9,6 +10,7 @@ export default class extends Controller {
 
   toggleAll() {
     const checked = this.selectAllTarget.checked
+    this.selectAllTarget.indeterminate = false
     this.checkboxTargets.forEach(cb => cb.checked = checked)
     this.updateState()
   }
@@ -31,7 +33,7 @@ export default class extends Controller {
 
   copyTracking() {
     const lines = this.selectedData().map(d => {
-      const datePart = d.lastEventAt ? this.formatDate(d.lastEventAt) : "N/A"
+      const datePart = d.lastEventDate || "N/A"
       const msgPart = d.latestEvent || "N/A"
       return `${d.trackingNumber}, 停更在${datePart}, 最后消息是: ${msgPart}`
     })
@@ -40,7 +42,7 @@ export default class extends Controller {
 
   copyTrackingSimple() {
     const lines = this.selectedData().map(d => {
-      const datePart = d.lastEventAt ? this.formatDate(d.lastEventAt) : "N/A"
+      const datePart = d.lastEventDate || "N/A"
       return `${d.trackingNumber}, 停更在${datePart}`
     })
     this.copyToClipboard(lines.join("\n"))
@@ -51,27 +53,38 @@ export default class extends Controller {
       .filter(cb => cb.checked)
       .map(cb => ({
         trackingNumber: cb.dataset.trackingNumber,
-        lastEventAt: cb.dataset.lastEventAt,
+        lastEventDate: cb.dataset.lastEventDate,
         latestEvent: cb.dataset.latestEvent
       }))
   }
 
-  formatDate(isoString) {
-    const date = new Date(isoString)
-    const month = date.getMonth() + 1
-    const day = date.getDate()
-    return `${month}月${day}日`
+  copyToClipboard(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => {
+        this.flashCopied()
+      }).catch(() => {
+        this.fallbackCopy(text)
+      })
+    } else {
+      this.fallbackCopy(text)
+    }
   }
 
-  copyToClipboard(text) {
-    navigator.clipboard.writeText(text).then(() => {
-      this.flashCopied()
-    })
+  fallbackCopy(text) {
+    const textarea = document.createElement("textarea")
+    textarea.value = text
+    textarea.style.position = "fixed"
+    textarea.style.opacity = "0"
+    document.body.appendChild(textarea)
+    textarea.select()
+    document.execCommand("copy")
+    textarea.remove()
+    this.flashCopied()
   }
 
   flashCopied() {
     const flash = document.createElement("div")
-    flash.textContent = "Copied!"
+    flash.textContent = this.copiedTextValue
     flash.className = "fixed top-4 right-4 z-50 px-4 py-2 bg-gray-900 text-white text-sm rounded-lg shadow-lg transition-opacity duration-300"
     document.body.appendChild(flash)
     setTimeout(() => {

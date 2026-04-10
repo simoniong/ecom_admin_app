@@ -330,6 +330,9 @@
       customer_email: "客戶郵箱"
     bulk:
       selected: "已選擇"
+      copied: "已複製！"
+      select_all: "全選所有物流"
+      select_shipment: "選擇物流 %{tracking}"
       copy_tracking: "複製運單號"
       copy_tracking_simple: "複製運單號 (簡潔)"
   companies:

@@ -157,4 +157,44 @@ RSpec.describe "Shipments", type: :system do
       expect(second_th["data-column"]).to be_nil
     end
   end
+
+  describe "bulk select" do
+    before do
+      click_link "Shipments"
+      expect(page).to have_text("TEST123")
+    end
+
+    it "shows bulk action bar when a row checkbox is checked" do
+      expect(page).not_to have_css("[data-shipment-bulk-target='bar']:not(.hidden)")
+
+      row_checkbox = find("input[data-shipment-bulk-target='checkbox']", match: :first)
+      row_checkbox.check
+
+      bar = find("[data-shipment-bulk-target='bar']")
+      expect(bar).not_to match_css(".hidden")
+      expect(bar).to have_text("1")
+      expect(bar).to have_text("selected")
+    end
+
+    it "hides bulk action bar when all checkboxes are unchecked" do
+      row_checkbox = find("input[data-shipment-bulk-target='checkbox']", match: :first)
+      row_checkbox.check
+      expect(page).to have_css("[data-shipment-bulk-target='bar']:not(.hidden)")
+
+      row_checkbox.uncheck
+      expect(page).to have_css("[data-shipment-bulk-target='bar'].hidden", visible: :hidden)
+    end
+
+    it "select-all toggles all row checkboxes" do
+      select_all = find("input[data-shipment-bulk-target='selectAll']")
+      select_all.check
+
+      checkboxes = all("input[data-shipment-bulk-target='checkbox']")
+      expect(checkboxes).to all(be_checked)
+
+      select_all.uncheck
+      checkboxes = all("input[data-shipment-bulk-target='checkbox']")
+      checkboxes.each { |cb| expect(cb).not_to be_checked }
+    end
+  end
 end

@@ -311,13 +311,14 @@
 
   <%# Table %>
   <% if @shipments.any? %>
-    <div data-controller="shipment-bulk">
+    <div data-controller="shipment-bulk" data-shipment-bulk-copied-text-value="<%= t("shipments.bulk.copied") %>">
     <div class="bg-white rounded-lg border border-gray-200 overflow-x-auto">
       <table class="min-w-full divide-y divide-gray-200">
         <thead class="bg-gray-50">
           <tr>
             <th class="px-4 py-3 text-center w-10">
               <input type="checkbox" data-shipment-bulk-target="selectAll" data-action="change->shipment-bulk#toggleAll"
+                     aria-label="<%= t("shipments.bulk.select_all") %>"
                      class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
             </th>
             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
@@ -392,8 +393,9 @@
               <td class="px-4 py-3 text-center w-10">
                 <input type="checkbox" data-shipment-bulk-target="checkbox" data-action="change->shipment-bulk#toggleOne"
                        data-tracking-number="<%= shipment.tracking_number %>"
-                       data-last-event-at="<%= shipment.last_event_at&.iso8601 %>"
+                       data-last-event-date="<%= shipment.last_event_at&.in_time_zone(tz)&.strftime("%-m月%-d日") %>"
                        data-latest-event="<%= shipment.latest_event_description %>"
+                       aria-label="<%= t("shipments.bulk.select_shipment", tracking: shipment.tracking_number) %>"
                        class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
               </td>
 
