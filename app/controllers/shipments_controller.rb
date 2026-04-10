@@ -19,6 +19,24 @@ class ShipmentsController < AdminController
     load_filter_options
   end
 
+  def show
+    store_ids = current_company.shopify_stores.pluck(:id)
+    @fulfillment = Fulfillment.with_tracking
+      .joins(:order)
+      .where(orders: { shopify_store_id: store_ids })
+      .includes(order: [ :customer, :shopify_store ])
+      .find(params[:id])
+
+    @order = @fulfillment.order
+    @customer = @order.customer
+    @store = @order.shopify_store
+    @events = @fulfillment.tracking_events
+    @line_items = @fulfillment.shopify_data&.dig("line_items") || @order.shopify_data&.dig("line_items") || []
+    @shipping_address = @order.shopify_data&.dig("shipping_address") || {}
+    @shipping_lines = @order.shopify_data&.dig("shipping_lines") || []
+    @tz = ActiveSupport::TimeZone["Asia/Shanghai"]
+  end
+
   def sync
     current_company.shopify_stores.find_each do |store|
       SyncAllShopifyOrdersJob.perform_later(store.id)

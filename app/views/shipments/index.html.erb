@@ -401,11 +401,7 @@
 
               <%# Tracking No. (always visible) %>
               <td class="px-4 py-3 text-sm font-mono text-gray-900 whitespace-nowrap">
-                <% if shipment.tracking_url.present? %>
-                  <%= link_to shipment.tracking_number, shipment.tracking_url, target: "_blank", rel: "noopener", class: "text-blue-600 hover:underline" %>
-                <% else %>
-                  <%= shipment.tracking_number %>
-                <% end %>
+                <%= link_to shipment.tracking_number, shipment_path(shipment), class: "text-blue-600 hover:underline" %>
               </td>
 
               <%# Order info %>

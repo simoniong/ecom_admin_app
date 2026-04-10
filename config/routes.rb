@@ -56,7 +56,7 @@ Rails.application.routes.draw do
     resources :orders, only: [ :index ] do
       post :sync, on: :collection
     end
-    resources :shipments, only: [ :index ] do
+    resources :shipments, only: [ :index, :show ] do
       post :sync, on: :collection
     end
     resources :tickets, only: [ :index, :show, :update ]
