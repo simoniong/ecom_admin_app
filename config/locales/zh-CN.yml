@@ -388,6 +388,10 @@
       col_status: "状态"
       col_last_event: "最新事件"
       col_days: "天数"
+      item_count:
+        one: "%{count} 条"
+        other: "%{count} 条"
+      view_in_admin: "在后台查看"
       footer: "此邮件由 %{company} 自动发送。您可以在管理后台管理提醒规则。"
     descriptions:
       not_delivered: "的包裹超过"

@@ -441,6 +441,10 @@ en:
       col_status: "Status"
       col_last_event: "Last Event"
       col_days: "Days"
+      item_count:
+        one: "%{count} item"
+        other: "%{count} items"
+      view_in_admin: "View in admin panel"
       footer: "This is an automated alert from %{company}. You can manage reminder rules in your admin panel."
     descriptions:
       not_delivered: "have not been delivered for over"
