@@ -49,6 +49,44 @@ RSpec.describe "Tickets", type: :request do
       get tickets_path
       expect(response.body).not_to include("Not mine")
     end
+
+    it "searches tickets by subject" do
+      create(:ticket, email_account: email_account, subject: "Shipping delay")
+      create(:ticket, email_account: email_account, subject: "Refund request")
+      sign_in user
+      get tickets_path, params: { q: "shipping" }
+      expect(response.body).to include("Shipping delay")
+      expect(response.body).not_to include("Refund request")
+    end
+
+    it "searches tickets by customer name" do
+      create(:ticket, email_account: email_account, customer_name: "Alice Wong", subject: "Issue A")
+      create(:ticket, email_account: email_account, customer_name: "Bob Smith", subject: "Issue B")
+      sign_in user
+      get tickets_path, params: { q: "alice" }
+      expect(response.body).to include("Issue A")
+      expect(response.body).not_to include("Issue B")
+    end
+
+    it "searches tickets by order name" do
+      customer = create(:customer)
+      create(:order, customer: customer, name: "#1042")
+      ticket = create(:ticket, email_account: email_account, customer: customer, subject: "Order issue")
+      create(:ticket, email_account: email_account, subject: "Other ticket")
+      sign_in user
+      get tickets_path, params: { q: "1042" }
+      expect(response.body).to include("Order issue")
+      expect(response.body).not_to include("Other ticket")
+    end
+
+    it "returns all tickets when search is empty" do
+      create(:ticket, email_account: email_account, subject: "Ticket A")
+      create(:ticket, email_account: email_account, subject: "Ticket B")
+      sign_in user
+      get tickets_path, params: { q: "" }
+      expect(response.body).to include("Ticket A")
+      expect(response.body).to include("Ticket B")
+    end
   end
 
   describe "GET /tickets/:id" do

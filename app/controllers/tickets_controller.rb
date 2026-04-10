@@ -2,7 +2,20 @@ class TicketsController < AdminController
   before_action :set_ticket, only: [ :show, :update ]
 
   def index
-    tickets = Ticket.for_company(current_company).includes(:email_account).by_position.to_a
+    tickets = Ticket.for_company(current_company).includes(:email_account, :customer)
+
+    if params[:q].present?
+      query = "%#{Ticket.sanitize_sql_like(params[:q])}%"
+      tickets = tickets
+        .left_joins(customer: :orders)
+        .where(
+          "tickets.subject ILIKE :q OR tickets.customer_name ILIKE :q OR orders.name ILIKE :q",
+          q: query
+        )
+        .distinct
+    end
+
+    tickets = tickets.by_position.to_a
     grouped = tickets.group_by(&:status)
     @tickets_by_status = Ticket.statuses.keys.index_with do |status|
       grouped[status] || []

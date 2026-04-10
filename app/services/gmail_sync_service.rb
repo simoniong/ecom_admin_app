@@ -167,6 +167,26 @@ class GmailSyncService
       end
     end
 
+    # Auto-close new/draft tickets when we replied via Gmail directly
+    if !is_new && (ticket.new_ticket? || ticket.draft?)
+      new_messages = ticket.messages.select(&:new_record?)
+      our_reply = new_messages.any? do |msg|
+        msg_from = parse_email_address(msg.from)
+        msg_from&.downcase == email_account.email.downcase
+      end
+
+      if our_reply
+        if ticket.scheduled_job_id.present?
+          SolidQueue::Job.find_by(active_job_id: ticket.scheduled_job_id)&.destroy
+        end
+        ticket.status = :closed
+        ticket.draft_reply = nil
+        ticket.draft_reply_at = nil
+        ticket.scheduled_send_at = nil
+        ticket.scheduled_job_id = nil
+      end
+    end
+
     Ticket.transaction do
       ticket.save!
       ticket.messages.each do |message|

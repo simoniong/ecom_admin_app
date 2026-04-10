@@ -638,6 +638,127 @@ RSpec.describe GmailSyncService do
     end
   end
 
+  describe "auto-close new/draft tickets when we reply via Gmail" do
+    it "closes a new_ticket when our reply is detected" do
+      existing = create(:ticket, email_account: email_account, gmail_thread_id: "t-autoclose",
+                        status: :new_ticket, customer_email: "buyer@example.com")
+      create(:message, ticket: existing, gmail_message_id: "m-orig", from: "buyer@example.com",
+              sent_at: 1.day.ago, gmail_internal_date: (1.day.ago.to_f * 1000).to_i)
+
+      gmail = instance_double(GmailService)
+      allow(GmailService).to receive(:new).and_return(gmail)
+
+      email_account.update!(last_history_id: 60000)
+
+      message_added = Google::Apis::GmailV1::HistoryMessageAdded.new(
+        message: Google::Apis::GmailV1::Message.new(id: "m-our-direct", thread_id: "t-autoclose")
+      )
+      history = Google::Apis::GmailV1::History.new(messages_added: [ message_added ])
+      history_response = Google::Apis::GmailV1::ListHistoryResponse.new(
+        history: [ history ], history_id: 60100
+      )
+      allow(gmail).to receive(:list_history).and_return(history_response)
+
+      full_thread = build_gmail_thread(
+        id: "t-autoclose",
+        messages: [
+          build_gmail_message(id: "m-orig", thread_id: "t-autoclose", from: "buyer@example.com",
+                              internal_date: (1.day.ago.to_f * 1000).to_i),
+          build_gmail_message(id: "m-our-direct", thread_id: "t-autoclose", from: "shop@gmail.com",
+                              to: "buyer@example.com", subject: "Re: Help",
+                              internal_date: (1.minute.ago.to_f * 1000).to_i)
+        ]
+      )
+      allow(gmail).to receive(:get_thread).with("t-autoclose").and_return(full_thread)
+
+      service.sync!
+
+      existing.reload
+      expect(existing.status).to eq("closed")
+      expect(existing.draft_reply).to be_nil
+      expect(existing.draft_reply_at).to be_nil
+      expect(existing.scheduled_send_at).to be_nil
+      expect(existing.scheduled_job_id).to be_nil
+    end
+
+    it "closes a draft ticket when our reply is detected" do
+      existing = create(:ticket, :draft, email_account: email_account, gmail_thread_id: "t-autoclose-draft",
+                        customer_email: "buyer2@example.com")
+      create(:message, ticket: existing, gmail_message_id: "m-orig2", from: "buyer2@example.com",
+              sent_at: 1.day.ago, gmail_internal_date: (1.day.ago.to_f * 1000).to_i)
+
+      gmail = instance_double(GmailService)
+      allow(GmailService).to receive(:new).and_return(gmail)
+
+      email_account.update!(last_history_id: 60000)
+
+      message_added = Google::Apis::GmailV1::HistoryMessageAdded.new(
+        message: Google::Apis::GmailV1::Message.new(id: "m-our-direct2", thread_id: "t-autoclose-draft")
+      )
+      history = Google::Apis::GmailV1::History.new(messages_added: [ message_added ])
+      history_response = Google::Apis::GmailV1::ListHistoryResponse.new(
+        history: [ history ], history_id: 60200
+      )
+      allow(gmail).to receive(:list_history).and_return(history_response)
+
+      full_thread = build_gmail_thread(
+        id: "t-autoclose-draft",
+        messages: [
+          build_gmail_message(id: "m-orig2", thread_id: "t-autoclose-draft", from: "buyer2@example.com",
+                              internal_date: (1.day.ago.to_f * 1000).to_i),
+          build_gmail_message(id: "m-our-direct2", thread_id: "t-autoclose-draft", from: "shop@gmail.com",
+                              to: "buyer2@example.com", subject: "Re: Help",
+                              internal_date: (1.minute.ago.to_f * 1000).to_i)
+        ]
+      )
+      allow(gmail).to receive(:get_thread).with("t-autoclose-draft").and_return(full_thread)
+
+      service.sync!
+
+      existing.reload
+      expect(existing.status).to eq("closed")
+      expect(existing.draft_reply).to be_nil
+    end
+
+    it "does not close new_ticket when customer sends another message" do
+      existing = create(:ticket, email_account: email_account, gmail_thread_id: "t-stay-new",
+                        status: :new_ticket, customer_email: "buyer@example.com")
+      create(:message, ticket: existing, gmail_message_id: "m-first", from: "buyer@example.com",
+              sent_at: 1.day.ago, gmail_internal_date: (1.day.ago.to_f * 1000).to_i)
+
+      gmail = instance_double(GmailService)
+      allow(GmailService).to receive(:new).and_return(gmail)
+
+      email_account.update!(last_history_id: 60000)
+
+      message_added = Google::Apis::GmailV1::HistoryMessageAdded.new(
+        message: Google::Apis::GmailV1::Message.new(id: "m-followup", thread_id: "t-stay-new")
+      )
+      history = Google::Apis::GmailV1::History.new(messages_added: [ message_added ])
+      history_response = Google::Apis::GmailV1::ListHistoryResponse.new(
+        history: [ history ], history_id: 60300
+      )
+      allow(gmail).to receive(:list_history).and_return(history_response)
+
+      full_thread = build_gmail_thread(
+        id: "t-stay-new",
+        messages: [
+          build_gmail_message(id: "m-first", thread_id: "t-stay-new", from: "buyer@example.com",
+                              internal_date: (1.day.ago.to_f * 1000).to_i),
+          build_gmail_message(id: "m-followup", thread_id: "t-stay-new", from: "buyer@example.com",
+                              subject: "Follow up", body: "Hello?",
+                              internal_date: (1.minute.ago.to_f * 1000).to_i)
+        ]
+      )
+      allow(gmail).to receive(:get_thread).with("t-stay-new").and_return(full_thread)
+
+      service.sync!
+
+      existing.reload
+      expect(existing.status).to eq("new_ticket")
+    end
+  end
+
   describe "closed ticket reopen logic (Stories 7/8)" do
     let!(:existing_ticket) do
       t = create(:ticket, email_account: email_account, gmail_thread_id: "t-reopen",
