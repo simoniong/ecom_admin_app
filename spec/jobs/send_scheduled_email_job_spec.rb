@@ -51,6 +51,19 @@ RSpec.describe SendScheduledEmailJob, type: :job do
     expect(ticket.reload).to be_closed
   end
 
+  it "sends with legacy expected_job_id param (backwards compat)" do
+    ticket.update!(scheduled_job_id: "legacy-uuid")
+    described_class.perform_now(ticket.id, expected_job_id: "legacy-uuid")
+    expect(ticket.reload).to be_closed
+  end
+
+  it "skips legacy job when scheduled_job_id has been updated" do
+    ticket.update!(scheduled_job_id: "new-uuid")
+
+    expect(GmailService).not_to receive(:new)
+    described_class.perform_now(ticket.id, expected_job_id: "old-uuid")
+  end
+
   it "raises on send failure for retry" do
     job = described_class.new(ticket.id)
     ticket.update!(scheduled_job_id: job.job_id)
