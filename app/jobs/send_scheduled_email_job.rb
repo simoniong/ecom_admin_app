@@ -1,7 +1,7 @@
 class SendScheduledEmailJob < ApplicationJob
   queue_as :default
 
-  def perform(ticket_id, expected_job_id: nil)
+  def perform(ticket_id)
     ticket = Ticket.find(ticket_id)
 
     unless ticket.draft_confirmed?
@@ -10,7 +10,7 @@ class SendScheduledEmailJob < ApplicationJob
     end
 
     # Idempotency: verify this is the currently scheduled job
-    if expected_job_id.present? && ticket.scheduled_job_id != expected_job_id
+    if ticket.scheduled_job_id.present? && ticket.scheduled_job_id != self.job_id
       Rails.logger.info("[SendEmail] Ticket##{ticket_id} has different scheduled_job_id, skipping stale job")
       return
     end

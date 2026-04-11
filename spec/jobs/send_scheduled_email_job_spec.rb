@@ -5,7 +5,7 @@ RSpec.describe SendScheduledEmailJob, type: :job do
   let(:ticket) do
     create(:ticket, :draft_confirmed, email_account: email_account,
            gmail_thread_id: "thread-abc", customer_email: "buyer@example.com",
-           scheduled_send_at: Time.current, scheduled_job_id: "job-1")
+           scheduled_send_at: Time.current, scheduled_job_id: nil)
   end
 
   before do
@@ -18,7 +18,10 @@ RSpec.describe SendScheduledEmailJob, type: :job do
   end
 
   it "sends email and closes ticket" do
-    described_class.perform_now(ticket.id, expected_job_id: "job-1")
+    job = described_class.new(ticket.id)
+    ticket.update!(scheduled_job_id: job.job_id)
+
+    job.perform_now
     ticket.reload
 
     expect(ticket).to be_closed
@@ -35,21 +38,27 @@ RSpec.describe SendScheduledEmailJob, type: :job do
     described_class.perform_now(ticket.id)
   end
 
-  it "skips if expected_job_id does not match (stale job)" do
+  it "skips if job_id does not match scheduled_job_id (stale job)" do
+    ticket.update!(scheduled_job_id: "current-active-job")
+
     expect(GmailService).not_to receive(:new)
-    described_class.perform_now(ticket.id, expected_job_id: "stale-job-id")
+    described_class.perform_now(ticket.id)
   end
 
-  it "sends when expected_job_id is nil (backwards compat)" do
+  it "sends when scheduled_job_id is nil (backwards compat)" do
+    ticket.update!(scheduled_job_id: nil)
     described_class.perform_now(ticket.id)
     expect(ticket.reload).to be_closed
   end
 
   it "raises on send failure for retry" do
+    job = described_class.new(ticket.id)
+    ticket.update!(scheduled_job_id: job.job_id)
+
     gmail = instance_double(GmailService)
     allow(GmailService).to receive(:new).and_return(gmail)
     allow(gmail).to receive(:send_message).and_raise(RuntimeError, "Gmail API error")
 
-    expect { described_class.perform_now(ticket.id, expected_job_id: "job-1") }.to raise_error(RuntimeError, /Gmail API error/)
+    expect { job.perform_now }.to raise_error(RuntimeError, /Gmail API error/)
   end
 end

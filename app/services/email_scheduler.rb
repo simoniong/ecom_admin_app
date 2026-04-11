@@ -16,12 +16,11 @@ class EmailScheduler
 
   def schedule!
     send_at = calculate_send_time
-    job_id = SecureRandom.uuid
-    SendScheduledEmailJob.set(wait_until: send_at).perform_later(@ticket.id, expected_job_id: job_id)
+    job = SendScheduledEmailJob.set(wait_until: send_at).perform_later(@ticket.id)
 
     @ticket.update!(
       scheduled_send_at: send_at,
-      scheduled_job_id: job_id
+      scheduled_job_id: job.job_id
     )
   end
 
