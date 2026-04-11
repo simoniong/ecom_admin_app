@@ -85,7 +85,7 @@ RSpec.describe "InvitationAcceptances", type: :request do
         post accept_invitation_confirm_path(token: invitation.token),
              params: { state: "login", password: "wrong" }
 
-        expect(response).to have_http_status(:unprocessable_entity)
+        expect(response).to have_http_status(:unprocessable_content)
         expect(response.body).to include(t("invitations.invalid_credentials"))
       end
     end
@@ -112,7 +112,7 @@ RSpec.describe "InvitationAcceptances", type: :request do
         post accept_invitation_confirm_path(token: invitation.token),
              params: { state: "register", first_name: "", password: "short" }
 
-        expect(response).to have_http_status(:unprocessable_entity)
+        expect(response).to have_http_status(:unprocessable_content)
       end
     end
   end
