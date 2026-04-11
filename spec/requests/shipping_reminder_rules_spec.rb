@@ -43,7 +43,7 @@ RSpec.describe "ShippingReminderRules", type: :request do
       post shipping_reminder_rules_path, params: {
         shipping_reminder_rule: { rule_type: "invalid" }
       }
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
     end
 
     it "updates existing rule of same type instead of duplicating" do

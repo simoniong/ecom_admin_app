@@ -33,7 +33,7 @@ RSpec.describe "Companies", type: :request do
     it "rejects blank name" do
       sign_in user
       patch company_path, params: { company: { name: "" } }
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
     end
 
     it "redirects member" do
