@@ -6,7 +6,7 @@ RSpec.describe EmailScheduler do
   let(:ticket) { create(:ticket, :draft, customer: customer, email_account: email_account) }
 
   describe ".schedule!" do
-    it "sets scheduled_send_at and scheduled_job_id" do
+    it "sets scheduled_send_at and scheduled_job_id from ActiveJob" do
       ticket.update!(status: :draft_confirmed)
 
       freeze_time do
@@ -16,6 +16,9 @@ RSpec.describe EmailScheduler do
         expect(ticket.scheduled_send_at).to be_present
         expect(ticket.scheduled_job_id).to be_present
         expect(ticket.scheduled_send_at).to be >= 10.minutes.from_now
+
+        # scheduled_job_id should be a valid UUID (ActiveJob's job_id)
+        expect(ticket.scheduled_job_id).to match(/\A[0-9a-f-]{36}\z/)
       end
     end
 
