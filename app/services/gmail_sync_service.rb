@@ -62,12 +62,20 @@ class GmailSyncService
         )
 
         if history_result.history.present?
-          thread_ids = history_result.history
+          # Collect thread IDs from new messages
+          from_messages = history_result.history
             .flat_map(&:messages_added)
             .compact
             .map { |ma| ma.message.thread_id }
 
-          all_thread_ids.concat(thread_ids)
+          # Also collect thread IDs from label changes (e.g. our sent replies)
+          from_labels = history_result.history
+            .flat_map(&:labels_added)
+            .compact
+            .map { |la| la.message.thread_id }
+
+          all_thread_ids.concat(from_messages)
+          all_thread_ids.concat(from_labels)
         end
 
         latest_history_id = history_result.history_id if history_result.history_id

@@ -15,7 +15,7 @@ class GmailService
     client.get_user_thread("me", thread_id, format: "full")
   end
 
-  def list_history(start_history_id:, history_types: [ "messageAdded" ], page_token: nil)
+  def list_history(start_history_id:, history_types: [ "messageAdded", "labelAdded" ], page_token: nil)
     client.list_user_histories("me", start_history_id: start_history_id, history_types: history_types, page_token: page_token)
   end
 
