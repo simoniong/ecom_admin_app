@@ -1,4 +1,9 @@
 "zh-CN":
+  activerecord:
+    errors:
+      models:
+        email_account:
+          send_window_invalid: "结束时间必须晚于开始时间。"
   app_name: "Ecom Admin"
   language_name: "简体中文"
   nav:
@@ -69,6 +74,7 @@
     disconnect: "解绑"
     disconnect_confirm: "确定要解绑此邮箱吗？所有关联的工单将被删除。"
     disconnect_success: "邮箱已解绑。"
+    send_window_updated: "发送时间窗口更新成功。"
     show:
       email: "邮箱地址"
       google_uid: "Google UID"
@@ -77,6 +83,11 @@
       token_expires_at: "Token 过期时间"
       scopes: "授权范围"
       connected_at: "连接时间"
+      send_window_title: "邮件发送时间窗口"
+      send_window_description: "定时邮件只会在此时间范围内发送（以收件人当地时区为准）。"
+      send_window_from: "从"
+      send_window_to: "到"
+      send_window_save: "保存"
   tickets:
     title: "工单"
     empty: "目前没有任何工单。"

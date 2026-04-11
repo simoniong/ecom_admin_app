@@ -46,7 +46,7 @@ Rails.application.routes.draw do
     resources :invitations, only: [ :index, :create, :destroy ]
     resources :memberships, only: [ :edit, :update, :destroy ]
 
-    resources :email_accounts, only: [ :index, :show, :destroy ]
+    resources :email_accounts, only: [ :index, :show, :update, :destroy ]
     resources :shopify_stores, only: [ :index, :show, :update, :destroy ]
     resources :ad_accounts, only: [ :index, :show, :destroy ]
     resources :ad_campaigns, only: [ :index ] do

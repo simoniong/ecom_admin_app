@@ -1,6 +1,4 @@
 class EmailScheduler
-  SEND_WINDOW_START = 8  # 8am
-  SEND_WINDOW_END = 22   # 10pm
   MIN_DELAY = 10.minutes
 
   def self.schedule!(ticket)
@@ -13,6 +11,7 @@ class EmailScheduler
 
   def initialize(ticket)
     @ticket = ticket
+    @email_account = ticket.email_account
   end
 
   def schedule!
@@ -48,15 +47,37 @@ class EmailScheduler
 
     if in_send_window?(earliest_in_tz)
       earliest
-    elsif earliest_in_tz.hour < SEND_WINDOW_START
-      earliest_in_tz.change(hour: SEND_WINDOW_START, min: 0, sec: 0).utc
+    elsif before_send_window?(earliest_in_tz)
+      earliest_in_tz.change(hour: window_from_hour, min: window_from_minute, sec: 0).utc
     else
-      (earliest_in_tz + 1.day).change(hour: SEND_WINDOW_START, min: 0, sec: 0).utc
+      (earliest_in_tz + 1.day).change(hour: window_from_hour, min: window_from_minute, sec: 0).utc
     end
   end
 
   def in_send_window?(time)
-    time.hour >= SEND_WINDOW_START && time.hour < SEND_WINDOW_END
+    minutes = time.hour * 60 + time.min
+    minutes >= window_from && minutes < window_to
+  end
+
+  def before_send_window?(time)
+    minutes = time.hour * 60 + time.min
+    minutes < window_from
+  end
+
+  def window_from_hour
+    @email_account.send_window_from_hour
+  end
+
+  def window_from_minute
+    @email_account.send_window_from_minute
+  end
+
+  def window_from
+    @email_account.send_window_from
+  end
+
+  def window_to
+    @email_account.send_window_to
   end
 
   def customer_timezone

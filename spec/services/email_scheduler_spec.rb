@@ -2,7 +2,8 @@ require "rails_helper"
 
 RSpec.describe EmailScheduler do
   let(:customer) { create(:customer, timezone: "America/New_York") }
-  let(:ticket) { create(:ticket, :draft, customer: customer) }
+  let(:email_account) { create(:email_account) }
+  let(:ticket) { create(:ticket, :draft, customer: customer, email_account: email_account) }
 
   describe ".schedule!" do
     it "sets scheduled_send_at and scheduled_job_id" do
@@ -18,7 +19,7 @@ RSpec.describe EmailScheduler do
       end
     end
 
-    it "schedules within 8am-10pm customer timezone" do
+    it "schedules within default 8am-10pm customer timezone" do
       ticket.update!(status: :draft_confirmed)
 
       # Simulate 3am in New York (8am UTC in winter)
@@ -47,7 +48,7 @@ RSpec.describe EmailScheduler do
     end
 
     it "uses America/New_York when no customer" do
-      ticket_no_customer = create(:ticket, :draft, customer: nil)
+      ticket_no_customer = create(:ticket, :draft, customer: nil, email_account: email_account)
       ticket_no_customer.update!(status: :draft_confirmed)
 
       # 3am ET = 7am/8am UTC depending on DST
@@ -59,6 +60,59 @@ RSpec.describe EmailScheduler do
         send_time_et = ticket_no_customer.scheduled_send_at.in_time_zone("America/New_York")
         expect(send_time_et.hour).to be >= 8
         expect(send_time_et.hour).to be < 22
+      end
+    end
+
+    context "with custom send window" do
+      before do
+        email_account.update!(
+          send_window_from_hour: 10,
+          send_window_from_minute: 30,
+          send_window_to_hour: 18,
+          send_window_to_minute: 0
+        )
+      end
+
+      it "respects custom window start time" do
+        ticket.update!(status: :draft_confirmed)
+
+        # 9am in New York — before 10:30am custom window
+        travel_to Time.zone.parse("2026-03-26 13:00:00 UTC") do
+          described_class.schedule!(ticket)
+          ticket.reload
+
+          send_time_ny = ticket.scheduled_send_at.in_time_zone("America/New_York")
+          expect(send_time_ny.hour).to eq(10)
+          expect(send_time_ny.min).to eq(30)
+        end
+      end
+
+      it "respects custom window end time" do
+        ticket.update!(status: :draft_confirmed)
+
+        # 7pm in New York — after 6pm custom window end
+        travel_to Time.zone.parse("2026-03-26 23:00:00 UTC") do
+          described_class.schedule!(ticket)
+          ticket.reload
+
+          send_time_ny = ticket.scheduled_send_at.in_time_zone("America/New_York")
+          # Should schedule for next day at 10:30am
+          expect(send_time_ny.hour).to eq(10)
+          expect(send_time_ny.min).to eq(30)
+          expect(send_time_ny.day).to eq(27)
+        end
+      end
+
+      it "sends immediately when within custom window" do
+        ticket.update!(status: :draft_confirmed)
+
+        # 2pm in New York — within 10:30am-6pm custom window
+        travel_to Time.zone.parse("2026-03-26 18:00:00 UTC") do
+          described_class.schedule!(ticket)
+          ticket.reload
+
+          expect(ticket.scheduled_send_at).to be <= 11.minutes.from_now
+        end
       end
     end
   end

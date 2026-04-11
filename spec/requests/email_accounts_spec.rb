@@ -57,6 +57,40 @@ RSpec.describe "EmailAccounts", type: :request do
     end
   end
 
+  describe "PATCH /email_accounts/:id" do
+    it "updates send window settings" do
+      account = create(:email_account, user: user)
+      sign_in user
+      patch email_account_path(id: account.id), params: {
+        email_account: { send_window_from_hour: 9, send_window_from_minute: 30, send_window_to_hour: 21, send_window_to_minute: 0 }
+      }
+      expect(response).to redirect_to(email_account_path(account))
+      account.reload
+      expect(account.send_window_from_hour).to eq(9)
+      expect(account.send_window_from_minute).to eq(30)
+      expect(account.send_window_to_hour).to eq(21)
+      expect(account.send_window_to_minute).to eq(0)
+    end
+
+    it "re-renders show on invalid input" do
+      account = create(:email_account, user: user)
+      sign_in user
+      patch email_account_path(id: account.id), params: {
+        email_account: { send_window_from_hour: 22, send_window_to_hour: 8 }
+      }
+      expect(response).to have_http_status(:unprocessable_entity)
+    end
+
+    it "returns 404 for another user's account" do
+      account = create(:email_account, user: other_user)
+      sign_in user
+      patch email_account_path(id: account.id), params: {
+        email_account: { send_window_from_hour: 9 }
+      }
+      expect(response).to have_http_status(:not_found)
+    end
+  end
+
   describe "DELETE /email_accounts/:id" do
     it "disconnects email account" do
       account = create(:email_account, user: user)

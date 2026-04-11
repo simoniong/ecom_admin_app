@@ -74,4 +74,50 @@ RSpec.describe EmailAccount, type: :model do
     )
     expect(raw_value).not_to eq("my-refresh-token")
   end
+
+  describe "send window validations" do
+    it "defaults to 08:00-22:00" do
+      expect(account.send_window_from_hour).to eq(8)
+      expect(account.send_window_from_minute).to eq(0)
+      expect(account.send_window_to_hour).to eq(22)
+      expect(account.send_window_to_minute).to eq(0)
+    end
+
+    it "is invalid when end time is before start time" do
+      account.send_window_from_hour = 22
+      account.send_window_to_hour = 8
+      expect(account).not_to be_valid
+      expect(account.errors[:base]).to be_present
+    end
+
+    it "is invalid when end time equals start time" do
+      account.send_window_from_hour = 10
+      account.send_window_to_hour = 10
+      account.send_window_from_minute = 0
+      account.send_window_to_minute = 0
+      expect(account).not_to be_valid
+    end
+
+    it "validates hour range" do
+      account.send_window_from_hour = 25
+      expect(account).not_to be_valid
+    end
+
+    it "validates minute range" do
+      account.send_window_from_minute = 60
+      expect(account).not_to be_valid
+    end
+
+    it "computes send_window_from in minutes" do
+      account.send_window_from_hour = 9
+      account.send_window_from_minute = 30
+      expect(account.send_window_from).to eq(570)
+    end
+
+    it "computes send_window_to in minutes" do
+      account.send_window_to_hour = 21
+      account.send_window_to_minute = 45
+      expect(account.send_window_to).to eq(1305)
+    end
+  end
 end
