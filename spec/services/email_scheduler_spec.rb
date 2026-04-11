@@ -15,7 +15,7 @@ RSpec.describe EmailScheduler do
 
         expect(ticket.scheduled_send_at).to be_present
         expect(ticket.scheduled_job_id).to be_present
-        expect(ticket.scheduled_send_at).to be >= 10.minutes.from_now
+        expect(ticket.scheduled_send_at).to be >= 5.minutes.from_now
 
         # scheduled_job_id should be a valid UUID (ActiveJob's job_id)
         expect(ticket.scheduled_job_id).to match(/\A[0-9a-f-]{36}\z/)
@@ -114,7 +114,7 @@ RSpec.describe EmailScheduler do
           described_class.schedule!(ticket)
           ticket.reload
 
-          expect(ticket.scheduled_send_at).to be <= 11.minutes.from_now
+          expect(ticket.scheduled_send_at).to be <= 6.minutes.from_now
         end
       end
     end

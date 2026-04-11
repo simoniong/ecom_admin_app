@@ -1,5 +1,5 @@
 class EmailScheduler
-  MIN_DELAY = 10.minutes
+  MIN_DELAY = 5.minutes
 
   def self.schedule!(ticket)
     new(ticket).schedule!
