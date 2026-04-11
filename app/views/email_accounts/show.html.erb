@@ -59,4 +59,48 @@
       </div>
     </dl>
   </div>
+
+  <div class="mt-8 bg-white shadow-sm rounded-lg border border-gray-200">
+    <div class="px-6 py-4 border-b border-gray-200">
+      <h2 class="text-lg font-medium text-gray-900"><%= t("email_accounts.show.send_window_title") %></h2>
+      <p class="mt-1 text-sm text-gray-500"><%= t("email_accounts.show.send_window_description") %></p>
+    </div>
+
+    <%= form_with(model: @email_account, url: email_account_path(@email_account), method: :patch, class: "px-6 py-4") do |f| %>
+      <% if @email_account.errors.any? %>
+        <div class="mb-4 p-3 bg-red-50 border border-red-200 rounded-md">
+          <% @email_account.errors.full_messages.each do |msg| %>
+            <p class="text-sm text-red-600"><%= msg %></p>
+          <% end %>
+        </div>
+      <% end %>
+
+      <div class="flex items-center gap-4">
+        <div class="flex items-center gap-2">
+          <label class="text-sm font-medium text-gray-700"><%= t("email_accounts.show.send_window_from") %></label>
+          <div class="flex items-center gap-1">
+            <%= f.select :send_window_from_hour, (0..23).map { |h| [format("%02d", h), h] },
+                {}, class: "block rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm" %>
+            <span class="text-gray-500">:</span>
+            <%= f.select :send_window_from_minute, (0..59).step(15).map { |m| [format("%02d", m), m] },
+                {}, class: "block rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm" %>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <label class="text-sm font-medium text-gray-700"><%= t("email_accounts.show.send_window_to") %></label>
+          <div class="flex items-center gap-1">
+            <%= f.select :send_window_to_hour, (0..23).map { |h| [format("%02d", h), h] },
+                {}, class: "block rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm" %>
+            <span class="text-gray-500">:</span>
+            <%= f.select :send_window_to_minute, (0..59).step(15).map { |m| [format("%02d", m), m] },
+                {}, class: "block rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm" %>
+          </div>
+        </div>
+
+        <%= f.submit t("email_accounts.show.send_window_save"),
+            class: "inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 cursor-pointer" %>
+      </div>
+    <% end %>
+  </div>
 </div>

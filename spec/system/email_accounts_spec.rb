@@ -42,6 +42,25 @@ RSpec.describe "Email Accounts", type: :system do
     expect(page).to have_button("Disconnect")
   end
 
+  it "updates send window settings" do
+    sign_in_as(user)
+    navigate_to_settings_item "Email Accounts"
+
+    click_button "Bind New Email"
+    expect(page).to have_current_path(email_accounts_path, wait: 5)
+
+    click_link "oauth-test@gmail.com"
+
+    select "09", from: "email_account_send_window_from_hour"
+    select "30", from: "email_account_send_window_from_minute"
+    select "21", from: "email_account_send_window_to_hour"
+    select "00", from: "email_account_send_window_to_minute"
+
+    click_button I18n.t("email_accounts.show.send_window_save")
+
+    expect(page).to have_text(I18n.t("email_accounts.send_window_updated"))
+  end
+
   it "disconnects account and returns to list" do
     sign_in_as(user)
     navigate_to_settings_item "Email Accounts"

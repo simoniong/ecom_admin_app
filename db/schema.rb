@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_04_10_142146) do
+ActiveRecord::Schema[8.1].define(version: 2026_04_11_052932) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -121,6 +121,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_10_142146) do
     t.datetime "last_synced_at"
     t.text "refresh_token", null: false
     t.text "scopes"
+    t.integer "send_window_from_hour", default: 8, null: false
+    t.integer "send_window_from_minute", default: 0, null: false
+    t.integer "send_window_to_hour", default: 22, null: false
+    t.integer "send_window_to_minute", default: 0, null: false
     t.uuid "shopify_store_id"
     t.datetime "token_expires_at"
     t.datetime "updated_at", null: false
