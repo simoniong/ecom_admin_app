@@ -121,6 +121,37 @@ RSpec.describe GmailSyncService do
       service.sync!
       expect(email_account.reload.last_history_id).to eq(10100)
     end
+
+    it "picks up threads from labels_added (e.g. sent replies)" do
+      email_account.update!(last_history_id: 11000)
+
+      gmail = instance_double(GmailService)
+      allow(GmailService).to receive(:new).and_return(gmail)
+
+      label_added = Google::Apis::GmailV1::HistoryLabelAdded.new(
+        message: Google::Apis::GmailV1::Message.new(id: "m-sent", thread_id: "t-sent")
+      )
+      history = Google::Apis::GmailV1::History.new(messages_added: [], labels_added: [ label_added ])
+      history_response = Google::Apis::GmailV1::ListHistoryResponse.new(
+        history: [ history ], history_id: 11100
+      )
+      allow(gmail).to receive(:list_history).and_return(history_response)
+
+      full_thread = build_gmail_thread(
+        id: "t-sent",
+        messages: [
+          build_gmail_message(id: "m-customer", thread_id: "t-sent", from: "customer@example.com",
+                              internal_date: (1.day.ago.to_f * 1000).to_i),
+          build_gmail_message(id: "m-sent", thread_id: "t-sent", from: "shop@gmail.com",
+                              to: "customer@example.com",
+                              internal_date: (1.minute.ago.to_f * 1000).to_i)
+        ]
+      )
+      allow(gmail).to receive(:get_thread).with("t-sent").and_return(full_thread)
+
+      expect { service.sync! }.to change(Ticket, :count).by(1)
+      expect(Ticket.last.status).to eq("closed")
+    end
   end
 
   describe "customer detection" do
