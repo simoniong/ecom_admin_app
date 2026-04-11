@@ -25,7 +25,7 @@ class Ticket < ApplicationRecord
 
   ALLOWED_TRANSITIONS = {
     "new_ticket" => [ "draft", "closed" ],
-    "draft" => [ "draft_confirmed" ],
+    "draft" => [ "draft_confirmed", "new_ticket", "closed" ],
     "draft_confirmed" => [ "draft" ]
   }.freeze
 
@@ -47,6 +47,11 @@ class Ticket < ApplicationRecord
 
     attrs = { status: new_status }
     attrs[:draft_reply_at] = Time.current if new_status == "draft" && draft_reply_at.nil?
+
+    if new_status == "new_ticket"
+      attrs[:draft_reply] = nil
+      attrs[:draft_reply_at] = nil
+    end
 
     update!(attrs)
 

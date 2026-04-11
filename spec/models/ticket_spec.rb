@@ -131,9 +131,19 @@ RSpec.describe Ticket, type: :model do
       expect { ticket.transition_status!("draft") }.to raise_error(Ticket::InvalidTransition)
     end
 
-    it "raises for draft → new_ticket" do
+    it "allows draft → new_ticket (reset draft)" do
+      ticket.update!(status: :draft, draft_reply: "reply", draft_reply_at: Time.current)
+      ticket.transition_status!("new_ticket")
+      ticket.reload
+      expect(ticket).to be_new_ticket
+      expect(ticket.draft_reply).to be_nil
+      expect(ticket.draft_reply_at).to be_nil
+    end
+
+    it "allows draft → closed (discard without sending)" do
       ticket.update!(status: :draft, draft_reply: "reply")
-      expect { ticket.transition_status!("new_ticket") }.to raise_error(Ticket::InvalidTransition)
+      ticket.transition_status!("closed")
+      expect(ticket.reload).to be_closed
     end
   end
 

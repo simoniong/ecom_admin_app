@@ -46,12 +46,20 @@ RSpec.describe EmailScheduler do
       end
     end
 
-    it "uses UTC when no customer" do
+    it "uses America/New_York when no customer" do
       ticket_no_customer = create(:ticket, :draft, customer: nil)
       ticket_no_customer.update!(status: :draft_confirmed)
 
-      described_class.schedule!(ticket_no_customer)
-      expect(ticket_no_customer.reload.scheduled_send_at).to be_present
+      # 3am ET = 7am/8am UTC depending on DST
+      travel_to Time.zone.parse("2026-03-26 07:00:00 UTC") do
+        described_class.schedule!(ticket_no_customer)
+        ticket_no_customer.reload
+
+        expect(ticket_no_customer.scheduled_send_at).to be_present
+        send_time_et = ticket_no_customer.scheduled_send_at.in_time_zone("America/New_York")
+        expect(send_time_et.hour).to be >= 8
+        expect(send_time_et.hour).to be < 22
+      end
     end
   end
 

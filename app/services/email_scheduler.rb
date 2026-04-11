@@ -60,6 +60,6 @@ class EmailScheduler
   end
 
   def customer_timezone
-    @ticket.customer&.timezone || "UTC"
+    @ticket.customer&.timezone || "America/New_York"
   end
 end
