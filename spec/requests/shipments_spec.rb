@@ -102,12 +102,12 @@ RSpec.describe "Shipments", type: :request do
 
     it "filters by destination carrier" do
       order = create(:order, customer: customer, shopify_store: store)
-      create(:fulfillment, order: order, tracking_number: "TRACK-USPS-001", tracking_status: "InTransit", destination_carrier: "USPS")
-      create(:fulfillment, order: order, tracking_number: "TRACK-FEDEX-001", tracking_status: "InTransit", destination_carrier: "FedEx")
+      create(:fulfillment, order: order, tracking_number: "T1", tracking_status: "InTransit", destination_carrier: "USPS")
+      create(:fulfillment, order: order, tracking_number: "T2", tracking_status: "InTransit", destination_carrier: "FedEx")
 
       get shipments_path, params: { destination_carrier: "USPS" }
-      expect(response.body).to include("TRACK-USPS-001")
-      expect(response.body).not_to include("TRACK-FEDEX-001")
+      expect(response.body).to include("T1")
+      expect(response.body).not_to include("T2")
     end
 
     it "filters by latest event update time range" do
