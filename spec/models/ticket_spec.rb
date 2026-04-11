@@ -104,9 +104,13 @@ RSpec.describe Ticket, type: :model do
       expect(ticket.reload).to be_draft_confirmed
     end
 
-    it "allows new_ticket → closed (spam)" do
+    it "allows new_ticket → closed (spam) and clears draft" do
+      ticket.update!(draft_reply: "some draft", draft_reply_at: Time.current)
       ticket.transition_status!("closed")
-      expect(ticket.reload).to be_closed
+      ticket.reload
+      expect(ticket).to be_closed
+      expect(ticket.draft_reply).to be_nil
+      expect(ticket.draft_reply_at).to be_nil
     end
 
     it "allows draft_confirmed → draft" do
@@ -140,10 +144,13 @@ RSpec.describe Ticket, type: :model do
       expect(ticket.draft_reply_at).to be_nil
     end
 
-    it "allows draft → closed (discard without sending)" do
-      ticket.update!(status: :draft, draft_reply: "reply")
+    it "allows draft → closed (discard without sending) and clears draft" do
+      ticket.update!(status: :draft, draft_reply: "reply", draft_reply_at: Time.current)
       ticket.transition_status!("closed")
-      expect(ticket.reload).to be_closed
+      ticket.reload
+      expect(ticket).to be_closed
+      expect(ticket.draft_reply).to be_nil
+      expect(ticket.draft_reply_at).to be_nil
     end
   end
 
