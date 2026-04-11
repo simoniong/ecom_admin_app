@@ -48,7 +48,7 @@ class Ticket < ApplicationRecord
     attrs = { status: new_status }
     attrs[:draft_reply_at] = Time.current if new_status == "draft" && draft_reply_at.nil?
 
-    if new_status == "new_ticket"
+    if new_status == "new_ticket" || new_status == "closed"
       attrs[:draft_reply] = nil
       attrs[:draft_reply_at] = nil
     end
