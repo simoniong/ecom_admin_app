@@ -33,7 +33,7 @@ class GmailService
     mail.charset = "UTF-8"
 
     message = Google::Apis::GmailV1::Message.new(
-      raw: mail.to_s,
+      raw: Base64.urlsafe_encode64(mail.to_s),
       thread_id: thread_id
     )
 
