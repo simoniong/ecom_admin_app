@@ -1,4 +1,9 @@
 en:
+  activerecord:
+    errors:
+      models:
+        email_account:
+          send_window_invalid: "End time must be after start time."
   app_name: "Ecom Admin"
   language_name: "English"
   nav:
@@ -69,6 +74,7 @@ en:
     disconnect: "Disconnect"
     disconnect_confirm: "Are you sure you want to disconnect this email account? All associated tickets will be deleted."
     disconnect_success: "Email account disconnected successfully."
+    send_window_updated: "Send window updated successfully."
     show:
       email: "Email"
       google_uid: "Google UID"
@@ -77,6 +83,11 @@ en:
       token_expires_at: "Token Expires At"
       scopes: "Scopes"
       connected_at: "Connected At"
+      send_window_title: "Email Send Window"
+      send_window_description: "Scheduled emails will only be sent within this time window (in the recipient's local timezone)."
+      send_window_from: "From"
+      send_window_to: "To"
+      send_window_save: "Save"
   tickets:
     title: "Tickets"
     empty: "No tickets yet."
