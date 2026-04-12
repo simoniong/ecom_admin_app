@@ -414,6 +414,30 @@ RSpec.describe "Tickets", type: :request do
       expect(response).to have_http_status(:unprocessable_content)
     end
 
+    it "transitions draft → draft_confirmed via HTML and redirects to ticket" do
+      ticket = create(:ticket, :draft, email_account: email_account)
+      sign_in user
+      patch ticket_path(id: ticket.id), params: { ticket: { status: "draft_confirmed" } }
+      expect(response).to redirect_to(ticket_path(id: ticket.id))
+      expect(ticket.reload).to be_draft_confirmed
+    end
+
+    it "shows validation error when transitioning new_ticket → draft without draft_reply" do
+      ticket = create(:ticket, email_account: email_account, status: :new_ticket)
+      sign_in user
+      patch ticket_path(id: ticket.id), params: { ticket: { status: "draft" } }
+      expect(response).to redirect_to(ticket_path(id: ticket.id))
+      expect(flash[:alert]).to include("Draft reply")
+    end
+
+    it "shows alert on invalid HTML status transition" do
+      ticket = create(:ticket, email_account: email_account, status: :closed)
+      sign_in user
+      patch ticket_path(id: ticket.id), params: { ticket: { status: "draft" } }
+      expect(response).to redirect_to(ticket_path(id: ticket.id))
+      expect(flash[:alert]).to eq(I18n.t("tickets.invalid_transition"))
+    end
+
     it "reorders tickets within a lane via JSON" do
       t1 = create(:ticket, email_account: email_account, position: 0)
       t2 = create(:ticket, email_account: email_account, position: 1)
