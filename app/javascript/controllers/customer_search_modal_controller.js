@@ -38,17 +38,26 @@ export default class extends Controller {
       return
     }
 
+    if (this._abortController) this._abortController.abort()
+    this._abortController = new AbortController()
+
     this.loadingTarget.classList.remove("hidden")
     this.emptyTarget.classList.add("hidden")
 
     try {
       const response = await fetch(`${this.urlValue}?q=${encodeURIComponent(query)}`, {
-        headers: { "Accept": "application/json" }
+        headers: { "Accept": "application/json" },
+        signal: this._abortController.signal
       })
+
+      if (!response.ok) throw new Error(`Request failed: ${response.status}`)
+
       const data = await response.json()
       this._renderResults(data)
-    } catch {
+    } catch (error) {
+      if (error.name === "AbortError") return
       this.resultsTarget.innerHTML = ""
+      this.emptyTarget.classList.remove("hidden")
     } finally {
       this.loadingTarget.classList.add("hidden")
     }

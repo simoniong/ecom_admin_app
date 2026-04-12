@@ -34,13 +34,16 @@ class TicketsController < AdminController
     query = params[:q].to_s.strip
     results = []
 
-    if query.present?
+    if query.length >= 2
       stores = current_company.shopify_stores
       customers = Customer.where(shopify_store: stores)
+        .left_joins(:orders)
         .where(
           "customers.email ILIKE :q OR customers.first_name ILIKE :q OR customers.last_name ILIKE :q OR CONCAT(customers.first_name, ' ', customers.last_name) ILIKE :q",
           q: "%#{Customer.sanitize_sql_like(query)}%"
         )
+        .group("customers.id")
+        .select("customers.*, COUNT(orders.id) AS orders_count")
         .limit(10)
 
       orders = Order.where(shopify_store: stores)
@@ -48,22 +51,22 @@ class TicketsController < AdminController
         .includes(:customer)
         .limit(10)
 
-      seen_customer_ids = Set.new
+      seen_customer_ids = {}
 
       customers.each do |c|
-        seen_customer_ids << c.id
+        seen_customer_ids[c.id] = true
         results << {
           customer_id: c.id,
           customer_name: c.full_name,
           customer_email: c.email,
           match_type: "customer",
-          order_count: c.orders.size
+          order_count: c.orders_count
         }
       end
 
       orders.each do |o|
-        next if seen_customer_ids.include?(o.customer_id)
-        seen_customer_ids << o.customer_id
+        next if seen_customer_ids.key?(o.customer_id)
+        seen_customer_ids[o.customer_id] = true
         results << {
           customer_id: o.customer_id,
           customer_name: o.customer.full_name,
