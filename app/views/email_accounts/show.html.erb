@@ -112,15 +112,15 @@
 
     <%= form_with(model: @email_account, url: email_account_path(@email_account), method: :patch, class: "px-6 py-4") do |f| %>
       <div class="flex items-center gap-4">
-        <div class="flex-1">
+        <div class="flex items-center gap-2">
           <label class="text-sm font-medium text-gray-700"><%= t("email_accounts.show.discord_agent_mention") %></label>
           <%= f.text_field :discord_agent_mention, placeholder: "<@1234567890>",
-              class: "mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm font-mono" %>
-          <p class="mt-1 text-xs text-gray-400"><%= t("email_accounts.show.discord_agent_mention_hint_html") %></p>
+              class: "block rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm font-mono" %>
         </div>
         <%= f.submit t("email_accounts.show.discord_save"),
-            class: "mt-6 inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 cursor-pointer" %>
+            class: "inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 cursor-pointer" %>
       </div>
+      <p class="mt-2 text-xs text-gray-400"><%= t("email_accounts.show.discord_agent_mention_hint_html") %></p>
     <% end %>
   </div>
 </div>
