@@ -68,7 +68,10 @@ Rails.application.routes.draw do
       post :add_tags, on: :member
       delete :remove_tag, on: :member
     end
-    resources :tickets, only: [ :index, :show, :update ]
+    resources :tickets, only: [ :index, :show, :update ] do
+      get :search_customers, on: :member
+      patch :link_customer, on: :member
+    end
     resources :shipping_reminder_rules, only: [ :index, :create, :update ]
     resource :shipping_reminder_setting, only: [ :update ] do
       patch :toggle, on: :member

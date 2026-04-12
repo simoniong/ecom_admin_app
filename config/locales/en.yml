@@ -125,6 +125,13 @@ en:
       draft_saved: "Draft saved successfully."
       scheduled_at: "Scheduled to send at %{time}"
       email_sent: "Email Sent"
+      change_customer: "Change"
+      link_customer: "Link Customer"
+      search_customer_title: "Search Customer / Order"
+      search_customer_placeholder: "Search by name, email, or order ID..."
+      searching: "Searching..."
+      no_results: "No matching customers or orders found."
+      customer_linked: "Customer linked successfully."
     draft_not_editable: "Current status does not allow editing."
   shopify_stores:
     title: "Shopify Stores"

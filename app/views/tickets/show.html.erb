@@ -1,4 +1,4 @@
-<div class="max-w-4xl mx-auto">
+<div class="max-w-4xl mx-auto" data-controller="customer-search-modal" data-customer-search-modal-url-value="<%= search_customers_ticket_path(id: @ticket.id) %>">
   <%# Header %>
   <div class="flex items-center gap-3">
     <%= link_to tickets_path, class: "text-gray-400 hover:text-gray-600" do %>
@@ -126,4 +126,55 @@
       <%= render "tickets/info_panel" %>
     </div>
   </div>
+
+  <%# Customer Search Modal %>
+  <div data-customer-search-modal-target="modal" class="hidden fixed inset-0 z-50">
+    <div data-customer-search-modal-target="backdrop"
+         data-action="click->customer-search-modal#backdropClick"
+         class="fixed inset-0 bg-black/50 transition-opacity">
+    </div>
+    <div class="fixed inset-0 flex items-start justify-center pt-[15vh] px-4">
+      <div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
+        <%# Modal header %>
+        <div class="flex items-center justify-between px-5 py-4 border-b border-gray-200">
+          <h3 class="text-base font-semibold text-gray-900"><%= t("tickets.show.search_customer_title") %></h3>
+          <button type="button" data-action="click->customer-search-modal#close" class="text-gray-400 hover:text-gray-600">
+            <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <%# Search input %>
+        <div class="px-5 py-3 border-b border-gray-100">
+          <div class="relative">
+            <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+            </svg>
+            <input type="text"
+                   data-customer-search-modal-target="input"
+                   data-action="input->customer-search-modal#search"
+                   placeholder="<%= t("tickets.show.search_customer_placeholder") %>"
+                   class="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+          </div>
+        </div>
+
+        <%# Results %>
+        <div class="max-h-72 overflow-y-auto">
+          <div data-customer-search-modal-target="loading" class="hidden px-5 py-4 text-center">
+            <span class="text-sm text-gray-500"><%= t("tickets.show.searching") %></span>
+          </div>
+          <div data-customer-search-modal-target="results"></div>
+          <div data-customer-search-modal-target="empty" class="hidden px-5 py-4 text-center">
+            <p class="text-sm text-gray-500"><%= t("tickets.show.no_results") %></p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <%# Hidden form for linking customer %>
+  <%= form_tag link_customer_ticket_path(id: @ticket.id), method: :patch, id: "link-customer-form" do %>
+    <input type="hidden" name="customer_id" value="" />
+  <% end %>
 </div>
