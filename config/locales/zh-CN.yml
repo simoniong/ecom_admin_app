@@ -91,7 +91,7 @@
       discord_title: "Discord Agent 通知"
       discord_description: "设定 Discord Bot mention tag，新工单到达时自动通知 AI Agent。"
       discord_agent_mention: "Bot Mention Tag"
-      discord_agent_mention_hint_html: '在 Discord 设置 &rarr; 高级中开启「开发者模式」，然后右键点击 Bot 头像 &rarr; 复制用户 ID。填写格式为 <code>&lt;@USER_ID&gt;</code>，例如 <code>&lt;@1234567890&gt;</code>。'
+      discord_agent_mention_hint_html: '1. 打开 Discord 设置 &rarr; 高级 &rarr; 开启开发者模式<br>2. 在频道中右键点击 Bot 头像 &rarr; 复制用户 ID<br>3. 填写格式为 <code>&lt;@USER_ID&gt;</code>，例如 <code>&lt;@1098765432100&gt;</code>'
       discord_save: "保存"
   tickets:
     title: "工单"
