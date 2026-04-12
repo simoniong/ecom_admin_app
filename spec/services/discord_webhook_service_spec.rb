@@ -14,7 +14,7 @@ RSpec.describe DiscordWebhookService do
       stub = stub_request(:post, webhook_url)
         .with(
           headers: { "Content-Type" => "application/json" },
-          body: { content: "新 ticket，請生成 draft。Ticket ID: #{ticket.id}" }.to_json
+          body: { content: "新 ticket，請生成 draft。Ticket ID: #{ticket.id}", allowed_mentions: { parse: [] } }.to_json
         )
         .to_return(status: 204)
 
@@ -29,7 +29,7 @@ RSpec.describe DiscordWebhookService do
       stub = stub_request(:post, webhook_url)
         .with(
           headers: { "Content-Type" => "application/json" },
-          body: { content: "Ticket ID: #{ticket.id}, 語氣更溫和一點" }.to_json
+          body: { content: "Ticket ID: #{ticket.id}, 語氣更溫和一點", allowed_mentions: { parse: [] } }.to_json
         )
         .to_return(status: 204)
 

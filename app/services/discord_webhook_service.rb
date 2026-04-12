@@ -21,7 +21,10 @@ class DiscordWebhookService
 
     request = Net::HTTP::Post.new(uri.request_uri)
     request["Content-Type"] = "application/json"
-    request.body = { content: content }.to_json
+    request.body = {
+      content: content,
+      allowed_mentions: { parse: [] }
+    }.to_json
 
     response = http.request(request)
 

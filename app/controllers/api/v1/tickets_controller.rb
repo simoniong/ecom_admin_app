@@ -36,7 +36,7 @@ class Api::V1::TicketsController < Api::BaseController
     if ticket.new_ticket?
       ticket.submit_draft!(content)
     else
-      ticket.update!(draft_reply: content)
+      ticket.update!(draft_reply: content, draft_reply_at: Time.current)
     end
 
     render json: ticket_json(ticket), status: :ok

@@ -9,6 +9,8 @@ class NotifyAgentJob < ApplicationJob
       DiscordWebhookService.notify_new_ticket(ticket)
     when "revise_draft"
       DiscordWebhookService.notify_revise_draft(ticket, message)
+    else
+      Rails.logger.error("[NotifyAgentJob] Unknown notification_type=#{notification_type.inspect} for ticket_id=#{ticket_id}")
     end
   rescue ActiveRecord::RecordNotFound => e
     Rails.logger.warn("[NotifyAgentJob] Ticket not found: #{e.message}")

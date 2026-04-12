@@ -252,6 +252,7 @@ RSpec.describe "Api::V1::Tickets", type: :request do
       ticket.reload
       expect(ticket.draft_reply).to eq("Updated draft content")
       expect(ticket).to be_draft
+      expect(ticket.draft_reply_at).to be_within(2.seconds).of(Time.current)
     end
 
     it "submits draft when ticket is in new_ticket status via PATCH" do
