@@ -88,6 +88,10 @@ en:
       send_window_from: "From"
       send_window_to: "To"
       send_window_save: "Save"
+      discord_title: "Discord Agent Notification"
+      discord_description: "Configure the Discord bot mention tag for AI agent notifications on new tickets."
+      discord_agent_mention: "Bot Mention Tag"
+      discord_save: "Save"
   tickets:
     title: "Tickets"
     empty: "No tickets yet."

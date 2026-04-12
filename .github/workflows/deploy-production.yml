@@ -38,7 +38,6 @@ jobs:
       GMAIL_SMTP_USER: ${{ secrets.GMAIL_SMTP_USER }}
       GMAIL_SMTP_PASSWORD: ${{ secrets.GMAIL_SMTP_PASSWORD }}
       DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
-      DISCORD_AGENT_MENTION: ${{ secrets.DISCORD_AGENT_MENTION }}
 
     steps:
       - name: Checkout code

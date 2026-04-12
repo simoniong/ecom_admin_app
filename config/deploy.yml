@@ -32,7 +32,6 @@ env:
     - GMAIL_SMTP_USER
     - GMAIL_SMTP_PASSWORD
     - DISCORD_WEBHOOK_URL
-    - DISCORD_AGENT_MENTION
 
 builder:
   arch: amd64

@@ -28,6 +28,6 @@ class EmailAccountsController < AdminController
   end
 
   def send_window_params
-    params.require(:email_account).permit(:send_window_from_hour, :send_window_from_minute, :send_window_to_hour, :send_window_to_minute)
+    params.require(:email_account).permit(:send_window_from_hour, :send_window_from_minute, :send_window_to_hour, :send_window_to_minute, :discord_agent_mention)
   end
 end

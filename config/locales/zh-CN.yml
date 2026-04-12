@@ -88,6 +88,10 @@
       send_window_from: "从"
       send_window_to: "到"
       send_window_save: "保存"
+      discord_title: "Discord Agent 通知"
+      discord_description: "设定 Discord Bot mention tag，新工单到达时自动通知 AI Agent。"
+      discord_agent_mention: "Bot Mention Tag"
+      discord_save: "保存"
   tickets:
     title: "工单"
     empty: "目前没有任何工单。"
