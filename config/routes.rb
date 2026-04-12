@@ -30,6 +30,7 @@ Rails.application.routes.draw do
       resources :tickets, only: [ :index, :show ] do
         get :count, on: :collection
         post :draft_reply, on: :member
+        patch :draft_reply, on: :member
       end
       resources :ad_campaigns, only: [ :index ]
     end
@@ -71,6 +72,7 @@ Rails.application.routes.draw do
     resources :tickets, only: [ :index, :show, :update ] do
       get :search_customers, on: :member
       patch :link_customer, on: :member
+      post :instruct_agent, on: :member
     end
     resources :shipping_reminder_rules, only: [ :index, :create, :update ]
     resource :shipping_reminder_setting, only: [ :update ] do

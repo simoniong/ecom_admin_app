@@ -280,6 +280,50 @@ RSpec.describe "Tickets", type: :request do
     end
   end
 
+  describe "POST /tickets/:id/instruct_agent" do
+    it "sends instruction to agent for draft ticket" do
+      ticket = create(:ticket, :draft, email_account: email_account)
+      sign_in user
+
+      expect {
+        post instruct_agent_ticket_path(id: ticket.id), params: { message: "Make it more polite" }
+      }.to have_enqueued_job(NotifyAgentJob).with(ticket.id, "revise_draft", "Make it more polite")
+
+      expect(response).to redirect_to(ticket_path(id: ticket.id))
+      expect(flash[:notice]).to eq(I18n.t("tickets.show.instruction_sent"))
+    end
+
+    it "rejects instruction for non-draft ticket" do
+      ticket = create(:ticket, email_account: email_account, status: :new_ticket)
+      sign_in user
+
+      post instruct_agent_ticket_path(id: ticket.id), params: { message: "Do something" }
+
+      expect(response).to redirect_to(ticket_path(id: ticket.id))
+      expect(flash[:alert]).to eq(I18n.t("tickets.agent_instruction_not_allowed"))
+    end
+
+    it "rejects blank instruction message" do
+      ticket = create(:ticket, :draft, email_account: email_account)
+      sign_in user
+
+      post instruct_agent_ticket_path(id: ticket.id), params: { message: "  " }
+
+      expect(response).to redirect_to(ticket_path(id: ticket.id))
+      expect(flash[:alert]).to eq(I18n.t("tickets.agent_instruction_blank"))
+    end
+
+    it "returns 404 for another user's ticket" do
+      other_account = create(:email_account)
+      ticket = create(:ticket, :draft, email_account: other_account)
+      sign_in user
+
+      post instruct_agent_ticket_path(id: ticket.id), params: { message: "Hack" }
+
+      expect(response).to have_http_status(:not_found)
+    end
+  end
+
   describe "PATCH /tickets/:id" do
     it "updates draft_reply when ticket is in draft status" do
       ticket = create(:ticket, email_account: email_account, status: :draft, draft_reply: "old draft")

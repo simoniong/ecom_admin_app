@@ -84,6 +84,16 @@ RSpec.describe GmailSyncService do
       service.sync!
       expect { service.sync! }.not_to change(Ticket, :count)
     end
+
+    it "enqueues NotifyAgentJob when a new ticket is created" do
+      expect { service.sync! }.to have_enqueued_job(NotifyAgentJob).with(anything, "new_ticket")
+    end
+
+    it "does not enqueue NotifyAgentJob on subsequent syncs" do
+      service.sync!
+
+      expect { service.sync! }.not_to have_enqueued_job(NotifyAgentJob)
+    end
   end
 
   describe "#sync! (incremental sync)" do
