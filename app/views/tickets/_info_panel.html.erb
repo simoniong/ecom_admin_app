@@ -1,6 +1,13 @@
 <%# Customer Info %>
 <div class="bg-white shadow-sm rounded-lg border border-gray-200 p-4">
-  <h3 class="text-sm font-semibold text-gray-900 mb-3"><%= t("tickets.show.customer") %></h3>
+  <div class="flex items-center justify-between mb-3">
+    <h3 class="text-sm font-semibold text-gray-900"><%= t("tickets.show.customer") %></h3>
+    <button type="button"
+            data-action="click->customer-search-modal#open"
+            class="text-xs text-blue-600 hover:text-blue-800 font-medium">
+      <%= @customer ? t("tickets.show.change_customer") : t("tickets.show.link_customer") %>
+    </button>
+  </div>
   <% if @customer %>
     <dl class="space-y-2 text-sm">
       <% if @customer.full_name %>

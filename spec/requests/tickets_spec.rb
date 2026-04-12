@@ -179,6 +179,107 @@ RSpec.describe "Tickets", type: :request do
     end
   end
 
+  describe "GET /tickets/:id/search_customers" do
+    let(:store) { create(:shopify_store, user: user, company: email_account.company) }
+
+    it "returns matching customers by email" do
+      customer = create(:customer, shopify_store: store, email: "alice@example.com", first_name: "Alice", last_name: "Wong")
+      ticket = create(:ticket, email_account: email_account)
+      sign_in user
+      get search_customers_ticket_path(id: ticket.id), params: { q: "alice" }, as: :json
+      expect(response).to have_http_status(:ok)
+      json = response.parsed_body
+      expect(json.length).to eq(1)
+      expect(json.first["customer_id"]).to eq(customer.id)
+      expect(json.first["customer_email"]).to eq("alice@example.com")
+      expect(json.first["match_type"]).to eq("customer")
+    end
+
+    it "returns matching customers by name" do
+      create(:customer, shopify_store: store, first_name: "Bob", last_name: "Smith")
+      ticket = create(:ticket, email_account: email_account)
+      sign_in user
+      get search_customers_ticket_path(id: ticket.id), params: { q: "Bob Smith" }, as: :json
+      json = response.parsed_body
+      expect(json.length).to eq(1)
+      expect(json.first["customer_name"]).to eq("Bob Smith")
+    end
+
+    it "returns customers matched via order name" do
+      customer = create(:customer, shopify_store: store, first_name: "Carol")
+      create(:order, customer: customer, shopify_store: store, name: "#9001")
+      ticket = create(:ticket, email_account: email_account)
+      sign_in user
+      get search_customers_ticket_path(id: ticket.id), params: { q: "9001" }, as: :json
+      json = response.parsed_body
+      expect(json.length).to eq(1)
+      expect(json.first["match_type"]).to eq("order")
+      expect(json.first["order_name"]).to eq("#9001")
+    end
+
+    it "does not return customers from other companies" do
+      other_store = create(:shopify_store)
+      create(:customer, shopify_store: other_store, email: "hidden@example.com")
+      ticket = create(:ticket, email_account: email_account)
+      sign_in user
+      get search_customers_ticket_path(id: ticket.id), params: { q: "hidden" }, as: :json
+      json = response.parsed_body
+      expect(json).to be_empty
+    end
+
+    it "returns empty array for short queries" do
+      ticket = create(:ticket, email_account: email_account)
+      sign_in user
+      get search_customers_ticket_path(id: ticket.id), params: { q: "a" }, as: :json
+      expect(response.parsed_body).to be_empty
+    end
+
+    it "deduplicates when customer matches both by name and order" do
+      customer = create(:customer, shopify_store: store, first_name: "Dan", last_name: "Test")
+      create(:order, customer: customer, shopify_store: store, name: "#Dan-order")
+      ticket = create(:ticket, email_account: email_account)
+      sign_in user
+      get search_customers_ticket_path(id: ticket.id), params: { q: "Dan" }, as: :json
+      json = response.parsed_body
+      customer_ids = json.map { |r| r["customer_id"] }
+      expect(customer_ids.uniq.length).to eq(customer_ids.length)
+    end
+  end
+
+  describe "PATCH /tickets/:id/link_customer" do
+    let(:store) { create(:shopify_store, user: user, company: email_account.company) }
+
+    it "links a customer to the ticket" do
+      customer = create(:customer, shopify_store: store, first_name: "Eve", last_name: "Lin", email: "eve@example.com")
+      ticket = create(:ticket, email_account: email_account)
+      sign_in user
+      patch link_customer_ticket_path(id: ticket.id), params: { customer_id: customer.id }
+      expect(response).to redirect_to(ticket_path(id: ticket.id))
+      ticket.reload
+      expect(ticket.customer).to eq(customer)
+      expect(ticket.customer_name).to eq("Eve Lin")
+      expect(ticket.customer_email).to eq("eve@example.com")
+    end
+
+    it "changes an existing customer association" do
+      old_customer = create(:customer, shopify_store: store, first_name: "Old")
+      new_customer = create(:customer, shopify_store: store, first_name: "New", last_name: "Person", email: "new@example.com")
+      ticket = create(:ticket, email_account: email_account, customer: old_customer)
+      sign_in user
+      patch link_customer_ticket_path(id: ticket.id), params: { customer_id: new_customer.id }
+      expect(ticket.reload.customer).to eq(new_customer)
+    end
+
+    it "rejects linking a customer from another company" do
+      other_store = create(:shopify_store)
+      other_customer = create(:customer, shopify_store: other_store)
+      ticket = create(:ticket, email_account: email_account)
+      sign_in user
+      patch link_customer_ticket_path(id: ticket.id), params: { customer_id: other_customer.id }
+      expect(response).to have_http_status(:not_found)
+    end
+  end
+
   describe "PATCH /tickets/:id" do
     it "updates draft_reply when ticket is in draft status" do
       ticket = create(:ticket, email_account: email_account, status: :draft, draft_reply: "old draft")
