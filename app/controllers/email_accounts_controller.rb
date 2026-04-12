@@ -9,7 +9,7 @@ class EmailAccountsController < AdminController
   end
 
   def update
-    if @email_account.update(send_window_params)
+    if @email_account.update(email_account_params)
       redirect_to email_account_path(@email_account), notice: t("email_accounts.send_window_updated")
     else
       render :show, status: :unprocessable_entity
@@ -27,7 +27,7 @@ class EmailAccountsController < AdminController
     @email_account = current_company.email_accounts.find(params[:id])
   end
 
-  def send_window_params
+  def email_account_params
     params.require(:email_account).permit(:send_window_from_hour, :send_window_from_minute, :send_window_to_hour, :send_window_to_minute, :discord_agent_mention)
   end
 end

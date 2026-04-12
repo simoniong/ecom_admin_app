@@ -46,7 +46,7 @@ RSpec.describe DiscordWebhookService do
     it "sends message without mention prefix" do
       stub = stub_request(:post, webhook_url)
         .with(
-          body: { content: " 新 ticket，請生成 draft。Ticket ID: #{ticket.id}", allowed_mentions: { parse: %w[users roles] } }.to_json
+          body: { content: "新 ticket，請生成 draft。Ticket ID: #{ticket.id}", allowed_mentions: { parse: %w[users roles] } }.to_json
         )
         .to_return(status: 204)
 

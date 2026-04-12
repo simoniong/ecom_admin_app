@@ -2,13 +2,15 @@ class DiscordWebhookService
   class DeliveryError < StandardError; end
 
   def self.notify_new_ticket(ticket)
-    mention = ticket.email_account.discord_agent_mention.presence || ""
-    send_message("#{mention} 新 ticket，請生成 draft。Ticket ID: #{ticket.id}")
+    mention = ticket.email_account.discord_agent_mention.presence
+    content = [ mention, "新 ticket，請生成 draft。Ticket ID: #{ticket.id}" ].compact.join(" ")
+    send_message(content)
   end
 
   def self.notify_revise_draft(ticket, message)
-    mention = ticket.email_account.discord_agent_mention.presence || ""
-    send_message("#{mention} Ticket ID: #{ticket.id}, #{message}")
+    mention = ticket.email_account.discord_agent_mention.presence
+    content = [ mention, "Ticket ID: #{ticket.id}, #{message}" ].compact.join(" ")
+    send_message(content)
   end
 
   def self.send_message(content)
