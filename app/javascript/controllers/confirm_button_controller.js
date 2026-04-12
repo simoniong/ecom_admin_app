@@ -28,9 +28,9 @@ export default class extends Controller {
     this.armed = true
     this.element.textContent = this.confirmTextValue
     this.element.className = this.element.className
-      .replace(/bg-gray-\d+/g, "bg-red-600")
       .replace(/hover:bg-gray-\d+/g, "hover:bg-red-700")
       .replace(/focus:ring-gray-\d+/g, "focus:ring-red-500")
+      .replace(/bg-gray-\d+/g, "bg-red-600")
 
     this.timer = setTimeout(() => this.reset(), this.timeoutValue)
   }
