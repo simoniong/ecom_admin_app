@@ -7,6 +7,7 @@ RSpec.describe DiscordWebhookService do
   before do
     allow(ENV).to receive(:[]).and_call_original
     allow(ENV).to receive(:[]).with("DISCORD_WEBHOOK_URL").and_return(webhook_url)
+    allow(ENV).to receive(:[]).with("DISCORD_AGENT_MENTION").and_return("<@&123456>")
   end
 
   describe ".notify_new_ticket" do
@@ -14,7 +15,7 @@ RSpec.describe DiscordWebhookService do
       stub = stub_request(:post, webhook_url)
         .with(
           headers: { "Content-Type" => "application/json" },
-          body: { content: "新 ticket，請生成 draft。Ticket ID: #{ticket.id}", allowed_mentions: { parse: [] } }.to_json
+          body: { content: "<@&123456> 新 ticket，請生成 draft。Ticket ID: #{ticket.id}", allowed_mentions: { parse: %w[users roles] } }.to_json
         )
         .to_return(status: 204)
 
@@ -29,7 +30,7 @@ RSpec.describe DiscordWebhookService do
       stub = stub_request(:post, webhook_url)
         .with(
           headers: { "Content-Type" => "application/json" },
-          body: { content: "Ticket ID: #{ticket.id}, 語氣更溫和一點", allowed_mentions: { parse: [] } }.to_json
+          body: { content: "<@&123456> Ticket ID: #{ticket.id}, 語氣更溫和一點", allowed_mentions: { parse: %w[users roles] } }.to_json
         )
         .to_return(status: 204)
 
