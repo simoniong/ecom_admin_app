@@ -56,7 +56,9 @@ RSpec.describe "Email Accounts", type: :system do
     select "21", from: "email_account_send_window_to_hour"
     select "00", from: "email_account_send_window_to_minute"
 
-    click_button I18n.t("email_accounts.show.send_window_save")
+    within('[data-testid="send-window-section"]') do
+      click_button I18n.t("email_accounts.show.send_window_save")
+    end
 
     expect(page).to have_text(I18n.t("email_accounts.send_window_updated"))
   end
