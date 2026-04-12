@@ -37,6 +37,7 @@ jobs:
       SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
       GMAIL_SMTP_USER: ${{ secrets.GMAIL_SMTP_USER }}
       GMAIL_SMTP_PASSWORD: ${{ secrets.GMAIL_SMTP_PASSWORD }}
+      DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
 
     steps:
       - name: Checkout code

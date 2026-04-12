@@ -132,7 +132,13 @@
       searching: "搜索中..."
       no_results: "未找到匹配的客户或订单。"
       customer_linked: "客户关联成功。"
+      instruct_agent: "指示 Agent"
+      instruct_agent_placeholder: "例如：语气更温和一些..."
+      send_to_agent: "发送给 Agent"
+      instruction_sent: "指令已发送给 Agent。"
     draft_not_editable: "当前状态不允许编辑草稿。"
+    agent_instruction_not_allowed: "仅限草稿状态的工单可发送 Agent 指令。"
+    agent_instruction_blank: "指令内容不能为空。"
   shopify_stores:
     title: "Shopify 商店"
     empty: "尚未连接任何 Shopify 商店。"

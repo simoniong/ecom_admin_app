@@ -132,7 +132,13 @@ en:
       searching: "Searching..."
       no_results: "No matching customers or orders found."
       customer_linked: "Customer linked successfully."
+      instruct_agent: "Instruct Agent"
+      instruct_agent_placeholder: "e.g. Make the tone more polite..."
+      send_to_agent: "Send to Agent"
+      instruction_sent: "Instruction sent to agent."
     draft_not_editable: "Current status does not allow editing."
+    agent_instruction_not_allowed: "Agent instructions can only be sent for draft tickets."
+    agent_instruction_blank: "Instruction message cannot be blank."
   shopify_stores:
     title: "Shopify Stores"
     empty: "No Shopify stores connected yet."

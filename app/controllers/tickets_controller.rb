@@ -1,5 +1,5 @@
 class TicketsController < AdminController
-  before_action :set_ticket, only: [ :show, :update, :search_customers, :link_customer ]
+  before_action :set_ticket, only: [ :show, :update, :search_customers, :link_customer, :instruct_agent ]
 
   def index
     tickets = Ticket.for_company(current_company).includes(:email_account, :customer)
@@ -88,6 +88,22 @@ class TicketsController < AdminController
     @ticket.update!(customer: customer, customer_name: customer.full_name, customer_email: customer.email)
 
     redirect_to ticket_path(id: @ticket.id), notice: t("tickets.show.customer_linked")
+  end
+
+  def instruct_agent
+    unless @ticket.draft?
+      redirect_to ticket_path(id: @ticket.id), alert: t("tickets.agent_instruction_not_allowed")
+      return
+    end
+
+    message = params[:message].to_s.strip
+    if message.blank?
+      redirect_to ticket_path(id: @ticket.id), alert: t("tickets.agent_instruction_blank")
+      return
+    end
+
+    NotifyAgentJob.perform_later(@ticket.id, "revise_draft", message)
+    redirect_to ticket_path(id: @ticket.id), notice: t("tickets.show.instruction_sent")
   end
 
   def update
