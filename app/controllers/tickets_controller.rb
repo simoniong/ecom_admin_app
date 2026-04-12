@@ -127,12 +127,17 @@ class TicketsController < AdminController
 
     respond_to do |format|
       format.json { render json: { status: @ticket.status }, status: :ok }
-      format.html { redirect_to tickets_path, notice: t("tickets.status_updated") }
+      format.html { redirect_to ticket_path(id: @ticket.id), notice: t("tickets.status_updated") }
     end
   rescue Ticket::InvalidTransition => e
     respond_to do |format|
       format.json { render json: { error: e.message }, status: :unprocessable_entity }
-      format.html { redirect_to tickets_path, alert: t("tickets.invalid_transition") }
+      format.html { redirect_to ticket_path(id: @ticket.id), alert: t("tickets.invalid_transition") }
+    end
+  rescue ActiveRecord::RecordInvalid => e
+    respond_to do |format|
+      format.json { render json: { error: e.record.errors.full_messages.join(", ") }, status: :unprocessable_entity }
+      format.html { redirect_to ticket_path(id: @ticket.id), alert: e.record.errors.full_messages.join(", ") }
     end
   end
 
