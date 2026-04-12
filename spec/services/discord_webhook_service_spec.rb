@@ -1,8 +1,7 @@
 require "rails_helper"
 
 RSpec.describe DiscordWebhookService do
-  let(:email_account) { create(:email_account, discord_agent_mention: "<@1485161964228575233>") }
-  let(:ticket) { create(:ticket, email_account: email_account) }
+  let(:ticket) { create(:ticket, email_account: create(:email_account)) }
   let(:webhook_url) { "https://discord.com/api/webhooks/123/abc" }
 
   before do
@@ -11,11 +10,11 @@ RSpec.describe DiscordWebhookService do
   end
 
   describe ".notify_new_ticket" do
-    it "sends a new ticket notification with mention to Discord" do
+    it "sends a new ticket notification to Discord" do
       stub = stub_request(:post, webhook_url)
         .with(
           headers: { "Content-Type" => "application/json" },
-          body: { content: "<@1485161964228575233> 新 ticket，請生成 draft。Ticket ID: #{ticket.id}", allowed_mentions: { parse: %w[users roles] } }.to_json
+          body: { content: "新 ticket，請生成 draft。Ticket ID: #{ticket.id}", allowed_mentions: { parse: [] } }.to_json
         )
         .to_return(status: 204)
 
@@ -26,31 +25,15 @@ RSpec.describe DiscordWebhookService do
   end
 
   describe ".notify_revise_draft" do
-    it "sends a revise draft notification with mention to Discord" do
+    it "sends a revise draft notification to Discord" do
       stub = stub_request(:post, webhook_url)
         .with(
           headers: { "Content-Type" => "application/json" },
-          body: { content: "<@1485161964228575233> Ticket ID: #{ticket.id}, 語氣更溫和一點", allowed_mentions: { parse: %w[users roles] } }.to_json
+          body: { content: "Ticket ID: #{ticket.id}, 語氣更溫和一點", allowed_mentions: { parse: [] } }.to_json
         )
         .to_return(status: 204)
 
       DiscordWebhookService.notify_revise_draft(ticket, "語氣更溫和一點")
-
-      expect(stub).to have_been_requested
-    end
-  end
-
-  context "when discord_agent_mention is not configured" do
-    let(:email_account) { create(:email_account, discord_agent_mention: nil) }
-
-    it "sends message without mention prefix" do
-      stub = stub_request(:post, webhook_url)
-        .with(
-          body: { content: " 新 ticket，請生成 draft。Ticket ID: #{ticket.id}", allowed_mentions: { parse: %w[users roles] } }.to_json
-        )
-        .to_return(status: 204)
-
-      DiscordWebhookService.notify_new_ticket(ticket)
 
       expect(stub).to have_been_requested
     end

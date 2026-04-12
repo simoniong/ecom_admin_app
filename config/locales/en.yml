@@ -88,11 +88,6 @@ en:
       send_window_from: "From"
       send_window_to: "To"
       send_window_save: "Save"
-      discord_title: "Discord Agent Notification"
-      discord_description: "Configure the Discord bot mention tag for AI agent notifications on new tickets."
-      discord_agent_mention: "Bot Mention Tag"
-      discord_agent_mention_hint_html: '1. Open Discord Settings &rarr; Advanced &rarr; Enable Developer Mode<br>2. Right-click the bot avatar in the channel &rarr; Copy User ID<br>3. Fill in as <code>&lt;@USER_ID&gt;</code>, e.g. <code>&lt;@1098765432100&gt;</code>'
-      discord_save: "Save"
   tickets:
     title: "Tickets"
     empty: "No tickets yet."

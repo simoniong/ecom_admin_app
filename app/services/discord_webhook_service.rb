@@ -2,13 +2,11 @@ class DiscordWebhookService
   class DeliveryError < StandardError; end
 
   def self.notify_new_ticket(ticket)
-    mention = ticket.email_account.discord_agent_mention.presence || ""
-    send_message("#{mention} 新 ticket，請生成 draft。Ticket ID: #{ticket.id}")
+    send_message("新 ticket，請生成 draft。Ticket ID: #{ticket.id}")
   end
 
   def self.notify_revise_draft(ticket, message)
-    mention = ticket.email_account.discord_agent_mention.presence || ""
-    send_message("#{mention} Ticket ID: #{ticket.id}, #{message}")
+    send_message("Ticket ID: #{ticket.id}, #{message}")
   end
 
   def self.send_message(content)
@@ -25,7 +23,7 @@ class DiscordWebhookService
     request["Content-Type"] = "application/json"
     request.body = {
       content: content,
-      allowed_mentions: { parse: %w[users roles] }
+      allowed_mentions: { parse: [] }
     }.to_json
 
     response = http.request(request)
