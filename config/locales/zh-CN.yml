@@ -125,6 +125,13 @@
       draft_saved: "草稿保存成功。"
       scheduled_at: "预计发送时间：%{time}"
       email_sent: "邮件已发送"
+      change_customer: "更换"
+      link_customer: "关联客户"
+      search_customer_title: "搜索客户 / 订单"
+      search_customer_placeholder: "按姓名、邮箱或订单号搜索..."
+      searching: "搜索中..."
+      no_results: "未找到匹配的客户或订单。"
+      customer_linked: "客户关联成功。"
     draft_not_editable: "当前状态不允许编辑草稿。"
   shopify_stores:
     title: "Shopify 商店"
