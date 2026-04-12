@@ -208,8 +208,8 @@ RSpec.describe "Api::V1::Tickets", type: :request do
       expect(ticket.draft_reply_at).to be_present
     end
 
-    it "returns 422 when ticket is not new" do
-      ticket = create(:ticket, :draft, email_account: email_account)
+    it "returns 422 when ticket is not in new or draft status" do
+      ticket = create(:ticket, :closed, email_account: email_account)
 
       post "/api/v1/tickets/#{ticket.id}/draft_reply",
            params: { draft_reply: "New draft" },
@@ -234,6 +234,68 @@ RSpec.describe "Api::V1::Tickets", type: :request do
            headers: auth_headers
 
       expect(response).to have_http_status(:not_found)
+    end
+  end
+
+  describe "PATCH /api/v1/tickets/:id/draft_reply" do
+    it "updates draft reply when ticket is in draft status" do
+      ticket = create(:ticket, :draft, email_account: email_account)
+
+      patch "/api/v1/tickets/#{ticket.id}/draft_reply",
+            params: { draft_reply: "Updated draft content" },
+            headers: auth_headers
+
+      expect(response).to have_http_status(:ok)
+      body = JSON.parse(response.body)
+      expect(body["draft_reply"]).to eq("Updated draft content")
+
+      ticket.reload
+      expect(ticket.draft_reply).to eq("Updated draft content")
+      expect(ticket).to be_draft
+      expect(ticket.draft_reply_at).to be_within(2.seconds).of(Time.current)
+    end
+
+    it "submits draft when ticket is in new_ticket status via PATCH" do
+      ticket = create(:ticket, email_account: email_account, status: :new_ticket)
+
+      patch "/api/v1/tickets/#{ticket.id}/draft_reply",
+            params: { draft_reply: "New draft via patch" },
+            headers: auth_headers
+
+      expect(response).to have_http_status(:ok)
+      ticket.reload
+      expect(ticket).to be_draft
+      expect(ticket.draft_reply).to eq("New draft via patch")
+    end
+
+    it "returns 422 when ticket is in draft_confirmed status" do
+      ticket = create(:ticket, :draft_confirmed, email_account: email_account)
+
+      patch "/api/v1/tickets/#{ticket.id}/draft_reply",
+            params: { draft_reply: "Should fail" },
+            headers: auth_headers
+
+      expect(response).to have_http_status(:unprocessable_content)
+    end
+
+    it "returns 422 when ticket is closed" do
+      ticket = create(:ticket, :closed, email_account: email_account)
+
+      patch "/api/v1/tickets/#{ticket.id}/draft_reply",
+            params: { draft_reply: "Should fail" },
+            headers: auth_headers
+
+      expect(response).to have_http_status(:unprocessable_content)
+    end
+
+    it "returns 422 when draft_reply is blank" do
+      ticket = create(:ticket, :draft, email_account: email_account)
+
+      patch "/api/v1/tickets/#{ticket.id}/draft_reply",
+            params: { draft_reply: "" },
+            headers: auth_headers
+
+      expect(response).to have_http_status(:unprocessable_content)
     end
   end
 end

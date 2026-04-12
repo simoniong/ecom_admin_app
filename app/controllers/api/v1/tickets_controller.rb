@@ -24,8 +24,8 @@ class Api::V1::TicketsController < Api::BaseController
   def draft_reply
     ticket = Ticket.find(params[:id])
 
-    unless ticket.new_ticket?
-      return render json: { error: "Ticket is not in new status" }, status: :unprocessable_entity
+    unless ticket.new_ticket? || ticket.draft?
+      return render json: { error: "Ticket is not in new or draft status" }, status: :unprocessable_entity
     end
 
     content = params[:draft_reply]
@@ -33,7 +33,12 @@ class Api::V1::TicketsController < Api::BaseController
       return render json: { error: "Draft reply content is required" }, status: :unprocessable_entity
     end
 
-    ticket.submit_draft!(content)
+    if ticket.new_ticket?
+      ticket.submit_draft!(content)
+    else
+      ticket.update!(draft_reply: content, draft_reply_at: Time.current)
+    end
+
     render json: ticket_json(ticket), status: :ok
   rescue ActiveRecord::RecordNotFound
     render json: { error: "Ticket not found" }, status: :not_found
