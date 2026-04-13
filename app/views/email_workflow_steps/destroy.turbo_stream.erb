@@ -1,0 +1,15 @@
+<%= turbo_stream.replace "workflow-steps-list" do %>
+  <div id="workflow-steps-list" class="flex flex-col items-center">
+    <% @steps.each do |step| %>
+      <%= render "email_workflows/step_card", step: step %>
+    <% end %>
+  </div>
+<% end %>
+
+<% if @steps.empty? %>
+  <%= turbo_stream.before "workflow-steps-list" do %>
+    <div id="workflow-empty-state" class="text-center py-4">
+      <p class="text-sm text-gray-400"><%= t("email_workflows.steps.no_steps") %></p>
+    </div>
+  <% end %>
+<% end %>

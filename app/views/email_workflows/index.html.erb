@@ -1,0 +1,51 @@
+<div class="max-w-4xl mx-auto">
+  <div class="flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <%= link_to shopify_store_path(@shopify_store), class: "text-gray-400 hover:text-gray-600" do %>
+        <svg class="w-5 h-5" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
+        </svg>
+      <% end %>
+      <h1 class="text-2xl font-semibold text-gray-900"><%= t("email_workflows.title") %></h1>
+    </div>
+
+    <% if available_trigger_events(@shopify_store).any? %>
+      <%= link_to new_shopify_store_email_workflow_path(@shopify_store),
+          class: "inline-flex items-center gap-2 px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2" do %>
+        <svg class="w-4 h-4" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+        </svg>
+        <%= t("email_workflows.new_workflow") %>
+      <% end %>
+    <% end %>
+  </div>
+
+  <% stores = current_company.shopify_stores.order(:shop_domain) %>
+  <% if stores.size > 1 %>
+    <div class="mt-2">
+      <select onchange="window.location.href = this.value"
+              class="text-sm border-gray-300 rounded-md focus:ring-gray-500 focus:border-gray-500">
+        <% stores.each do |store| %>
+          <option value="<%= shopify_store_email_workflows_path(store) %>"
+                  <%= "selected" if store == @shopify_store %>>
+            <%= store.shop_domain %>
+          </option>
+        <% end %>
+      </select>
+    </div>
+  <% else %>
+    <p class="mt-2 text-sm text-gray-500"><%= @shopify_store.shop_domain %></p>
+  <% end %>
+
+  <div class="mt-6 space-y-4">
+    <% if @workflows.any? %>
+      <% @workflows.each do |workflow| %>
+        <%= render "workflow_card", workflow: workflow %>
+      <% end %>
+    <% else %>
+      <div class="bg-white shadow-sm rounded-lg border border-gray-200 p-8 text-center">
+        <p class="text-sm text-gray-500"><%= t("email_workflows.no_workflows") %></p>
+      </div>
+    <% end %>
+  </div>
+</div>

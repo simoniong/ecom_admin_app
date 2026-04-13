@@ -1,0 +1,15 @@
+<%= form_with url: shopify_store_email_workflow_email_workflow_step_path(@shopify_store, @workflow, step),
+             method: :patch, data: { turbo_frame: dom_id(step) }, class: "space-y-4" do |f| %>
+  <div>
+    <label class="block text-xs font-medium text-gray-600 mb-1"><%= t("email_workflows.steps.instruction") %></label>
+    <textarea name="email_workflow_step[config][instruction]" rows="4"
+              placeholder="<%= t('email_workflows.steps.instruction_hint') %>"
+              class="block w-full rounded-md border-gray-300 shadow-sm focus:border-gray-900 focus:ring-gray-900 sm:text-sm"><%= step.config["instruction"] %></textarea>
+    <p class="mt-1 text-xs text-gray-400"><%= t("email_workflows.steps.instruction_hint") %></p>
+  </div>
+
+  <div class="pt-2">
+    <%= f.submit t("email_workflows.steps.step_saved"),
+        class: "inline-flex items-center px-3 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-md hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2 cursor-pointer" %>
+  </div>
+<% end %>

@@ -2,12 +2,16 @@ class Ticket < ApplicationRecord
   belongs_to :email_account
   belongs_to :customer, optional: true
   has_many :messages, dependent: :destroy
+  has_many :email_workflow_runs, dependent: :nullify
 
   enum :status, { new_ticket: 0, draft: 1, draft_confirmed: 2, closed: 3 }, default: :new_ticket
+
+  REOPENED_REASONS = %w[customer_inquiry customer_reply order_placed order_shipped order_delivered].freeze
 
   validates :gmail_thread_id, presence: true, uniqueness: { scope: :email_account_id }
   validates :customer_email, presence: true
   validates :status, presence: true
+  validates :reopened_reason, inclusion: { in: REOPENED_REASONS }, allow_nil: true
   validates :draft_reply, presence: true, if: -> { draft? || draft_confirmed? }
 
   scope :by_recency, -> { order(last_message_at: :desc) }
@@ -35,7 +39,8 @@ class Ticket < ApplicationRecord
     update!(
       draft_reply: content,
       draft_reply_at: Time.current,
-      status: :draft
+      status: :draft,
+      reopened_reason: nil
     )
   end
 
@@ -47,6 +52,7 @@ class Ticket < ApplicationRecord
 
     attrs = { status: new_status }
     attrs[:draft_reply_at] = Time.current if new_status == "draft" && draft_reply_at.nil?
+    attrs[:reopened_reason] = nil unless new_status == "new_ticket"
 
     if new_status == "new_ticket" || new_status == "closed"
       attrs[:draft_reply] = nil

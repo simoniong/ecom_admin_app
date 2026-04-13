@@ -109,4 +109,16 @@
       </div>
     <% end %>
   <% end %>
+
+  <%# Email Workflows %>
+  <div class="mt-6 bg-white shadow-sm rounded-lg border border-gray-200 p-6">
+    <div class="flex items-center justify-between mb-2">
+      <h2 class="text-lg font-medium text-gray-900"><%= t("email_workflows.title") %></h2>
+      <%= link_to shopify_store_email_workflows_path(@shopify_store),
+          class: "text-sm text-gray-600 hover:text-gray-900 font-medium" do %>
+        <%= t("email_workflows.manage") %> &rarr;
+      <% end %>
+    </div>
+    <p class="text-sm text-gray-500"><%= t("email_workflows.description") %></p>
+  </div>
 </div>

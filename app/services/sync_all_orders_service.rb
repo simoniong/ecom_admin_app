@@ -84,15 +84,22 @@ class SyncAllOrdersService
     }
 
     order = Order.find_or_initialize_by(shopify_store: @store, shopify_order_id: shopify_order["id"])
+    is_new_order = order.new_record?
+    old_fulfillment_status = order.fulfillment_status
     order.assign_attributes(attrs)
     begin
       order.save!
     rescue ActiveRecord::RecordNotUnique
       order = Order.find_by!(shopify_store: @store, shopify_order_id: shopify_order["id"])
+      is_new_order = false
+      old_fulfillment_status = order.fulfillment_status
       order.update!(attrs)
     end
 
     sync_fulfillments(order, shopify_order)
+
+    trigger_email_workflows(order, is_new_order, old_fulfillment_status)
+
     order
   end
 
@@ -152,6 +159,15 @@ class SyncAllOrdersService
       ticket.update!(customer: customer)
       Rails.logger.info("[SyncAllOrders] Linked Ticket##{ticket.id} to Customer##{customer.id}")
     end
+  end
+
+  def trigger_email_workflows(order, is_new_order, old_fulfillment_status)
+    EmailWorkflowTriggerService.check("order_placed", order) if is_new_order
+    if old_fulfillment_status != "fulfilled" && order.fulfillment_status == "fulfilled"
+      EmailWorkflowTriggerService.check("order_shipped", order)
+    end
+  rescue => e
+    Rails.logger.error("[SyncAllOrders] Email workflow trigger failed for order #{order.id}: #{e.message}")
   end
 
   def upsert_fulfillment(order, sf)
