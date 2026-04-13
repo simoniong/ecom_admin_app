@@ -64,6 +64,7 @@ class Fulfillment < ApplicationRecord
   }
 
   after_commit :register_tracking, if: :should_register_tracking?
+  after_commit :check_delivered_workflow, if: :became_delivered?
 
   def status_badge_classes
     STATUS_COLORS[tracking_status] || "bg-gray-100 text-gray-600"
@@ -122,6 +123,16 @@ class Fulfillment < ApplicationRecord
   end
 
   private
+
+  def became_delivered?
+    saved_change_to_tracking_status? && tracking_status == "Delivered"
+  end
+
+  def check_delivered_workflow
+    EmailWorkflowTriggerService.check("order_delivered", order)
+  rescue => e
+    Rails.logger.error("[Fulfillment] Email workflow trigger failed for fulfillment #{id}: #{e.message}")
+  end
 
   def should_register_tracking?
     tracking_number.present? && saved_change_to_tracking_number?

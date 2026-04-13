@@ -1,0 +1,36 @@
+<div class="bg-white shadow-sm rounded-lg border border-gray-200 p-6">
+  <div class="flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <div class="flex-shrink-0 w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center">
+        <svg class="w-5 h-5 text-blue-600" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="m3.75 13.5 10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75Z" />
+        </svg>
+      </div>
+      <div>
+        <h3 class="text-sm font-semibold text-gray-900">
+          <%= t("email_workflows.trigger_events.#{workflow.trigger_event}") %>
+        </h3>
+        <p class="text-xs text-gray-500 mt-0.5">
+          <%= t("email_workflows.steps_count", count: workflow.email_workflow_steps.size) %>
+        </p>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-4">
+      <% if workflow.enabled? %>
+        <span class="inline-flex items-center rounded-full bg-green-50 px-2.5 py-0.5 text-xs font-medium text-green-700">
+          <%= t("email_workflows.enabled") %>
+        </span>
+      <% else %>
+        <span class="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600">
+          <%= t("email_workflows.disabled") %>
+        </span>
+      <% end %>
+
+      <%= link_to edit_shopify_store_email_workflow_path(@shopify_store, workflow),
+          class: "text-sm text-gray-600 hover:text-gray-900 font-medium" do %>
+        <%= t("email_workflows.edit_workflow") %>
+      <% end %>
+    </div>
+  </div>
+</div>

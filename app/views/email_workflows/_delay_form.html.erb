@@ -1,0 +1,47 @@
+<%= form_with url: shopify_store_email_workflow_email_workflow_step_path(@shopify_store, @workflow, step),
+             method: :patch, data: { turbo_frame: dom_id(step) }, class: "space-y-4" do |f| %>
+  <div class="flex items-center gap-3">
+    <div class="flex-1">
+      <label class="block text-xs font-medium text-gray-600 mb-1"><%= t("email_workflows.steps.amount") %></label>
+      <input type="number" name="email_workflow_step[config][amount]" value="<%= step.config['amount'] %>"
+             min="1" max="365"
+             class="block w-full rounded-md border-gray-300 shadow-sm focus:border-gray-900 focus:ring-gray-900 sm:text-sm" />
+    </div>
+    <div class="flex-1">
+      <label class="block text-xs font-medium text-gray-600 mb-1"><%= t("email_workflows.steps.unit") %></label>
+      <select name="email_workflow_step[config][unit]"
+              class="block w-full rounded-md border-gray-300 shadow-sm focus:border-gray-900 focus:ring-gray-900 sm:text-sm">
+        <option value="hours" <%= "selected" if step.config["unit"] == "hours" %>><%= t("email_workflows.steps.hours") %></option>
+        <option value="days" <%= "selected" if step.config["unit"] == "days" %>><%= t("email_workflows.steps.days") %></option>
+      </select>
+    </div>
+  </div>
+
+  <div>
+    <label class="block text-xs font-medium text-gray-600 mb-1"><%= t("email_workflows.steps.until_time") %></label>
+    <input type="time" name="email_workflow_step[config][until_time]" value="<%= step.config['until_time'] %>"
+           class="block w-full rounded-md border-gray-300 shadow-sm focus:border-gray-900 focus:ring-gray-900 sm:text-sm" />
+    <p class="mt-1 text-xs text-gray-400">(<%= @shopify_store.timezone %>)</p>
+  </div>
+
+  <div>
+    <label class="block text-xs font-medium text-gray-600 mb-1"><%= t("email_workflows.steps.only_days") %></label>
+    <div class="flex flex-wrap gap-2">
+      <% day_keys = %w[sun mon tue wed thu fri sat] %>
+      <% day_keys.each_with_index do |day_key, index| %>
+        <label class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border cursor-pointer text-xs
+                      <%= step.config['only_days']&.include?(index) ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50' %>">
+          <input type="checkbox" name="email_workflow_step[config][only_days][]" value="<%= index %>"
+                 <%= "checked" if step.config["only_days"]&.include?(index) %>
+                 class="sr-only" />
+          <%= t("email_workflows.day_names.#{day_key}") %>
+        </label>
+      <% end %>
+    </div>
+  </div>
+
+  <div class="pt-2">
+    <%= f.submit t("email_workflows.steps.step_saved"),
+        class: "inline-flex items-center px-3 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-md hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2 cursor-pointer" %>
+  </div>
+<% end %>
