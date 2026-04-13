@@ -74,6 +74,7 @@ class Api::V1::TicketsController < Api::BaseController
       status: api_status(ticket),
       customer_email: ticket.customer_email,
       customer_name: ticket.customer_name,
+      reopened_reason: ticket.reopened_reason,
       draft_reply: ticket.draft_reply,
       draft_reply_at: ticket.draft_reply_at,
       last_message_at: ticket.last_message_at,

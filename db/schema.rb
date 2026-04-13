@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_04_12_092942) do
+ActiveRecord::Schema[8.1].define(version: 2026_04_13_110000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -135,6 +135,46 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_12_092942) do
     t.index ["shopify_store_id"], name: "index_email_accounts_on_shopify_store_id"
     t.index ["user_id", "email"], name: "index_email_accounts_on_user_id_and_email", unique: true
     t.index ["user_id"], name: "index_email_accounts_on_user_id"
+  end
+
+  create_table "email_workflow_runs", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.string "cancelled_reason"
+    t.datetime "completed_at"
+    t.datetime "created_at", null: false
+    t.integer "current_step_position", default: 0, null: false
+    t.uuid "email_workflow_id", null: false
+    t.uuid "order_id", null: false
+    t.string "scheduled_job_id"
+    t.datetime "started_at", null: false
+    t.string "status", default: "running", null: false
+    t.uuid "ticket_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["email_workflow_id", "order_id"], name: "index_email_workflow_runs_on_email_workflow_id_and_order_id", unique: true
+    t.index ["email_workflow_id"], name: "index_email_workflow_runs_on_email_workflow_id"
+    t.index ["order_id"], name: "index_email_workflow_runs_on_order_id"
+    t.index ["status"], name: "index_email_workflow_runs_on_status"
+    t.index ["ticket_id"], name: "index_email_workflow_runs_on_ticket_id"
+  end
+
+  create_table "email_workflow_steps", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.jsonb "config", default: {}, null: false
+    t.datetime "created_at", null: false
+    t.uuid "email_workflow_id", null: false
+    t.integer "position", default: 0, null: false
+    t.string "step_type", null: false
+    t.datetime "updated_at", null: false
+    t.index ["email_workflow_id", "position"], name: "index_email_workflow_steps_on_email_workflow_id_and_position"
+    t.index ["email_workflow_id"], name: "index_email_workflow_steps_on_email_workflow_id"
+  end
+
+  create_table "email_workflows", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.boolean "enabled", default: true, null: false
+    t.uuid "shopify_store_id", null: false
+    t.string "trigger_event", null: false
+    t.datetime "updated_at", null: false
+    t.index ["shopify_store_id", "trigger_event"], name: "index_email_workflows_on_shopify_store_id_and_trigger_event", unique: true
+    t.index ["shopify_store_id"], name: "index_email_workflows_on_shopify_store_id"
   end
 
   create_table "fulfillments", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -426,6 +466,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_12_092942) do
     t.string "gmail_thread_id", null: false
     t.datetime "last_message_at"
     t.integer "position", default: 0, null: false
+    t.string "reopened_reason"
     t.string "scheduled_job_id"
     t.datetime "scheduled_send_at"
     t.integer "status", default: 0, null: false
@@ -471,6 +512,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_12_092942) do
   add_foreign_key "email_accounts", "companies"
   add_foreign_key "email_accounts", "shopify_stores"
   add_foreign_key "email_accounts", "users"
+  add_foreign_key "email_workflow_runs", "email_workflows"
+  add_foreign_key "email_workflow_runs", "orders"
+  add_foreign_key "email_workflow_runs", "tickets"
+  add_foreign_key "email_workflow_steps", "email_workflows"
+  add_foreign_key "email_workflows", "shopify_stores"
   add_foreign_key "fulfillments", "orders"
   add_foreign_key "invitations", "companies"
   add_foreign_key "invitations", "users", column: "invited_by_id"

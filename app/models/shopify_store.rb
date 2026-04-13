@@ -5,6 +5,7 @@ class ShopifyStore < ApplicationRecord
   has_many :ad_accounts, dependent: :nullify
   has_many :customers, dependent: :destroy
   has_many :orders, dependent: :destroy
+  has_many :email_workflows, dependent: :destroy
 
   encrypts :access_token, deterministic: false
 

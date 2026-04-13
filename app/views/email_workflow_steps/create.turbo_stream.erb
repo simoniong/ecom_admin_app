@@ -1,0 +1,9 @@
+<%= turbo_stream.replace "workflow-steps-list" do %>
+  <div id="workflow-steps-list" class="flex flex-col items-center">
+    <% @steps.each do |step| %>
+      <%= render "email_workflows/step_card", step: step %>
+    <% end %>
+  </div>
+<% end %>
+
+<%= turbo_stream.remove "workflow-empty-state" %>

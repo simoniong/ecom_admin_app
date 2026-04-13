@@ -2,6 +2,7 @@ class Order < ApplicationRecord
   belongs_to :customer
   belongs_to :shopify_store, optional: true
   has_many :fulfillments, dependent: :destroy
+  has_many :email_workflow_runs, dependent: :destroy
 
   validates :shopify_order_id, presence: true, uniqueness: { scope: :shopify_store_id }
 

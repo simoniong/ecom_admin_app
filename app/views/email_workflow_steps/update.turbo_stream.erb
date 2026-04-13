@@ -1,0 +1,3 @@
+<%= turbo_stream.replace dom_id(@step) do %>
+  <%= render "email_workflows/step_card", step: @step %>
+<% end %>

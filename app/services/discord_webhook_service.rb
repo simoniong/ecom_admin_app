@@ -13,6 +13,12 @@ class DiscordWebhookService
     send_message(content)
   end
 
+  def self.notify_workflow_action(ticket, instruction)
+    mention = ticket.email_account.discord_agent_mention.presence
+    content = [ mention, "Ticket ID: #{ticket.id}, #{instruction}" ].compact.join(" ")
+    send_message(content)
+  end
+
   def self.send_message(content)
     webhook_url = ENV["DISCORD_WEBHOOK_URL"]
     return if webhook_url.blank?

@@ -133,6 +133,7 @@ class GmailSyncService
         msg_from&.downcase == email_account.email.downcase
       end
       ticket.status = has_our_reply ? :closed : :new_ticket
+      ticket.reopened_reason = "customer_inquiry" unless has_our_reply
     end
 
     last_msg_time = nil
@@ -166,10 +167,14 @@ class GmailSyncService
         if latest_from.present? && latest_from.include?("@") && latest_from.downcase != email_account.email.downcase
           # Customer replied → reopen
           ticket.status = :new_ticket
+          ticket.reopened_reason = "customer_reply"
           ticket.draft_reply = nil
           ticket.draft_reply_at = nil
           ticket.scheduled_send_at = nil
           ticket.scheduled_job_id = nil
+
+          # Cancel any running email workflow runs for this ticket
+          cancel_running_workflow_runs(ticket)
         end
         # Our reply or unknown sender → stay closed
       end
@@ -307,5 +312,16 @@ class GmailSyncService
     Base64.urlsafe_decode64(data).force_encoding("UTF-8").scrub("")
   rescue ArgumentError
     data.dup.force_encoding("UTF-8").scrub("")
+  end
+
+  def cancel_running_workflow_runs(ticket)
+    ticket.email_workflow_runs.running.find_each do |run|
+      if run.scheduled_job_id.present?
+        SolidQueue::Job.find_by(active_job_id: run.scheduled_job_id)&.destroy
+      end
+      run.cancel!("customer_replied")
+    end
+  rescue => e
+    Rails.logger.error("[GmailSync] Failed to cancel workflow runs for Ticket##{ticket.id}: #{e.message}")
   end
 end
