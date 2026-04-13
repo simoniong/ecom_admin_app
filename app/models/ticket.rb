@@ -11,6 +11,7 @@ class Ticket < ApplicationRecord
   validates :gmail_thread_id, presence: true, uniqueness: { scope: :email_account_id }
   validates :customer_email, presence: true
   validates :status, presence: true
+  validates :reopened_reason, inclusion: { in: REOPENED_REASONS }, allow_nil: true
   validates :draft_reply, presence: true, if: -> { draft? || draft_confirmed? }
 
   scope :by_recency, -> { order(last_message_at: :desc) }

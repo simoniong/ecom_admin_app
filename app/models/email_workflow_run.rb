@@ -25,7 +25,7 @@ class EmailWorkflowRun < ApplicationRecord
   end
 
   def cancel!(reason)
-    update!(status: "cancelled", cancelled_reason: reason, completed_at: Time.current)
+    update!(status: "cancelled", cancelled_reason: reason, completed_at: Time.current, scheduled_job_id: nil)
   end
 
   def complete!

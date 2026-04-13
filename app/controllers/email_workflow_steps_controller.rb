@@ -76,7 +76,10 @@ class EmailWorkflowStepsController < AdminController
   end
 
   def step_params
-    params.require(:email_workflow_step).permit(:step_type, config: {})
+    params.require(:email_workflow_step).permit(
+      :step_type,
+      config: [ :amount, :unit, :instruction, :until_time, { only_days: [] } ]
+    )
   end
 
   def default_config(step_type)

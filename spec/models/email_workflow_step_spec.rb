@@ -62,13 +62,13 @@ RSpec.describe EmailWorkflowStep, type: :model do
     it "returns delay summary for delay steps" do
       step.step_type = "delay"
       step.config = { "amount" => 2, "unit" => "days" }
-      expect(step.summary).to include("Wait 2 days")
+      expect(step.summary).to include("Wait 2 Days")
     end
 
     it "includes until_time in delay summary" do
       step.step_type = "delay"
       step.config = { "amount" => 1, "unit" => "hours", "until_time" => "09:00" }
-      expect(step.summary).to include("until 09:00")
+      expect(step.summary).to include("09:00")
     end
 
     it "returns truncated instruction for send_email steps" do

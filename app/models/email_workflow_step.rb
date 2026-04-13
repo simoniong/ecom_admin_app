@@ -29,11 +29,14 @@ class EmailWorkflowStep < ApplicationRecord
     amount = config["amount"]
     unit = config["unit"] || "hours"
     parts = []
-    parts << "Wait #{amount} #{unit}" if amount.present?
-    parts << "until #{config['until_time']}" if config["until_time"].present?
+    if amount.present?
+      unit_label = I18n.t("email_workflows.steps.#{unit}")
+      parts << I18n.t("email_workflows.steps.wait_summary", amount: amount, unit: unit_label)
+    end
+    parts << I18n.t("email_workflows.steps.until_summary", time: config["until_time"]) if config["until_time"].present?
     if config["only_days"].present?
-      day_names = config["only_days"].map { |d| Date::DAYNAMES[d % 7] }
-      parts << "on #{day_names.join(', ')}"
+      day_names = config["only_days"].map { |d| I18n.t("email_workflows.day_names.#{%w[sun mon tue wed thu fri sat][d.to_i % 7]}") }
+      parts << I18n.t("email_workflows.steps.on_days_summary", days: day_names.join(", "))
     end
     parts.join(", ")
   end

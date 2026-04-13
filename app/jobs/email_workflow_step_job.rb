@@ -49,7 +49,7 @@ class EmailWorkflowStepJob < ApplicationJob
       scheduled_job_id: nil
     )
     job = self.class.set(wait: delay_seconds.seconds).perform_later(run.id)
-    run.update!(scheduled_job_id: job.provider_job_id)
+    run.update!(scheduled_job_id: job.job_id)
   end
 
   def execute_send_email(run, step)

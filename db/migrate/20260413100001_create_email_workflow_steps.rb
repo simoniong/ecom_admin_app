@@ -1,4 +1,4 @@
-class CreateEmailWorkflowSteps < ActiveRecord::Migration[8.0]
+class CreateEmailWorkflowSteps < ActiveRecord::Migration[8.1]
   def change
     create_table :email_workflow_steps, id: :uuid do |t|
       t.references :email_workflow, null: false, foreign_key: true, type: :uuid

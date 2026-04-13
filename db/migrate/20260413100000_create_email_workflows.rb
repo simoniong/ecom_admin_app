@@ -1,4 +1,4 @@
-class CreateEmailWorkflows < ActiveRecord::Migration[8.0]
+class CreateEmailWorkflows < ActiveRecord::Migration[8.1]
   def change
     create_table :email_workflows, id: :uuid do |t|
       t.references :shopify_store, null: false, foreign_key: true, type: :uuid
