@@ -1,5 +1,6 @@
 class ShipmentsController < AdminController
-  PER_PAGE = 25
+  PER_PAGE_DEFAULT = 25
+  PER_PAGE_OPTIONS = [ 25, 50, 100, 200, 300, 500 ].freeze
   SORTABLE_COLUMNS = %w[created_at last_event_at shipped_at transit_days].freeze
   SORT_COLUMN_MAP = {
     "input_time" => "fulfillments.created_at",
@@ -241,15 +242,17 @@ class ShipmentsController < AdminController
   end
 
   def paginate
-    @page = [ params[:page].to_i, 1 ].max
+    per_page = Integer(params[:per_page], exception: false)
+    @per_page = PER_PAGE_OPTIONS.include?(per_page) ? per_page : PER_PAGE_DEFAULT
+    @page = [ Integer(params[:page], exception: false) || 1, 1 ].max
     @total_count = @shipments_scope.count
-    @total_pages = (@total_count.to_f / PER_PAGE).ceil
+    @total_pages = (@total_count.to_f / @per_page).ceil
     @page = [ @page, [ @total_pages, 1 ].max ].min
 
     @shipments = @shipments_scope
       .includes(order: [ :customer, :shopify_store ])
-      .offset((@page - 1) * PER_PAGE)
-      .limit(PER_PAGE)
+      .offset((@page - 1) * @per_page)
+      .limit(@per_page)
   end
 
   def load_filter_options

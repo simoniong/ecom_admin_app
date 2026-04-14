@@ -330,6 +330,7 @@
     showing: "显示 %{from}-%{to}，共 %{total} 条"
     prev: "上一页"
     next: "下一页"
+    per_page: "每页显示"
     filters:
       status: "状态"
       destination: "目的地"
