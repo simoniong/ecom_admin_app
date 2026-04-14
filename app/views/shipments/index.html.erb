@@ -684,7 +684,7 @@
           <select id="per_page" onchange="window.location.href = this.value"
                   class="text-sm rounded-md border border-gray-300 bg-white text-gray-700 py-1 pl-2 pr-7 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
             <% ShipmentsController::PER_PAGE_OPTIONS.each do |opt| %>
-              <option value="<%= url_for(request.params.merge(per_page: opt, page: 1)) %>"
+              <option value="<%= shipments_path(request.query_parameters.merge(per_page: opt, page: 1)) %>"
                       <%= "selected" if opt == @per_page %>>
                 <%= opt %>
               </option>
@@ -694,19 +694,19 @@
         <% if @total_pages > 1 %>
           <div class="flex gap-1">
             <% if @page > 1 %>
-              <%= link_to t("shipments.prev"), request.params.merge(page: @page - 1),
+              <%= link_to t("shipments.prev"), shipments_path(request.query_parameters.merge(page: @page - 1)),
                   class: "px-3 py-1 text-sm rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50" %>
             <% end %>
             <% pagination_range(@page, @total_pages).each do |p| %>
               <% if p == :gap %>
                 <span class="px-2 py-1 text-sm text-gray-400">...</span>
               <% else %>
-                <%= link_to p, request.params.merge(page: p),
+                <%= link_to p, shipments_path(request.query_parameters.merge(page: p)),
                     class: "px-3 py-1 text-sm rounded-md border #{p == @page ? 'border-blue-500 bg-blue-50 text-blue-700 font-medium' : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'}" %>
               <% end %>
             <% end %>
             <% if @page < @total_pages %>
-              <%= link_to t("shipments.next"), request.params.merge(page: @page + 1),
+              <%= link_to t("shipments.next"), shipments_path(request.query_parameters.merge(page: @page + 1)),
                   class: "px-3 py-1 text-sm rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50" %>
             <% end %>
           </div>

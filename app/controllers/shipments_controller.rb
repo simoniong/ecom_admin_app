@@ -242,8 +242,9 @@ class ShipmentsController < AdminController
   end
 
   def paginate
-    @per_page = PER_PAGE_OPTIONS.include?(params[:per_page].to_i) ? params[:per_page].to_i : PER_PAGE_DEFAULT
-    @page = [ params[:page].to_i, 1 ].max
+    per_page = Integer(params[:per_page], exception: false)
+    @per_page = PER_PAGE_OPTIONS.include?(per_page) ? per_page : PER_PAGE_DEFAULT
+    @page = [ Integer(params[:page], exception: false) || 1, 1 ].max
     @total_count = @shipments_scope.count
     @total_pages = (@total_count.to_f / @per_page).ceil
     @page = [ @page, [ @total_pages, 1 ].max ].min

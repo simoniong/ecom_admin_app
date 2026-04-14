@@ -100,6 +100,22 @@ RSpec.describe "Shipments", type: :request do
       expect(response.body).to include("Showing 1-25 of 30")
     end
 
+    it "respects per_page parameter with allowed value" do
+      order = create(:order, customer: customer, shopify_store: store)
+      60.times { |i| create(:fulfillment, order: order, tracking_number: "PP#{i.to_s.rjust(3, '0')}", tracking_status: "InTransit") }
+
+      get shipments_path, params: { per_page: 50 }
+      expect(response.body).to include("Showing 1-50 of 60")
+    end
+
+    it "falls back to default per_page for invalid values" do
+      order = create(:order, customer: customer, shopify_store: store)
+      30.times { |i| create(:fulfillment, order: order, tracking_number: "FB#{i.to_s.rjust(3, '0')}", tracking_status: "InTransit") }
+
+      get shipments_path, params: { per_page: 999 }
+      expect(response.body).to include("Showing 1-25 of 30")
+    end
+
     it "filters by destination carrier" do
       order = create(:order, customer: customer, shopify_store: store)
       create(:fulfillment, order: order, tracking_number: "TRACK-USPS-001", tracking_status: "InTransit", destination_carrier: "USPS")
