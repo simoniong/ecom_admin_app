@@ -331,6 +331,7 @@ en:
     showing: "Showing %{from}-%{to} of %{total}"
     prev: "Prev"
     next: "Next"
+    per_page: "Per page"
     filters:
       status: "Status"
       destination: "Destination"
