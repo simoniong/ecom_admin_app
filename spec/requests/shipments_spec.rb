@@ -65,22 +65,22 @@ RSpec.describe "Shipments", type: :request do
 
     it "filters by destination country" do
       order = create(:order, customer: customer, shopify_store: store)
-      create(:fulfillment, order: order, tracking_number: "T1", tracking_status: "InTransit", destination_country: "US")
-      create(:fulfillment, order: order, tracking_number: "T2", tracking_status: "InTransit", destination_country: "AU")
+      create(:fulfillment, order: order, tracking_number: "DEST_MATCH_US99", tracking_status: "InTransit", destination_country: "US")
+      create(:fulfillment, order: order, tracking_number: "DEST_EXCLUDED_AU77", tracking_status: "InTransit", destination_country: "AU")
 
       get shipments_path, params: { destination: "US" }
-      expect(response.body).to include("T1")
-      expect(response.body).not_to include("T2")
+      expect(response.body).to include("DEST_MATCH_US99")
+      expect(response.body).not_to include("DEST_EXCLUDED_AU77")
     end
 
     it "filters by origin carrier" do
       order = create(:order, customer: customer, shopify_store: store)
-      create(:fulfillment, order: order, tracking_number: "T1", tracking_status: "InTransit", origin_carrier: "China Post")
-      create(:fulfillment, order: order, tracking_number: "T2", tracking_status: "InTransit", origin_carrier: "DHL")
+      create(:fulfillment, order: order, tracking_number: "CARRIER_CHINA_POST88", tracking_status: "InTransit", origin_carrier: "China Post")
+      create(:fulfillment, order: order, tracking_number: "CARRIER_DHL_EXCLUDED55", tracking_status: "InTransit", origin_carrier: "DHL")
 
       get shipments_path, params: { origin_carrier: "China Post" }
-      expect(response.body).to include("T1")
-      expect(response.body).not_to include("T2")
+      expect(response.body).to include("CARRIER_CHINA_POST88")
+      expect(response.body).not_to include("CARRIER_DHL_EXCLUDED55")
     end
 
     it "sorts by sort_field and sort_direction" do
