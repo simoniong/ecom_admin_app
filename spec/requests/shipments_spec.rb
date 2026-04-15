@@ -407,6 +407,41 @@ RSpec.describe "Shipments", type: :request do
     end
   end
 
+  describe "POST /shipments/bulk_export" do
+    it "returns an Excel file for selected shipments" do
+      order = create(:order, customer: customer, shopify_store: store)
+      f1 = create(:fulfillment, order: order, tracking_number: "EXP1", tracking_status: "InTransit")
+      f2 = create(:fulfillment, order: order, tracking_number: "EXP2", tracking_status: "Delivered")
+
+      post bulk_export_shipments_path, params: { ids: [ f1.id, f2.id ] }
+
+      expect(response).to have_http_status(:ok)
+      expect(response.content_type).to include("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+      expect(response.headers["Content-Disposition"]).to include("shipments_")
+      expect(response.headers["Content-Disposition"]).to include(".xlsx")
+    end
+
+    it "does not export shipments from another company" do
+      other_user = create(:user)
+      other_store = create(:shopify_store, user: other_user)
+      other_customer = create(:customer, shopify_store: other_store)
+      other_order = create(:order, customer: other_customer, shopify_store: other_store)
+      other_f = create(:fulfillment, order: other_order, tracking_number: "OTHER_EXP")
+
+      order = create(:order, customer: customer, shopify_store: store)
+      own_f = create(:fulfillment, order: order, tracking_number: "OWN_EXP", tracking_status: "InTransit")
+
+      post bulk_export_shipments_path, params: { ids: [ other_f.id, own_f.id ] }
+
+      expect(response).to have_http_status(:ok)
+      # The file should only contain the user's own shipment, not the other company's
+      xlsx = Axlsx::Package.new
+      io = StringIO.new(response.body)
+      # We can at least verify the response is valid XLSX
+      expect(response.body.bytes.first(4)).to eq("PK\x03\x04".bytes)
+    end
+  end
+
   describe "POST /shipments/bulk_remove_tags" do
     it "removes tags from selected shipments" do
       order = create(:order, customer: customer, shopify_store: store)

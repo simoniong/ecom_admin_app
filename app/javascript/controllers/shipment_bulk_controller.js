@@ -1,7 +1,7 @@
 import { Controller } from "@hotwired/stimulus"
 
 export default class extends Controller {
-  static targets = ["selectAll", "checkbox", "bar", "count", "archiveForm"]
+  static targets = ["selectAll", "checkbox", "bar", "count", "archiveForm", "exportButton"]
   static values = { copiedText: { type: String, default: "Copied!" } }
 
   connect() {
@@ -27,8 +27,15 @@ export default class extends Controller {
     const selected = this.checkboxTargets.filter(cb => cb.checked)
     const hasSelection = selected.length > 0
 
-    this.barTarget.classList.toggle("hidden", !hasSelection)
-    this.countTarget.textContent = selected.length
+    if (this.hasBarTarget) {
+      this.barTarget.classList.toggle("hidden", !hasSelection)
+    }
+    if (this.hasCountTarget) {
+      this.countTarget.textContent = selected.length
+    }
+    if (this.hasExportButtonTarget) {
+      this.exportButtonTarget.classList.toggle("hidden", !hasSelection)
+    }
   }
 
   copyTracking() {
@@ -92,6 +99,35 @@ export default class extends Controller {
 
     // Trigger open on the tags controller
     tagsController.open(event)
+  }
+
+  exportExcel(event) {
+    const url = event.currentTarget.dataset.url
+    const form = document.createElement("form")
+    form.method = "POST"
+    form.action = url
+    form.style.display = "none"
+
+    const csrfToken = document.querySelector("meta[name='csrf-token']")?.content
+    if (csrfToken) {
+      const input = document.createElement("input")
+      input.type = "hidden"
+      input.name = "authenticity_token"
+      input.value = csrfToken
+      form.appendChild(input)
+    }
+
+    this.selectedData().forEach(d => {
+      const input = document.createElement("input")
+      input.type = "hidden"
+      input.name = "ids[]"
+      input.value = d.id
+      form.appendChild(input)
+    })
+
+    document.body.appendChild(form)
+    form.submit()
+    form.remove()
   }
 
   submitBulkAction(event) {

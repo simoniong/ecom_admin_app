@@ -35,6 +35,9 @@ gem "shopify_api", "~> 14.0"
 # HTTP client for 17Track API
 gem "httparty", "~> 0.22"
 
+# Excel export
+gem "caxlsx", "~> 4.1"
+
 # Country data (ISO 3166)
 gem "countries", "~> 8.0"
 

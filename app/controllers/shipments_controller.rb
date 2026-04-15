@@ -117,6 +117,79 @@ class ShipmentsController < AdminController
     redirect_to shipment_path(id: fulfillment.id), notice: t("shipments.tags.removed_notice")
   end
 
+  def bulk_export
+    ids = sanitize_ids(params[:ids])
+    fulfillments = scoped_fulfillments(ids)
+      .includes(order: [ :customer, :shopify_store ])
+      .order(created_at: :desc)
+
+    tz = ActiveSupport::TimeZone["Asia/Shanghai"]
+
+    package = Axlsx::Package.new
+    package.workbook.add_worksheet(name: "Shipments") do |sheet|
+      header_style = sheet.styles.add_style(b: true, bg_color: "F2F2F2")
+
+      sheet.add_row [
+        t("shipments.export.tracking_number"),
+        t("shipments.export.order_name"),
+        t("shipments.export.status"),
+        t("shipments.export.sub_status"),
+        t("shipments.export.latest_event"),
+        t("shipments.export.origin_carrier"),
+        t("shipments.export.destination_carrier"),
+        t("shipments.export.destination_country"),
+        t("shipments.export.transit_days"),
+        t("shipments.export.tags"),
+        t("shipments.export.shop_name"),
+        t("shipments.export.origin_country"),
+        t("shipments.export.input_time"),
+        t("shipments.export.ordered_time"),
+        t("shipments.export.shipping_time"),
+        t("shipments.export.shopify_order_tag"),
+        t("shipments.export.latest_event_update_time"),
+        t("shipments.export.order_amount"),
+        t("shipments.export.customer_name"),
+        t("shipments.export.customer_email")
+      ], style: header_style
+
+      fulfillments.find_each do |f|
+        order = f.order
+        customer = order.customer
+        store = order.shopify_store
+        sheet.add_row [
+          f.tracking_number,
+          order.name || "##{order.shopify_order_id}",
+          f.tracking_status_display,
+          f.tracking_sub_status&.gsub(/([a-z])([A-Z])/, '\1 \2')&.gsub("_", " "),
+          f.last_event_at.present? && f.latest_event_description.present? ?
+            "#{f.last_event_at.in_time_zone(tz).strftime('%-d %b, %Y %H:%M:%S')}, #{f.latest_event_description}" :
+            nil,
+          f.origin_carrier,
+          f.destination_carrier,
+          f.destination_country,
+          f.transit_days,
+          f.tags&.join(", "),
+          store&.shop_domain&.gsub(".myshopify.com", ""),
+          f.origin_country,
+          f.created_at.in_time_zone(tz).strftime("%Y-%m-%d %H:%M"),
+          order.ordered_at&.in_time_zone(tz)&.strftime("%Y-%m-%d %H:%M"),
+          f.shipped_at&.in_time_zone(tz)&.strftime("%Y-%m-%d %H:%M"),
+          order.shopify_data&.dig("tags"),
+          f.last_event_at&.in_time_zone(tz)&.strftime("%Y-%m-%d %H:%M"),
+          order.total_price.present? ? "#{order.currency} #{order.total_price}" : nil,
+          customer&.full_name,
+          order.email || customer&.email
+        ]
+      end
+    end
+
+    filename = "shipments_#{Time.current.strftime('%Y%m%d_%H%M%S')}.xlsx"
+    send_data package.to_stream.read,
+              filename: filename,
+              type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+              disposition: "attachment"
+  end
+
   def sync
     current_company.shopify_stores.find_each do |store|
       SyncAllShopifyOrdersJob.perform_later(store.id)
