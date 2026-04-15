@@ -1,4 +1,4 @@
-<div class="space-y-4" data-controller="shipment-filter" data-action="click@window->shipment-filter#closeSortDropdown">
+<div class="space-y-4" data-controller="shipment-filter shipment-bulk" data-action="click@window->shipment-filter#closeSortDropdown" data-shipment-bulk-copied-text-value="<%= t("shipments.bulk.copied") %>">
   <%# Header %>
   <div class="flex items-center justify-between">
     <div class="relative" data-controller="dropdown">
@@ -30,13 +30,24 @@
         <% end %>
       </div>
     </div>
-    <%= button_to sync_shipments_path, method: :post,
-        class: "inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-gray-900 rounded-md hover:bg-gray-800" do %>
-      <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182M2.985 14.652" />
-      </svg>
-      <%= t("shipments.sync_orders") %>
-    <% end %>
+    <div class="flex items-center gap-2">
+      <button type="button" data-shipment-bulk-target="exportButton"
+              data-action="click->shipment-bulk#exportExcel"
+              data-url="<%= bulk_export_shipments_path %>"
+              class="hidden inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700">
+        <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+        </svg>
+        <%= t("shipments.bulk.export_excel") %>
+      </button>
+      <%= button_to sync_shipments_path, method: :post,
+          class: "inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-gray-900 rounded-md hover:bg-gray-800" do %>
+        <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182M2.985 14.652" />
+        </svg>
+        <%= t("shipments.sync_orders") %>
+      <% end %>
+    </div>
   </div>
 
   <%# Form wrapping all filters %>
@@ -384,7 +395,6 @@
 
   <%# Table %>
   <% if @shipments.any? %>
-    <div data-controller="shipment-bulk" data-shipment-bulk-copied-text-value="<%= t("shipments.bulk.copied") %>">
     <div class="bg-white rounded-lg border border-gray-200 overflow-x-auto">
       <table class="min-w-full divide-y divide-gray-200">
         <thead class="bg-gray-50">
@@ -670,7 +680,6 @@
          data-shipment-tags-no-tags-text-value="<%= t("shipments.tags.no_tags") %>"
          data-shipment-tags-no-tags-found-text-value="<%= t("shipments.tags.no_tags_found") %>">
       <%= render "shipments/tag_modal" %>
-    </div>
     </div>
 
     <%# Pagination %>
