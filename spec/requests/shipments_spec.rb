@@ -434,11 +434,16 @@ RSpec.describe "Shipments", type: :request do
       post bulk_export_shipments_path, params: { ids: [ other_f.id, own_f.id ] }
 
       expect(response).to have_http_status(:ok)
-      # The file should only contain the user's own shipment, not the other company's
-      xlsx = Axlsx::Package.new
-      io = StringIO.new(response.body)
-      # We can at least verify the response is valid XLSX
-      expect(response.body.bytes.first(4)).to eq("PK\x03\x04".bytes)
+
+      # Parse XLSX and extract all text content to verify data isolation
+      xlsx_content = ""
+      Zip::InputStream.open(StringIO.new(response.body)) do |zip|
+        while (entry = zip.get_next_entry)
+          xlsx_content += entry.get_input_stream.read if entry.name.end_with?(".xml")
+        end
+      end
+      expect(xlsx_content).to include("OWN_EXP")
+      expect(xlsx_content).not_to include("OTHER_EXP")
     end
   end
 

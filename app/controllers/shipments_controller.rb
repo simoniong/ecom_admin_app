@@ -152,7 +152,9 @@ class ShipmentsController < AdminController
         t("shipments.export.customer_email")
       ], style: header_style
 
-      fulfillments.find_each do |f|
+      fmt = "%-d %b, %Y %H:%M"
+
+      fulfillments.each do |f|
         order = f.order
         customer = order.customer
         store = order.shopify_store
@@ -171,12 +173,12 @@ class ShipmentsController < AdminController
           f.tags&.join(", "),
           store&.shop_domain&.gsub(".myshopify.com", ""),
           f.origin_country,
-          f.created_at.in_time_zone(tz).strftime("%Y-%m-%d %H:%M"),
-          order.ordered_at&.in_time_zone(tz)&.strftime("%Y-%m-%d %H:%M"),
-          f.shipped_at&.in_time_zone(tz)&.strftime("%Y-%m-%d %H:%M"),
+          f.created_at.in_time_zone(tz).strftime(fmt),
+          order.ordered_at&.in_time_zone(tz)&.strftime(fmt),
+          f.shipped_at&.in_time_zone(tz)&.strftime(fmt),
           order.shopify_data&.dig("tags"),
-          f.last_event_at&.in_time_zone(tz)&.strftime("%Y-%m-%d %H:%M"),
-          order.total_price.present? ? "#{order.currency} #{order.total_price}" : nil,
+          f.last_event_at&.in_time_zone(tz)&.strftime(fmt),
+          helpers.number_to_currency(order.total_price, unit: order.currency == "USD" ? "$" : "#{order.currency} "),
           customer&.full_name,
           order.email || customer&.email
         ]
