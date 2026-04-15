@@ -30,7 +30,7 @@ gem "omniauth-rails_csrf_protection", "~> 2.0"
 gem "google-apis-gmail_v1", "~> 0.40"
 
 # Shopify Admin API client
-gem "shopify_api", "~> 14.0"
+gem "shopify_api", "~> 16.2"
 
 # HTTP client for 17Track API
 gem "httparty", "~> 0.22"
