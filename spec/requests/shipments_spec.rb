@@ -523,7 +523,7 @@ RSpec.describe "Shipments", type: :request do
 
       get shipments_path, params: { bulk_tracking: "CHIP1\nCHIP2\nCHIP3" }
       expect(response).to have_http_status(:ok)
-      expect(response.body).to include("3")
+      expect(response.body).to include(I18n.t("shipments.bulk_search.active_filter", count: 3))
     end
   end
 

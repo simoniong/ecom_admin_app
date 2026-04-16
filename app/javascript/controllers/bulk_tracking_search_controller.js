@@ -15,26 +15,25 @@ export default class extends Controller {
   }
 
   updateLineCount() {
-    const lines = this.textareaTarget.value.split(/\r?\n/).filter(l => l.trim() !== "")
-    const count = lines.length
-    this.lineCountTarget.textContent = count
-    const hasInput = count > 0
+    const unique = this.uniqueLines()
+    this.lineCountTarget.textContent = unique.length
+    const hasInput = unique.length > 0
     this.searchBtnTarget.disabled = !hasInput
     this.searchBtnTarget.classList.toggle("opacity-50", !hasInput)
     this.searchBtnTarget.classList.toggle("cursor-not-allowed", !hasInput)
   }
 
   submit() {
-    const text = this.textareaTarget.value.trim()
-    if (!text) return
+    const unique = this.uniqueLines()
+    if (unique.length === 0) return
 
-    this.hiddenFieldTarget.value = text
+    this.hiddenFieldTarget.value = unique.join("\n")
     this.close()
     this.hiddenFieldTarget.form.submit()
   }
 
-  clear() {
-    this.hiddenFieldTarget.value = ""
-    this.hiddenFieldTarget.form.submit()
+  uniqueLines() {
+    const lines = this.textareaTarget.value.split(/\r?\n/).map(l => l.trim()).filter(l => l !== "")
+    return [...new Set(lines)]
   }
 }

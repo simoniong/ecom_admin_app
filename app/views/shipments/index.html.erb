@@ -695,13 +695,13 @@
     </div>
 
     <%# Bulk tracking search modal %>
-    <div data-bulk-tracking-search-target="modal" class="hidden fixed inset-0 z-50 flex items-center justify-center">
+    <div data-bulk-tracking-search-target="modal" class="hidden fixed inset-0 z-50 flex items-center justify-center" role="dialog" aria-modal="true" aria-labelledby="bulk-tracking-search-title">
       <div class="fixed inset-0 bg-black/40" data-action="click->bulk-tracking-search#close"></div>
       <div class="relative bg-white rounded-xl shadow-2xl w-full max-w-lg mx-4 flex flex-col">
         <%# Header %>
         <div class="flex items-center justify-between px-6 pt-5 pb-3">
-          <h2 class="text-lg font-semibold text-gray-900"><%= t("shipments.bulk_search.title") %></h2>
-          <button type="button" data-action="click->bulk-tracking-search#close" class="text-gray-400 hover:text-gray-600">
+          <h2 id="bulk-tracking-search-title" class="text-lg font-semibold text-gray-900"><%= t("shipments.bulk_search.title") %></h2>
+          <button type="button" data-action="click->bulk-tracking-search#close" aria-label="<%= t("shipments.bulk_search.close") %>" class="text-gray-400 hover:text-gray-600">
             <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
             </svg>
