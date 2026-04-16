@@ -388,6 +388,15 @@
       export_excel: "导出 Excel"
       archived_notice: "已归档 %{count} 条物流。"
       unarchived_notice: "已取消归档 %{count} 条物流。"
+    bulk_search:
+      button: "批量搜索"
+      tooltip: "双击打开批量搜索运单号"
+      title: "批量运单号搜索"
+      placeholder: "在此粘贴运单号，每行一个..."
+      line_count: "运单号数量"
+      search: "搜索"
+      close: "关闭"
+      active_filter: "批量搜索: %{count} 个运单号"
     export:
       tracking_number: "运单号"
       order_name: "订单号"

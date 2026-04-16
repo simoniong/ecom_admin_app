@@ -492,6 +492,41 @@ RSpec.describe "Shipments", type: :request do
     end
   end
 
+  describe "GET /shipments with bulk_tracking filter" do
+    it "filters by bulk tracking numbers" do
+      order = create(:order, customer: customer, shopify_store: store)
+      create(:fulfillment, order: order, tracking_number: "FOUND1", tracking_status: "InTransit")
+      create(:fulfillment, order: order, tracking_number: "FOUND2", tracking_status: "Delivered")
+      create(:fulfillment, order: order, tracking_number: "OTHER99", tracking_status: "InTransit")
+
+      get shipments_path, params: { bulk_tracking: "FOUND1\nFOUND2" }
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include("FOUND1")
+      expect(response.body).to include("FOUND2")
+      expect(response.body).not_to include("OTHER99")
+    end
+
+    it "shows all shipments when bulk_tracking is empty" do
+      order = create(:order, customer: customer, shopify_store: store)
+      create(:fulfillment, order: order, tracking_number: "ALL1", tracking_status: "InTransit")
+      create(:fulfillment, order: order, tracking_number: "ALL2", tracking_status: "InTransit")
+
+      get shipments_path, params: { bulk_tracking: "" }
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include("ALL1")
+      expect(response.body).to include("ALL2")
+    end
+
+    it "shows active filter chip with tracking count" do
+      order = create(:order, customer: customer, shopify_store: store)
+      create(:fulfillment, order: order, tracking_number: "CHIP1", tracking_status: "InTransit")
+
+      get shipments_path, params: { bulk_tracking: "CHIP1\nCHIP2\nCHIP3" }
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include(I18n.t("shipments.bulk_search.active_filter", count: 3))
+    end
+  end
+
   describe "POST /shipments/sync" do
     it "enqueues sync jobs and redirects" do
       store # ensure store exists
