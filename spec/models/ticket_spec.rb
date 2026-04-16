@@ -81,6 +81,12 @@ RSpec.describe Ticket, type: :model do
       ticket.update!(status: :draft, draft_reply: "existing")
       expect { ticket.submit_draft!("New draft") }.to raise_error(RuntimeError, /new tickets/)
     end
+
+    it "preserves reopened_reason through submit_draft!" do
+      ticket.update!(reopened_reason: "order_shipped")
+      ticket.submit_draft!("Shipping update draft")
+      expect(ticket.reload.reopened_reason).to eq("order_shipped")
+    end
   end
 
   describe "draft_reply validation" do
@@ -151,6 +157,38 @@ RSpec.describe Ticket, type: :model do
       expect(ticket).to be_closed
       expect(ticket.draft_reply).to be_nil
       expect(ticket.draft_reply_at).to be_nil
+    end
+
+    context "reopened_reason preservation" do
+      it "preserves reopened_reason through new_ticket → draft" do
+        ticket.update!(reopened_reason: "order_shipped", draft_reply: "draft")
+        ticket.transition_status!("draft")
+        expect(ticket.reload.reopened_reason).to eq("order_shipped")
+      end
+
+      it "preserves reopened_reason through draft → draft_confirmed" do
+        ticket.update!(status: :draft, draft_reply: "reply", reopened_reason: "order_delivered")
+        ticket.transition_status!("draft_confirmed")
+        expect(ticket.reload.reopened_reason).to eq("order_delivered")
+      end
+
+      it "preserves reopened_reason through draft_confirmed → draft" do
+        ticket.update!(status: :draft_confirmed, draft_reply: "reply", reopened_reason: "order_placed")
+        ticket.transition_status!("draft")
+        expect(ticket.reload.reopened_reason).to eq("order_placed")
+      end
+
+      it "preserves reopened_reason through draft → new_ticket" do
+        ticket.update!(status: :draft, draft_reply: "reply", reopened_reason: "customer_reply")
+        ticket.transition_status!("new_ticket")
+        expect(ticket.reload.reopened_reason).to eq("customer_reply")
+      end
+
+      it "clears reopened_reason when transitioning to closed" do
+        ticket.update!(reopened_reason: "order_shipped")
+        ticket.transition_status!("closed")
+        expect(ticket.reload.reopened_reason).to be_nil
+      end
     end
   end
 
