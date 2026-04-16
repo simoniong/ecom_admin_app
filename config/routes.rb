@@ -70,6 +70,7 @@ Rails.application.routes.draw do
       post :bulk_add_tags, on: :collection
       post :bulk_remove_tags, on: :collection
       post :bulk_export, on: :collection
+      post :bulk_search, on: :collection
       get :available_tags, on: :collection
       post :archive, on: :member
       post :unarchive, on: :member

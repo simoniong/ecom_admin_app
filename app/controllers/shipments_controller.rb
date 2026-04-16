@@ -63,6 +63,30 @@ class ShipmentsController < AdminController
     redirect_to shipments_path(archived: params[:archived]), notice: t("shipments.bulk.unarchived_notice", count: count)
   end
 
+  def bulk_search
+    tracking_numbers = params[:tracking_numbers].to_s.split(/\r?\n/).map(&:strip).reject(&:blank?).uniq
+
+    store_ids = current_company.shopify_stores.pluck(:id)
+    fulfillments = Fulfillment.with_tracking
+      .joins(:order)
+      .where(orders: { shopify_store_id: store_ids })
+      .where(tracking_number: tracking_numbers)
+      .includes(order: [ :customer, :shopify_store ])
+
+    found = fulfillments.index_by(&:tracking_number)
+    results = tracking_numbers.map do |tn|
+      f = found[tn]
+      if f
+        { tracking_number: tn, found: true, fulfillment_id: f.id, order_name: f.order.name || "##{f.order.shopify_order_id}",
+          status: f.tracking_status_display, shop_name: f.order.shopify_store&.shop_domain&.gsub(".myshopify.com", "") }
+      else
+        { tracking_number: tn, found: false }
+      end
+    end
+
+    render json: { results: results, total: tracking_numbers.size, found_count: found.size }
+  end
+
   def bulk_add_tags
     ids = sanitize_ids(params[:ids])
     tags = Array(params[:tags]).map(&:strip).reject(&:blank?).uniq

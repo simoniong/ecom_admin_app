@@ -389,6 +389,14 @@ en:
       export_excel: "Export Excel"
       archived_notice: "%{count} shipment(s) archived."
       unarchived_notice: "%{count} shipment(s) unarchived."
+    bulk_search:
+      button: "Bulk Search"
+      tooltip: "Double-click to bulk search tracking numbers"
+      title: "Bulk Tracking Number Search"
+      placeholder: "Paste tracking numbers here, one per line..."
+      line_count: "Tracking numbers"
+      search: "Search"
+      close: "Close"
     export:
       tracking_number: "Tracking Number"
       order_name: "Order"

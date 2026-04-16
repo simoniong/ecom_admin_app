@@ -492,6 +492,61 @@ RSpec.describe "Shipments", type: :request do
     end
   end
 
+  describe "POST /shipments/bulk_search" do
+    it "returns matching fulfillments as JSON" do
+      order = create(:order, customer: customer, shopify_store: store)
+      create(:fulfillment, order: order, tracking_number: "FOUND1", tracking_status: "InTransit")
+      create(:fulfillment, order: order, tracking_number: "FOUND2", tracking_status: "Delivered")
+
+      post bulk_search_shipments_path, params: { tracking_numbers: "FOUND1\nFOUND2\nMISSING1" }, as: :json
+      expect(response).to have_http_status(:ok)
+
+      data = JSON.parse(response.body)
+      expect(data["total"]).to eq(3)
+      expect(data["found_count"]).to eq(2)
+      expect(data["results"].size).to eq(3)
+
+      found = data["results"].select { |r| r["found"] }
+      not_found = data["results"].reject { |r| r["found"] }
+      expect(found.map { |r| r["tracking_number"] }).to match_array(%w[FOUND1 FOUND2])
+      expect(not_found.first["tracking_number"]).to eq("MISSING1")
+    end
+
+    it "does not return fulfillments from another company" do
+      other_user = create(:user)
+      other_store = create(:shopify_store, user: other_user)
+      other_customer = create(:customer, shopify_store: other_store)
+      other_order = create(:order, customer: other_customer, shopify_store: other_store)
+      create(:fulfillment, order: other_order, tracking_number: "OTHERBULK", tracking_status: "InTransit")
+
+      post bulk_search_shipments_path, params: { tracking_numbers: "OTHERBULK" }, as: :json
+
+      data = JSON.parse(response.body)
+      expect(data["found_count"]).to eq(0)
+      expect(data["results"].first["found"]).to be false
+    end
+
+    it "handles empty input" do
+      post bulk_search_shipments_path, params: { tracking_numbers: "" }, as: :json
+
+      data = JSON.parse(response.body)
+      expect(data["total"]).to eq(0)
+      expect(data["found_count"]).to eq(0)
+      expect(data["results"]).to be_empty
+    end
+
+    it "deduplicates tracking numbers" do
+      order = create(:order, customer: customer, shopify_store: store)
+      create(:fulfillment, order: order, tracking_number: "DUP1", tracking_status: "InTransit")
+
+      post bulk_search_shipments_path, params: { tracking_numbers: "DUP1\nDUP1\nDUP1" }, as: :json
+
+      data = JSON.parse(response.body)
+      expect(data["total"]).to eq(1)
+      expect(data["results"].size).to eq(1)
+    end
+  end
+
   describe "POST /shipments/sync" do
     it "enqueues sync jobs and redirects" do
       store # ensure store exists
