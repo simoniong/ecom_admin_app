@@ -87,6 +87,13 @@ RSpec.describe EmailWorkflowStepJob, type: :job do
           .with(ticket, "Draft a shipping update email")
       end
 
+      it "sets reopened_reason to the workflow trigger_event" do
+        ticket.update!(status: :closed, reopened_reason: nil)
+        workflow.update!(trigger_event: "order_shipped")
+        described_class.perform_now(run.id)
+        expect(ticket.reload.reopened_reason).to eq("order_shipped")
+      end
+
       it "completes the run when it is the last step" do
         described_class.perform_now(run.id)
         expect(run.reload.status).to eq("completed")

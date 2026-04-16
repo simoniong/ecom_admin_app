@@ -39,8 +39,7 @@ class Ticket < ApplicationRecord
     update!(
       draft_reply: content,
       draft_reply_at: Time.current,
-      status: :draft,
-      reopened_reason: nil
+      status: :draft
     )
   end
 
@@ -52,7 +51,7 @@ class Ticket < ApplicationRecord
 
     attrs = { status: new_status }
     attrs[:draft_reply_at] = Time.current if new_status == "draft" && draft_reply_at.nil?
-    attrs[:reopened_reason] = nil unless new_status == "new_ticket"
+    attrs[:reopened_reason] = nil if new_status == "closed"
 
     if new_status == "new_ticket" || new_status == "closed"
       attrs[:draft_reply] = nil

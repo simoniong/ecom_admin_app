@@ -208,6 +208,19 @@ RSpec.describe "Api::V1::Tickets", type: :request do
       expect(ticket.draft_reply_at).to be_present
     end
 
+    it "preserves reopened_reason when submitting draft for workflow-triggered ticket" do
+      ticket = create(:ticket, email_account: email_account, status: :new_ticket, reopened_reason: "order_shipped")
+
+      post "/api/v1/tickets/#{ticket.id}/draft_reply",
+           params: { draft_reply: "Your order has been shipped." },
+           headers: auth_headers
+
+      expect(response).to have_http_status(:ok)
+      body = JSON.parse(response.body)
+      expect(body["reopened_reason"]).to eq("order_shipped")
+      expect(ticket.reload.reopened_reason).to eq("order_shipped")
+    end
+
     it "returns 422 when ticket is not in new or draft status" do
       ticket = create(:ticket, :closed, email_account: email_account)
 
