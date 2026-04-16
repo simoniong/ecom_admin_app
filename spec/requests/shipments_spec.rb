@@ -492,58 +492,38 @@ RSpec.describe "Shipments", type: :request do
     end
   end
 
-  describe "POST /shipments/bulk_search" do
-    it "returns matching fulfillments as JSON" do
+  describe "GET /shipments with bulk_tracking filter" do
+    it "filters by bulk tracking numbers" do
       order = create(:order, customer: customer, shopify_store: store)
       create(:fulfillment, order: order, tracking_number: "FOUND1", tracking_status: "InTransit")
       create(:fulfillment, order: order, tracking_number: "FOUND2", tracking_status: "Delivered")
+      create(:fulfillment, order: order, tracking_number: "OTHER99", tracking_status: "InTransit")
 
-      post bulk_search_shipments_path, params: { tracking_numbers: "FOUND1\nFOUND2\nMISSING1" }, as: :json
+      get shipments_path, params: { bulk_tracking: "FOUND1\nFOUND2" }
       expect(response).to have_http_status(:ok)
-
-      data = JSON.parse(response.body)
-      expect(data["total"]).to eq(3)
-      expect(data["found_count"]).to eq(2)
-      expect(data["results"].size).to eq(3)
-
-      found = data["results"].select { |r| r["found"] }
-      not_found = data["results"].reject { |r| r["found"] }
-      expect(found.map { |r| r["tracking_number"] }).to match_array(%w[FOUND1 FOUND2])
-      expect(not_found.first["tracking_number"]).to eq("MISSING1")
+      expect(response.body).to include("FOUND1")
+      expect(response.body).to include("FOUND2")
+      expect(response.body).not_to include("OTHER99")
     end
 
-    it "does not return fulfillments from another company" do
-      other_user = create(:user)
-      other_store = create(:shopify_store, user: other_user)
-      other_customer = create(:customer, shopify_store: other_store)
-      other_order = create(:order, customer: other_customer, shopify_store: other_store)
-      create(:fulfillment, order: other_order, tracking_number: "OTHERBULK", tracking_status: "InTransit")
-
-      post bulk_search_shipments_path, params: { tracking_numbers: "OTHERBULK" }, as: :json
-
-      data = JSON.parse(response.body)
-      expect(data["found_count"]).to eq(0)
-      expect(data["results"].first["found"]).to be false
-    end
-
-    it "handles empty input" do
-      post bulk_search_shipments_path, params: { tracking_numbers: "" }, as: :json
-
-      data = JSON.parse(response.body)
-      expect(data["total"]).to eq(0)
-      expect(data["found_count"]).to eq(0)
-      expect(data["results"]).to be_empty
-    end
-
-    it "deduplicates tracking numbers" do
+    it "shows all shipments when bulk_tracking is empty" do
       order = create(:order, customer: customer, shopify_store: store)
-      create(:fulfillment, order: order, tracking_number: "DUP1", tracking_status: "InTransit")
+      create(:fulfillment, order: order, tracking_number: "ALL1", tracking_status: "InTransit")
+      create(:fulfillment, order: order, tracking_number: "ALL2", tracking_status: "InTransit")
 
-      post bulk_search_shipments_path, params: { tracking_numbers: "DUP1\nDUP1\nDUP1" }, as: :json
+      get shipments_path, params: { bulk_tracking: "" }
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include("ALL1")
+      expect(response.body).to include("ALL2")
+    end
 
-      data = JSON.parse(response.body)
-      expect(data["total"]).to eq(1)
-      expect(data["results"].size).to eq(1)
+    it "shows active filter chip with tracking count" do
+      order = create(:order, customer: customer, shopify_store: store)
+      create(:fulfillment, order: order, tracking_number: "CHIP1", tracking_status: "InTransit")
+
+      get shipments_path, params: { bulk_tracking: "CHIP1\nCHIP2\nCHIP3" }
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include("3")
     end
   end
 

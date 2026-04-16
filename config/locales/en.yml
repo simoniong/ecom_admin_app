@@ -397,6 +397,7 @@ en:
       line_count: "Tracking numbers"
       search: "Search"
       close: "Close"
+      active_filter: "Bulk search: %{count} tracking numbers"
     export:
       tracking_number: "Tracking Number"
       order_name: "Order"

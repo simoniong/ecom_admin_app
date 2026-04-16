@@ -1,4 +1,4 @@
-<div class="space-y-4" data-controller="shipment-filter shipment-bulk bulk-tracking-search" data-action="click@window->shipment-filter#closeSortDropdown" data-shipment-bulk-copied-text-value="<%= t("shipments.bulk.copied") %>" data-bulk-tracking-search-url-value="<%= bulk_search_shipments_path %>">
+<div class="space-y-4" data-controller="shipment-filter shipment-bulk bulk-tracking-search" data-action="click@window->shipment-filter#closeSortDropdown" data-shipment-bulk-copied-text-value="<%= t("shipments.bulk.copied") %>">
   <%# Header %>
   <div class="flex items-center justify-between">
     <div class="relative" data-controller="dropdown">
@@ -56,6 +56,7 @@
     <input type="hidden" name="status_tab" value="<%= @status_tab || 'All' %>" data-shipment-filter-target="statusTab">
     <input type="hidden" name="sort_field" value="<%= @sort_field %>" data-shipment-filter-target="sortField">
     <input type="hidden" name="sort_direction" value="<%= @sort_direction %>" data-shipment-filter-target="sortDirection">
+    <input type="hidden" name="bulk_tracking" value="<%= @bulk_tracking %>" data-bulk-tracking-search-target="hiddenField">
 
     <%# Status tabs %>
     <div class="flex flex-wrap gap-1 bg-white rounded-lg border border-gray-200 p-2">
@@ -384,6 +385,7 @@
     <% active_filters << ["shipped_to", "Shipped to: #{@shipped_to}"] if @shipped_to %>
     <% active_filters << ["transit_min", "Transit ≥ #{@transit_min}d"] if @transit_min %>
     <% active_filters << ["transit_max", "Transit ≤ #{@transit_max}d"] if @transit_max %>
+    <% active_filters << ["bulk_tracking", t("shipments.bulk_search.active_filter", count: @bulk_tracking_numbers.size)] if @bulk_tracking_numbers.any? %>
     <% if active_filters.any? %>
       <div class="flex flex-wrap items-center gap-2">
         <% active_filters.each do |filter_name, label| %>
@@ -695,7 +697,7 @@
     <%# Bulk tracking search modal %>
     <div data-bulk-tracking-search-target="modal" class="hidden fixed inset-0 z-50 flex items-center justify-center">
       <div class="fixed inset-0 bg-black/40" data-action="click->bulk-tracking-search#close"></div>
-      <div class="relative bg-white rounded-xl shadow-2xl w-full max-w-2xl mx-4 max-h-[85vh] flex flex-col">
+      <div class="relative bg-white rounded-xl shadow-2xl w-full max-w-lg mx-4 flex flex-col">
         <%# Header %>
         <div class="flex items-center justify-between px-6 pt-5 pb-3">
           <h2 class="text-lg font-semibold text-gray-900"><%= t("shipments.bulk_search.title") %></h2>
@@ -710,40 +712,25 @@
         <div class="px-6 pb-3">
           <textarea data-bulk-tracking-search-target="textarea"
                     data-action="input->bulk-tracking-search#updateLineCount"
-                    rows="6"
+                    rows="8"
                     placeholder="<%= t("shipments.bulk_search.placeholder") %>"
                     class="block w-full rounded-lg border border-gray-300 bg-gray-50 text-sm font-mono focus:border-blue-500 focus:ring-blue-500 p-3 resize-y"></textarea>
-          <div class="flex items-center justify-between mt-2">
-            <p class="text-xs text-gray-500">
-              <%= t("shipments.bulk_search.line_count") %>: <span data-bulk-tracking-search-target="lineCount" class="font-medium text-gray-700">0</span>
-            </p>
-            <button type="button" data-action="click->bulk-tracking-search#search"
-                    data-bulk-tracking-search-target="searchBtn"
-                    disabled
-                    class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800 opacity-50 cursor-not-allowed">
-              <svg data-bulk-tracking-search-target="spinner" class="hidden animate-spin w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-              </svg>
-              <%= t("shipments.bulk_search.search") %>
-            </button>
-          </div>
-        </div>
-
-        <div class="border-t border-gray-200"></div>
-
-        <%# Results %>
-        <div class="flex items-center justify-between px-6 py-2">
-          <span data-bulk-tracking-search-target="resultCount" class="hidden text-sm text-gray-600"></span>
-        </div>
-        <div data-bulk-tracking-search-target="results" class="flex-1 overflow-y-auto px-6 pb-4 max-h-[40vh]">
+          <p class="text-xs text-gray-500 mt-2">
+            <%= t("shipments.bulk_search.line_count") %>: <span data-bulk-tracking-search-target="lineCount" class="font-medium text-gray-700">0</span>
+          </p>
         </div>
 
         <%# Footer %>
-        <div class="border-t border-gray-200 flex items-center justify-end px-6 py-4">
+        <div class="border-t border-gray-200 flex items-center justify-end gap-3 px-6 py-4">
           <button type="button" data-action="click->bulk-tracking-search#close"
                   class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
             <%= t("shipments.bulk_search.close") %>
+          </button>
+          <button type="button" data-action="click->bulk-tracking-search#submit"
+                  data-bulk-tracking-search-target="searchBtn"
+                  disabled
+                  class="px-4 py-2 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800 opacity-50 cursor-not-allowed">
+            <%= t("shipments.bulk_search.search") %>
           </button>
         </div>
       </div>

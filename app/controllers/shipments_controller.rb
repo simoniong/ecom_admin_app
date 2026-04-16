@@ -63,30 +63,6 @@ class ShipmentsController < AdminController
     redirect_to shipments_path(archived: params[:archived]), notice: t("shipments.bulk.unarchived_notice", count: count)
   end
 
-  def bulk_search
-    tracking_numbers = params[:tracking_numbers].to_s.split(/\r?\n/).map(&:strip).reject(&:blank?).uniq
-
-    store_ids = current_company.shopify_stores.pluck(:id)
-    fulfillments = Fulfillment.with_tracking
-      .joins(:order)
-      .where(orders: { shopify_store_id: store_ids })
-      .where(tracking_number: tracking_numbers)
-      .includes(order: [ :customer, :shopify_store ])
-
-    found = fulfillments.index_by(&:tracking_number)
-    results = tracking_numbers.map do |tn|
-      f = found[tn]
-      if f
-        { tracking_number: tn, found: true, fulfillment_id: f.id, order_name: f.order.name || "##{f.order.shopify_order_id}",
-          status: f.tracking_status_display, shop_name: f.order.shopify_store&.shop_domain&.gsub(".myshopify.com", "") }
-      else
-        { tracking_number: tn, found: false }
-      end
-    end
-
-    render json: { results: results, total: tracking_numbers.size, found_count: found.size }
-  end
-
   def bulk_add_tags
     ids = sanitize_ids(params[:ids])
     tags = Array(params[:tags]).map(&:strip).reject(&:blank?).uniq
@@ -279,8 +255,13 @@ class ShipmentsController < AdminController
     @transit_min = params[:transit_min].presence
     @transit_max = params[:transit_max].presence
     @tag_filters = Array(params[:tags]).reject(&:blank?)
+    @bulk_tracking = params[:bulk_tracking].to_s.strip.presence
+    @bulk_tracking_numbers = @bulk_tracking&.split(/\r?\n/)&.map(&:strip)&.reject(&:blank?)&.uniq || []
 
     @filtered_scope = @base_scope
+    if @bulk_tracking_numbers.any?
+      @filtered_scope = @filtered_scope.where(tracking_number: @bulk_tracking_numbers)
+    end
     @filtered_scope = @filtered_scope.search_by(@search) if @search
     @filtered_scope = @filtered_scope.by_destination(@destination) if @destination
     @filtered_scope = @filtered_scope.by_origin_carrier(@origin_carrier_filter) if @origin_carrier_filter

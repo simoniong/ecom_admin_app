@@ -397,6 +397,7 @@
       line_count: "運單號數量"
       search: "搜尋"
       close: "關閉"
+      active_filter: "批量搜尋: %{count} 個運單號"
     export:
       tracking_number: "運單號"
       order_name: "訂單號"
