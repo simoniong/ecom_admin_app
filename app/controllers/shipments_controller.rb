@@ -1,6 +1,7 @@
 class ShipmentsController < AdminController
   PER_PAGE_DEFAULT = 25
   PER_PAGE_OPTIONS = [ 25, 50, 100, 200, 300, 500 ].freeze
+  BULK_TRACKING_MAX = 500
   SORTABLE_COLUMNS = %w[created_at last_event_at shipped_at transit_days].freeze
   SORT_COLUMN_MAP = {
     "input_time" => "fulfillments.created_at",
@@ -255,8 +256,13 @@ class ShipmentsController < AdminController
     @transit_min = params[:transit_min].presence
     @transit_max = params[:transit_max].presence
     @tag_filters = Array(params[:tags]).reject(&:blank?)
+    @bulk_tracking = params[:bulk_tracking].to_s.strip.presence
+    @bulk_tracking_numbers = @bulk_tracking&.split(/\r?\n/)&.map(&:strip)&.reject(&:blank?)&.uniq&.first(BULK_TRACKING_MAX) || []
 
     @filtered_scope = @base_scope
+    if @bulk_tracking_numbers.any?
+      @filtered_scope = @filtered_scope.where(tracking_number: @bulk_tracking_numbers)
+    end
     @filtered_scope = @filtered_scope.search_by(@search) if @search
     @filtered_scope = @filtered_scope.by_destination(@destination) if @destination
     @filtered_scope = @filtered_scope.by_origin_carrier(@origin_carrier_filter) if @origin_carrier_filter

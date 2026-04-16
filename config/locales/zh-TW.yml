@@ -389,6 +389,15 @@
       export_excel: "匯出 Excel"
       archived_notice: "已歸檔 %{count} 筆物流。"
       unarchived_notice: "已取消歸檔 %{count} 筆物流。"
+    bulk_search:
+      button: "批量搜尋"
+      tooltip: "雙擊開啟批量搜尋運單號"
+      title: "批量運單號搜尋"
+      placeholder: "在此貼上運單號，每行一個..."
+      line_count: "運單號數量"
+      search: "搜尋"
+      close: "關閉"
+      active_filter: "批量搜尋: %{count} 個運單號"
     export:
       tracking_number: "運單號"
       order_name: "訂單號"
