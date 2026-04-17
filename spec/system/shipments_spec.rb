@@ -228,9 +228,12 @@ RSpec.describe "Shipments", type: :system do
       expect(page).to have_text("Los Angeles")
     end
 
-    it "navigates back to index via back button" do
-      visit shipment_path(id: detailed_shipment.id)
-      find("a[href='#{shipments_path}']", match: :first).click
+    it "navigates back in browser history via back button" do
+      visit shipments_path
+      click_link "DETAIL123"
+      expect(page).to have_current_path(shipment_path(id: detailed_shipment.id))
+
+      find("button[aria-label='#{I18n.t('shipments.show.back')}']").click
       expect(page).to have_current_path(shipments_path)
     end
   end
