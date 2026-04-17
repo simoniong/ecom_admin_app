@@ -173,5 +173,47 @@ RSpec.describe ShippingReminderRule, type: :model do
         expect(results).to contain_exactly(match_exception, match_expired)
       end
     end
+
+    context "excludes archived fulfillments" do
+      it "skips archived fulfillments for not_delivered rule" do
+        rule = create(:shipping_reminder_rule, company: company, rule_type: "not_delivered",
+                      country_thresholds: [ { "country" => "US", "days" => 14 } ])
+        create(:fulfillment, order: order, tracking_number: "A1",
+               destination_country: "US", shipped_at: 20.days.ago,
+               tracking_status: "InTransit", archived_at: Time.current)
+
+        expect(rule.matching_fulfillments([ store.id ])).to be_empty
+      end
+
+      it "skips archived fulfillments for without_updates rule" do
+        rule = create(:shipping_reminder_rule, company: company, rule_type: "without_updates",
+                      country_thresholds: [ { "country" => "US", "days" => 7 } ])
+        create(:fulfillment, order: order, tracking_number: "A1",
+               destination_country: "US", last_event_at: 10.days.ago,
+               tracking_status: "InTransit", archived_at: Time.current)
+
+        expect(rule.matching_fulfillments([ store.id ])).to be_empty
+      end
+
+      it "skips archived fulfillments for ready_for_pickup rule" do
+        rule = create(:shipping_reminder_rule, company: company, rule_type: "ready_for_pickup",
+                      country_thresholds: [ { "country" => "US", "days" => 3 } ])
+        create(:fulfillment, order: order, tracking_number: "A1",
+               destination_country: "US", last_event_at: 5.days.ago,
+               tracking_status: "AvailableForPickup", archived_at: Time.current)
+
+        expect(rule.matching_fulfillments([ store.id ])).to be_empty
+      end
+
+      it "skips archived fulfillments for tracking_stopped rule" do
+        rule = create(:shipping_reminder_rule, company: company, rule_type: "tracking_stopped",
+                      country_thresholds: [ { "country" => "US" } ])
+        create(:fulfillment, order: order, tracking_number: "A1",
+               destination_country: "US", tracking_status: "Exception",
+               archived_at: Time.current)
+
+        expect(rule.matching_fulfillments([ store.id ])).to be_empty
+      end
+    end
   end
 end

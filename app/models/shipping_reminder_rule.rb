@@ -72,6 +72,7 @@ class ShippingReminderRule < ApplicationRecord
 
   def query_tracking_stopped(countries, store_ids)
     Fulfillment.with_tracking
+               .active
                .joins(:order)
                .where(orders: { shopify_store_id: store_ids })
                .where(destination_country: countries)
@@ -82,6 +83,7 @@ class ShippingReminderRule < ApplicationRecord
   def query_for_threshold(country, days, store_ids)
     cutoff = days.days.ago
     base = Fulfillment.with_tracking
+                      .active
                       .joins(:order)
                       .where(orders: { shopify_store_id: store_ids })
                       .where(destination_country: country)
