@@ -149,6 +149,7 @@
       reset_to_new: "退回新工單"
       close_ticket: "關閉工單"
       close_confirm_tap: "再按一次確認關閉"
+      reopen_ticket: "重開工單"
     reopened_reasons:
       customer_inquiry: "顧客查詢"
       customer_reply: "顧客回覆"

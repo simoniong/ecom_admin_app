@@ -395,6 +395,22 @@ RSpec.describe "Tickets", type: :request do
       expect(ticket.reload).to be_closed
     end
 
+    it "allows closed → new_ticket via JSON (reopen via drag)" do
+      ticket = create(:ticket, email_account: email_account, status: :closed)
+      sign_in user
+      patch ticket_path(id: ticket.id), params: { ticket: { status: "new_ticket" } }, as: :json
+      expect(response).to have_http_status(:ok)
+      expect(ticket.reload).to be_new_ticket
+    end
+
+    it "allows closed → new_ticket via HTML (reopen button)" do
+      ticket = create(:ticket, email_account: email_account, status: :closed)
+      sign_in user
+      patch ticket_path(id: ticket.id), params: { ticket: { status: "new_ticket" } }
+      expect(response).to redirect_to(ticket_path(id: ticket.id))
+      expect(ticket.reload).to be_new_ticket
+    end
+
     it "transitions status with position_ids (cross-lane drag)" do
       ticket = create(:ticket, :draft, email_account: email_account)
       other = create(:ticket, :draft_confirmed, email_account: email_account)

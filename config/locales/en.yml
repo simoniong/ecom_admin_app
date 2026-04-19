@@ -149,6 +149,7 @@ en:
       reset_to_new: "Reset to New"
       close_ticket: "Close Ticket"
       close_confirm_tap: "Tap again to close"
+      reopen_ticket: "Reopen Ticket"
     reopened_reasons:
       customer_inquiry: "Customer Inquiry"
       customer_reply: "Customer Reply"
