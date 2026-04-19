@@ -1,5 +1,23 @@
 class CompaniesController < AdminController
-  before_action :require_owner!
+  skip_before_action :set_current_company, only: [ :new, :create ]
+  skip_before_action :authorize_page!, only: [ :new, :create ]
+  before_action :require_owner!, only: [ :edit, :update, :update_tracking ]
+  before_action :require_company_creator!, only: [ :new, :create ]
+
+  def new
+    @company = Company.new(locale: I18n.default_locale.to_s)
+  end
+
+  def create
+    @company = Company.new(create_params)
+    if @company.valid?
+      result = Companies::CreateWithOwner.new(current_user, create_params.to_h).call
+      session[:company_id] = result.company.id
+      redirect_to authenticated_root_path, notice: t("companies.created")
+    else
+      render :new, status: :unprocessable_entity
+    end
+  end
 
   def edit
     @company = current_company
@@ -31,7 +49,17 @@ class CompaniesController < AdminController
     end
   end
 
+  def require_company_creator!
+    unless current_user&.can_create_companies?
+      redirect_to authenticated_root_path, alert: t("companies.no_permission")
+    end
+  end
+
   def general_params
+    params.require(:company).permit(:name, :locale)
+  end
+
+  def create_params
     params.require(:company).permit(:name, :locale)
   end
 
