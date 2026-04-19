@@ -10,11 +10,16 @@
   <%# Header %>
   <div class="flex items-center justify-between">
     <div class="flex items-center gap-3">
-      <%= link_to shipments_path, class: "text-gray-400 hover:text-gray-600", aria: { label: t("shipments.show.back") } do %>
+      <button type="button"
+              class="text-gray-400 hover:text-gray-600"
+              aria-label="<%= t("shipments.show.back") %>"
+              data-controller="history-back"
+              data-history-back-fallback-url-value="<%= shipments_path %>"
+              data-action="click->history-back#back">
         <svg class="w-5 h-5" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
         </svg>
-      <% end %>
+      </button>
       <div>
         <h1 class="text-2xl font-semibold text-gray-900 font-mono"><%= @fulfillment.tracking_number %></h1>
         <p class="text-sm text-gray-500"><%= t("shipments.show.carrier_label", carrier: @fulfillment.tracking_company.presence || "—") %></p>
