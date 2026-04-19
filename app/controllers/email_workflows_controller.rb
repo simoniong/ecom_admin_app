@@ -46,7 +46,7 @@ class EmailWorkflowsController < AdminController
   private
 
   def set_shopify_store
-    @shopify_store = current_company.shopify_stores.find(params[:shopify_store_id])
+    @shopify_store = visible_shopify_stores.find(params[:shopify_store_id])
   end
 
   def set_workflow

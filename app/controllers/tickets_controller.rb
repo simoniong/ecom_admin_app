@@ -2,7 +2,7 @@ class TicketsController < AdminController
   before_action :set_ticket, only: [ :show, :update, :search_customers, :link_customer, :instruct_agent ]
 
   def index
-    tickets = Ticket.for_company(current_company).includes(:email_account, :customer)
+    tickets = visible_tickets.includes(:email_account, :customer)
 
     search_query = params[:q].to_s
     if search_query.present?
@@ -35,7 +35,7 @@ class TicketsController < AdminController
     results = []
 
     if query.length >= 2
-      stores = current_company.shopify_stores
+      stores = visible_shopify_stores
       customers = Customer.where(shopify_store: stores)
         .left_joins(:orders)
         .where(
@@ -82,7 +82,7 @@ class TicketsController < AdminController
 
   def link_customer
     customer_id = params[:customer_id]
-    stores = current_company.shopify_stores
+    stores = visible_shopify_stores
     customer = Customer.where(shopify_store: stores).find(customer_id)
 
     @ticket.update!(customer: customer, customer_name: customer.full_name, customer_email: customer.email)
@@ -122,7 +122,7 @@ class TicketsController < AdminController
     @ticket.transition_status!(params.dig(:ticket, :status))
 
     if params.dig(:ticket, :position_ids).present?
-      Ticket.for_company(current_company).reorder_positions!(params.dig(:ticket, :position_ids))
+      visible_tickets.reorder_positions!(params.dig(:ticket, :position_ids))
     end
 
     respond_to do |format|
@@ -142,7 +142,7 @@ class TicketsController < AdminController
   end
 
   def handle_reorder
-    Ticket.for_company(current_company).reorder_positions!(params.dig(:ticket, :position_ids))
+    visible_tickets.reorder_positions!(params.dig(:ticket, :position_ids))
 
     respond_to do |format|
       format.json { render json: { success: true }, status: :ok }
@@ -168,7 +168,7 @@ class TicketsController < AdminController
   end
 
   def set_ticket
-    @ticket = Ticket.for_company(current_company).includes(customer: { orders: :fulfillments }).find(params[:id])
+    @ticket = visible_tickets.includes(customer: { orders: :fulfillments }).find(params[:id])
   end
 
   def ticket_params

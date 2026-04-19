@@ -18,6 +18,7 @@ class Ticket < ApplicationRecord
   scope :by_position, -> { order(position: :asc, last_message_at: :desc) }
   scope :for_user, ->(user) { joins(:email_account).where(email_accounts: { user_id: user.id }) }
   scope :for_company, ->(company) { joins(:email_account).where(email_accounts: { company_id: company.id }) }
+  scope :for_group, ->(group) { joins(:email_account).where(email_accounts: { group_id: group.id }) }
 
   def self.reorder_positions!(ticket_ids)
     transaction do

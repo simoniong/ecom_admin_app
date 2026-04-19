@@ -24,7 +24,7 @@ class ShipmentsController < AdminController
   end
 
   def show
-    store_ids = current_company.shopify_stores.pluck(:id)
+    store_ids = visible_shopify_stores.pluck(:id)
     @fulfillment = Fulfillment.with_tracking
       .joins(:order)
       .where(orders: { shopify_store_id: store_ids })
@@ -93,7 +93,7 @@ class ShipmentsController < AdminController
   end
 
   def available_tags
-    store_ids = current_company.shopify_stores.pluck(:id)
+    store_ids = visible_shopify_stores.pluck(:id)
     subquery = Fulfillment.with_tracking
       .joins(:order)
       .where(orders: { shopify_store_id: store_ids })
@@ -196,7 +196,7 @@ class ShipmentsController < AdminController
   end
 
   def sync
-    current_company.shopify_stores.find_each do |store|
+    visible_shopify_stores.find_each do |store|
       SyncAllShopifyOrdersJob.perform_later(store.id)
     end
 
@@ -220,12 +220,12 @@ class ShipmentsController < AdminController
   end
 
   def find_fulfillment
-    store_ids = current_company.shopify_stores.pluck(:id)
+    store_ids = visible_shopify_stores.pluck(:id)
     Fulfillment.joins(:order).where(orders: { shopify_store_id: store_ids }).find(params[:id])
   end
 
   def scoped_fulfillments(ids)
-    store_ids = current_company.shopify_stores.pluck(:id)
+    store_ids = visible_shopify_stores.pluck(:id)
     Fulfillment.where(id: ids).joins(:order).where(orders: { shopify_store_id: store_ids })
   end
 
@@ -237,7 +237,7 @@ class ShipmentsController < AdminController
     if current_shopify_store
       @base_scope = @base_scope.by_store(current_shopify_store.id)
     else
-      store_ids = current_company.shopify_stores.pluck(:id)
+      store_ids = visible_shopify_stores.pluck(:id)
       @base_scope = @base_scope.joins(:order).where(orders: { shopify_store_id: store_ids })
     end
   end
@@ -342,7 +342,7 @@ class ShipmentsController < AdminController
     @destinations = @base_scope.where.not(destination_country: [ nil, "" ]).distinct.pluck(:destination_country).sort
     @origin_carriers = @base_scope.where.not(origin_carrier: [ nil, "" ]).distinct.pluck(:origin_carrier).sort
     @destination_carriers = @base_scope.where.not(destination_carrier: [ nil, "" ]).distinct.pluck(:destination_carrier).sort
-    @stores = current_company.shopify_stores
+    @stores = visible_shopify_stores
     subquery = @base_scope.where("tags IS NOT NULL AND tags != '{}'::varchar[]").select(:tags).to_sql
     @available_tags = Fulfillment.connection.select_values(
       "SELECT DISTINCT unnest(tags) AS tag FROM (#{subquery}) AS t ORDER BY tag"

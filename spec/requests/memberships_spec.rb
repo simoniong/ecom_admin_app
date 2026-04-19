@@ -117,4 +117,61 @@ RSpec.describe "Memberships", type: :request do
       expect(response).to redirect_to(authenticated_root_path)
     end
   end
+
+  describe "PATCH /memberships/:id group and role changes" do
+    let(:group_a) { create(:group, company: company, name: "Sales") }
+    let(:group_b) { create(:group, company: company, name: "Support") }
+
+    it "moves a member from one group to another" do
+      member_membership.update!(group: group_a)
+      patch membership_path(id: member_membership.id), params: {
+        membership: { role: "member", group_id: group_b.id, permissions: %w[orders] }
+      }
+      expect(response).to redirect_to(invitations_path)
+      expect(member_membership.reload.group).to eq(group_b)
+    end
+
+    it "promotes a member to owner and clears the group" do
+      member_membership.update!(group: group_a)
+      patch membership_path(id: member_membership.id), params: {
+        membership: { role: "owner", group_id: group_b.id }
+      }
+      expect(response).to redirect_to(invitations_path)
+      expect(member_membership.reload).to be_owner
+      expect(member_membership.group).to be_nil
+    end
+
+    it "demotes an owner to a member with a group assigned" do
+      other_owner_user = create(:user)
+      other_owner = create(:membership, company: company, user: other_owner_user, role: :owner)
+
+      patch membership_path(id: other_owner.id), params: {
+        membership: { role: "member", group_id: group_a.id, permissions: %w[orders] }
+      }
+      expect(response).to redirect_to(invitations_path)
+      expect(other_owner.reload).to be_member
+      expect(other_owner.group).to eq(group_a)
+    end
+
+    it "rejects a member update without a group when company has groups" do
+      _ = group_a # ensure group exists
+      member_membership.update!(group: create(:group, company: company))
+      patch membership_path(id: member_membership.id), params: {
+        membership: { role: "member", group_id: "", permissions: %w[orders] }
+      }
+      expect(response).to have_http_status(:unprocessable_content)
+    end
+
+    it "leaves resources behind when a user is moved between groups" do
+      member_membership.update!(group: group_a)
+      store = create(:shopify_store, company: company, user: member_user, group: group_a)
+
+      patch membership_path(id: member_membership.id), params: {
+        membership: { role: "member", group_id: group_b.id, permissions: %w[shopify_stores] }
+      }
+
+      expect(store.reload.group).to eq(group_a)
+      expect(member_membership.reload.group).to eq(group_b)
+    end
+  end
 end

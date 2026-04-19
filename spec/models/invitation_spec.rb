@@ -70,4 +70,62 @@ RSpec.describe Invitation, type: :model do
       expect(invitation.accepted?).to be true
     end
   end
+
+  describe "group assignment rules" do
+    let(:company) { create(:company) }
+    let(:invited_by) { create(:user) }
+
+    it "rejects an owner invitation with a group" do
+      group = create(:group, company: company)
+      invitation = build(:invitation, company: company, invited_by: invited_by, role: :owner, group: group)
+      expect(invitation).not_to be_valid
+      expect(invitation.errors[:group_id]).to be_present
+    end
+
+    it "allows a member invitation with no group when the company has no groups" do
+      invitation = build(:invitation, company: company, invited_by: invited_by, role: :member, group: nil)
+      expect(invitation).to be_valid
+    end
+
+    it "rejects a member invitation with no group when the company has at least one group" do
+      create(:group, company: company)
+      invitation = build(:invitation, company: company, invited_by: invited_by, role: :member, group: nil)
+      expect(invitation).not_to be_valid
+      expect(invitation.errors[:group_id]).to be_present
+    end
+
+    it "rejects a group from a different company" do
+      other_group = create(:group, company: create(:company))
+      invitation = build(:invitation, company: company, invited_by: invited_by, role: :member, group: other_group)
+      expect(invitation).not_to be_valid
+      expect(invitation.errors[:group_id]).to be_present
+    end
+  end
+
+  describe "#accept! with group" do
+    it "propagates the group to the created membership for a member invitation" do
+      company = create(:company)
+      group = create(:group, company: company)
+      invitation = create(:invitation, company: company, role: :member, permissions: %w[orders], group: group)
+      user = create(:user)
+
+      invitation.accept!(user)
+
+      membership = user.membership_for(company)
+      expect(membership).to be_member
+      expect(membership.group).to eq(group)
+    end
+
+    it "ignores group on an owner invitation" do
+      company = create(:company)
+      invitation = create(:invitation, company: company, role: :owner, permissions: [], group: nil)
+      user = create(:user)
+
+      invitation.accept!(user)
+
+      membership = user.membership_for(company)
+      expect(membership).to be_owner
+      expect(membership.group).to be_nil
+    end
+  end
 end

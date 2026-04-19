@@ -50,6 +50,29 @@ RSpec.describe "ShopifyOauth", type: :request do
       get shopify_auth_path, params: { shop: "test.myshopify.com" }
       expect(response).to redirect_to(shopify_stores_path)
     end
+
+    context "when the company has groups" do
+      let(:company) { user.companies.first }
+      let!(:group) { create(:group, company: company, name: "Sales") }
+
+      before do
+        allow(ENV).to receive(:[]).and_call_original
+        allow(ENV).to receive(:[]).with("SHOPIFY_CLIENT_ID").and_return("test-client-id")
+        sign_in user
+      end
+
+      it "redirects with an alert when owner omits group_id" do
+        get shopify_auth_path, params: { shop: "test.myshopify.com" }
+        expect(response).to redirect_to(shopify_stores_path)
+        expect(flash[:alert]).to be_present
+      end
+
+      it "stores pending_binding_group_id when owner supplies group_id" do
+        get shopify_auth_path, params: { shop: "test.myshopify.com", group_id: group.id }
+        expect(response.location).to include("test.myshopify.com/admin/oauth/authorize")
+        expect(session[:pending_binding_group_id]).to eq(group.id)
+      end
+    end
   end
 
   describe "GET /shopify/callback" do

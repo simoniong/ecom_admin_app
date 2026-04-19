@@ -1,5 +1,16 @@
 class MetaOauthController < AdminController
   def auth
+    if company_has_groups?
+      group = resolve_binding_group(params[:group_id])
+      if group.nil?
+        redirect_to ad_accounts_path, alert: t("ad_accounts.group_required")
+        return
+      end
+      session[:pending_binding_group_id] = group.id
+    else
+      session.delete(:pending_binding_group_id)
+    end
+
     state = SecureRandom.hex(24)
     session[:meta_oauth_state] = state
 
@@ -57,11 +68,13 @@ class MetaOauthController < AdminController
       return
     end
 
+    pending_group_id = session.delete(:pending_binding_group_id)
     account_ids.each do |acct_id|
       name = params.dig(:account_names, acct_id)
       timezone = params.dig(:account_timezones, acct_id)
       ad_account = current_company.ad_accounts.find_or_initialize_by(platform: "meta", account_id: "act_#{acct_id}")
       ad_account.user = current_user
+      ad_account.group_id = pending_group_id if ad_account.new_record? && pending_group_id.present?
       validated_tz = ActiveSupport::TimeZone[timezone.to_s] ? timezone : "UTC"
       ad_account.assign_attributes(account_name: name, access_token: token, token_expires_at: expires_at, timezone: validated_tz)
       ad_account.save!

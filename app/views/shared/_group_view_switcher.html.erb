@@ -1,0 +1,25 @@
+<% if current_membership&.owner? && company_has_groups? %>
+  <div class="flex items-center gap-2 mb-4">
+    <label class="text-sm font-medium text-gray-500"><%= t("group_view_switcher.label") %></label>
+    <%= form_tag url_for(only_path: true), method: :get, class: "inline" do %>
+      <% request.query_parameters.except("group_id", "authenticity_token", "utf8").each do |key, value| %>
+        <% if value.is_a?(Array) %>
+          <% value.each { |v| %><%= hidden_field_tag "#{key}[]", v %><% } %>
+        <% else %>
+          <%= hidden_field_tag key, value %>
+        <% end %>
+      <% end %>
+      <%= select_tag :group_id,
+          options_for_select(
+            [ [ t("group_view_switcher.all"), "all" ] ] + current_company.groups.order(:name).map { |g| [ g.name, g.id ] },
+            selected_view_group&.id || "all"
+          ),
+          onchange: "this.form.submit()",
+          class: "px-3 py-1.5 bg-white text-sm text-gray-700 border border-gray-300 rounded-md focus:border-gray-900 focus:ring-gray-900" %>
+    <% end %>
+  </div>
+<% elsif current_group.present? %>
+  <div class="mb-4 text-sm text-gray-500">
+    <%= t("group_view_switcher.viewing_group", name: current_group.name) %>
+  </div>
+<% end %>

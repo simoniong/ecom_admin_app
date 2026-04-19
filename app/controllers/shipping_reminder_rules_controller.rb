@@ -48,7 +48,7 @@ class ShippingReminderRulesController < AdminController
   end
 
   def load_country_options
-    store_ids = current_company.shopify_stores.pluck(:id)
+    store_ids = visible_shopify_stores.pluck(:id)
     @top_countries = Fulfillment.joins(:order)
                                 .where(orders: { shopify_store_id: store_ids })
                                 .where.not(destination_country: [ nil, "" ])

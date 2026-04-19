@@ -31,6 +31,30 @@ RSpec.describe "MetaOauth", type: :request do
       get meta_auth_path
       expect(response).to redirect_to(new_user_session_path)
     end
+
+    context "when the company has groups" do
+      let(:company) { user.companies.first }
+      let!(:group) { create(:group, company: company, name: "Sales") }
+
+      before do
+        allow(ENV).to receive(:[]).and_call_original
+        allow(ENV).to receive(:[]).with("META_APP_ID").and_return("test-app-id")
+        allow(ENV).to receive(:[]).with("META_APP_SECRET").and_return("test-app-secret")
+        sign_in user
+      end
+
+      it "redirects with an alert when owner omits group_id" do
+        get meta_auth_path
+        expect(response).to redirect_to(ad_accounts_path)
+        expect(flash[:alert]).to be_present
+      end
+
+      it "stores pending_binding_group_id when owner supplies group_id" do
+        get meta_auth_path, params: { group_id: group.id }
+        expect(response.location).to include("facebook.com")
+        expect(session[:pending_binding_group_id]).to eq(group.id)
+      end
+    end
   end
 
   describe "GET /meta/callback" do
