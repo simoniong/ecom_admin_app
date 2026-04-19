@@ -6,9 +6,16 @@ class ProcessTrackingWebhookJob < ApplicationJob
     return if tracking_number.blank?
 
     fulfillments = Fulfillment.where(tracking_number: tracking_number)
+      .includes(order: { shopify_store: :company })
     return if fulfillments.empty?
 
-    results = TrackingService.new.track([ tracking_number ])
+    company = fulfillments
+      .map { |f| f.order&.shopify_store&.company }
+      .compact
+      .find(&:tracking_enabled?)
+    return unless company
+
+    results = TrackingService.new(api_key: company.tracking_api_key).track([ tracking_number ])
     result = results.find { |r| r[:tracking_number] == tracking_number }
     return unless result
 

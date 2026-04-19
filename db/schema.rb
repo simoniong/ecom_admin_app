@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_04_13_110000) do
+ActiveRecord::Schema[8.1].define(version: 2026_04_19_110312) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -92,6 +92,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_13_110000) do
     t.datetime "created_at", null: false
     t.string "locale", default: "en", null: false
     t.string "name", null: false
+    t.text "tracking_api_key"
+    t.integer "tracking_backfill_days"
+    t.boolean "tracking_enabled", default: false, null: false
+    t.string "tracking_mode"
+    t.datetime "tracking_starts_at"
     t.datetime "updated_at", null: false
   end
 

@@ -1,4 +1,6 @@
 class ShipmentsController < AdminController
+  before_action :require_tracking_enabled!
+
   PER_PAGE_DEFAULT = 25
   PER_PAGE_OPTIONS = [ 25, 50, 100, 200, 300, 500 ].freeze
   BULK_TRACKING_MAX = 500

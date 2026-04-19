@@ -2,6 +2,16 @@
   activerecord:
     errors:
       models:
+        company:
+          attributes:
+            tracking_api_key:
+              required_when_enabled: "請輸入 17Track API Key 以啟用追蹤。"
+              invalid_format: "必須為 32 位字母數字的 17Track API Key。"
+            tracking_mode:
+              required_with_api_key: "保存 API Key 前請先選擇追蹤範圍。"
+              forbidden_without_api_key: "追蹤範圍必須與 API Key 同時設定。"
+            tracking_backfill_days:
+              only_with_backfill_mode: "僅當追蹤範圍為回補歷史訂單時才能設定天數。"
         email_account:
           send_window_invalid: "結束時間必須晚於開始時間。"
   app_name: "Ecom Admin"
@@ -478,13 +488,47 @@
       removed_notice: "標籤刪除成功。"
   companies:
     title: "公司設定"
+    general_section: "基本資訊"
     name: "公司名稱"
     save: "保存"
+    save_general: "保存公司資訊"
+    save_tracking: "保存追蹤設定"
+    tracking_updated: "追蹤設定已更新。"
     locale: "郵件語言"
     locale_hint: "用於自動發送的郵件通知（如物流提醒）的語言。"
+    tracking_section: "物流追蹤"
+    tracking_enabled_label: "啟用物流追蹤"
+    tracking_enabled_hint: "關閉可暫停追蹤；已保存的 API Key 和範圍不會遺失。"
+    tracking_api_key: "17Track API Key"
+    tracking_api_key_hint: "用於查詢本公司所有店鋪訂單的物流追蹤資訊。留空可保留已保存的 Key。"
+    tracking_api_key_placeholder_set: "••••••••（留空以保持不變）"
+    tracking_api_key_placeholder_unset: "請輸入 17Track API Key"
+    tracking_status_label: "狀態"
+    tracking_status:
+      active: "已啟用"
+      paused: "已暫停"
+    tracking_mode_label: "追蹤範圍"
+    tracking_starts_at_label: "起始時間"
+    tracking_starts_at_unbounded: "全部歷史訂單"
+    tracking_mode_select: "追蹤範圍"
+    tracking_mode_select_hint: "僅在輸入新的 API Key 時生效；保存後不可修改。"
+    tracking_mode_lock_hint: "追蹤範圍已鎖定。如需修改，請輸入新的 API Key。"
+    tracking_backfill_days_label: "回補視窗（天）"
+    tracking_backfill_days_suffix: "天"
+    tracking_backfill_all_label: "追蹤全部歷史訂單（忽略天數限制）"
+    tracking_mode:
+      new_only: "僅追蹤新訂單"
+      backfill: "回補過去 %{days} 天 + 新訂單"
+      backfill_label: "回補歷史訂單 + 新訂單"
+      backfill_all: "回補全部歷史訂單 + 新訂單"
+    tracking_mode_hint:
+      new_only: "保存後才建立的訂單才會進入追蹤。"
+      backfill: "同時追蹤下方設定視窗內下單的訂單。"
     updated: "公司資訊更新成功。"
     no_company: "未找到公司，請聯繫管理員。"
     no_permission: "您沒有權限訪問此頁面。"
+    tracking_disabled_owner: "請先在公司設定中啟用物流追蹤。"
+    tracking_disabled_member: "物流追蹤未啟用，請聯繫公司管理員開啟。"
     manage_members: "管理成員與邀請"
   invitations:
     title: "成員與邀請"

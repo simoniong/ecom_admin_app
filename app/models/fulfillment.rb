@@ -139,7 +139,15 @@ class Fulfillment < ApplicationRecord
   end
 
   def register_tracking
-    TrackingRegisterJob.perform_later([ tracking_number ])
+    company = order&.shopify_store&.company
+    return unless company&.tracking_enabled?
+    return unless company.tracking_api_key.present?
+
+    cutoff = company.tracking_starts_at
+    ordered_at = order&.ordered_at
+    return if cutoff && ordered_at && ordered_at < cutoff
+
+    TrackingRegisterJob.perform_later(company.id, [ tracking_number ])
   end
 
   def extract_shipped_at(result)

@@ -1,10 +1,27 @@
 require "rails_helper"
 
 RSpec.describe TrackingService do
-  let(:service) { described_class.new }
+  let(:service) { described_class.new(api_key: "test-api-key") }
 
-  before do
-    allow(Rails.application.credentials).to receive(:dig).with(:seventeen_track, :api_key).and_return("test-api-key")
+  describe "#initialize" do
+    it "raises MissingApiKeyError when api_key is blank" do
+      expect { described_class.new(api_key: nil) }.to raise_error(TrackingService::MissingApiKeyError)
+      expect { described_class.new(api_key: "") }.to raise_error(TrackingService::MissingApiKeyError)
+    end
+
+    it "sends the given api_key in request headers" do
+      stub = stub_request(:post, TrackingService::REGISTER_URL)
+        .with(headers: { "17token" => "per-company-key" })
+        .to_return(
+          status: 200,
+          body: { data: { accepted: [] } }.to_json,
+          headers: { "Content-Type" => "application/json" }
+        )
+
+      described_class.new(api_key: "per-company-key").register([ "TEST" ])
+
+      expect(stub).to have_been_requested
+    end
   end
 
   describe "#register" do
@@ -258,24 +275,6 @@ RSpec.describe TrackingService do
         .to_return(status: 500, body: "Server Error")
 
       expect { service.track([ "TRACK1" ]) }.to raise_error(RuntimeError, /17Track API error/)
-    end
-  end
-
-  describe "#initialize" do
-    it "reads API key from ENV variable" do
-      allow(ENV).to receive(:[]).and_call_original
-      allow(ENV).to receive(:[]).with("SEVENTEEN_TRACK_API_KEY").and_return("env-api-key")
-
-      svc = described_class.new
-      stub_request(:post, TrackingService::REGISTER_URL)
-        .with(headers: { "17token" => "env-api-key" })
-        .to_return(
-          status: 200,
-          body: { data: { accepted: [] } }.to_json,
-          headers: { "Content-Type" => "application/json" }
-        )
-
-      svc.register([ "TEST" ])
     end
   end
 end

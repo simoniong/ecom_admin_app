@@ -1,4 +1,6 @@
 class ShippingReminderSettingsController < AdminController
+  before_action :require_tracking_enabled!
+
   def update
     @setting = current_company.shipping_reminder_setting ||
                current_company.build_shipping_reminder_setting

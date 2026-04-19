@@ -43,6 +43,7 @@ Rails.application.routes.draw do
 
     resource :profile, only: [ :edit, :update ]
     resource :company, only: [ :edit, :update ]
+    patch "company/tracking", to: "companies#update_tracking", as: :tracking_company
     patch "switch_company/:id", to: "company_sessions#update", as: :switch_company
     resources :invitations, only: [ :index, :create, :destroy ]
     resources :memberships, only: [ :edit, :update, :destroy ]
