@@ -1,4 +1,10 @@
 <div class="space-y-4" data-controller="shipment-filter shipment-bulk bulk-tracking-search" data-action="click@window->shipment-filter#closeSortDropdown" data-shipment-bulk-copied-text-value="<%= t("shipments.bulk.copied") %>">
+  <% unless current_company.tracking_enabled? %>
+    <div class="rounded-md border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+      <%= t("shipments.tracking_disabled_html", path: link_to(t("shipments.tracking_disabled_link"), edit_company_path, class: "font-medium underline hover:text-amber-900")) %>
+    </div>
+  <% end %>
+
   <%# Header %>
   <div class="flex items-center justify-between">
     <div class="relative" data-controller="dropdown">

@@ -17,6 +17,36 @@ RSpec.describe "Shipments", type: :request do
       expect(response.body).to include("TRACK1")
     end
 
+    context "tracking disabled notice" do
+      it "shows a notice when tracking is not enabled" do
+        get shipments_path
+        expect(response.body).to include(I18n.t("shipments.tracking_disabled_link"))
+        expect(response.body).to include(edit_company_path)
+      end
+
+      it "shows the notice when config exists but tracking is paused" do
+        user.companies.first.update!(
+          tracking_enabled: false,
+          tracking_api_key: "A" * 32,
+          tracking_mode: "new_only",
+          tracking_starts_at: Time.current
+        )
+        get shipments_path
+        expect(response.body).to include(I18n.t("shipments.tracking_disabled_link"))
+      end
+
+      it "hides the notice when tracking is enabled" do
+        user.companies.first.update!(
+          tracking_enabled: true,
+          tracking_api_key: "A" * 32,
+          tracking_mode: "new_only",
+          tracking_starts_at: Time.current
+        )
+        get shipments_path
+        expect(response.body).not_to include(I18n.t("shipments.tracking_disabled_link"))
+      end
+    end
+
     it "shows status tab counts" do
       order = create(:order, customer: customer, shopify_store: store)
       create(:fulfillment, order: order, tracking_number: "T1", tracking_status: "InTransit")

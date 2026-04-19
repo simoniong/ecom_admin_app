@@ -1,10 +1,12 @@
 class TrackingService
+  class MissingApiKeyError < StandardError; end
+
   BASE_URL = "https://api.17track.net/track/v2.4"
   REGISTER_URL = "#{BASE_URL}/register"
   TRACK_URL = "#{BASE_URL}/gettrackinfo"
 
-  def initialize
-    @api_key = ENV["SEVENTEEN_TRACK_API_KEY"] || Rails.application.credentials.dig(:seventeen_track, :api_key)
+  def initialize(api_key:)
+    @api_key = api_key.presence or raise MissingApiKeyError, "17Track API key is required"
   end
 
   def register(tracking_numbers)

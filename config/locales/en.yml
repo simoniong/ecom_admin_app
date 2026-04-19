@@ -2,6 +2,16 @@ en:
   activerecord:
     errors:
       models:
+        company:
+          attributes:
+            tracking_api_key:
+              required_when_enabled: "Please enter the 17Track API key to enable tracking."
+              invalid_format: "must be a 32-character alphanumeric 17Track API key."
+            tracking_mode:
+              required_with_api_key: "Please choose a tracking scope before saving the API key."
+              forbidden_without_api_key: "A tracking scope can only be set together with an API key."
+            tracking_backfill_days:
+              only_with_backfill_mode: "Backfill days only apply when the backfill scope is selected."
         email_account:
           send_window_invalid: "End time must be after start time."
   app_name: "Ecom Admin"
@@ -325,6 +335,8 @@ en:
     archived_title: "Archived Shipments"
     sync_orders: "Sync orders"
     sync_enqueued: "Order sync has been queued. Shipping data will update shortly."
+    tracking_disabled_html: "Shipping tracking is not enabled for this company. Please %{path} to enable it."
+    tracking_disabled_link: "go to Company Settings"
     search_placeholder: "Order, tracking number or email"
     empty: "No shipments found."
     all: "All"
@@ -478,10 +490,42 @@ en:
       removed_notice: "Tags removed successfully."
   companies:
     title: "Company Settings"
+    general_section: "General"
     name: "Company Name"
     save: "Save"
+    save_general: "Save company info"
+    save_tracking: "Save tracking settings"
+    tracking_updated: "Tracking settings updated."
     locale: "Email Language"
     locale_hint: "Language used for automated email notifications (e.g. shipping reminders)."
+    tracking_section: "Shipping Tracking"
+    tracking_enabled_label: "Enable shipping tracking"
+    tracking_enabled_hint: "Turn off to pause tracking without losing the saved API key and scope."
+    tracking_api_key: "17Track API Key"
+    tracking_api_key_hint: "Used to fetch shipping status for all stores under this company. Leave blank to keep the existing key."
+    tracking_api_key_placeholder_set: "••••••••  (leave blank to keep unchanged)"
+    tracking_api_key_placeholder_unset: "Enter 17Track API key"
+    tracking_status_label: "Status"
+    tracking_status:
+      active: "Active"
+      paused: "Paused"
+    tracking_mode_label: "Mode"
+    tracking_starts_at_label: "Tracking from"
+    tracking_starts_at_unbounded: "Entire order history"
+    tracking_mode_select: "Tracking Scope"
+    tracking_mode_select_hint: "Applies when you enter a new API key. The scope is locked once set."
+    tracking_mode_lock_hint: "The scope is locked. To change it, enter a new API key or remove the current one."
+    tracking_backfill_days_label: "Backfill window (days)"
+    tracking_backfill_days_suffix: "days"
+    tracking_backfill_all_label: "Track all historical orders (ignore the days limit)"
+    tracking_mode:
+      new_only: "Track new orders only"
+      backfill: "Backfill past %{days} days + new orders"
+      backfill_label: "Backfill past orders + new orders"
+      backfill_all: "Backfill all historical orders + new orders"
+    tracking_mode_hint:
+      new_only: "Start tracking orders placed after this setting is saved."
+      backfill: "Also pick up older orders within the configured window."
     updated: "Company updated successfully."
     no_company: "No company found. Please contact support."
     no_permission: "You don't have permission to access this page."

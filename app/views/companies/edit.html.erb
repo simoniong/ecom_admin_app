@@ -4,6 +4,7 @@
   </div>
 
   <div class="mt-6 bg-white shadow-sm rounded-lg border border-gray-200 p-6">
+    <h2 class="text-base font-semibold text-gray-900 mb-4"><%= t("companies.general_section") %></h2>
     <%= form_with model: @company, url: company_path, method: :patch do |f| %>
       <div class="mb-4">
         <%= f.label :name, t("companies.name"), class: "block text-sm font-medium text-gray-700 mb-1" %>
@@ -28,7 +29,139 @@
       </div>
 
       <div class="flex items-center gap-3">
-        <%= f.submit t("companies.save"), class: "inline-flex items-center px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2 cursor-pointer" %>
+        <%= f.submit t("companies.save_general"), class: "inline-flex items-center px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2 cursor-pointer" %>
+      </div>
+    <% end %>
+  </div>
+
+  <div class="mt-6 bg-white shadow-sm rounded-lg border border-gray-200 p-6" data-controller="tracking-config">
+    <%= form_with model: @company, url: tracking_company_path, method: :patch do |f| %>
+      <div class="flex items-start justify-between gap-4">
+        <div>
+          <h2 class="text-base font-semibold text-gray-900"><%= t("companies.tracking_section") %></h2>
+          <p class="mt-1 text-xs text-gray-400"><%= t("companies.tracking_enabled_hint") %></p>
+        </div>
+        <label class="relative inline-flex cursor-pointer items-center mt-1 shrink-0">
+          <%= f.check_box :tracking_enabled,
+              { class: "peer sr-only",
+                data: { tracking_config_target: "enableToggle", action: "change->tracking-config#recompute" } } %>
+          <span class="h-6 w-11 rounded-full bg-gray-200 transition-colors peer-checked:bg-gray-900 peer-focus:ring-2 peer-focus:ring-gray-900 peer-focus:ring-offset-2"></span>
+          <span class="absolute left-[2px] top-[2px] h-5 w-5 rounded-full bg-white transition-transform peer-checked:translate-x-5"></span>
+          <span class="ml-3 text-sm font-medium text-gray-700"><%= t("companies.tracking_enabled_label") %></span>
+        </label>
+      </div>
+
+      <% if @company.tracking_api_key_configured? %>
+        <div class="mt-4 rounded-md bg-gray-50 p-3">
+          <div class="mb-1 flex items-center gap-2 text-xs">
+            <span class="font-medium text-gray-500"><%= t("companies.tracking_status_label") %>:</span>
+            <% if @company.tracking_enabled? %>
+              <span class="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 font-medium text-green-800">
+                <span class="h-1.5 w-1.5 rounded-full bg-green-500"></span>
+                <%= t("companies.tracking_status.active") %>
+              </span>
+            <% else %>
+              <span class="inline-flex items-center gap-1 rounded-full bg-gray-200 px-2 py-0.5 font-medium text-gray-700">
+                <span class="h-1.5 w-1.5 rounded-full bg-gray-500"></span>
+                <%= t("companies.tracking_status.paused") %>
+              </span>
+            <% end %>
+          </div>
+          <dl class="grid grid-cols-1 gap-x-6 gap-y-1 text-sm text-gray-700 sm:grid-cols-2">
+            <div>
+              <dt class="inline font-medium text-gray-500"><%= t("companies.tracking_mode_label") %>:</dt>
+              <dd class="inline">
+                <% if @company.tracking_mode == "backfill" %>
+                  <% if @company.tracking_all_history? %>
+                    <%= t("companies.tracking_mode.backfill_all") %>
+                  <% else %>
+                    <%= t("companies.tracking_mode.backfill", days: @company.tracking_backfill_days) %>
+                  <% end %>
+                <% else %>
+                  <%= t("companies.tracking_mode.new_only") %>
+                <% end %>
+              </dd>
+            </div>
+            <div>
+              <dt class="inline font-medium text-gray-500"><%= t("companies.tracking_starts_at_label") %>:</dt>
+              <dd class="inline">
+                <%= @company.tracking_starts_at ? l(@company.tracking_starts_at.in_time_zone, format: :long) : t("companies.tracking_starts_at_unbounded") %>
+              </dd>
+            </div>
+          </dl>
+          <p class="mt-2 text-xs text-gray-400"><%= t("companies.tracking_mode_lock_hint") %></p>
+        </div>
+      <% end %>
+
+      <div class="mt-4 hidden" data-tracking-config-target="configWrapper">
+        <div>
+          <%= f.label :tracking_api_key, t("companies.tracking_api_key"), class: "block text-sm font-medium text-gray-700 mb-1" %>
+          <%= f.password_field :tracking_api_key,
+              value: "",
+              autocomplete: "off",
+              placeholder: @company.tracking_api_key_configured? ? t("companies.tracking_api_key_placeholder_set") : t("companies.tracking_api_key_placeholder_unset"),
+              data: { tracking_config_target: "keyInput", action: "input->tracking-config#recompute" },
+              class: "block w-full px-3 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-700 focus:border-gray-900 focus:ring-gray-900" %>
+          <p class="mt-1 text-xs text-gray-400"><%= t("companies.tracking_api_key_hint") %></p>
+          <% if @company.errors[:tracking_api_key].any? %>
+            <p class="mt-1 text-sm text-red-600"><%= @company.errors[:tracking_api_key].first %></p>
+          <% end %>
+        </div>
+
+        <fieldset class="mt-4 hidden" data-tracking-config-target="scopeWrapper">
+          <legend class="block text-sm font-medium text-gray-700 mb-1"><%= t("companies.tracking_mode_select") %></legend>
+          <p class="text-xs text-gray-400 mb-2"><%= t("companies.tracking_mode_select_hint") %></p>
+          <div class="space-y-3">
+            <label class="flex items-start gap-2 text-sm text-gray-700">
+              <%= f.radio_button :tracking_mode, "new_only",
+                  checked: @company.tracking_mode == "new_only",
+                  class: "mt-0.5 border-gray-300 text-gray-900 focus:ring-gray-900" %>
+              <span>
+                <span class="font-medium"><%= t("companies.tracking_mode.new_only") %></span>
+                <span class="block text-xs text-gray-500"><%= t("companies.tracking_mode_hint.new_only") %></span>
+              </span>
+            </label>
+
+            <div>
+              <label class="flex items-start gap-2 text-sm text-gray-700">
+                <%= f.radio_button :tracking_mode, "backfill",
+                    checked: @company.tracking_mode == "backfill",
+                    class: "mt-0.5 border-gray-300 text-gray-900 focus:ring-gray-900" %>
+                <span>
+                  <span class="font-medium"><%= t("companies.tracking_mode.backfill_label") %></span>
+                  <span class="block text-xs text-gray-500"><%= t("companies.tracking_mode_hint.backfill") %></span>
+                </span>
+              </label>
+              <div class="mt-2 ml-6 space-y-2">
+                <div class="flex items-center gap-2 text-sm text-gray-700">
+                  <label for="company_tracking_backfill_days"><%= t("companies.tracking_backfill_days_label") %></label>
+                  <%= f.number_field :tracking_backfill_days,
+                      value: @company.tracking_backfill_days || Company::DEFAULT_TRACKING_BACKFILL_DAYS,
+                      min: 1,
+                      data: { tracking_config_target: "daysInput" },
+                      class: "w-24 px-2 py-1 bg-white border border-gray-300 rounded-md text-sm focus:border-gray-900 focus:ring-gray-900" %>
+                  <span class="text-sm text-gray-500"><%= t("companies.tracking_backfill_days_suffix") %></span>
+                </div>
+                <label class="inline-flex items-center gap-2 text-sm text-gray-700">
+                  <%= check_box_tag "company[tracking_backfill_all]", "1", @company.tracking_all_history?,
+                      data: { tracking_config_target: "allCheckbox", action: "change->tracking-config#recompute" },
+                      class: "rounded border-gray-300 text-gray-900 focus:ring-gray-900" %>
+                  <span><%= t("companies.tracking_backfill_all_label") %></span>
+                </label>
+              </div>
+            </div>
+          </div>
+          <% if @company.errors[:tracking_mode].any? %>
+            <p class="mt-1 text-sm text-red-600"><%= @company.errors[:tracking_mode].first %></p>
+          <% end %>
+          <% if @company.errors[:tracking_backfill_days].any? %>
+            <p class="mt-1 text-sm text-red-600"><%= @company.errors[:tracking_backfill_days].first %></p>
+          <% end %>
+        </fieldset>
+      </div>
+
+      <div class="mt-4 flex items-center gap-3">
+        <%= f.submit t("companies.save_tracking"), class: "inline-flex items-center px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2 cursor-pointer" %>
       </div>
     <% end %>
   </div>
