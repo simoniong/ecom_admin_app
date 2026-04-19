@@ -294,12 +294,44 @@ RSpec.describe Fulfillment, type: :model do
   end
 
   describe "after_commit :register_tracking" do
-    it "enqueues TrackingRegisterJob when tracking_number is set" do
+    def enable_tracking_on(company, mode: "backfill", days: 30)
+      effective_days = mode == "backfill" ? days : nil
+      company.update!(
+        tracking_enabled: true,
+        tracking_api_key: "A" * 32,
+        tracking_mode: mode,
+        tracking_backfill_days: effective_days,
+        tracking_starts_at: Company.starts_at_for(mode: mode, days: effective_days)
+      )
+    end
+
+    it "enqueues TrackingRegisterJob when tracking is enabled and the order is within window" do
+      fulfillment = create(:fulfillment, tracking_number: nil)
+      company = fulfillment.order.shopify_store.company
+      enable_tracking_on(company)
+
+      expect {
+        fulfillment.update!(tracking_number: "NEW123")
+      }.to have_enqueued_job(TrackingRegisterJob).with(company.id, [ "NEW123" ])
+    end
+
+    it "does not enqueue when the owning company has not enabled tracking" do
       fulfillment = create(:fulfillment, tracking_number: nil)
 
       expect {
         fulfillment.update!(tracking_number: "NEW123")
-      }.to have_enqueued_job(TrackingRegisterJob).with([ "NEW123" ])
+      }.not_to have_enqueued_job(TrackingRegisterJob)
+    end
+
+    it "does not enqueue when the order is older than tracking_starts_at" do
+      fulfillment = create(:fulfillment, tracking_number: nil)
+      company = fulfillment.order.shopify_store.company
+      enable_tracking_on(company, mode: "new_only")
+      fulfillment.order.update!(ordered_at: 1.day.ago)
+
+      expect {
+        fulfillment.update!(tracking_number: "OLD123")
+      }.not_to have_enqueued_job(TrackingRegisterJob)
     end
 
     it "does not enqueue when tracking_number is unchanged" do

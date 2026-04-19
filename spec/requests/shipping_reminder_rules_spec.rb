@@ -4,7 +4,15 @@ RSpec.describe "ShippingReminderRules", type: :request do
   let(:user) { create(:user) }
   let(:company) { user.companies.first }
 
-  before { sign_in user }
+  before do
+    company.update!(
+      tracking_enabled: true,
+      tracking_api_key: "A" * 32,
+      tracking_mode: "new_only",
+      tracking_starts_at: Time.current
+    )
+    sign_in user
+  end
 
   describe "GET /shipping_reminder_rules" do
     it "returns success for authorized user" do

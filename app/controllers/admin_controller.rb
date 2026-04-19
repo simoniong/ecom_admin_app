@@ -50,6 +50,13 @@ class AdminController < ApplicationController
     PERMISSION_KEY_MAP.fetch(controller_name, controller_name)
   end
 
+  def require_tracking_enabled!
+    return if current_company&.tracking_enabled?
+
+    key = current_membership&.owner? ? :tracking_disabled_owner : :tracking_disabled_member
+    redirect_to authenticated_root_path, alert: t("companies.#{key}")
+  end
+
   def current_shopify_store
     @current_shopify_store ||= begin
       stores = current_company.shopify_stores

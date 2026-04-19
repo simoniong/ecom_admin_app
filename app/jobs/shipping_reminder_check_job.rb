@@ -8,6 +8,8 @@ class ShippingReminderCheckJob < ApplicationJob
         next unless setting.time_to_send?
 
         company = setting.company
+        next unless company.tracking_enabled?
+
         store_ids = company.shopify_stores.pluck(:id)
         next if store_ids.empty?
 

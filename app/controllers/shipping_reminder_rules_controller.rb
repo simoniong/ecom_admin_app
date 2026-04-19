@@ -1,4 +1,6 @@
 class ShippingReminderRulesController < AdminController
+  before_action :require_tracking_enabled!
+
   def index
     load_all
   end
