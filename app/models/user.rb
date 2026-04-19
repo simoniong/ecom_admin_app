@@ -6,6 +6,11 @@ class User < ApplicationRecord
 
   AVAILABLE_LOCALES = I18n.available_locales.map(&:to_s).freeze
 
+  # Allow-list of emails that may create new Companies. Hard-coded because
+  # Company creation is an ops action performed by the platform operator,
+  # not a self-service flow.
+  COMPANY_CREATOR_EMAILS = %w[manin.iong@gmail.com].freeze
+
   validates :locale, inclusion: { in: AVAILABLE_LOCALES }, allow_nil: true
 
   has_many :memberships, dependent: :destroy
@@ -24,5 +29,9 @@ class User < ApplicationRecord
 
   def owned_companies
     companies.where(memberships: { role: :owner })
+  end
+
+  def can_create_companies?
+    COMPANY_CREATOR_EMAILS.include?(email.to_s.downcase)
   end
 end
