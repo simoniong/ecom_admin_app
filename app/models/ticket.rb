@@ -30,7 +30,8 @@ class Ticket < ApplicationRecord
   ALLOWED_TRANSITIONS = {
     "new_ticket" => [ "draft", "closed" ],
     "draft" => [ "draft_confirmed", "new_ticket", "closed" ],
-    "draft_confirmed" => [ "draft" ]
+    "draft_confirmed" => [ "draft" ],
+    "closed" => [ "new_ticket" ]
   }.freeze
 
   def submit_draft!(content)
