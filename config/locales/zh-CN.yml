@@ -614,6 +614,7 @@
     title: "部门"
     description_lead: "把公司划分为若干部门。非管理员用户必须属于某个部门，只能看到自己部门的数据。"
     empty_state: "尚未创建部门。创建第一个部门以启用按团队隔离数据。"
+    select_group_prompt: "选择部门"
     new: "新建部门"
     edit: "编辑"
     edit_title: "编辑 %{name}"

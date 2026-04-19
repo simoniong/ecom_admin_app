@@ -615,6 +615,7 @@ en:
     title: "Departments"
     description_lead: "Split your company into departments. Each non-owner user belongs to one department and can only see data from their own."
     empty_state: "No departments yet. Create the first one to start isolating data by team."
+    select_group_prompt: "Select a department"
     new: "New Department"
     edit: "Edit"
     edit_title: "Edit %{name}"

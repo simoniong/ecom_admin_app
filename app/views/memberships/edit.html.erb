@@ -21,7 +21,7 @@
       <div class="space-y-4">
         <div>
           <%= f.label :role, t("invitations.role"), class: "block text-sm font-medium text-gray-700 mb-1" %>
-          <%= f.select :role, Invitation.roles.keys.map { |r| [ t("invitations.roles.#{r}"), r ] }, {},
+          <%= f.select :role, Membership.roles.keys.map { |r| [ t("invitations.roles.#{r}"), r ] }, {},
               class: "block w-full px-3 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-700 focus:border-gray-900 focus:ring-gray-900",
               data: { role_group_toggle_target: "role", action: "change->role-group-toggle#toggle" } %>
         </div>

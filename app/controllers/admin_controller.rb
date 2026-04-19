@@ -147,6 +147,8 @@ class AdminController < ApplicationController
 
     return nil if session[:view_group_id].blank?
 
-    current_company.groups.find_by(id: session[:view_group_id])
+    group = current_company.groups.find_by(id: session[:view_group_id])
+    session[:view_group_id] = nil if group.nil?
+    group
   end
 end

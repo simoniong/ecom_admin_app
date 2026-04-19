@@ -615,6 +615,7 @@
     title: "部門"
     description_lead: "將公司劃分為多個部門。非管理員使用者必須歸屬於某個部門，只能看到自己部門的資料。"
     empty_state: "尚未建立部門。建立第一個部門以啟用按團隊隔離資料。"
+    select_group_prompt: "選擇部門"
     new: "新增部門"
     edit: "編輯"
     edit_title: "編輯 %{name}"

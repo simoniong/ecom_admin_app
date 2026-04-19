@@ -76,6 +76,7 @@ class GroupsController < AdminController
     group.memberships.exists? ||
       group.shopify_stores.exists? ||
       group.ad_accounts.exists? ||
-      group.email_accounts.exists?
+      group.email_accounts.exists? ||
+      group.invitations.exists?
   end
 end

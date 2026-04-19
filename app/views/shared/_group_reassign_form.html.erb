@@ -15,8 +15,12 @@
               current_company.groups.order(:name).map { |g| [ g.name, g.id ] },
               resource.group_id
             ),
-            include_blank: t("groups.empty_state"),
+            prompt: t("groups.select_group_prompt"),
+            required: true,
             class: "block w-full px-3 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-700 focus:border-gray-900 focus:ring-gray-900" %>
+        <% if resource.errors[:group_id].any? %>
+          <p class="mt-1 text-sm text-red-600"><%= resource.errors[:group_id].first %></p>
+        <% end %>
       </div>
       <button type="submit"
               class="inline-flex items-center px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2">

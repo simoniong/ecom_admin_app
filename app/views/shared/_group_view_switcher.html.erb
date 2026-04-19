@@ -2,6 +2,13 @@
   <div class="flex items-center gap-2 mb-4">
     <label class="text-sm font-medium text-gray-500"><%= t("group_view_switcher.label") %></label>
     <%= form_tag url_for(only_path: true), method: :get, class: "inline" do %>
+      <% request.query_parameters.except("group_id", "authenticity_token", "utf8").each do |key, value| %>
+        <% if value.is_a?(Array) %>
+          <% value.each { |v| %><%= hidden_field_tag "#{key}[]", v %><% } %>
+        <% else %>
+          <%= hidden_field_tag key, value %>
+        <% end %>
+      <% end %>
       <%= select_tag :group_id,
           options_for_select(
             [ [ t("group_view_switcher.all"), "all" ] ] + current_company.groups.order(:name).map { |g| [ g.name, g.id ] },

@@ -48,6 +48,14 @@ RSpec.describe Group, type: :model do
       expect(duplicate.errors[:name]).to be_present
     end
 
+    it "enforces case-insensitive uniqueness at the database level when validations are bypassed" do
+      company = create(:company)
+      create(:group, company: company, name: "Sales")
+      expect {
+        Group.new(company: company, name: "SALES").save(validate: false)
+      }.to raise_error(ActiveRecord::RecordNotUnique)
+    end
+
     it "allows the same name across different companies" do
       create(:group, company: create(:company), name: "Sales")
       other = build(:group, company: create(:company), name: "Sales")
