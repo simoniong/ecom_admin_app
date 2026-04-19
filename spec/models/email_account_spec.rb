@@ -106,6 +106,19 @@ RSpec.describe EmailAccount, type: :model do
       expect(dup.errors[:agent_api_key]).to include("has already been taken")
     end
 
+    it "stores the key encrypted at rest" do
+      connection = ActiveRecord::Base.connection
+      raw = connection.select_value(
+        "SELECT agent_api_key FROM email_accounts WHERE id = #{connection.quote(account.id)}"
+      )
+      expect(raw).not_to eq(account.agent_api_key)
+    end
+
+    it "can still be looked up by key (deterministic encryption)" do
+      found = EmailAccount.find_by(agent_api_key: account.agent_api_key)
+      expect(found).to eq(account)
+    end
+
     it "requires agent_api_key" do
       account.agent_api_key = ""
       expect(account).not_to be_valid

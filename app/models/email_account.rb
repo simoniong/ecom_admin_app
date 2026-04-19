@@ -8,6 +8,7 @@ class EmailAccount < ApplicationRecord
 
   encrypts :access_token, deterministic: false
   encrypts :refresh_token, deterministic: false
+  encrypts :agent_api_key, deterministic: true
 
   validates :email, presence: true, uniqueness: { scope: :user_id }
   validates :google_uid, presence: true, uniqueness: true

@@ -4,7 +4,7 @@ class AddAgentApiKeyToEmailAccounts < ActiveRecord::Migration[8.1]
 
     EmailAccount.reset_column_information
     EmailAccount.where(agent_api_key: nil).find_each do |account|
-      account.update_column(:agent_api_key, SecureRandom.urlsafe_base64(32))
+      account.update!(agent_api_key: SecureRandom.urlsafe_base64(32))
     end
 
     change_column_null :email_accounts, :agent_api_key, false
