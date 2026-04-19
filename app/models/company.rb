@@ -24,7 +24,7 @@ class Company < ApplicationRecord
   validates :tracking_api_key,
             format: { with: TRACKING_API_KEY_FORMAT, message: :invalid_format },
             allow_blank: true
-  validates :tracking_mode, inclusion: { in: TRACKING_MODES }, allow_nil: true
+  validates :tracking_mode, inclusion: { in: TRACKING_MODES }, allow_blank: true
   validates :tracking_backfill_days,
             numericality: { only_integer: true, greater_than: 0 },
             allow_nil: true

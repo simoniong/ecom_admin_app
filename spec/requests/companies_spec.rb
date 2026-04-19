@@ -128,12 +128,14 @@ RSpec.describe "Companies", type: :request do
       expect(company.tracking_api_key).to be_nil
     end
 
-    it "rejects enabling with an api key but no mode" do
+    it "rejects enabling with an api key but no mode, showing the localized message" do
       sign_in user
       patch tracking_company_path, params: {
         company: { tracking_enabled: "1", tracking_api_key: valid_key, tracking_mode: "" }
       }
       expect(response).to have_http_status(:unprocessable_content)
+      expect(response.body).to include(I18n.t("activerecord.errors.models.company.attributes.tracking_mode.required_with_api_key"))
+      expect(response.body).not_to include("is not included in the list")
       company.reload
       expect(company.tracking_enabled?).to be(false)
       expect(company.tracking_api_key).to be_nil
