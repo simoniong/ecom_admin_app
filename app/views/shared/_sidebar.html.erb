@@ -13,23 +13,29 @@
   <%# Company Switcher %>
   <% if current_company %>
     <% user_companies = current_user.companies.order(:name) %>
-    <% if user_companies.size > 1 %>
-      <div class="px-4 py-2 border-b border-gray-200" data-controller="company-switcher">
-        <select data-action="change->company-switcher#switch"
-                class="w-full text-sm border-gray-300 rounded-md focus:ring-gray-500 focus:border-gray-500">
-          <% user_companies.each do |company| %>
-            <option value="<%= switch_company_path(id: company.id) %>"
-                    <%= "selected" if company == current_company %>>
-              <%= company.name %>
-            </option>
-          <% end %>
-        </select>
-      </div>
-    <% else %>
-      <div class="px-6 py-2 border-b border-gray-200">
-        <span class="text-xs text-gray-500"><%= current_company.name %></span>
-      </div>
-    <% end %>
+    <div class="px-4 py-2 border-b border-gray-200 space-y-2">
+      <% if user_companies.size > 1 %>
+        <div data-controller="company-switcher">
+          <select data-action="change->company-switcher#switch"
+                  class="w-full text-sm border-gray-300 rounded-md focus:ring-gray-500 focus:border-gray-500">
+            <% user_companies.each do |company| %>
+              <option value="<%= switch_company_path(id: company.id) %>"
+                      <%= "selected" if company == current_company %>>
+                <%= company.name %>
+              </option>
+            <% end %>
+          </select>
+        </div>
+      <% else %>
+        <span class="block text-xs text-gray-500 px-2"><%= current_company.name %></span>
+      <% end %>
+      <% if current_user.can_create_companies? %>
+        <%= link_to new_company_path, data: { action: "click->sidebar#close" },
+            class: "block text-xs text-gray-500 hover:text-gray-900 px-2" do %>
+          + <%= t("companies.new_link") %>
+        <% end %>
+      <% end %>
+    </div>
   <% end %>
 
   <%# Navigation %>

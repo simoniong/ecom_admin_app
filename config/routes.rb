@@ -42,7 +42,7 @@ Rails.application.routes.draw do
     end
 
     resource :profile, only: [ :edit, :update ]
-    resource :company, only: [ :edit, :update ]
+    resource :company, only: [ :new, :create, :edit, :update ]
     patch "company/tracking", to: "companies#update_tracking", as: :tracking_company
     patch "switch_company/:id", to: "company_sessions#update", as: :switch_company
     resources :invitations, only: [ :index, :create, :destroy ]
