@@ -236,5 +236,12 @@ RSpec.describe "Shipments", type: :system do
       find("button[aria-label='#{I18n.t('shipments.show.back')}']").click
       expect(page).to have_current_path(shipments_path)
     end
+
+    it "falls back to shipments index when there is no in-app history" do
+      visit shipment_path(id: detailed_shipment.id)
+
+      find("button[aria-label='#{I18n.t('shipments.show.back')}']").click
+      expect(page).to have_current_path(shipments_path)
+    end
   end
 end
