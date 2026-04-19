@@ -9,14 +9,12 @@ class CompaniesController < AdminController
   end
 
   def create
-    @company = Company.new(create_params)
-    if @company.valid?
-      result = Companies::CreateWithOwner.new(current_user, create_params.to_h).call
-      session[:company_id] = result.company.id
-      redirect_to authenticated_root_path, notice: t("companies.created")
-    else
-      render :new, status: :unprocessable_entity
-    end
+    result = Companies::CreateWithOwner.new(current_user, create_params.to_h).call
+    session[:company_id] = result.company.id
+    redirect_to authenticated_root_path, notice: t("companies.created")
+  rescue ActiveRecord::RecordInvalid => e
+    @company = e.record.is_a?(Company) ? e.record : Company.new(create_params)
+    render :new, status: :unprocessable_entity
   end
 
   def edit
@@ -58,10 +56,7 @@ class CompaniesController < AdminController
   def general_params
     params.require(:company).permit(:name, :locale)
   end
-
-  def create_params
-    params.require(:company).permit(:name, :locale)
-  end
+  alias_method :create_params, :general_params
 
   def tracking_params
     permitted = params.require(:company)
