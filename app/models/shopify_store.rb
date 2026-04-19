@@ -1,4 +1,6 @@
 class ShopifyStore < ApplicationRecord
+  include GroupAssignable
+
   belongs_to :user
   belongs_to :company
   has_many :email_accounts, dependent: :nullify

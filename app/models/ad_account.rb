@@ -1,4 +1,6 @@
 class AdAccount < ApplicationRecord
+  include GroupAssignable
+
   belongs_to :user
   belongs_to :company
   belongs_to :shopify_store, optional: true

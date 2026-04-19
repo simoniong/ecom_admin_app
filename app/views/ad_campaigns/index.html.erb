@@ -41,6 +41,8 @@
      data-delete-confirm="<%= t('campaign_display_templates.delete_confirm') %>">
   <h1 class="text-2xl font-bold text-gray-900"><%= t("ad_campaigns.title") %></h1>
 
+  <%= render "shared/group_view_switcher" %>
+
   <%# Column toggle modal (full-screen overlay) %>
   <div data-ad-column-toggle-target="dropdown"
        class="hidden fixed inset-0 z-50">

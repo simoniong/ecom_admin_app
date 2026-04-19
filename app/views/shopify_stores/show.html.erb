@@ -56,6 +56,8 @@
     </dl>
   </div>
 
+  <%= render "shared/group_reassign_form", resource: @shopify_store, form_url: shopify_store_path(@shopify_store), scope_key: "shopify_store" %>
+
   <%# Linked Accounts %>
   <%= form_with url: shopify_store_path(@shopify_store), method: :patch, class: "space-y-6 mt-6" do |f| %>
     <input type="hidden" name="email_account_ids[]" value="" />

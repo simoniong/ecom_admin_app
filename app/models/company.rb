@@ -1,6 +1,7 @@
 class Company < ApplicationRecord
   has_many :memberships, dependent: :destroy
   has_many :users, through: :memberships
+  has_many :groups, dependent: :destroy
   has_many :shopify_stores, dependent: :destroy
   has_many :ad_accounts, dependent: :destroy
   has_many :email_accounts, dependent: :destroy

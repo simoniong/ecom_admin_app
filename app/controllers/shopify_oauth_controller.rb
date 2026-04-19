@@ -9,6 +9,17 @@ class ShopifyOauthController < AdminController
       return
     end
 
+    if company_has_groups?
+      group = resolve_binding_group(params[:group_id])
+      if group.nil?
+        redirect_to shopify_stores_path, alert: t("shopify_stores.group_required")
+        return
+      end
+      session[:pending_binding_group_id] = group.id
+    else
+      session.delete(:pending_binding_group_id)
+    end
+
     nonce = SecureRandom.hex(16)
     session[:shopify_oauth_nonce] = nonce
 
@@ -62,6 +73,9 @@ class ShopifyOauthController < AdminController
 
     store = current_company.shopify_stores.find_or_initialize_by(shop_domain: shop)
     store.user = current_user
+    if store.new_record? && (pending_group_id = session.delete(:pending_binding_group_id)).present?
+      store.group_id = pending_group_id
+    end
     store.assign_attributes(
       access_token: access_token_response["access_token"],
       scopes: access_token_response["scope"],
