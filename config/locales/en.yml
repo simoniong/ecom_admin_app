@@ -335,8 +335,6 @@ en:
     archived_title: "Archived Shipments"
     sync_orders: "Sync orders"
     sync_enqueued: "Order sync has been queued. Shipping data will update shortly."
-    tracking_disabled_html: "Shipping tracking is not enabled for this company. Please %{path} to enable it."
-    tracking_disabled_link: "go to Company Settings"
     search_placeholder: "Order, tracking number or email"
     empty: "No shipments found."
     all: "All"
@@ -529,6 +527,8 @@ en:
     updated: "Company updated successfully."
     no_company: "No company found. Please contact support."
     no_permission: "You don't have permission to access this page."
+    tracking_disabled_owner: "Please enable shipping tracking in Company Settings first."
+    tracking_disabled_member: "Shipping tracking is disabled. Please ask your company owner to enable it first."
     manage_members: "Manage Members & Invitations"
   invitations:
     title: "Members & Invitations"

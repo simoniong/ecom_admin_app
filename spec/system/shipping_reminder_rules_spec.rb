@@ -6,6 +6,12 @@ RSpec.describe "Shipping Reminder Rules", type: :system do
   before do
     membership = user.membership_for(user.companies.first)
     membership.update!(permissions: membership.permissions + [ "shipping_reminder_rules" ])
+    user.companies.first.update!(
+      tracking_enabled: true,
+      tracking_api_key: "A" * 32,
+      tracking_mode: "new_only",
+      tracking_starts_at: Time.current
+    )
   end
 
   it "shows the reminder rules page" do

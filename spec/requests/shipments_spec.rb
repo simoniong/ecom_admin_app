@@ -5,7 +5,15 @@ RSpec.describe "Shipments", type: :request do
   let(:store) { create(:shopify_store, user: user) }
   let(:customer) { create(:customer, shopify_store: store) }
 
-  before { sign_in user }
+  before do
+    user.companies.first.update!(
+      tracking_enabled: true,
+      tracking_api_key: "A" * 32,
+      tracking_mode: "new_only",
+      tracking_starts_at: Time.current
+    )
+    sign_in user
+  end
 
   describe "GET /shipments" do
     it "renders the index page" do
@@ -17,33 +25,24 @@ RSpec.describe "Shipments", type: :request do
       expect(response.body).to include("TRACK1")
     end
 
-    context "tracking disabled notice" do
-      it "shows a notice when tracking is not enabled" do
+    context "when tracking is disabled" do
+      before { user.companies.first.update!(tracking_enabled: false) }
+
+      it "redirects the owner to the dashboard with the owner-facing message" do
         get shipments_path
-        expect(response.body).to include(I18n.t("shipments.tracking_disabled_link"))
-        expect(response.body).to include(edit_company_path)
+        expect(response).to redirect_to(authenticated_root_path)
+        expect(flash[:alert]).to eq(I18n.t("companies.tracking_disabled_owner"))
       end
 
-      it "shows the notice when config exists but tracking is paused" do
-        user.companies.first.update!(
-          tracking_enabled: false,
-          tracking_api_key: "A" * 32,
-          tracking_mode: "new_only",
-          tracking_starts_at: Time.current
-        )
-        get shipments_path
-        expect(response.body).to include(I18n.t("shipments.tracking_disabled_link"))
-      end
+      it "redirects a non-owner member with the member-facing message" do
+        member = create(:user)
+        create(:membership, company: user.companies.first, user: member, role: :member, permissions: %w[shipments])
+        sign_in member
+        patch switch_company_path(id: user.companies.first.id)
 
-      it "hides the notice when tracking is enabled" do
-        user.companies.first.update!(
-          tracking_enabled: true,
-          tracking_api_key: "A" * 32,
-          tracking_mode: "new_only",
-          tracking_starts_at: Time.current
-        )
         get shipments_path
-        expect(response.body).not_to include(I18n.t("shipments.tracking_disabled_link"))
+        expect(response).to redirect_to(authenticated_root_path)
+        expect(flash[:alert]).to eq(I18n.t("companies.tracking_disabled_member"))
       end
     end
 

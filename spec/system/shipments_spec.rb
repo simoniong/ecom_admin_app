@@ -11,7 +11,15 @@ RSpec.describe "Shipments", type: :system do
            destination_country: "US", transit_days: 10)
   end
 
-  before { sign_in_as(user) }
+  before do
+    user.companies.first.update!(
+      tracking_enabled: true,
+      tracking_api_key: "A" * 32,
+      tracking_mode: "new_only",
+      tracking_starts_at: Time.current
+    )
+    sign_in_as(user)
+  end
 
   describe "column toggle" do
     before do

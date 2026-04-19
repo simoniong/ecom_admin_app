@@ -334,8 +334,6 @@
     archived_title: "已归档物流"
     sync_orders: "同步订单"
     sync_enqueued: "订单同步任务已加入队列，物流数据稍后更新。"
-    tracking_disabled_html: "本公司尚未启用物流追踪，请%{path}启用。"
-    tracking_disabled_link: "前往公司设置"
     search_placeholder: "订单号、运单号或邮箱"
     empty: "暂无物流信息。"
     all: "全部"
@@ -528,6 +526,8 @@
     updated: "公司信息更新成功。"
     no_company: "未找到公司，请联系管理员。"
     no_permission: "您没有权限访问此页面。"
+    tracking_disabled_owner: "请先在公司设置中启用物流追踪。"
+    tracking_disabled_member: "物流追踪未启用，请联系公司管理员开启。"
     manage_members: "管理成员与邀请"
   invitations:
     title: "成员与邀请"
