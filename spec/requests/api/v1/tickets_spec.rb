@@ -1,9 +1,9 @@
 require "rails_helper"
 
 RSpec.describe "Api::V1::Tickets", type: :request do
-  let(:api_key) { Rails.application.credentials.dig(:agent, :api_key) }
-  let(:auth_headers) { { "Authorization" => "Bearer #{api_key}" } }
   let(:email_account) { create(:email_account) }
+  let(:other_email_account) { create(:email_account) }
+  let(:auth_headers) { { "Authorization" => "Bearer #{email_account.agent_api_key}" } }
 
   describe "authentication" do
     it "returns 401 without token" do
@@ -16,9 +16,67 @@ RSpec.describe "Api::V1::Tickets", type: :request do
       expect(response).to have_http_status(:unauthorized)
     end
 
-    it "returns 200 with valid token" do
+    it "returns 401 when Authorization header is blank" do
+      get "/api/v1/tickets", headers: { "Authorization" => "" }
+      expect(response).to have_http_status(:unauthorized)
+    end
+
+    it "returns 200 with the email account's agent_api_key" do
       get "/api/v1/tickets", headers: auth_headers
       expect(response).to have_http_status(:ok)
+    end
+
+    it "does not accept a key after it has been regenerated" do
+      old_key = email_account.agent_api_key
+      email_account.regenerate_agent_api_key!
+      get "/api/v1/tickets", headers: { "Authorization" => "Bearer #{old_key}" }
+      expect(response).to have_http_status(:unauthorized)
+    end
+  end
+
+  describe "email account scoping" do
+    it "GET /tickets only returns tickets for the caller's email account" do
+      mine = create(:ticket, email_account: email_account, subject: "Mine")
+      create(:ticket, email_account: other_email_account, subject: "Theirs")
+
+      get "/api/v1/tickets", headers: auth_headers
+      body = JSON.parse(response.body)
+
+      expect(body.map { |t| t["id"] }).to eq([ mine.id ])
+    end
+
+    it "GET /tickets/count only counts tickets for the caller's email account" do
+      create_list(:ticket, 2, email_account: email_account)
+      create_list(:ticket, 3, email_account: other_email_account)
+
+      get "/api/v1/tickets/count", headers: auth_headers
+      expect(JSON.parse(response.body)["count"]).to eq(2)
+    end
+
+    it "GET /tickets/:id returns 404 for another email account's ticket" do
+      foreign = create(:ticket, email_account: other_email_account)
+
+      get "/api/v1/tickets/#{foreign.id}", headers: auth_headers
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "POST /tickets/:id/draft_reply returns 404 for another email account's ticket" do
+      foreign = create(:ticket, email_account: other_email_account, status: :new_ticket)
+
+      post "/api/v1/tickets/#{foreign.id}/draft_reply",
+           params: { draft_reply: "Unauthorized attempt" },
+           headers: auth_headers
+      expect(response).to have_http_status(:not_found)
+      expect(foreign.reload).to be_new_ticket
+    end
+
+    it "PATCH /tickets/:id/draft_reply returns 404 for another email account's ticket" do
+      foreign = create(:ticket, :draft, email_account: other_email_account)
+
+      patch "/api/v1/tickets/#{foreign.id}/draft_reply",
+            params: { draft_reply: "Unauthorized edit" },
+            headers: auth_headers
+      expect(response).to have_http_status(:not_found)
     end
   end
 

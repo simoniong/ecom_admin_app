@@ -55,6 +55,53 @@ RSpec.describe "EmailAccounts", type: :request do
       get email_account_path(id: account.id)
       expect(response).to have_http_status(:not_found)
     end
+
+    it "renders the agent api key section with masked value by default" do
+      account = create(:email_account, user: user)
+      sign_in user
+      get email_account_path(id: account.id)
+      expect(response.body).to include("agent-api-key-section")
+      expect(response.body).to include(%(data-agent-key-key-value="#{account.agent_api_key}"))
+      expect(response.body).to include(%(data-agent-key-revealed-value="false"))
+    end
+
+    it "renders the agent api key section with reveal on when flash is set" do
+      account = create(:email_account, user: user)
+      sign_in user
+      post regenerate_agent_api_key_email_account_path(id: account.id)
+      follow_redirect!
+      expect(response.body).to include(%(data-agent-key-revealed-value="true"))
+    end
+  end
+
+  describe "POST /email_accounts/:id/regenerate_agent_api_key" do
+    it "regenerates the key and redirects to show" do
+      account = create(:email_account, user: user)
+      original_key = account.agent_api_key
+      sign_in user
+
+      post regenerate_agent_api_key_email_account_path(id: account.id)
+
+      expect(response).to redirect_to(email_account_path(account))
+      expect(account.reload.agent_api_key).not_to eq(original_key)
+    end
+
+    it "returns 404 for another user's account" do
+      account = create(:email_account, user: other_user)
+      sign_in user
+      original_key = account.agent_api_key
+
+      post regenerate_agent_api_key_email_account_path(id: account.id)
+
+      expect(response).to have_http_status(:not_found)
+      expect(account.reload.agent_api_key).to eq(original_key)
+    end
+
+    it "redirects unauthenticated user to sign in" do
+      account = create(:email_account, user: user)
+      post regenerate_agent_api_key_email_account_path(id: account.id)
+      expect(response).to redirect_to(new_user_session_path)
+    end
   end
 
   describe "PATCH /email_accounts/:id" do
