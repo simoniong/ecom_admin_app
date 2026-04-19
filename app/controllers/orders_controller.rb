@@ -15,7 +15,7 @@ class OrdersController < AdminController
     if current_shopify_store
       base_orders = current_shopify_store.orders.by_recency
     else
-      store_ids = current_company.shopify_stores.pluck(:id)
+      store_ids = visible_shopify_stores.pluck(:id)
       base_orders = Order.where(shopify_store_id: store_ids).by_recency
     end
     base_orders = base_orders.ordered_between(@from_time, @to_time)
@@ -40,7 +40,7 @@ class OrdersController < AdminController
   end
 
   def sync
-    current_company.shopify_stores.find_each do |store|
+    visible_shopify_stores.find_each do |store|
       SyncAllShopifyOrdersJob.perform_later(store.id)
     end
 

@@ -1,0 +1,27 @@
+<%#
+  locals:
+    resource: ActiveRecord instance that has `group_id` and can be updated via `form_with model: resource`
+    form_url: Hash/String passed to form_with's url (for PATCH)
+    scope_key: Symbol — the resource's params key (e.g. :shopify_store)
+%>
+<% if current_membership&.owner? && company_has_groups? %>
+  <div class="mt-6 bg-white shadow-sm rounded-lg border border-gray-200 p-6">
+    <h2 class="text-sm font-medium text-gray-900 mb-3"><%= t("groups.title") %></h2>
+    <%= form_with url: form_url, method: :patch, local: true, class: "flex items-end gap-3" do |f| %>
+      <div class="min-w-[16rem]">
+        <%= label_tag "#{scope_key}_group_id", t("groups.name"), class: "block text-sm font-medium text-gray-500 mb-1" %>
+        <%= select_tag "#{scope_key}[group_id]",
+            options_for_select(
+              current_company.groups.order(:name).map { |g| [ g.name, g.id ] },
+              resource.group_id
+            ),
+            include_blank: t("groups.empty_state"),
+            class: "block w-full px-3 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-700 focus:border-gray-900 focus:ring-gray-900" %>
+      </div>
+      <button type="submit"
+              class="inline-flex items-center px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2">
+        <%= t("groups.update") %>
+      </button>
+    <% end %>
+  </div>
+<% end %>

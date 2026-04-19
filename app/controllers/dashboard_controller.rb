@@ -8,12 +8,14 @@ class DashboardController < AdminController
                    "past_7_days"
     end
 
+    metrics_scope = selected_view_group || current_company
     @metrics = DashboardMetricsService.new(
-      current_company,
+      metrics_scope,
       range_key: @range_key,
       start_date: params[:start_date],
       end_date: params[:end_date]
     ).call
     @range_key = @metrics[:range_key]
+    @current_view_group = selected_view_group
   end
 end

@@ -55,4 +55,39 @@ RSpec.describe Membership, type: :model do
       expect(Membership.roles).to eq("member" => 0, "owner" => 1)
     end
   end
+
+  describe "group assignment rules" do
+    let(:company) { create(:company) }
+    let(:user) { create(:user) }
+
+    it "allows an owner with no group" do
+      membership = Membership.new(company: company, user: user, role: :owner, group: nil)
+      expect(membership).to be_valid
+    end
+
+    it "rejects an owner with a group assigned" do
+      group = create(:group, company: company)
+      membership = Membership.new(company: company, user: user, role: :owner, group: group)
+      expect(membership).not_to be_valid
+      expect(membership.errors[:group_id]).to be_present
+    end
+
+    it "allows a member with no group when the company has no groups" do
+      membership = Membership.new(company: company, user: user, role: :member, permissions: %w[orders])
+      expect(membership).to be_valid
+    end
+
+    it "rejects a member with no group when the company has at least one group" do
+      create(:group, company: company)
+      membership = Membership.new(company: company, user: user, role: :member, permissions: %w[orders], group: nil)
+      expect(membership).not_to be_valid
+      expect(membership.errors[:group_id]).to be_present
+    end
+
+    it "accepts a member assigned to a group belonging to the same company" do
+      group = create(:group, company: company)
+      membership = Membership.new(company: company, user: user, role: :member, permissions: %w[orders], group: group)
+      expect(membership).to be_valid
+    end
+  end
 end

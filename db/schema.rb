@@ -21,6 +21,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_19_110312) do
     t.string "account_name"
     t.uuid "company_id", null: false
     t.datetime "created_at", null: false
+    t.uuid "group_id"
     t.string "platform", default: "meta", null: false
     t.uuid "shopify_store_id"
     t.string "timezone", default: "UTC", null: false
@@ -28,6 +29,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_19_110312) do
     t.datetime "updated_at", null: false
     t.uuid "user_id", null: false
     t.index ["company_id"], name: "index_ad_accounts_on_company_id"
+    t.index ["group_id"], name: "index_ad_accounts_on_group_id"
     t.index ["shopify_store_id"], name: "index_ad_accounts_on_shopify_store_id"
     t.index ["user_id", "platform", "account_id"], name: "index_ad_accounts_on_user_id_and_platform_and_account_id", unique: true
     t.index ["user_id"], name: "index_ad_accounts_on_user_id"
@@ -123,6 +125,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_19_110312) do
     t.string "discord_agent_mention"
     t.string "email", null: false
     t.string "google_uid", null: false
+    t.uuid "group_id"
     t.bigint "last_history_id"
     t.datetime "last_synced_at"
     t.text "refresh_token", null: false
@@ -137,6 +140,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_19_110312) do
     t.uuid "user_id", null: false
     t.index ["company_id"], name: "index_email_accounts_on_company_id"
     t.index ["google_uid"], name: "index_email_accounts_on_google_uid", unique: true
+    t.index ["group_id"], name: "index_email_accounts_on_group_id"
     t.index ["shopify_store_id"], name: "index_email_accounts_on_shopify_store_id"
     t.index ["user_id", "email"], name: "index_email_accounts_on_user_id_and_email", unique: true
     t.index ["user_id"], name: "index_email_accounts_on_user_id"
@@ -220,11 +224,23 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_19_110312) do
     t.index ["transit_days"], name: "index_fulfillments_on_transit_days"
   end
 
+  create_table "groups", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "company_id", null: false
+    t.datetime "created_at", null: false
+    t.text "description"
+    t.string "name", null: false
+    t.integer "position", default: 0, null: false
+    t.datetime "updated_at", null: false
+    t.index ["company_id", "name"], name: "index_groups_on_company_id_and_name", unique: true
+    t.index ["company_id"], name: "index_groups_on_company_id"
+  end
+
   create_table "invitations", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.datetime "accepted_at"
     t.uuid "company_id", null: false
     t.datetime "created_at", null: false
     t.string "email", null: false
+    t.uuid "group_id"
     t.uuid "invited_by_id", null: false
     t.jsonb "permissions", default: [], null: false
     t.integer "role", default: 0, null: false
@@ -232,6 +248,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_19_110312) do
     t.datetime "updated_at", null: false
     t.index ["company_id", "email"], name: "index_invitations_on_company_id_and_email", unique: true, where: "(accepted_at IS NULL)"
     t.index ["company_id"], name: "index_invitations_on_company_id"
+    t.index ["group_id"], name: "index_invitations_on_group_id"
     t.index ["invited_by_id"], name: "index_invitations_on_invited_by_id"
     t.index ["token"], name: "index_invitations_on_token", unique: true
   end
@@ -239,12 +256,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_19_110312) do
   create_table "memberships", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.uuid "company_id", null: false
     t.datetime "created_at", null: false
+    t.uuid "group_id"
     t.jsonb "permissions", default: [], null: false
     t.integer "role", default: 0, null: false
     t.datetime "updated_at", null: false
     t.uuid "user_id", null: false
     t.index ["company_id", "user_id"], name: "index_memberships_on_company_id_and_user_id", unique: true
     t.index ["company_id"], name: "index_memberships_on_company_id"
+    t.index ["group_id"], name: "index_memberships_on_group_id"
     t.index ["user_id"], name: "index_memberships_on_user_id"
   end
 
@@ -326,6 +345,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_19_110312) do
     t.text "access_token", null: false
     t.uuid "company_id", null: false
     t.datetime "created_at", null: false
+    t.uuid "group_id"
     t.datetime "installed_at"
     t.datetime "orders_synced_at"
     t.string "scopes"
@@ -335,6 +355,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_19_110312) do
     t.uuid "user_id", null: false
     t.datetime "webhooks_registered_at"
     t.index ["company_id"], name: "index_shopify_stores_on_company_id"
+    t.index ["group_id"], name: "index_shopify_stores_on_group_id"
     t.index ["shop_domain"], name: "index_shopify_stores_on_shop_domain", unique: true
     t.index ["user_id"], name: "index_shopify_stores_on_user_id"
   end
@@ -506,6 +527,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_19_110312) do
   end
 
   add_foreign_key "ad_accounts", "companies"
+  add_foreign_key "ad_accounts", "groups"
   add_foreign_key "ad_accounts", "shopify_stores"
   add_foreign_key "ad_accounts", "users"
   add_foreign_key "ad_campaign_daily_metrics", "ad_campaigns"
@@ -515,6 +537,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_19_110312) do
   add_foreign_key "campaign_display_templates", "users"
   add_foreign_key "customers", "shopify_stores"
   add_foreign_key "email_accounts", "companies"
+  add_foreign_key "email_accounts", "groups"
   add_foreign_key "email_accounts", "shopify_stores"
   add_foreign_key "email_accounts", "users"
   add_foreign_key "email_workflow_runs", "email_workflows"
@@ -523,9 +546,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_19_110312) do
   add_foreign_key "email_workflow_steps", "email_workflows"
   add_foreign_key "email_workflows", "shopify_stores"
   add_foreign_key "fulfillments", "orders"
+  add_foreign_key "groups", "companies"
   add_foreign_key "invitations", "companies"
+  add_foreign_key "invitations", "groups"
   add_foreign_key "invitations", "users", column: "invited_by_id"
   add_foreign_key "memberships", "companies"
+  add_foreign_key "memberships", "groups"
   add_foreign_key "memberships", "users"
   add_foreign_key "messages", "tickets"
   add_foreign_key "orders", "customers"
@@ -533,6 +559,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_19_110312) do
   add_foreign_key "shipping_reminder_rules", "companies"
   add_foreign_key "shipping_reminder_settings", "companies"
   add_foreign_key "shopify_stores", "companies"
+  add_foreign_key "shopify_stores", "groups"
   add_foreign_key "shopify_stores", "users"
   add_foreign_key "solid_queue_blocked_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
   add_foreign_key "solid_queue_claimed_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade

@@ -6,5 +6,11 @@ FactoryBot.define do
     access_token { "shpat_test_token" }
     scopes { "read_products,read_customers,read_all_orders,read_fulfillments,read_analytics" }
     installed_at { Time.current }
+
+    trait :with_group do
+      after(:build) do |store|
+        store.group ||= create(:group, company: store.company)
+      end
+    end
   end
 end

@@ -1,0 +1,20 @@
+<div class="max-w-xl mx-auto">
+  <h1 class="text-2xl font-semibold text-gray-900"><%= t("groups.new") %></h1>
+
+  <% if @groups_empty = current_company.groups.none? %>
+    <div class="mt-4 bg-amber-50 border border-amber-200 rounded-md p-4 text-sm text-amber-900">
+      <p class="font-medium"><%= t("groups.first_group_modal_title") %></p>
+      <ul class="mt-2 list-disc list-inside space-y-1">
+        <li><%= t("groups.first_group_modal_backfill_memberships", count: current_company.memberships.member.count) %></li>
+        <li><%= t("groups.first_group_modal_backfill_shopify_stores", count: current_company.shopify_stores.where(group_id: nil).count) %></li>
+        <li><%= t("groups.first_group_modal_backfill_ad_accounts", count: current_company.ad_accounts.where(group_id: nil).count) %></li>
+        <li><%= t("groups.first_group_modal_backfill_email_accounts", count: current_company.email_accounts.where(group_id: nil).count) %></li>
+      </ul>
+      <p class="mt-2"><%= t("groups.first_group_modal_notice") %></p>
+    </div>
+  <% end %>
+
+  <div class="mt-6 bg-white shadow-sm rounded-lg border border-gray-200 p-6">
+    <%= render "form" %>
+  </div>
+</div>

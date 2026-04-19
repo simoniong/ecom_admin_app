@@ -10,6 +10,7 @@ class User < ApplicationRecord
 
   has_many :memberships, dependent: :destroy
   has_many :companies, through: :memberships
+  has_many :groups, through: :memberships
 
   has_many :email_accounts, dependent: :destroy
   has_many :shopify_stores, dependent: :destroy

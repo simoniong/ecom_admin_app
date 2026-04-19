@@ -9,6 +9,9 @@ class OauthCallbacksController < AdminController
 
     email_account = current_company.email_accounts.find_or_initialize_by(google_uid: auth.uid)
     email_account.user = current_user
+    if email_account.new_record? && (pending_group_id = session.delete(:pending_binding_group_id)).present?
+      email_account.group_id = pending_group_id
+    end
     email_account.assign_attributes(
       email: auth.info.email,
       access_token: auth.credentials.token,

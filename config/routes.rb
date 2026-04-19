@@ -47,8 +47,10 @@ Rails.application.routes.draw do
     patch "switch_company/:id", to: "company_sessions#update", as: :switch_company
     resources :invitations, only: [ :index, :create, :destroy ]
     resources :memberships, only: [ :edit, :update, :destroy ]
+    resources :groups, except: [ :show ]
 
     resources :email_accounts, only: [ :index, :show, :update, :destroy ]
+    post "email_oauth/start", to: "email_oauth#start", as: :email_oauth_start
     resources :shopify_stores, only: [ :index, :show, :update, :destroy ] do
       resources :email_workflows, only: [ :index, :new, :create, :edit, :update, :destroy ] do
         resources :email_workflow_steps, only: [ :create, :update, :destroy ] do
@@ -56,7 +58,7 @@ Rails.application.routes.draw do
         end
       end
     end
-    resources :ad_accounts, only: [ :index, :show, :destroy ]
+    resources :ad_accounts, only: [ :index, :show, :update, :destroy ]
     resources :ad_campaigns, only: [ :index ] do
       post :sync, on: :collection
     end

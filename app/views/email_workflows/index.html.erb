@@ -20,7 +20,7 @@
     <% end %>
   </div>
 
-  <% stores = current_company.shopify_stores.order(:shop_domain) %>
+  <% stores = visible_shopify_stores.order(:shop_domain) %>
   <% if stores.size > 1 %>
     <div class="mt-2">
       <select onchange="window.location.href = this.value"

@@ -8,5 +8,11 @@ FactoryBot.define do
     refresh_token { "test-refresh-token" }
     token_expires_at { 1.hour.from_now }
     scopes { "email,profile" }
+
+    trait :with_group do
+      after(:build) do |account|
+        account.group ||= create(:group, company: account.company)
+      end
+    end
   end
 end

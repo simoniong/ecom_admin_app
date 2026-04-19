@@ -66,6 +66,37 @@ RSpec.describe "Invitations", type: :request do
     end
   end
 
+  describe "group assignment" do
+    let!(:group) { create(:group, company: company, name: "Sales") }
+
+    it "requires group_id when the company has groups and role is member" do
+      sign_in owner
+      post invitations_path, params: {
+        invitation: { email: "new@example.com", role: "member", permissions: %w[orders] }
+      }
+      expect(response).to have_http_status(:unprocessable_content)
+    end
+
+    it "creates a member invitation with a group" do
+      sign_in owner
+      expect {
+        post invitations_path, params: {
+          invitation: { email: "new@example.com", role: "member", permissions: %w[orders], group_id: group.id }
+        }
+      }.to change(Invitation, :count).by(1)
+      expect(Invitation.last.group).to eq(group)
+    end
+
+    it "ignores group on an owner invitation" do
+      sign_in owner
+      post invitations_path, params: {
+        invitation: { email: "owner2@example.com", role: "owner", permissions: [], group_id: group.id }
+      }
+      expect(response).to redirect_to(invitations_path)
+      expect(Invitation.last.group_id).to be_nil
+    end
+  end
+
   describe "permission enforcement" do
     it "blocks member from pages not in their permissions" do
       member = create(:user)
