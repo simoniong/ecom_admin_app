@@ -60,6 +60,47 @@
     </dl>
   </div>
 
+  <div class="mt-8 bg-white shadow-sm rounded-lg border border-gray-200" data-testid="agent-api-key-section"
+       data-controller="agent-key"
+       data-agent-key-key-value="<%= @email_account.agent_api_key %>"
+       data-agent-key-revealed-value="<%= flash[:reveal_agent_api_key] ? "true" : "false" %>"
+       data-agent-key-copy-message-value="<%= t("email_accounts.agent_api_key.copied") %>">
+    <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+      <div>
+        <h2 class="text-lg font-medium text-gray-900"><%= t("email_accounts.agent_api_key.title") %></h2>
+        <p class="mt-1 text-sm text-gray-500"><%= t("email_accounts.agent_api_key.description") %></p>
+      </div>
+      <%= button_to regenerate_agent_api_key_email_account_path(@email_account), method: :post,
+          data: { turbo_confirm: t("email_accounts.agent_api_key.regenerate_confirm") },
+          class: "inline-flex items-center gap-2 px-4 py-2 bg-amber-600 text-white text-sm font-medium rounded-md hover:bg-amber-700 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2" do %>
+        <svg class="w-4 h-4" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
+        </svg>
+        <%= t("email_accounts.agent_api_key.regenerate") %>
+      <% end %>
+    </div>
+
+    <div class="px-6 py-4">
+      <dt class="text-sm font-medium text-gray-500"><%= t("email_accounts.agent_api_key.label") %></dt>
+      <dd class="mt-2 flex items-center gap-2">
+        <code class="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-md font-mono text-sm text-gray-900 break-all"
+              data-agent-key-target="value"
+              data-testid="agent-api-key-value"></code>
+
+        <button type="button" data-action="agent-key#toggle"
+                class="inline-flex items-center gap-1 px-3 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+          <span data-agent-key-target="revealLabel"><%= t("email_accounts.agent_api_key.reveal") %></span>
+          <span data-agent-key-target="hideLabel" class="hidden"><%= t("email_accounts.agent_api_key.hide") %></span>
+        </button>
+
+        <button type="button" data-action="agent-key#copy"
+                class="inline-flex items-center gap-1 px-3 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+          <%= t("email_accounts.agent_api_key.copy") %>
+        </button>
+      </dd>
+    </div>
+  </div>
+
   <%= render "shared/group_reassign_form", resource: @email_account, form_url: email_account_path(@email_account), scope_key: "email_account" %>
 
   <div class="mt-8 bg-white shadow-sm rounded-lg border border-gray-200" data-testid="send-window-section">

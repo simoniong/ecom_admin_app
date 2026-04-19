@@ -100,6 +100,17 @@ en:
     disconnect_confirm: "Are you sure you want to disconnect this email account? All associated tickets will be deleted."
     disconnect_success: "Email account disconnected successfully."
     send_window_updated: "Send window updated successfully."
+    agent_api_key:
+      title: "Agent API Key"
+      description: "Use this key as the Bearer token for the Ticket API. Each email account has its own key."
+      label: "API Key"
+      reveal: "Reveal"
+      hide: "Hide"
+      copy: "Copy"
+      copied: "Copied!"
+      regenerate: "Regenerate"
+      regenerate_confirm: "Regenerate the API key? The current key will stop working immediately."
+      regenerated: "API key regenerated. Remember to update the agent with the new key."
     show:
       email: "Email"
       google_uid: "Google UID"
