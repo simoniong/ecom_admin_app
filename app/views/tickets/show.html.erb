@@ -30,42 +30,35 @@
     <div class="mt-4 flex flex-wrap gap-2">
       <%# new_ticket → draft %>
       <% if @ticket.new_ticket? %>
-        <%= button_to ticket_path(id: @ticket.id), method: :patch, class: "inline-flex items-center gap-1.5 px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white text-sm font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500 cursor-pointer", params: { ticket: { status: "draft" } } do %>
-            <svg class="w-4 h-4" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125" />
-            </svg>
-            <%= t("tickets.show.move_to_draft") %>
-          <% end %>
+        <%= render "tickets/status_transition_button",
+            ticket: @ticket, target_status: "draft",
+            label: t("tickets.show.move_to_draft"),
+            color: "yellow", icon: "pencil" %>
       <% end %>
 
       <%# draft → draft_confirmed %>
       <% if @ticket.draft? %>
-        <%= button_to ticket_path(id: @ticket.id), method: :patch, class: "inline-flex items-center gap-1.5 px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 cursor-pointer", params: { ticket: { status: "draft_confirmed" } }, data: { turbo_confirm: t("tickets.show.confirm_schedule_confirm") } do %>
-            <svg class="w-4 h-4" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-            </svg>
-            <%= t("tickets.show.confirm_schedule") %>
-          <% end %>
+        <%= render "tickets/status_transition_button",
+            ticket: @ticket, target_status: "draft_confirmed",
+            label: t("tickets.show.confirm_schedule"),
+            color: "green", icon: "check",
+            confirm: t("tickets.show.confirm_schedule_confirm") %>
       <% end %>
 
       <%# draft_confirmed → draft %>
       <% if @ticket.draft_confirmed? %>
-        <%= button_to ticket_path(id: @ticket.id), method: :patch, class: "inline-flex items-center gap-1.5 px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white text-sm font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500 cursor-pointer", params: { ticket: { status: "draft" } } do %>
-            <svg class="w-4 h-4" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125" />
-            </svg>
-            <%= t("tickets.show.edit_draft") %>
-          <% end %>
+        <%= render "tickets/status_transition_button",
+            ticket: @ticket, target_status: "draft",
+            label: t("tickets.show.edit_draft"),
+            color: "yellow", icon: "pencil" %>
       <% end %>
 
       <%# draft → new_ticket %>
       <% if @ticket.draft? %>
-        <%= button_to ticket_path(id: @ticket.id), method: :patch, class: "inline-flex items-center gap-1.5 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-400 cursor-pointer", params: { ticket: { status: "new_ticket" } } do %>
-            <svg class="w-4 h-4" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3" />
-            </svg>
-            <%= t("tickets.show.reset_to_new") %>
-          <% end %>
+        <%= render "tickets/status_transition_button",
+            ticket: @ticket, target_status: "new_ticket",
+            label: t("tickets.show.reset_to_new"),
+            color: "blue", icon: "reset" %>
       <% end %>
 
       <%# new_ticket/draft → closed (two-step confirm) %>
@@ -90,12 +83,10 @@
   <%# closed → new_ticket (reopen) %>
   <% if @ticket.closed? %>
     <div class="mt-4 flex flex-wrap gap-2">
-      <%= button_to ticket_path(id: @ticket.id), method: :patch, class: "inline-flex items-center gap-1.5 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-400 cursor-pointer", params: { ticket: { status: "new_ticket" } } do %>
-        <svg class="w-4 h-4" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3" />
-        </svg>
-        <%= t("tickets.show.reopen_ticket") %>
-      <% end %>
+      <%= render "tickets/status_transition_button",
+          ticket: @ticket, target_status: "new_ticket",
+          label: t("tickets.show.reopen_ticket"),
+          color: "blue", icon: "reset" %>
     </div>
   <% end %>
 
