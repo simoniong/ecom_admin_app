@@ -511,7 +511,7 @@
     tracking_starts_at_unbounded: "全部历史订单"
     tracking_mode_select: "追踪范围"
     tracking_mode_select_hint: "仅在输入新的 API Key 时生效；保存后不可修改。"
-    tracking_mode_lock_hint: "追踪范围已锁定。如需修改，请输入新的 API Key 或先删除当前 Key。"
+    tracking_mode_lock_hint: "追踪范围已锁定。如需修改，请输入新的 API Key。"
     tracking_backfill_days_label: "回补窗口（天）"
     tracking_backfill_days_suffix: "天"
     tracking_backfill_all_label: "追踪全部历史订单（忽略天数限制）"

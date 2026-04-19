@@ -12,12 +12,9 @@ class TrackingBackfillJob < ApplicationJob
   private
 
   def backfill_for_company(company)
-    store_ids = company.shopify_stores.pluck(:id)
-    return if store_ids.empty?
-
     fulfillments = Fulfillment.with_tracking.where(tracking_status: nil)
       .joins(:order)
-      .where(orders: { shopify_store_id: store_ids })
+      .where(orders: { shopify_store_id: company.shopify_stores.select(:id) })
     fulfillments = fulfillments.where("orders.ordered_at >= ?", company.tracking_starts_at) if company.tracking_starts_at
     return if fulfillments.empty?
 

@@ -7,7 +7,10 @@ class TrackingRegisterJob < ApplicationJob
 
     company = Company.find_by(id: company_id)
     return unless company&.tracking_enabled?
+    return unless company.tracking_api_key.present?
 
     TrackingService.new(api_key: company.tracking_api_key).register(tracking_numbers)
+  rescue TrackingService::MissingApiKeyError => e
+    Rails.logger.warn("[TrackingRegister] Skipped company #{company_id}: #{e.message}")
   end
 end

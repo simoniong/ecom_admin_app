@@ -512,7 +512,7 @@
     tracking_starts_at_unbounded: "全部歷史訂單"
     tracking_mode_select: "追蹤範圍"
     tracking_mode_select_hint: "僅在輸入新的 API Key 時生效；保存後不可修改。"
-    tracking_mode_lock_hint: "追蹤範圍已鎖定。如需修改，請輸入新的 API Key 或先刪除目前的 Key。"
+    tracking_mode_lock_hint: "追蹤範圍已鎖定。如需修改，請輸入新的 API Key。"
     tracking_backfill_days_label: "回補視窗（天）"
     tracking_backfill_days_suffix: "天"
     tracking_backfill_all_label: "追蹤全部歷史訂單（忽略天數限制）"

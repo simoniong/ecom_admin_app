@@ -141,6 +141,7 @@ class Fulfillment < ApplicationRecord
   def register_tracking
     company = order&.shopify_store&.company
     return unless company&.tracking_enabled?
+    return unless company.tracking_api_key.present?
 
     cutoff = company.tracking_starts_at
     ordered_at = order&.ordered_at
