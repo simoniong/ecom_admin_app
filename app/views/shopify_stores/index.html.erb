@@ -18,8 +18,7 @@
 
   <%# Inline form to reauthorize an already-connected store %>
   <div class="mt-6 bg-white shadow-sm rounded-lg border border-gray-200 p-6">
-    <h2 class="text-sm font-medium text-gray-700"><%= t("shopify_stores.reauth_title") %></h2>
-    <p class="mt-1 mb-4 text-xs text-gray-500"><%= t("shopify_stores.reauth_description") %></p>
+    <h2 class="text-sm font-medium text-gray-700 mb-3"><%= t("shopify_stores.reauth_title") %></h2>
     <%= form_tag shopify_auth_path, method: :get, data: { turbo: false }, class: "flex items-end gap-3 flex-wrap" do %>
       <div class="flex-1 min-w-[14rem]">
         <label for="shop" class="block text-sm font-medium text-gray-500 mb-1"><%= t("shopify_stores.enter_shop_domain") %></label>
@@ -49,6 +48,14 @@
         <%= t("shopify_stores.reauth_button") %>
       </button>
     <% end %>
+
+    <%# Callout explaining when to use this form %>
+    <div class="mt-4 bg-amber-50 border-l-4 border-amber-400 rounded-md p-4 flex gap-3">
+      <svg class="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+      </svg>
+      <p class="text-sm text-amber-900"><%= t("shopify_stores.reauth_description") %></p>
+    </div>
   </div>
 
   <% if @shopify_stores.any? %>
