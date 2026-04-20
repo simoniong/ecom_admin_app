@@ -49,14 +49,17 @@ class ShopifyOauthController < AdminController
     state = params[:state]
     hmac = params[:hmac]
 
-    unless shop.match?(SHOP_DOMAIN_FORMAT) && code.present? && state.present?
+    unless shop.match?(SHOP_DOMAIN_FORMAT) && code.present?
       redirect_to shopify_stores_path, alert: t("shopify_stores.oauth_failure")
       return
     end
 
-    unless ActiveSupport::SecurityUtils.secure_compare(state, session.delete(:shopify_oauth_nonce).to_s)
-      redirect_to shopify_stores_path, alert: t("shopify_stores.oauth_failure")
-      return
+    session_nonce = session.delete(:shopify_oauth_nonce).to_s
+    if session_nonce.present?
+      unless state.present? && ActiveSupport::SecurityUtils.secure_compare(state.to_s, session_nonce)
+        redirect_to shopify_stores_path, alert: t("shopify_stores.oauth_failure")
+        return
+      end
     end
 
     unless verify_hmac(hmac, request.query_parameters.except("hmac"))

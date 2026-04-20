@@ -6,6 +6,23 @@ class ShopifyWebhooksController < ActionController::API
     shop_domain = request.headers["X-Shopify-Shop-Domain"]
 
     store = ShopifyStore.find_by(shop_domain: shop_domain)
+
+    if topic == "customers/data_request"
+      Rails.logger.info("[ShopifyWebhook] customers/data_request shop=#{shop_domain} payload=#{webhook_payload}")
+      head :ok
+      return
+    end
+
+    if topic == "shop/redact"
+      if store
+        ProcessShopRedactJob.perform_later(store.id)
+      else
+        Rails.logger.info("[ShopifyWebhook] shop/redact for unknown shop=#{shop_domain}")
+      end
+      head :ok
+      return
+    end
+
     unless store
       Rails.logger.warn("[ShopifyWebhook] Unknown shop: #{shop_domain}")
       head :not_found
@@ -15,6 +32,8 @@ class ShopifyWebhooksController < ActionController::API
     case topic
     when "orders/create", "orders/updated"
       ProcessShopifyOrderWebhookJob.perform_later(store.id, webhook_payload)
+    when "customers/redact"
+      ProcessCustomerRedactJob.perform_later(store.id, webhook_payload)
     else
       Rails.logger.info("[ShopifyWebhook] Ignoring topic: #{topic}")
     end

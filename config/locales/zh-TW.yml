@@ -215,6 +215,10 @@
     shop_domain_placeholder: "your-store.myshopify.com"
     connect: "連接 Shopify"
     save_links: "保存關聯"
+    first_install_title: "綁定新店舖"
+    first_install_description: "首次綁定新的 Shopify 店舖，請聯絡管理員取得專屬安裝連結。點擊連結完成授權後，店舖會自動出現在下方列表。"
+    reauth_title: "重新授權已綁定的店舖"
+    reauth_button: "重新授權"
     show:
       shop_domain: "商店域名"
       timezone: "時區"
