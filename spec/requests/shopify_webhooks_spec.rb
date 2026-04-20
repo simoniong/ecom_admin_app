@@ -90,5 +90,53 @@ RSpec.describe "ShopifyWebhooks", type: :request do
       post_webhook(body: order_payload, shop_domain: "unknown.myshopify.com")
       expect(response).to have_http_status(:not_found)
     end
+
+    context "GDPR mandatory webhooks" do
+      let(:redact_payload) do
+        {
+          shop_id: 999,
+          shop_domain: store.shop_domain,
+          customer: { id: 5001, email: "privacy@example.com" },
+          orders_to_redact: []
+        }.to_json
+      end
+
+      it "returns 200 for customers/data_request and does not enqueue" do
+        expect {
+          post_webhook(body: redact_payload, topic: "customers/data_request")
+        }.not_to have_enqueued_job
+
+        expect(response).to have_http_status(:ok)
+      end
+
+      it "returns 200 and enqueues ProcessCustomerRedactJob for customers/redact" do
+        expect {
+          post_webhook(body: redact_payload, topic: "customers/redact")
+        }.to have_enqueued_job(ProcessCustomerRedactJob).with(store.id, anything)
+
+        expect(response).to have_http_status(:ok)
+      end
+
+      it "returns 200 and enqueues ProcessShopRedactJob for shop/redact" do
+        expect {
+          post_webhook(body: redact_payload, topic: "shop/redact")
+        }.to have_enqueued_job(ProcessShopRedactJob).with(store.id)
+
+        expect(response).to have_http_status(:ok)
+      end
+
+      it "returns 200 for shop/redact even when store is already deleted" do
+        expect {
+          post_webhook(body: redact_payload, topic: "shop/redact", shop_domain: "gone.myshopify.com")
+        }.not_to have_enqueued_job(ProcessShopRedactJob)
+
+        expect(response).to have_http_status(:ok)
+      end
+
+      it "returns 401 when HMAC is invalid for GDPR topics" do
+        post_webhook(body: redact_payload, topic: "customers/redact", hmac: "bad-hmac")
+        expect(response).to have_http_status(:unauthorized)
+      end
+    end
   end
 end

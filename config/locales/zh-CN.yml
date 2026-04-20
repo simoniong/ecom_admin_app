@@ -215,6 +215,11 @@
     shop_domain_placeholder: "your-store.myshopify.com"
     connect: "连接 Shopify"
     save_links: "保存关联"
+    first_install_title: "连接新店铺"
+    first_install_description: "首次连接新的 Shopify 店铺，请联系管理员获取专属安装链接。点击链接完成授权后，店铺将自动出现在下方列表。"
+    reauth_title: "重新授权已连接的店铺"
+    reauth_description: "仅用于已经安装过 App 的店铺。常见场景：（1）我们新增了 API 权限范围，需要商家重新授权；（2）访问令牌失效（例如 Shopify 因安全原因撤销、或店铺所有权变更），需要重新获取。"
+    reauth_button: "重新授权"
     show:
       shop_domain: "商店域名"
       scopes: "授权范围"

@@ -182,6 +182,60 @@ RSpec.describe "ShopifyOauth", type: :request do
       expect(response).to redirect_to(shopify_stores_path)
     end
 
+    it "creates store when callback arrives without session nonce (Partner install link flow)" do
+      # Do NOT call shopify_auth_path first — simulates merchant clicking Partner-generated install link
+      params = { "code" => "test-code", "shop" => "test.myshopify.com" }
+      message = params.sort.map { |k, v| "#{k}=#{v}" }.join("&")
+      hmac = OpenSSL::HMAC.hexdigest("SHA256", "test-client-secret", message)
+
+      stub_request(:post, "https://test.myshopify.com/admin/oauth/access_token")
+        .to_return(
+          status: 200,
+          body: { access_token: "shpat_new_token", scope: "read_products" }.to_json,
+          headers: { "Content-Type" => "application/json" }
+        )
+
+      stub_request(:get, %r{test\.myshopify\.com/admin/api/2024-10/shop\.json})
+        .to_return(
+          status: 200,
+          body: { shop: { iana_timezone: "Asia/Macau" } }.to_json,
+          headers: { "Content-Type" => "application/json" }
+        )
+
+      expect {
+        get shopify_callback_path, params: params.merge("hmac" => hmac)
+      }.to change(ShopifyStore, :count).by(1)
+
+      expect(response).to redirect_to(shopify_stores_path)
+      expect(flash[:notice]).to eq(I18n.t("shopify_stores.bind_success"))
+    end
+
+    it "rejects callback with bad HMAC when no session nonce is set" do
+      params = { "code" => "test-code", "shop" => "test.myshopify.com" }
+
+      expect {
+        get shopify_callback_path, params: params.merge("hmac" => "not-a-valid-hmac")
+      }.not_to change(ShopifyStore, :count)
+
+      expect(response).to redirect_to(shopify_stores_path)
+      expect(flash[:alert]).to eq(I18n.t("shopify_stores.oauth_failure"))
+    end
+
+    it "rejects callback when session nonce is present but state does not match" do
+      get shopify_auth_path, params: { shop: "test.myshopify.com" }
+      # Session nonce is now set — but we submit a wrong state
+      params = { "code" => "test-code", "shop" => "test.myshopify.com", "state" => "wrong-state" }
+      message = params.sort.map { |k, v| "#{k}=#{v}" }.join("&")
+      hmac = OpenSSL::HMAC.hexdigest("SHA256", "test-client-secret", message)
+
+      expect {
+        get shopify_callback_path, params: params.merge("hmac" => hmac)
+      }.not_to change(ShopifyStore, :count)
+
+      expect(response).to redirect_to(shopify_stores_path)
+      expect(flash[:alert]).to eq(I18n.t("shopify_stores.oauth_failure"))
+    end
+
     it "shows already_bound error when store is bound by another user" do
       other_user = create(:user)
       create(:shopify_store, user: other_user, shop_domain: "test.myshopify.com")
