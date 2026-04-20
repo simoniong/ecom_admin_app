@@ -32,7 +32,6 @@ Rails.application.routes.draw do
         post :draft_reply, on: :member
         patch :draft_reply, on: :member
       end
-      resources :ad_campaigns, only: [ :index ]
     end
   end
 
@@ -49,7 +48,9 @@ Rails.application.routes.draw do
     resources :memberships, only: [ :edit, :update, :destroy ]
     resources :groups, except: [ :show ]
 
-    resources :email_accounts, only: [ :index, :show, :update, :destroy ]
+    resources :email_accounts, only: [ :index, :show, :update, :destroy ] do
+      post :regenerate_agent_api_key, on: :member
+    end
     post "email_oauth/start", to: "email_oauth#start", as: :email_oauth_start
     resources :shopify_stores, only: [ :index, :show, :update, :destroy ] do
       resources :email_workflows, only: [ :index, :new, :create, :edit, :update, :destroy ] do

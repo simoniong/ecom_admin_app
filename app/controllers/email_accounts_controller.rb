@@ -1,5 +1,5 @@
 class EmailAccountsController < AdminController
-  before_action :set_email_account, only: [ :show, :update, :destroy ]
+  before_action :set_email_account, only: [ :show, :update, :destroy, :regenerate_agent_api_key ]
 
   def index
     @email_accounts = visible_email_accounts.order(created_at: :desc)
@@ -27,6 +27,13 @@ class EmailAccountsController < AdminController
   def destroy
     @email_account.destroy
     redirect_to email_accounts_path, notice: t("email_accounts.disconnect_success")
+  end
+
+  def regenerate_agent_api_key
+    @email_account.regenerate_agent_api_key!
+    flash[:reveal_agent_api_key] = true
+    redirect_to email_account_path(@email_account),
+                notice: t("email_accounts.agent_api_key.regenerated")
   end
 
   private

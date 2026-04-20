@@ -63,6 +63,48 @@ RSpec.describe "Email Accounts", type: :system do
     expect(page).to have_text(I18n.t("email_accounts.send_window_updated"))
   end
 
+  it "shows the agent api key section and toggles reveal" do
+    account = create(:email_account, user: user, email: "agent@gmail.com")
+    sign_in_as(user)
+    visit email_account_path(id: account.id)
+
+    within('[data-testid="agent-api-key-section"]') do
+      expect(page).to have_text(I18n.t("email_accounts.agent_api_key.title"))
+
+      value_el = find('[data-testid="agent-api-key-value"]')
+      expect(value_el["data-state"]).to eq("masked")
+      expect(value_el.text).not_to include(account.agent_api_key)
+
+      click_button I18n.t("email_accounts.agent_api_key.reveal")
+      expect(find('[data-testid="agent-api-key-value"]')["data-state"]).to eq("revealed")
+      expect(page).to have_text(account.agent_api_key)
+    end
+  end
+
+  it "regenerates the agent api key and reveals the new value" do
+    account = create(:email_account, user: user, email: "regenerate@gmail.com")
+    original_key = account.agent_api_key
+
+    sign_in_as(user)
+    visit email_account_path(id: account.id)
+
+    within('[data-testid="agent-api-key-section"]') do
+      accept_confirm do
+        click_button I18n.t("email_accounts.agent_api_key.regenerate")
+      end
+    end
+
+    expect(page).to have_text(I18n.t("email_accounts.agent_api_key.regenerated"))
+
+    account.reload
+    expect(account.agent_api_key).not_to eq(original_key)
+
+    within('[data-testid="agent-api-key-section"]') do
+      expect(find('[data-testid="agent-api-key-value"]')["data-state"]).to eq("revealed")
+      expect(page).to have_text(account.agent_api_key)
+    end
+  end
+
   it "disconnects account and returns to list" do
     sign_in_as(user)
     navigate_to_settings_item "Email Accounts"

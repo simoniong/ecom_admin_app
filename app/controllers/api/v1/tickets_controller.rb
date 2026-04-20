@@ -1,28 +1,29 @@
 class Api::V1::TicketsController < Api::BaseController
   def index
-    tickets = Ticket.by_recency
+    tickets = current_email_account.tickets.by_recency
     tickets = tickets.where(status: resolved_status) if valid_status?
 
     render json: tickets.map { |t| ticket_json(t) }
   end
 
   def count
-    tickets = Ticket.all
+    tickets = current_email_account.tickets
     tickets = tickets.where(status: resolved_status) if valid_status?
 
     render json: { count: tickets.count }
   end
 
   def show
-    ticket = Ticket.includes(:messages, customer: { orders: :fulfillments })
-                   .find(params[:id])
+    ticket = current_email_account.tickets
+                                  .includes(:messages, customer: { orders: :fulfillments })
+                                  .find(params[:id])
     render json: ticket_json(ticket, detail: true)
   rescue ActiveRecord::RecordNotFound
     render json: { error: "Ticket not found" }, status: :not_found
   end
 
   def draft_reply
-    ticket = Ticket.find(params[:id])
+    ticket = current_email_account.tickets.find(params[:id])
 
     unless ticket.new_ticket? || ticket.draft?
       return render json: { error: "Ticket is not in new or draft status" }, status: :unprocessable_entity

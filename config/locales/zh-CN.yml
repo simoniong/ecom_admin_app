@@ -100,6 +100,17 @@
     disconnect_confirm: "确定要解绑此邮箱吗？所有关联的工单将被删除。"
     disconnect_success: "邮箱已解绑。"
     send_window_updated: "发送时间窗口更新成功。"
+    agent_api_key:
+      title: "Agent API Key"
+      description: "请在 Ticket API 的 Bearer Token 中使用此密钥。每个邮箱有独立的密钥。"
+      label: "API Key"
+      reveal: "显示"
+      hide: "隐藏"
+      copy: "复制"
+      copied: "已复制！"
+      regenerate: "重新生成"
+      regenerate_confirm: "确定要重新生成 API Key 吗？旧密钥将立即失效。"
+      regenerated: "API Key 已重新生成，请同步更新 Agent 使用的密钥。"
     show:
       email: "邮箱地址"
       google_uid: "Google UID"

@@ -4,10 +4,12 @@ Base URL: `https://{host}/api/v1`
 
 ## Authentication
 
+Each **EmailAccount** has its own API key. Retrieve it from the admin UI: *Email Accounts → select an account → Agent API Key section* (reveal / copy / regenerate). One agent instance per email account.
+
 All requests require a Bearer token in the `Authorization` header:
 
 ```
-Authorization: Bearer {AGENT_API_KEY}
+Authorization: Bearer {email_account_agent_api_key}
 ```
 
 Unauthorized requests return `401`:
@@ -15,6 +17,15 @@ Unauthorized requests return `401`:
 ```json
 { "error": "Unauthorized" }
 ```
+
+## Scoping
+
+The API key determines which email account the agent operates on. Every endpoint is automatically scoped:
+
+- `GET /tickets` / `GET /tickets/count` — only return tickets belonging to the key's email account
+- `GET /tickets/:id` / `POST|PATCH /tickets/:id/draft_reply` — return `404` if the ticket belongs to a different email account
+
+Regenerating the key in the admin UI invalidates the previous key immediately.
 
 ---
 
