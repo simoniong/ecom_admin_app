@@ -6,6 +6,34 @@ class ShopifyWebhooksController < ActionController::API
     shop_domain = request.headers["X-Shopify-Shop-Domain"]
 
     store = ShopifyStore.find_by(shop_domain: shop_domain)
+
+    # GDPR compliance webhooks must always return 200, even if the store is unknown
+    # (e.g., already uninstalled/deleted). Otherwise Shopify retries indefinitely.
+    case topic
+    when "customers/data_request"
+      customer_id = webhook_payload.dig("customer", "id")
+      orders_count = Array(webhook_payload["orders_requested"]).size
+      Rails.logger.info("[ShopifyWebhook] customers/data_request shop=#{shop_domain} customer_id=#{customer_id} orders_requested=#{orders_count}")
+      head :ok
+      return
+    when "customers/redact"
+      if store
+        ProcessCustomerRedactJob.perform_later(store.id, webhook_payload)
+      else
+        Rails.logger.info("[ShopifyWebhook] customers/redact for unknown shop=#{shop_domain}")
+      end
+      head :ok
+      return
+    when "shop/redact"
+      if store
+        ProcessShopRedactJob.perform_later(store.id)
+      else
+        Rails.logger.info("[ShopifyWebhook] shop/redact for unknown shop=#{shop_domain}")
+      end
+      head :ok
+      return
+    end
+
     unless store
       Rails.logger.warn("[ShopifyWebhook] Unknown shop: #{shop_domain}")
       head :not_found

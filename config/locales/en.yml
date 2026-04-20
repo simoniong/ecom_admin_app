@@ -215,6 +215,11 @@ en:
     shop_domain_placeholder: "your-store.myshopify.com"
     connect: "Connect to Shopify"
     save_links: "Save Links"
+    first_install_title: "Connect a new store"
+    first_install_description: "To connect a new Shopify store for the first time, please contact your administrator to obtain a dedicated install link. After completing authorization via the link, the store will appear in the list below automatically."
+    reauth_title: "Reauthorize an existing store"
+    reauth_description: "Use this only for a store that already has the app installed. Common scenarios: (1) we added new API scopes and the merchant needs to re-consent; (2) the access token became invalid (e.g., Shopify revoked it for security reasons or the shop ownership changed) and needs to be refreshed."
+    reauth_button: "Reauthorize"
     show:
       shop_domain: "Shop Domain"
       scopes: "Scopes"
