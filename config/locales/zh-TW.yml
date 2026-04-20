@@ -218,6 +218,7 @@
     first_install_title: "綁定新店舖"
     first_install_description: "首次綁定新的 Shopify 店舖，請聯絡管理員取得專屬安裝連結。點擊連結完成授權後，店舖會自動出現在下方列表。"
     reauth_title: "重新授權已綁定的店舖"
+    reauth_description: "僅適用於已安裝過 App 的店舖。常見情境：（1）我們新增了 API 權限範圍，需要商家重新授權；（2）存取權杖失效（例如 Shopify 因安全原因撤銷、或店舖所有權變更），需要重新取得。"
     reauth_button: "重新授權"
     show:
       shop_domain: "商店域名"
