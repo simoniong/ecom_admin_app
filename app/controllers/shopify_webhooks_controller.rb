@@ -7,13 +7,24 @@ class ShopifyWebhooksController < ActionController::API
 
     store = ShopifyStore.find_by(shop_domain: shop_domain)
 
-    if topic == "customers/data_request"
-      Rails.logger.info("[ShopifyWebhook] customers/data_request shop=#{shop_domain} payload=#{webhook_payload}")
+    # GDPR compliance webhooks must always return 200, even if the store is unknown
+    # (e.g., already uninstalled/deleted). Otherwise Shopify retries indefinitely.
+    case topic
+    when "customers/data_request"
+      customer_id = webhook_payload.dig("customer", "id")
+      orders_count = Array(webhook_payload["orders_requested"]).size
+      Rails.logger.info("[ShopifyWebhook] customers/data_request shop=#{shop_domain} customer_id=#{customer_id} orders_requested=#{orders_count}")
       head :ok
       return
-    end
-
-    if topic == "shop/redact"
+    when "customers/redact"
+      if store
+        ProcessCustomerRedactJob.perform_later(store.id, webhook_payload)
+      else
+        Rails.logger.info("[ShopifyWebhook] customers/redact for unknown shop=#{shop_domain}")
+      end
+      head :ok
+      return
+    when "shop/redact"
       if store
         ProcessShopRedactJob.perform_later(store.id)
       else
@@ -32,8 +43,6 @@ class ShopifyWebhooksController < ActionController::API
     case topic
     when "orders/create", "orders/updated"
       ProcessShopifyOrderWebhookJob.perform_later(store.id, webhook_payload)
-    when "customers/redact"
-      ProcessCustomerRedactJob.perform_later(store.id, webhook_payload)
     else
       Rails.logger.info("[ShopifyWebhook] Ignoring topic: #{topic}")
     end
