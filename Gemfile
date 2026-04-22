@@ -27,7 +27,7 @@ gem "omniauth-google-oauth2", "~> 1.2"
 gem "omniauth-rails_csrf_protection", "~> 2.0"
 
 # Gmail API client
-gem "google-apis-gmail_v1", "~> 0.40"
+gem "google-apis-gmail_v1", "~> 0.48"
 
 # Shopify Admin API client
 gem "shopify_api", "~> 14.0"
