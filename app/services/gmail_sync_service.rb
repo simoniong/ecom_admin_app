@@ -112,7 +112,16 @@ class GmailSyncService
     full_thread = gmail.get_thread(thread_id)
     return if full_thread.messages.blank?
 
-    ticket = email_account.tickets.find_or_initialize_by(gmail_thread_id: thread_id)
+    ticket = email_account.tickets.find_by(gmail_thread_id: thread_id)
+
+    # Skip threads filtered out of inbox by Gmail (e.g. Promotions, Spam, user filters).
+    # The full_sync query "in:inbox" already excludes these, but the History API used by
+    # incremental_sync surfaces all label/message changes regardless of inbox membership.
+    if ticket.nil? && full_thread.messages.none? { |m| m.label_ids&.include?("INBOX") }
+      return
+    end
+
+    ticket ||= email_account.tickets.build(gmail_thread_id: thread_id)
     first_message = full_thread.messages.first
     headers = extract_headers(first_message)
 
