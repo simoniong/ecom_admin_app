@@ -161,6 +161,15 @@ RSpec.describe "Tickets", type: :request do
       expect(response.body).to include("Copy tracking number")
     end
 
+    it "renders a copy-to-clipboard affordance for the customer email" do
+      customer = create(:customer, first_name: "Jane", last_name: "Buyer", email: "copy-me@example.com")
+      ticket = create(:ticket, email_account: email_account, customer: customer)
+      sign_in user
+      get ticket_path(id: ticket.id)
+      expect(response.body).to include('data-clipboard-text-value="copy-me@example.com"')
+      expect(response.body).to include("Copy email")
+    end
+
     it "shows paid time and fulfillment status for orders" do
       customer = create(:customer, first_name: "Jane", last_name: "Buyer", email: "jane@example.com")
       order = create(:order, customer: customer, name: "#3001", total_price: 79.99,

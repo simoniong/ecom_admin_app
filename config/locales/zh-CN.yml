@@ -156,6 +156,7 @@
       no_tracking_events: "暂无物流轨迹。"
       tracking_pending: "物流信息加载中..."
       copy_tracking_number: "复制运单号"
+      copy_email: "复制邮箱"
       copied: "已复制！"
       paid_at: "付款时间"
       fulfillment_status: "发货状态"
