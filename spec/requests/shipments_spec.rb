@@ -197,12 +197,12 @@ RSpec.describe "Shipments", type: :request do
 
     it "filters by sub_status" do
       order = create(:order, customer: customer, shopify_store: store)
-      create(:fulfillment, order: order, tracking_number: "T1", tracking_status: "InTransit", tracking_sub_status: "InTransit_Collected")
-      create(:fulfillment, order: order, tracking_number: "T2", tracking_status: "InTransit", tracking_sub_status: "InTransit_CustomsProcessing")
+      create(:fulfillment, order: order, tracking_number: "SUBSTATUS_COLLECTED", tracking_status: "InTransit", tracking_sub_status: "InTransit_Collected")
+      create(:fulfillment, order: order, tracking_number: "SUBSTATUS_CUSTOMS", tracking_status: "InTransit", tracking_sub_status: "InTransit_CustomsProcessing")
 
       get shipments_path, params: { sub_status: "InTransit_Collected" }
-      expect(response.body).to include("T1")
-      expect(response.body).not_to include("T2")
+      expect(response.body).to include("SUBSTATUS_COLLECTED")
+      expect(response.body).not_to include("SUBSTATUS_CUSTOMS")
     end
 
     it "filters by status dropdown" do
