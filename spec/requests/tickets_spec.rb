@@ -121,6 +121,34 @@ RSpec.describe "Tickets", type: :request do
       expect(response.body).to include("SHIP123")
     end
 
+    it "shows the customer's shipping address when default_address is present" do
+      customer = create(:customer,
+                        first_name: "Jane", last_name: "Buyer", email: "jane@example.com",
+                        shopify_data: {
+                          "default_address" => {
+                            "address1" => "742 Evergreen Terrace",
+                            "city" => "Springfield",
+                            "province" => "IL",
+                            "zip" => "62704",
+                            "country" => "United States"
+                          }
+                        })
+      ticket = create(:ticket, email_account: email_account, customer: customer)
+      sign_in user
+      get ticket_path(id: ticket.id)
+      expect(response.body).to include("Shipping address")
+      expect(response.body).to include("742 Evergreen Terrace, Springfield, IL, 62704, United States")
+    end
+
+    it "omits the shipping address row when default_address is missing" do
+      customer = create(:customer, first_name: "Jane", last_name: "Buyer",
+                        email: "jane@example.com", shopify_data: {})
+      ticket = create(:ticket, email_account: email_account, customer: customer)
+      sign_in user
+      get ticket_path(id: ticket.id)
+      expect(response.body).not_to include("Shipping address")
+    end
+
     it "renders a copy-to-clipboard affordance for the tracking number" do
       customer = create(:customer, first_name: "Jane", last_name: "Buyer", email: "jane@example.com")
       order = create(:order, customer: customer, name: "#2002")
@@ -131,6 +159,15 @@ RSpec.describe "Tickets", type: :request do
       expect(response.body).to include('data-clipboard-text-value="COPY-ME-123"')
       expect(response.body).to include("click->clipboard#copy:stop")
       expect(response.body).to include("Copy tracking number")
+    end
+
+    it "renders a copy-to-clipboard affordance for the customer email" do
+      customer = create(:customer, first_name: "Jane", last_name: "Buyer", email: "copy-me@example.com")
+      ticket = create(:ticket, email_account: email_account, customer: customer)
+      sign_in user
+      get ticket_path(id: ticket.id)
+      expect(response.body).to include('data-clipboard-text-value="copy-me@example.com"')
+      expect(response.body).to include("Copy email")
     end
 
     it "shows paid time and fulfillment status for orders" do
