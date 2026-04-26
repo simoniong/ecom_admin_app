@@ -77,4 +77,23 @@ RSpec.describe "Tickets", type: :system do
     expect(page).to have_text("Draft saved successfully.")
     expect(page).to have_text("Updated draft content")
   end
+
+  it "copy tracking-number button does not toggle the fulfillment card" do
+    customer = create(:customer, first_name: "Jane", last_name: "Buyer", email: "jane@example.com")
+    order = create(:order, customer: customer, name: "#5001")
+    create(:fulfillment, order: order, tracking_number: "COPY-TRACK-001",
+           tracking_url: "https://carrier.example/track/COPY-TRACK-001")
+    ticket = create(:ticket, email_account: email_account, customer: customer, subject: "Tracking ticket")
+
+    sign_in_as(user)
+    visit ticket_path(id: ticket.id)
+
+    expect(page).to have_text("COPY-TRACK-001")
+    expect(page).not_to have_link("View on carrier website")
+
+    find("button[aria-label='Copy tracking number']").click
+
+    expect(page).to have_text("Copied!")
+    expect(page).not_to have_link("View on carrier website")
+  end
 end
