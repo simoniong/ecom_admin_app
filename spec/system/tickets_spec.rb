@@ -89,11 +89,23 @@ RSpec.describe "Tickets", type: :system do
     visit ticket_path(id: ticket.id)
 
     expect(page).to have_text("COPY-TRACK-001")
-    expect(page).not_to have_link("View on carrier website")
 
-    find("button[aria-label='Copy tracking number']").click
+    # collapsible_controller toggles the `hidden` class on the content element.
+    # We assert against the class list (not Capybara visibility) because system
+    # tests in CI don't compile Tailwind, so the `hidden` utility has no styles.
+    fulfillment_panel_selector = '[data-collapsible-target="content"][class*="bg-gray-50"]'
+    expect(page).to have_css(fulfillment_panel_selector, visible: :all, minimum: 1)
+
+    page.all(fulfillment_panel_selector, visible: :all).each do |panel|
+      expect(panel[:class].to_s.split).to include("hidden")
+    end
+
+    first("button[aria-label='Copy tracking number']").click
 
     expect(page).to have_text("Copied!")
-    expect(page).not_to have_link("View on carrier website")
+
+    page.all(fulfillment_panel_selector, visible: :all).each do |panel|
+      expect(panel[:class].to_s.split).to include("hidden")
+    end
   end
 end
