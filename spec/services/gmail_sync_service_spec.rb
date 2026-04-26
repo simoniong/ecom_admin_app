@@ -4,7 +4,7 @@ RSpec.describe GmailSyncService do
   let(:email_account) { create(:email_account, email: "shop@gmail.com", token_expires_at: 1.hour.from_now) }
   let(:service) { described_class.new(email_account) }
 
-  def build_gmail_message(id:, thread_id:, from:, to: "shop@gmail.com", subject: "Test", body: "Hello", internal_date: nil)
+  def build_gmail_message(id:, thread_id:, from:, to: "shop@gmail.com", subject: "Test", body: "Hello", internal_date: nil, label_ids: [ "INBOX" ])
     internal_date ||= (Time.current.to_f * 1000).to_i
     encoded_body = Base64.urlsafe_encode64(body)
 
@@ -12,6 +12,7 @@ RSpec.describe GmailSyncService do
       id: id,
       thread_id: thread_id,
       internal_date: internal_date,
+      label_ids: label_ids,
       payload: Google::Apis::GmailV1::MessagePart.new(
         headers: [
           Google::Apis::GmailV1::MessagePartHeader.new(name: "From", value: from),
@@ -252,6 +253,7 @@ RSpec.describe GmailSyncService do
           Google::Apis::GmailV1::Message.new(
             id: "m-html", thread_id: "t-html",
             internal_date: (Time.current.to_f * 1000).to_i,
+            label_ids: [ "INBOX" ],
             payload: Google::Apis::GmailV1::MessagePart.new(
               headers: [
                 Google::Apis::GmailV1::MessagePartHeader.new(name: "From", value: "Loox <no-reply@loox.io>"),
@@ -430,6 +432,7 @@ RSpec.describe GmailSyncService do
           Google::Apis::GmailV1::Message.new(
             id: "m7", thread_id: "t7",
             internal_date: (Time.current.to_f * 1000).to_i,
+            label_ids: [ "INBOX" ],
             payload: Google::Apis::GmailV1::MessagePart.new(
               headers: [
                 Google::Apis::GmailV1::MessagePartHeader.new(name: "From", value: "multi@example.com"),
@@ -478,6 +481,7 @@ RSpec.describe GmailSyncService do
           Google::Apis::GmailV1::Message.new(
             id: "m-bin", thread_id: "t-bin",
             internal_date: (Time.current.to_f * 1000).to_i,
+            label_ids: [ "INBOX" ],
             payload: Google::Apis::GmailV1::MessagePart.new(
               headers: [
                 Google::Apis::GmailV1::MessagePartHeader.new(name: "From", value: "binary@example.com"),
@@ -515,6 +519,7 @@ RSpec.describe GmailSyncService do
           Google::Apis::GmailV1::Message.new(
             id: "m8", thread_id: "t8",
             internal_date: (Time.current.to_f * 1000).to_i,
+            label_ids: [ "INBOX" ],
             payload: Google::Apis::GmailV1::MessagePart.new(
               headers: [
                 Google::Apis::GmailV1::MessagePartHeader.new(name: "From", value: "bad@example.com"),
@@ -643,6 +648,7 @@ RSpec.describe GmailSyncService do
           Google::Apis::GmailV1::Message.new(
             id: "m-nested", thread_id: "t-nested",
             internal_date: (Time.current.to_f * 1000).to_i,
+            label_ids: [ "INBOX" ],
             payload: Google::Apis::GmailV1::MessagePart.new(
               mime_type: "multipart/mixed",
               headers: [
@@ -921,6 +927,97 @@ RSpec.describe GmailSyncService do
 
       existing_ticket.reload
       expect(existing_ticket.status).to eq("closed")
+    end
+  end
+
+  describe "inbox filtering" do
+    before do
+      email_account.update!(last_history_id: 20000)
+    end
+
+    it "skips threads filtered out of inbox by Gmail (no INBOX label)" do
+      gmail = instance_double(GmailService)
+      allow(GmailService).to receive(:new).and_return(gmail)
+
+      message_added = Google::Apis::GmailV1::HistoryMessageAdded.new(
+        message: Google::Apis::GmailV1::Message.new(id: "m-promo", thread_id: "t-promo")
+      )
+      history = Google::Apis::GmailV1::History.new(messages_added: [ message_added ])
+      history_response = Google::Apis::GmailV1::ListHistoryResponse.new(
+        history: [ history ], history_id: 20100
+      )
+      allow(gmail).to receive(:list_history).and_return(history_response)
+
+      full_thread = build_gmail_thread(
+        id: "t-promo",
+        messages: [
+          build_gmail_message(id: "m-promo", thread_id: "t-promo",
+                              from: "partner@shopify.com", subject: "Promo",
+                              label_ids: [ "CATEGORY_PROMOTIONS" ])
+        ]
+      )
+      allow(gmail).to receive(:get_thread).with("t-promo").and_return(full_thread)
+
+      expect { service.sync! }.not_to change(Ticket, :count)
+    end
+
+    it "still creates a ticket when thread has INBOX label" do
+      gmail = instance_double(GmailService)
+      allow(GmailService).to receive(:new).and_return(gmail)
+
+      message_added = Google::Apis::GmailV1::HistoryMessageAdded.new(
+        message: Google::Apis::GmailV1::Message.new(id: "m-inbox", thread_id: "t-inbox")
+      )
+      history = Google::Apis::GmailV1::History.new(messages_added: [ message_added ])
+      history_response = Google::Apis::GmailV1::ListHistoryResponse.new(
+        history: [ history ], history_id: 20200
+      )
+      allow(gmail).to receive(:list_history).and_return(history_response)
+
+      full_thread = build_gmail_thread(
+        id: "t-inbox",
+        messages: [
+          build_gmail_message(id: "m-inbox", thread_id: "t-inbox",
+                              from: "buyer@example.com", subject: "Help",
+                              label_ids: [ "INBOX", "UNREAD" ])
+        ]
+      )
+      allow(gmail).to receive(:get_thread).with("t-inbox").and_return(full_thread)
+
+      expect { service.sync! }.to change(Ticket, :count).by(1)
+    end
+
+    it "still updates an existing ticket even if thread leaves inbox" do
+      existing_ticket = create(:ticket,
+        email_account: email_account,
+        gmail_thread_id: "t-existing",
+        customer_email: "buyer@example.com",
+        status: :closed
+      )
+
+      gmail = instance_double(GmailService)
+      allow(GmailService).to receive(:new).and_return(gmail)
+
+      message_added = Google::Apis::GmailV1::HistoryMessageAdded.new(
+        message: Google::Apis::GmailV1::Message.new(id: "m-archived", thread_id: "t-existing")
+      )
+      history = Google::Apis::GmailV1::History.new(messages_added: [ message_added ])
+      history_response = Google::Apis::GmailV1::ListHistoryResponse.new(
+        history: [ history ], history_id: 20300
+      )
+      allow(gmail).to receive(:list_history).and_return(history_response)
+
+      full_thread = build_gmail_thread(
+        id: "t-existing",
+        messages: [
+          build_gmail_message(id: "m-archived", thread_id: "t-existing",
+                              from: "buyer@example.com", subject: "Archived reply",
+                              label_ids: [])
+        ]
+      )
+      allow(gmail).to receive(:get_thread).with("t-existing").and_return(full_thread)
+
+      expect { service.sync! }.to change { existing_ticket.reload.messages.count }.by(1)
     end
   end
 end
