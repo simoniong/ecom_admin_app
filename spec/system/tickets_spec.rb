@@ -77,4 +77,35 @@ RSpec.describe "Tickets", type: :system do
     expect(page).to have_text("Draft saved successfully.")
     expect(page).to have_text("Updated draft content")
   end
+
+  it "copy tracking-number button does not toggle the fulfillment card" do
+    customer = create(:customer, first_name: "Jane", last_name: "Buyer", email: "jane@example.com")
+    order = create(:order, customer: customer, name: "#5001")
+    create(:fulfillment, order: order, tracking_number: "COPY-TRACK-001",
+           tracking_url: "https://carrier.example/track/COPY-TRACK-001")
+    ticket = create(:ticket, email_account: email_account, customer: customer, subject: "Tracking ticket")
+
+    sign_in_as(user)
+    visit ticket_path(id: ticket.id)
+
+    expect(page).to have_text("COPY-TRACK-001")
+
+    # collapsible_controller toggles the `hidden` class on the content element.
+    # We assert against the class list (not Capybara visibility) because system
+    # tests in CI don't compile Tailwind, so the `hidden` utility has no styles.
+    fulfillment_panel_selector = '[data-collapsible-target="content"][class*="bg-gray-50"]'
+    expect(page).to have_css(fulfillment_panel_selector, visible: :all, minimum: 1)
+
+    page.all(fulfillment_panel_selector, visible: :all).each do |panel|
+      expect(panel[:class].to_s.split).to include("hidden")
+    end
+
+    first("button[aria-label='Copy tracking number']").click
+
+    expect(page).to have_text("Copied!")
+
+    page.all(fulfillment_panel_selector, visible: :all).each do |panel|
+      expect(panel[:class].to_s.split).to include("hidden")
+    end
+  end
 end

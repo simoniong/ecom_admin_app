@@ -154,6 +154,8 @@ en:
       no_orders: "No orders found."
       no_tracking_events: "No tracking events yet."
       tracking_pending: "Tracking info loading..."
+      copy_tracking_number: "Copy tracking number"
+      copied: "Copied!"
       paid_at: "Paid"
       fulfillment_status: "Fulfillment"
       fulfillment_fulfilled: "Fulfilled"
