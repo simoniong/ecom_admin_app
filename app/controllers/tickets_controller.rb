@@ -91,7 +91,7 @@ class TicketsController < AdminController
   end
 
   def instruct_agent
-    unless @ticket.draft?
+    unless @ticket.new_ticket? || @ticket.draft?
       redirect_to ticket_path(id: @ticket.id), alert: t("tickets.agent_instruction_not_allowed")
       return
     end

@@ -196,7 +196,7 @@ en:
       order_shipped: "Workflow: Order Shipped"
       order_delivered: "Workflow: Order Delivered"
     draft_not_editable: "Current status does not allow editing."
-    agent_instruction_not_allowed: "Agent instructions can only be sent for draft tickets."
+    agent_instruction_not_allowed: "Agent instructions can only be sent for new or draft tickets."
     agent_instruction_blank: "Instruction message cannot be blank."
   shopify_stores:
     title: "Shopify Stores"
