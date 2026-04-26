@@ -78,6 +78,38 @@ RSpec.describe "Tickets", type: :system do
     expect(page).to have_text("Updated draft content")
   end
 
+  it "renders the customer's shipping address in the info panel" do
+    customer = create(:customer,
+                      first_name: "Jane", last_name: "Buyer", email: "jane@example.com",
+                      shopify_data: {
+                        "default_address" => {
+                          "address1" => "742 Evergreen Terrace",
+                          "city" => "Springfield",
+                          "province" => "IL",
+                          "zip" => "62704",
+                          "country" => "United States"
+                        }
+                      })
+    ticket = create(:ticket, email_account: email_account, customer: customer, subject: "Address ticket")
+
+    sign_in_as(user)
+    visit ticket_path(id: ticket.id)
+
+    expect(page).to have_text("Shipping address")
+    expect(page).to have_text("742 Evergreen Terrace, Springfield, IL, 62704, United States")
+  end
+
+  it "omits the shipping address row when the customer has no default_address" do
+    customer = create(:customer, first_name: "Jane", last_name: "Buyer",
+                      email: "jane@example.com", shopify_data: {})
+    ticket = create(:ticket, email_account: email_account, customer: customer, subject: "No address ticket")
+
+    sign_in_as(user)
+    visit ticket_path(id: ticket.id)
+
+    expect(page).not_to have_text("Shipping address")
+  end
+
   it "copy tracking-number button does not toggle the fulfillment card" do
     customer = create(:customer, first_name: "Jane", last_name: "Buyer", email: "jane@example.com")
     order = create(:order, customer: customer, name: "#5001")

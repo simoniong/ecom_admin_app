@@ -149,6 +149,7 @@
       customer_name: "姓名"
       customer_email: "邮箱"
       customer_phone: "电话"
+      shipping_address: "收货地址"
       no_shopify_customer: "未找到 Shopify 客户。"
       orders: "订单"
       no_orders: "暂无订单。"

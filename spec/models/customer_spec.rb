@@ -55,4 +55,43 @@ RSpec.describe Customer, type: :model do
       expect(customer.full_name).to be_nil
     end
   end
+
+  describe "#shipping_address" do
+    it "returns the default_address hash from shopify_data" do
+      address = { "address1" => "1 Main St", "city" => "Toronto", "country" => "Canada" }
+      customer = build(:customer, shopify_data: { "default_address" => address })
+      expect(customer.shipping_address).to eq(address)
+    end
+
+    it "returns nil when shopify_data has no default_address" do
+      customer = build(:customer, shopify_data: {})
+      expect(customer.shipping_address).to be_nil
+    end
+
+    it "returns nil when default_address is empty" do
+      customer = build(:customer, shopify_data: { "default_address" => {} })
+      expect(customer.shipping_address).to be_nil
+    end
+  end
+
+  describe "#formatted_shipping_address" do
+    it "joins address parts with commas, skipping blanks" do
+      customer = build(:customer, shopify_data: {
+        "default_address" => {
+          "address1" => "1 Main St",
+          "address2" => "",
+          "city" => "Toronto",
+          "province" => "ON",
+          "zip" => "M5V 1A1",
+          "country" => "Canada"
+        }
+      })
+      expect(customer.formatted_shipping_address).to eq("1 Main St, Toronto, ON, M5V 1A1, Canada")
+    end
+
+    it "returns nil when no shipping address is set" do
+      customer = build(:customer, shopify_data: {})
+      expect(customer.formatted_shipping_address).to be_nil
+    end
+  end
 end

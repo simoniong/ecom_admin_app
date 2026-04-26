@@ -149,6 +149,7 @@ en:
       customer_name: "Name"
       customer_email: "Email"
       customer_phone: "Phone"
+      shipping_address: "Shipping address"
       no_shopify_customer: "No Shopify customer found."
       orders: "Orders"
       no_orders: "No orders found."

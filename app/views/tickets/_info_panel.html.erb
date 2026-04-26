@@ -26,6 +26,12 @@
           <dd class="text-gray-900"><%= @customer.phone %></dd>
         </div>
       <% end %>
+      <% if @customer.formatted_shipping_address %>
+        <div>
+          <dt class="text-gray-500"><%= t("tickets.show.shipping_address") %></dt>
+          <dd class="text-gray-900"><%= @customer.formatted_shipping_address %></dd>
+        </div>
+      <% end %>
     </dl>
   <% else %>
     <p class="text-sm text-gray-500"><%= @ticket.customer_email %></p>
