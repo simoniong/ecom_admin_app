@@ -154,6 +154,8 @@
       no_orders: "暫無訂單。"
       no_tracking_events: "暫無物流軌跡。"
       tracking_pending: "物流資訊載入中..."
+      copy_tracking_number: "複製運單號"
+      copied: "已複製！"
       paid_at: "付款時間"
       fulfillment_status: "發貨狀態"
       fulfillment_fulfilled: "已發貨"
