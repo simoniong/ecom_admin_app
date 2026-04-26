@@ -15,15 +15,16 @@ class Customer < ApplicationRecord
   end
 
   def formatted_shipping_address
-    return nil unless shipping_address.is_a?(Hash)
+    address = shipping_address
+    return nil unless address.is_a?(Hash)
 
     [
-      shipping_address["address1"],
-      shipping_address["address2"],
-      shipping_address["city"],
-      shipping_address["province"],
-      shipping_address["zip"],
-      shipping_address["country"]
+      address["address1"],
+      address["address2"],
+      address["city"],
+      address["province"],
+      address["zip"],
+      address["country"]
     ].compact_blank.join(", ").presence
   end
 end

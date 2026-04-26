@@ -45,10 +45,11 @@
           <dd class="text-gray-900"><%= @customer.phone %></dd>
         </div>
       <% end %>
-      <% if @customer.formatted_shipping_address %>
+      <% shipping_address = @customer.formatted_shipping_address %>
+      <% if shipping_address %>
         <div>
           <dt class="text-gray-500"><%= t("tickets.show.shipping_address") %></dt>
-          <dd class="text-gray-900"><%= @customer.formatted_shipping_address %></dd>
+          <dd class="text-gray-900"><%= shipping_address %></dd>
         </div>
       <% end %>
     </dl>
