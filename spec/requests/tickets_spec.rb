@@ -342,8 +342,30 @@ RSpec.describe "Tickets", type: :request do
       expect(flash[:notice]).to eq(I18n.t("tickets.show.instruction_sent"))
     end
 
-    it "rejects instruction for non-draft ticket" do
+    it "sends instruction to agent for new ticket" do
       ticket = create(:ticket, email_account: email_account, status: :new_ticket)
+      sign_in user
+
+      expect {
+        post instruct_agent_ticket_path(id: ticket.id), params: { message: "Please draft a refund reply" }
+      }.to have_enqueued_job(NotifyAgentJob).with(ticket.id, "revise_draft", "Please draft a refund reply")
+
+      expect(response).to redirect_to(ticket_path(id: ticket.id))
+      expect(flash[:notice]).to eq(I18n.t("tickets.show.instruction_sent"))
+    end
+
+    it "rejects instruction for closed ticket" do
+      ticket = create(:ticket, email_account: email_account, status: :closed)
+      sign_in user
+
+      post instruct_agent_ticket_path(id: ticket.id), params: { message: "Do something" }
+
+      expect(response).to redirect_to(ticket_path(id: ticket.id))
+      expect(flash[:alert]).to eq(I18n.t("tickets.agent_instruction_not_allowed"))
+    end
+
+    it "rejects instruction for draft_confirmed ticket" do
+      ticket = create(:ticket, :draft_confirmed, email_account: email_account)
       sign_in user
 
       post instruct_agent_ticket_path(id: ticket.id), params: { message: "Do something" }

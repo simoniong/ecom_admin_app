@@ -194,7 +194,7 @@
       order_shipped: "工作流：訂單已出貨"
       order_delivered: "工作流：訂單已送達"
     draft_not_editable: "當前狀態不允許編輯草稿。"
-    agent_instruction_not_allowed: "僅限草稿狀態的工單可發送 Agent 指令。"
+    agent_instruction_not_allowed: "僅限新建或草稿狀態的工單可發送 Agent 指令。"
     agent_instruction_blank: "指令內容不能為空。"
   shopify_stores:
     title: "Shopify 商店"
