@@ -38,8 +38,15 @@ RSpec.describe "shopify:backfill_new_customer_orders", type: :task do
     create(:shopify_store)
     instance = instance_double(ShopifyAnalyticsService)
     allow(ShopifyAnalyticsService).to receive(:new).and_return(instance)
-    allow(instance).to receive(:sync_date).and_raise(StandardError, "boom")
+    expect(instance).to receive(:sync_date).exactly(2).times.and_raise(StandardError, "boom")
 
     expect { task.invoke("2") }.not_to raise_error
+  end
+
+  it "aborts with a clear message when days argument is not a positive integer" do
+    create(:shopify_store)
+    expect(ShopifyAnalyticsService).not_to receive(:new)
+
+    expect { task.invoke("abc") }.to raise_error(SystemExit, /positive integer days argument/)
   end
 end

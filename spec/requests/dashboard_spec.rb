@@ -70,13 +70,20 @@ RSpec.describe "Dashboard", type: :request do
       expect(response.body).to include(I18n.t("dashboard.new_customer_cpa"))
     end
 
-    it "renders em-dash placeholder when CPA cannot be computed" do
+    it "renders em-dash placeholder inside the CPA card when CPA cannot be computed" do
       store = create(:shopify_store, user: user)
       create(:shopify_daily_metric, shopify_store: store, date: Date.current, orders_count: 0, new_customer_orders_count: 0, revenue: 0)
 
       sign_in user
       get authenticated_root_path(range: "today")
-      expect(response.body).to include("—")
+
+      # Scope the assertion to the CPA card so the page-level em-dash on the
+      # date range separator can't make this test pass trivially.
+      doc = Nokogiri::HTML(response.body)
+      cpa_title = I18n.t("dashboard.cpa")
+      cpa_card = doc.xpath("//div[contains(@class, 'rounded-lg')][.//p[normalize-space(text())='#{cpa_title}']]").first
+      expect(cpa_card).not_to be_nil, "CPA card not rendered"
+      expect(cpa_card.text).to include("—")
     end
 
     it "renders a currency-formatted CPA when data is present" do

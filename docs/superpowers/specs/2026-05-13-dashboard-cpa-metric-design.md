@@ -85,11 +85,12 @@ metric.assign_attributes(
 New rake task:
 
 ```ruby
-# lib/tasks/shopify.rake
+# lib/tasks/shopify_backfill.rake
 namespace :shopify do
   desc "Backfill new_customer_orders_count for the past N days (default 90)"
   task :backfill_new_customer_orders, [ :days ] => :environment do |_, args|
     days = (args[:days] || "90").to_i
+    # validate days >= 1 and abort with a clear message otherwise
     # iterate stores, then each date in the window, calling sync_date
     # log progress per store/date; rescue + continue on errors
   end
@@ -97,9 +98,10 @@ end
 ```
 
 Behavior:
-- Iterates every active `ShopifyStore` × every date in `Date.current - days .. Date.current`
+- Iterates every `ShopifyStore` × every date in a `days`-long window ending today (i.e. `(Date.current - (days - 1).days)..Date.current`)
+- Validates `days >= 1`; aborts with a clear message on bad input (prevents silent no-op when `args[:days]` is non-numeric)
 - Re-runs `ShopifyAnalyticsService#sync_date` per date — idempotent because `sync_date` does `find_or_initialize_by` + `assign_attributes` + `save!`
-- Logs `[backfill] store=<domain> date=<date> orders=<n> new_customers=<m>` per iteration
+- Logs `[backfill] store=<domain> date=<date> ok` on success and `... error=<message>` on failure
 - Rescues per-iteration so one store failing doesn't abort the run
 
 Not scheduled automatically. Operator runs `bundle exec rake "shopify:backfill_new_customer_orders[90]"` once after deploy.

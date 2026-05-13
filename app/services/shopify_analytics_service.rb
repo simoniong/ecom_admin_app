@@ -42,7 +42,9 @@ class ShopifyAnalyticsService
   end
 
   # Fetch orders created on target date via GraphQL with pagination.
-  # Returns [orders_count, gross_revenue]
+  # Returns [orders_count, gross_revenue, new_customer_orders_count].
+  # An order is counted as new-customer when customer.numberOfOrders == 1
+  # (guest checkouts where customer is nil are not counted).
   def fetch_orders_via_graphql(client, min_time, max_time)
     cursor = nil
     total_count = 0

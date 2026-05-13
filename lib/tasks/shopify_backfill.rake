@@ -2,6 +2,9 @@ namespace :shopify do
   desc "Backfill new_customer_orders_count by re-running ShopifyAnalyticsService#sync_date for the past N days (default 90)"
   task :backfill_new_customer_orders, [ :days ] => :environment do |_, args|
     days = (args[:days] || "90").to_i
+    if days < 1
+      abort "shopify:backfill_new_customer_orders requires a positive integer days argument (got #{args[:days].inspect})"
+    end
     window = (Date.current - (days - 1).days)..Date.current
 
     ShopifyStore.find_each do |store|
