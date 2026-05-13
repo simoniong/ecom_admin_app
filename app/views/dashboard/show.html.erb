@@ -47,7 +47,7 @@
     </p>
 
     <%# Metric cards grid %>
-    <div class="grid grid-cols-2 lg:grid-cols-5 gap-4">
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
       <%# Orders %>
       <%= render "dashboard/metric_card",
           title: t("dashboard.orders"),
@@ -83,6 +83,22 @@
           value: "#{@metrics[:current][:roas]}x",
           previous: @metrics[:previous][:roas],
           current_raw: @metrics[:current][:roas] %>
+
+      <%# CPA %>
+      <%= render "dashboard/metric_card",
+          title: t("dashboard.cpa"),
+          value: @metrics[:current][:cpa] ? number_to_currency(@metrics[:current][:cpa]) : "—",
+          previous: @metrics[:previous][:cpa],
+          current_raw: @metrics[:current][:cpa],
+          invert_color: true %>
+
+      <%# New Customer CPA %>
+      <%= render "dashboard/metric_card",
+          title: t("dashboard.new_customer_cpa"),
+          value: @metrics[:current][:new_customer_cpa] ? number_to_currency(@metrics[:current][:new_customer_cpa]) : "—",
+          previous: @metrics[:previous][:new_customer_cpa],
+          current_raw: @metrics[:current][:new_customer_cpa],
+          invert_color: true %>
     </div>
   <% end %>
 </div>

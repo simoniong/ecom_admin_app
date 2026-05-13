@@ -75,6 +75,8 @@
     avg_order_value: "平均客單價"
     ad_spend: "廣告花費"
     roas: "ROAS"
+    cpa: "獲客成本"
+    new_customer_cpa: "新客獲客成本"
     apply: "查詢"
     vs_previous: "對比上期"
     ranges:

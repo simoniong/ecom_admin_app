@@ -22,12 +22,15 @@ RSpec.describe ShopifyAnalyticsService do
 
   def orders_graphql_response(orders)
     edges = orders.map.with_index do |o, i|
+      number_of_orders = o.key?(:number_of_orders) ? o[:number_of_orders] : 5
+      customer_node = number_of_orders.nil? ? nil : { "numberOfOrders" => number_of_orders }
       {
         "cursor" => "cursor_#{i}",
         "node" => {
           "subtotalPriceSet" => { "shopMoney" => { "amount" => o[:subtotal] } },
           "totalShippingPriceSet" => { "shopMoney" => { "amount" => o[:shipping] } },
-          "totalTaxSet" => { "shopMoney" => { "amount" => o[:tax] } }
+          "totalTaxSet" => { "shopMoney" => { "amount" => o[:tax] } },
+          "customer" => customer_node
         }
       }
     end
@@ -140,6 +143,62 @@ RSpec.describe ShopifyAnalyticsService do
         .to_return(status: 500, body: "Internal Server Error")
 
       expect { service.sync_date(Date.current) }.not_to raise_error
+    end
+  end
+
+  describe "#sync_date new-customer counting" do
+    it "counts orders where customer.numberOfOrders is 1 as new-customer orders" do
+      stub_graphql([
+        orders_graphql_response([
+          { subtotal: "100.00", shipping: "0", tax: "0", number_of_orders: 1 },
+          { subtotal: "100.00", shipping: "0", tax: "0", number_of_orders: 1 },
+          { subtotal: "100.00", shipping: "0", tax: "0", number_of_orders: 7 }
+        ]),
+        empty_graphql_response
+      ])
+
+      service.sync_date(Date.current)
+
+      metric = ShopifyDailyMetric.last
+      expect(metric.orders_count).to eq(3)
+      expect(metric.new_customer_orders_count).to eq(2)
+    end
+
+    it "treats orders with no customer as not new (guest checkout)" do
+      stub_graphql([
+        orders_graphql_response([
+          { subtotal: "100.00", shipping: "0", tax: "0", number_of_orders: nil },
+          { subtotal: "100.00", shipping: "0", tax: "0", number_of_orders: 1 }
+        ]),
+        empty_graphql_response
+      ])
+
+      service.sync_date(Date.current)
+
+      metric = ShopifyDailyMetric.last
+      expect(metric.new_customer_orders_count).to eq(1)
+    end
+
+    it "is idempotent: re-running updates the same metric row in place" do
+      # Each sync_date makes 3 GraphQL calls: 1 for orders, 2 for refunds (partially_refunded + refunded).
+      # Provide the first sync_date's orders at index 0, the second sync_date's orders at index 3.
+      # Indices 1, 2, 4, 5 fall through to empty_graphql_response.
+      stub_graphql([
+        orders_graphql_response([
+          { subtotal: "100.00", shipping: "0", tax: "0", number_of_orders: 1 }
+        ]),
+        empty_graphql_response,
+        empty_graphql_response,
+        orders_graphql_response([
+          { subtotal: "100.00", shipping: "0", tax: "0", number_of_orders: 1 },
+          { subtotal: "100.00", shipping: "0", tax: "0", number_of_orders: 1 }
+        ])
+      ])
+
+      service.sync_date(Date.current)
+      expect { service.sync_date(Date.current) }.not_to change(ShopifyDailyMetric, :count)
+
+      expect(ShopifyDailyMetric.last.new_customer_orders_count).to eq(2)
     end
   end
 end

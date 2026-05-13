@@ -102,6 +102,62 @@ RSpec.describe DashboardMetricsService do
       expect(result[:date_range]).to eq(Date.yesterday..Date.yesterday)
       expect(result[:range_key]).to eq("yesterday")
     end
+
+    it "calculates CPA as ad_spend divided by orders" do
+      create(:shopify_daily_metric, shopify_store: store, date: Date.current, sessions: 100, orders_count: 10, new_customer_orders_count: 4, revenue: 500)
+      create(:ad_daily_metric, ad_account: ad_account, date: Date.current, spend: 50)
+
+      result = described_class.new(user, range_key: "today").call
+      expect(result[:current][:cpa]).to eq(5.0)
+    end
+
+    it "returns nil CPA when there are no orders" do
+      create(:ad_daily_metric, ad_account: ad_account, date: Date.current, spend: 50)
+
+      result = described_class.new(user, range_key: "today").call
+      expect(result[:current][:cpa]).to be_nil
+    end
+
+    it "returns nil CPA when there is no ad spend" do
+      create(:shopify_daily_metric, shopify_store: store, date: Date.current, orders_count: 10, new_customer_orders_count: 4, revenue: 500)
+
+      result = described_class.new(user, range_key: "today").call
+      expect(result[:current][:cpa]).to be_nil
+    end
+
+    it "calculates new_customer_cpa as ad_spend divided by new_customer_orders_count" do
+      create(:shopify_daily_metric, shopify_store: store, date: Date.current, orders_count: 10, new_customer_orders_count: 4, revenue: 500)
+      create(:ad_daily_metric, ad_account: ad_account, date: Date.current, spend: 80)
+
+      result = described_class.new(user, range_key: "today").call
+      expect(result[:current][:new_customer_cpa]).to eq(20.0)
+    end
+
+    it "returns nil new_customer_cpa when new_customer_orders_count is zero" do
+      create(:shopify_daily_metric, shopify_store: store, date: Date.current, orders_count: 10, new_customer_orders_count: 0, revenue: 500)
+      create(:ad_daily_metric, ad_account: ad_account, date: Date.current, spend: 80)
+
+      result = described_class.new(user, range_key: "today").call
+      expect(result[:current][:new_customer_cpa]).to be_nil
+    end
+
+    it "exposes new_customer_orders so the view can render context" do
+      create(:shopify_daily_metric, shopify_store: store, date: Date.current, orders_count: 10, new_customer_orders_count: 4, revenue: 500)
+
+      result = described_class.new(user, range_key: "today").call
+      expect(result[:current][:new_customer_orders]).to eq(4)
+    end
+
+    it "computes previous-period CPA against the previous range" do
+      create(:shopify_daily_metric, shopify_store: store, date: Date.current, orders_count: 10, new_customer_orders_count: 4, revenue: 500)
+      create(:ad_daily_metric, ad_account: ad_account, date: Date.current, spend: 50)
+      create(:shopify_daily_metric, shopify_store: store, date: Date.yesterday, orders_count: 5, new_customer_orders_count: 2, revenue: 250)
+      create(:ad_daily_metric, ad_account: ad_account, date: Date.yesterday, spend: 100)
+
+      result = described_class.new(user, range_key: "today").call
+      expect(result[:current][:cpa]).to eq(5.0)
+      expect(result[:previous][:cpa]).to eq(20.0)
+    end
   end
 
   describe "all range keys" do
