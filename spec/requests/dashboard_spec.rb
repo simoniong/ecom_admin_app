@@ -62,5 +62,33 @@ RSpec.describe "Dashboard", type: :request do
       get authenticated_root_path(range: "yesterday"), headers: { "Turbo-Frame" => "dashboard_metrics" }
       expect(response).to have_http_status(:success)
     end
+
+    it "displays CPA and new customer CPA card titles" do
+      sign_in user
+      get authenticated_root_path
+      expect(response.body).to include(I18n.t("dashboard.cpa"))
+      expect(response.body).to include(I18n.t("dashboard.new_customer_cpa"))
+    end
+
+    it "renders em-dash placeholder when CPA cannot be computed" do
+      store = create(:shopify_store, user: user)
+      create(:shopify_daily_metric, shopify_store: store, date: Date.current, orders_count: 0, new_customer_orders_count: 0, revenue: 0)
+
+      sign_in user
+      get authenticated_root_path(range: "today")
+      expect(response.body).to include("—")
+    end
+
+    it "renders a currency-formatted CPA when data is present" do
+      store = create(:shopify_store, user: user)
+      ad_account = create(:ad_account, user: user)
+      create(:shopify_daily_metric, shopify_store: store, date: Date.current, orders_count: 10, new_customer_orders_count: 4, revenue: 500)
+      create(:ad_daily_metric, ad_account: ad_account, date: Date.current, spend: 50)
+
+      sign_in user
+      get authenticated_root_path(range: "today")
+      expect(response.body).to include("$5.00") # 50 / 10
+      expect(response.body).to include("$12.50") # 50 / 4
+    end
   end
 end

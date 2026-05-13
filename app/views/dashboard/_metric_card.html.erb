@@ -3,7 +3,7 @@
   <p class="text-sm font-medium text-gray-500 truncate"><%= title %></p>
   <div class="mt-2">
     <div class="text-2xl font-semibold text-gray-900"><%= value %></div>
-    <% if previous && previous != 0 %>
+    <% if previous && previous != 0 && current_raw %>
       <% change = ((current_raw - previous).to_f / previous * 100).round(1) %>
       <% positive = invert_color ? change < 0 : change > 0 %>
       <div class="mt-1 flex items-center text-xs">

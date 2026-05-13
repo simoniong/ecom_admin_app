@@ -75,6 +75,8 @@ en:
     avg_order_value: "Avg Order Value"
     ad_spend: "Ad Spend"
     roas: "ROAS"
+    cpa: "CPA"
+    new_customer_cpa: "New Customer CPA"
     apply: "Apply"
     vs_previous: "vs previous period"
     ranges:
