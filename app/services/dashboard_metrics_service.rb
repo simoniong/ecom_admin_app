@@ -52,17 +52,21 @@ class DashboardMetricsService
 
     sessions = shopify.sum(:sessions)
     orders = shopify.sum(:orders_count)
+    new_customer_orders = shopify.sum(:new_customer_orders_count)
     revenue = shopify.sum(:revenue)
     ad_spend = ad.sum(:spend)
 
     {
       sessions: sessions,
       orders: orders,
+      new_customer_orders: new_customer_orders,
       revenue: revenue,
       avg_order_value: orders > 0 ? (revenue / orders).round(2) : 0,
       conversion_rate: sessions > 0 ? (orders.to_f / sessions * 100).round(2) : 0,
       ad_spend: ad_spend,
-      roas: ad_spend > 0 ? (revenue / ad_spend).round(2) : 0
+      roas: ad_spend > 0 ? (revenue / ad_spend).round(2) : 0,
+      cpa: (orders > 0 && ad_spend > 0) ? (ad_spend / orders).round(2) : nil,
+      new_customer_cpa: (new_customer_orders > 0 && ad_spend > 0) ? (ad_spend / new_customer_orders).round(2) : nil
     }
   end
 
