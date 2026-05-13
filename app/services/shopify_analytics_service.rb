@@ -11,7 +11,8 @@ class ShopifyAnalyticsService
     max_time = @timezone.parse(date.to_s).end_of_day.utc
 
     client = build_graphql_client
-    orders_count, gross_revenue = fetch_orders_via_graphql(client, min_time, max_time)
+    orders_count, gross_revenue, new_customer_orders_count =
+      fetch_orders_via_graphql(client, min_time, max_time)
 
     refunds_total = fetch_refunds_via_graphql(client, min_time, max_time)
 
@@ -21,6 +22,7 @@ class ShopifyAnalyticsService
     metric.assign_attributes(
       sessions: 0,
       orders_count: orders_count,
+      new_customer_orders_count: new_customer_orders_count,
       revenue: gross_revenue - refunds_total,
       conversion_rate: 0
     )
@@ -45,6 +47,7 @@ class ShopifyAnalyticsService
     cursor = nil
     total_count = 0
     total_revenue = BigDecimal("0")
+    total_new_customer_count = 0
 
     loop do
       after_clause = cursor ? ", after: \"#{cursor}\"" : ""
@@ -57,6 +60,7 @@ class ShopifyAnalyticsService
                 subtotalPriceSet { shopMoney { amount } }
                 totalShippingPriceSet { shopMoney { amount } }
                 totalTaxSet { shopMoney { amount } }
+                customer { numberOfOrders }
               }
             }
             pageInfo { hasNextPage }
@@ -77,13 +81,14 @@ class ShopifyAnalyticsService
         total_revenue += node.dig("subtotalPriceSet", "shopMoney", "amount").to_d +
           node.dig("totalShippingPriceSet", "shopMoney", "amount").to_d +
           node.dig("totalTaxSet", "shopMoney", "amount").to_d
+        total_new_customer_count += 1 if node.dig("customer", "numberOfOrders").to_i == 1
       end
 
       break unless data.dig("pageInfo", "hasNextPage")
       cursor = edges.last["cursor"]
     end
 
-    [ total_count, total_revenue ]
+    [ total_count, total_revenue, total_new_customer_count ]
   end
 
   # Fetch refunds processed on target date via GraphQL.
