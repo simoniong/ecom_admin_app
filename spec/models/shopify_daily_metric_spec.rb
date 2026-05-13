@@ -23,6 +23,16 @@ RSpec.describe ShopifyDailyMetric, type: :model do
     expect(metric).not_to be_valid
   end
 
+  it "validates new_customer_orders_count is non-negative" do
+    metric.new_customer_orders_count = -1
+    expect(metric).not_to be_valid
+  end
+
+  it "defaults new_customer_orders_count to 0" do
+    fresh = described_class.new(shopify_store: store, date: Date.current)
+    expect(fresh.new_customer_orders_count).to eq(0)
+  end
+
   it "allows negative revenue (days with more refunds than sales)" do
     metric.revenue = -50
     expect(metric).to be_valid
