@@ -234,6 +234,7 @@ en:
     guide_step_5: "Copy the Client ID and Client Secret into the form below."
     show:
       shop_domain: "Shop Domain"
+      client_id: "Client ID"
       scopes: "Scopes"
       timezone: "Timezone"
       installed_at: "Installed At"
