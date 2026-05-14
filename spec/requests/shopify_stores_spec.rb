@@ -55,6 +55,16 @@ RSpec.describe "ShopifyStores", type: :request do
       expect(response.body).to include("detail-store.myshopify.com")
     end
 
+    it "shows the client_id but not the client_secret" do
+      store = create(:shopify_store, user: user,
+                     client_id: "visible-client-id", client_secret: "shpss_secret_value")
+      sign_in user
+      get shopify_store_path(id: store.id)
+      expect(response.body).to include(I18n.t("shopify_stores.show.client_id"))
+      expect(response.body).to include("visible-client-id")
+      expect(response.body).not_to include("shpss_secret_value")
+    end
+
     it "returns 404 for another user's store" do
       store = create(:shopify_store, user: other_user)
       sign_in user

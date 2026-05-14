@@ -232,6 +232,7 @@
     guide_step_5: "把 Client ID 與 Client Secret 複製到下方表單。"
     show:
       shop_domain: "商店域名"
+      client_id: "Client ID"
       timezone: "時區"
       scopes: "授權範圍"
       installed_at: "安裝時間"
