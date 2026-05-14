@@ -4,6 +4,8 @@ FactoryBot.define do
     company { user&.companies&.first || association(:company) }
     sequence(:shop_domain) { |n| "test-store-#{n}.myshopify.com" }
     access_token { "shpat_test_token" }
+    client_id { "test-client-id" }
+    client_secret { "shpss_test_client_secret" }
     scopes { "read_products,read_customers,read_all_orders,read_fulfillments,read_analytics" }
     installed_at { Time.current }
 

@@ -3,9 +3,16 @@ class ShopifyOauthController < AdminController
 
   def auth
     shop = params[:shop].to_s.strip.downcase
+    client_id = params[:client_id].to_s.strip
+    client_secret = params[:client_secret].to_s.strip
 
     unless shop.match?(SHOP_DOMAIN_FORMAT)
       redirect_to shopify_stores_path, alert: t("shopify_stores.oauth_failure")
+      return
+    end
+
+    if client_id.blank? || client_secret.blank?
+      redirect_to shopify_stores_path, alert: t("shopify_stores.credentials_required")
       return
     end
 
@@ -22,13 +29,9 @@ class ShopifyOauthController < AdminController
 
     nonce = SecureRandom.hex(16)
     session[:shopify_oauth_nonce] = nonce
-
-    client_id = ENV["SHOPIFY_CLIENT_ID"] || Rails.application.credentials.dig(:shopify, :client_id)
-
-    if client_id.blank?
-      redirect_to shopify_stores_path, alert: t("shopify_stores.oauth_failure")
-      return
-    end
+    session[:shopify_pending_client_id] = client_id
+    session[:shopify_pending_client_secret] = client_secret
+    session[:shopify_pending_shop] = shop
 
     scopes = "read_products,read_customers,read_all_orders,read_fulfillments,read_analytics,write_webhooks"
     redirect_uri = shopify_callback_url(locale: nil)
@@ -49,7 +52,23 @@ class ShopifyOauthController < AdminController
     state = params[:state]
     hmac = params[:hmac]
 
+    client_id = session[:shopify_pending_client_id]
+    client_secret = session[:shopify_pending_client_secret]
+    pending_shop = session[:shopify_pending_shop]
+
+    if client_id.blank? || client_secret.blank? || pending_shop.blank?
+      clear_pending_session
+      redirect_to shopify_stores_path, alert: t("shopify_stores.oauth_failure")
+      return
+    end
+
     unless shop.match?(SHOP_DOMAIN_FORMAT) && code.present?
+      redirect_to shopify_stores_path, alert: t("shopify_stores.oauth_failure")
+      return
+    end
+
+    unless shop == pending_shop
+      clear_pending_session
       redirect_to shopify_stores_path, alert: t("shopify_stores.oauth_failure")
       return
     end
@@ -62,14 +81,15 @@ class ShopifyOauthController < AdminController
       end
     end
 
-    unless verify_hmac(hmac, request.query_parameters.except("hmac"))
+    unless verify_hmac(hmac, request.query_parameters.except("hmac"), client_secret)
       redirect_to shopify_stores_path, alert: t("shopify_stores.oauth_failure")
       return
     end
 
-    access_token_response = exchange_code_for_token(shop, code)
+    access_token_response = exchange_code_for_token(shop, code, client_id, client_secret)
 
     unless access_token_response
+      clear_pending_session
       redirect_to shopify_stores_path, alert: t("shopify_stores.bind_failure")
       return
     end
@@ -81,10 +101,14 @@ class ShopifyOauthController < AdminController
     end
     store.assign_attributes(
       access_token: access_token_response["access_token"],
+      client_id: client_id,
+      client_secret: client_secret,
       scopes: access_token_response["scope"],
       timezone: fetch_shop_timezone(shop, access_token_response["access_token"]),
       installed_at: store.installed_at || Time.current
     )
+
+    clear_pending_session
 
     if store.save
       SyncAllShopifyOrdersJob.perform_later(store.id)
@@ -99,14 +123,17 @@ class ShopifyOauthController < AdminController
 
   private
 
-  def verify_hmac(hmac, query_params)
-    return false if hmac.blank?
+  def clear_pending_session
+    session.delete(:shopify_pending_client_id)
+    session.delete(:shopify_pending_client_secret)
+    session.delete(:shopify_pending_shop)
+  end
 
-    secret = ENV["SHOPIFY_CLIENT_SECRET"] || Rails.application.credentials.dig(:shopify, :client_secret)
-    return false if secret.blank?
+  def verify_hmac(hmac, query_params, client_secret)
+    return false if hmac.blank? || client_secret.blank?
 
     message = query_params.sort.map { |k, v| "#{k}=#{v}" }.join("&")
-    digest = OpenSSL::HMAC.hexdigest("SHA256", secret, message)
+    digest = OpenSSL::HMAC.hexdigest("SHA256", client_secret, message)
     return false unless hmac.bytesize == digest.bytesize
 
     ActiveSupport::SecurityUtils.secure_compare(digest, hmac)
@@ -124,10 +151,7 @@ class ShopifyOauthController < AdminController
     "UTC"
   end
 
-  def exchange_code_for_token(shop, code)
-    client_id = ENV["SHOPIFY_CLIENT_ID"] || Rails.application.credentials.dig(:shopify, :client_id)
-    client_secret = ENV["SHOPIFY_CLIENT_SECRET"] || Rails.application.credentials.dig(:shopify, :client_secret)
-
+  def exchange_code_for_token(shop, code, client_id, client_secret)
     response = HTTParty.post(
       "https://#{shop}/admin/oauth/access_token",
       body: {

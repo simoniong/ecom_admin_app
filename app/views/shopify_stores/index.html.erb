@@ -3,33 +3,44 @@
     <h1 class="text-2xl font-semibold text-gray-900"><%= t("shopify_stores.title") %></h1>
   </div>
 
-  <%# Informational card for first-time install via Partner-generated link %>
-  <div class="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-6">
-    <div class="flex gap-3">
-      <svg class="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
-      </svg>
-      <div>
-        <h2 class="text-sm font-semibold text-blue-900"><%= t("shopify_stores.first_install_title") %></h2>
-        <p class="mt-1 text-sm text-blue-800"><%= t("shopify_stores.first_install_description") %></p>
-      </div>
-    </div>
-  </div>
-
-  <%# Inline form to reauthorize an already-connected store %>
+  <%# Single connect form: handles both first-time connection and re-authorization %>
   <div class="mt-6 bg-white shadow-sm rounded-lg border border-gray-200 p-6">
-    <h2 class="text-sm font-medium text-gray-700 mb-3"><%= t("shopify_stores.reauth_title") %></h2>
-    <%= form_tag shopify_auth_path, method: :get, data: { turbo: false }, class: "flex items-end gap-3 flex-wrap" do %>
-      <div class="flex-1 min-w-[14rem]">
+    <h2 class="text-sm font-semibold text-gray-900"><%= t("shopify_stores.connect_title") %></h2>
+    <p class="mt-1 text-sm text-gray-600"><%= t("shopify_stores.connect_description") %></p>
+
+    <%# Collapsible merchant setup guide %>
+    <details class="mt-4 bg-gray-50 border border-gray-200 rounded-md p-4">
+      <summary class="text-sm font-medium text-gray-700 cursor-pointer"><%= t("shopify_stores.guide_summary") %></summary>
+      <ol class="mt-3 ml-4 list-decimal space-y-1 text-sm text-gray-600">
+        <li><%= t("shopify_stores.guide_step_1") %></li>
+        <li><%= t("shopify_stores.guide_step_2_html", callback_url: shopify_callback_url(locale: nil)).html_safe %></li>
+        <li><%= t("shopify_stores.guide_step_3") %></li>
+        <li><%= t("shopify_stores.guide_step_4") %></li>
+        <li><%= t("shopify_stores.guide_step_5") %></li>
+      </ol>
+    </details>
+
+    <%= form_tag shopify_auth_path, method: :post, data: { turbo: false }, class: "mt-4 space-y-3" do %>
+      <div>
         <label for="shop" class="block text-sm font-medium text-gray-500 mb-1"><%= t("shopify_stores.enter_shop_domain") %></label>
         <input type="text" name="shop" id="shop"
                placeholder="<%= t("shopify_stores.shop_domain_placeholder") %>"
                required
                class="block w-full px-3 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-700 focus:border-gray-900 focus:ring-gray-900" />
       </div>
+      <div>
+        <label for="client_id" class="block text-sm font-medium text-gray-500 mb-1"><%= t("shopify_stores.client_id_label") %></label>
+        <input type="text" name="client_id" id="client_id" required
+               class="block w-full px-3 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-700 focus:border-gray-900 focus:ring-gray-900" />
+      </div>
+      <div>
+        <label for="client_secret" class="block text-sm font-medium text-gray-500 mb-1"><%= t("shopify_stores.client_secret_label") %></label>
+        <input type="password" name="client_secret" id="client_secret" required
+               class="block w-full px-3 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-700 focus:border-gray-900 focus:ring-gray-900" />
+      </div>
       <% if company_has_groups? %>
         <% if current_membership&.owner? %>
-          <div class="min-w-[12rem]">
+          <div>
             <label for="group_id" class="block text-sm font-medium text-gray-500 mb-1"><%= t("shopify_stores.group") %></label>
             <%= select_tag :group_id,
                 options_for_select(current_company.groups.order(:name).map { |g| [ g.name, g.id ] }),
@@ -42,20 +53,9 @@
       <% end %>
       <button type="submit"
               class="inline-flex items-center gap-2 px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2">
-        <svg class="w-4 h-4" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
-        </svg>
-        <%= t("shopify_stores.reauth_button") %>
+        <%= t("shopify_stores.connect") %>
       </button>
     <% end %>
-
-    <%# Callout explaining when to use this form %>
-    <div class="mt-4 bg-amber-50 border-l-4 border-amber-400 rounded-md p-4 flex gap-3">
-      <svg class="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
-      </svg>
-      <p class="text-sm text-amber-900"><%= t("shopify_stores.reauth_description") %></p>
-    </div>
   </div>
 
   <% if @shopify_stores.any? %>
