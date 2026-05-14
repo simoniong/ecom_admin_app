@@ -3,9 +3,16 @@ class ShopifyOauthController < AdminController
 
   def auth
     shop = params[:shop].to_s.strip.downcase
+    client_id = params[:client_id].to_s.strip
+    client_secret = params[:client_secret].to_s.strip
 
     unless shop.match?(SHOP_DOMAIN_FORMAT)
       redirect_to shopify_stores_path, alert: t("shopify_stores.oauth_failure")
+      return
+    end
+
+    if client_id.blank? || client_secret.blank?
+      redirect_to shopify_stores_path, alert: t("shopify_stores.credentials_required")
       return
     end
 
@@ -22,13 +29,9 @@ class ShopifyOauthController < AdminController
 
     nonce = SecureRandom.hex(16)
     session[:shopify_oauth_nonce] = nonce
-
-    client_id = ENV["SHOPIFY_CLIENT_ID"] || Rails.application.credentials.dig(:shopify, :client_id)
-
-    if client_id.blank?
-      redirect_to shopify_stores_path, alert: t("shopify_stores.oauth_failure")
-      return
-    end
+    session[:shopify_pending_client_id] = client_id
+    session[:shopify_pending_client_secret] = client_secret
+    session[:shopify_pending_shop] = shop
 
     scopes = "read_products,read_customers,read_all_orders,read_fulfillments,read_analytics,write_webhooks"
     redirect_uri = shopify_callback_url(locale: nil)
