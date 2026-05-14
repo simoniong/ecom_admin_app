@@ -5,8 +5,6 @@ class ShopifyWebhooksController < ActionController::API
     topic = request.headers["X-Shopify-Topic"]
     shop_domain = request.headers["X-Shopify-Shop-Domain"]
 
-    store = ShopifyStore.find_by(shop_domain: shop_domain)
-
     # GDPR compliance webhooks must always return 200, even if the store is unknown
     # (e.g., already uninstalled/deleted). Otherwise Shopify retries indefinitely.
     case topic
@@ -17,16 +15,16 @@ class ShopifyWebhooksController < ActionController::API
       head :ok
       return
     when "customers/redact"
-      if store
-        ProcessCustomerRedactJob.perform_later(store.id, webhook_payload)
+      if @webhook_store
+        ProcessCustomerRedactJob.perform_later(@webhook_store.id, webhook_payload)
       else
         Rails.logger.info("[ShopifyWebhook] customers/redact for unknown shop=#{shop_domain}")
       end
       head :ok
       return
     when "shop/redact"
-      if store
-        ProcessShopRedactJob.perform_later(store.id)
+      if @webhook_store
+        ProcessShopRedactJob.perform_later(@webhook_store.id)
       else
         Rails.logger.info("[ShopifyWebhook] shop/redact for unknown shop=#{shop_domain}")
       end
@@ -34,7 +32,7 @@ class ShopifyWebhooksController < ActionController::API
       return
     end
 
-    unless store
+    unless @webhook_store
       Rails.logger.warn("[ShopifyWebhook] Unknown shop: #{shop_domain}")
       head :not_found
       return
@@ -42,7 +40,7 @@ class ShopifyWebhooksController < ActionController::API
 
     case topic
     when "orders/create", "orders/updated"
-      ProcessShopifyOrderWebhookJob.perform_later(store.id, webhook_payload)
+      ProcessShopifyOrderWebhookJob.perform_later(@webhook_store.id, webhook_payload)
     else
       Rails.logger.info("[ShopifyWebhook] Ignoring topic: #{topic}")
     end
@@ -52,10 +50,19 @@ class ShopifyWebhooksController < ActionController::API
 
   private
 
+  # Looks up the store by the shop-domain header and verifies the webhook HMAC
+  # with that store's client_secret. The header is attacker-controllable, but a
+  # forged shop name will not match that store's secret, so selecting the secret
+  # by header is safe. An unknown shop has no actionable target, so HMAC is
+  # skipped and #receive decides the response (200 for GDPR, 404 otherwise).
   def verify_shopify_webhook
-    secret = ENV["SHOPIFY_CLIENT_SECRET"] || Rails.application.credentials.dig(:shopify, :client_secret)
+    shop_domain = request.headers["X-Shopify-Shop-Domain"]
+    @webhook_store = ShopifyStore.find_by(shop_domain: shop_domain)
+    return if @webhook_store.nil?
+
+    secret = @webhook_store.client_secret
     if secret.blank?
-      Rails.logger.error("[ShopifyWebhook] SHOPIFY_CLIENT_SECRET is not configured")
+      Rails.logger.error("[ShopifyWebhook] Store #{shop_domain} has no client_secret")
       head :unauthorized
       return
     end
