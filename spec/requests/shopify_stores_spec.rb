@@ -36,18 +36,13 @@ RSpec.describe "ShopifyStores", type: :request do
       expect(response.body).to include(I18n.t("shopify_stores.empty"))
     end
 
-    it "renders the first-install instruction card" do
+    it "renders the connect form with credential fields and the setup guide" do
       sign_in user
       get shopify_stores_path
-      expect(response.body).to include(I18n.t("shopify_stores.first_install_title"))
-      expect(response.body).to include(I18n.t("shopify_stores.first_install_description"))
-    end
-
-    it "renders the reauthorize form heading" do
-      sign_in user
-      get shopify_stores_path
-      expect(response.body).to include(I18n.t("shopify_stores.reauth_title"))
-      expect(response.body).to include(I18n.t("shopify_stores.reauth_button"))
+      expect(response.body).to include(I18n.t("shopify_stores.connect_title"))
+      expect(response.body).to include(I18n.t("shopify_stores.guide_summary"))
+      expect(response.body).to match(/name="client_id"/)
+      expect(response.body).to match(/name="client_secret"/)
     end
   end
 

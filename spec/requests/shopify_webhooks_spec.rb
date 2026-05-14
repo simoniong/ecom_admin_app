@@ -2,7 +2,6 @@ require "rails_helper"
 
 RSpec.describe "ShopifyWebhooks", type: :request do
   let(:store) { create(:shopify_store) }
-  let(:secret) { "test-client-secret" }
   let(:order_payload) do
     {
       id: 12345, name: "#1001", email: "buyer@example.com",
@@ -14,18 +13,12 @@ RSpec.describe "ShopifyWebhooks", type: :request do
     }.to_json
   end
 
-  before do
-    allow(ENV).to receive(:[]).and_call_original
-    allow(ENV).to receive(:[]).with("SHOPIFY_CLIENT_SECRET").and_return(secret)
+  def webhook_hmac(body, secret)
+    Base64.strict_encode64(OpenSSL::HMAC.digest("SHA256", secret, body))
   end
 
-  def webhook_hmac(body)
-    digest = OpenSSL::HMAC.digest("SHA256", secret, body)
-    Base64.strict_encode64(digest)
-  end
-
-  def post_webhook(body:, topic: "orders/create", shop_domain: store.shop_domain, hmac: nil)
-    hmac ||= webhook_hmac(body)
+  def post_webhook(body:, secret:, topic: "orders/create", shop_domain: store.shop_domain, hmac: nil)
+    hmac ||= webhook_hmac(body, secret)
     post "/shopify/webhooks", params: body, headers: {
       "Content-Type" => "application/json",
       "X-Shopify-Topic" => topic,
@@ -35,36 +28,36 @@ RSpec.describe "ShopifyWebhooks", type: :request do
   end
 
   describe "POST /shopify/webhooks" do
-    it "returns 200 and enqueues job for orders/create" do
+    it "verifies HMAC with the store's own client_secret and enqueues for orders/create" do
       expect {
-        post_webhook(body: order_payload, topic: "orders/create")
+        post_webhook(body: order_payload, secret: store.client_secret, topic: "orders/create")
       }.to have_enqueued_job(ProcessShopifyOrderWebhookJob).with(store.id, anything)
 
       expect(response).to have_http_status(:ok)
     end
 
-    it "returns 200 and enqueues job for orders/updated" do
+    it "enqueues for orders/updated" do
       expect {
-        post_webhook(body: order_payload, topic: "orders/updated")
+        post_webhook(body: order_payload, secret: store.client_secret, topic: "orders/updated")
       }.to have_enqueued_job(ProcessShopifyOrderWebhookJob)
 
       expect(response).to have_http_status(:ok)
     end
 
-    it "returns 200 for unknown topic without enqueuing" do
+    it "returns 200 for an unknown topic without enqueuing" do
       expect {
-        post_webhook(body: order_payload, topic: "products/create")
+        post_webhook(body: order_payload, secret: store.client_secret, topic: "products/create")
       }.not_to have_enqueued_job(ProcessShopifyOrderWebhookJob)
 
       expect(response).to have_http_status(:ok)
     end
 
-    it "returns 401 for invalid HMAC" do
-      post_webhook(body: order_payload, hmac: "invalid-hmac")
+    it "returns 401 when the HMAC does not match the store's client_secret" do
+      post_webhook(body: order_payload, secret: "wrong-secret", topic: "orders/create")
       expect(response).to have_http_status(:unauthorized)
     end
 
-    it "returns 401 for missing HMAC" do
+    it "returns 401 when the HMAC header is missing" do
       post "/shopify/webhooks", params: order_payload, headers: {
         "Content-Type" => "application/json",
         "X-Shopify-Topic" => "orders/create",
@@ -73,21 +66,12 @@ RSpec.describe "ShopifyWebhooks", type: :request do
       expect(response).to have_http_status(:unauthorized)
     end
 
-    it "returns 401 when secret is not configured" do
-      allow(ENV).to receive(:[]).with("SHOPIFY_CLIENT_SECRET").and_return(nil)
-      allow(Rails.application.credentials).to receive(:dig).with(:shopify, :client_secret).and_return(nil)
+    it "returns 404 for an unknown shop domain on a non-GDPR topic" do
+      expect {
+        post_webhook(body: order_payload, secret: "any-secret",
+                     topic: "orders/create", shop_domain: "unknown.myshopify.com")
+      }.not_to have_enqueued_job(ProcessShopifyOrderWebhookJob)
 
-      post "/shopify/webhooks", params: order_payload, headers: {
-        "Content-Type" => "application/json",
-        "X-Shopify-Topic" => "orders/create",
-        "X-Shopify-Shop-Domain" => store.shop_domain,
-        "X-Shopify-Hmac-Sha256" => "some-hmac"
-      }
-      expect(response).to have_http_status(:unauthorized)
-    end
-
-    it "returns 404 for unknown shop domain" do
-      post_webhook(body: order_payload, shop_domain: "unknown.myshopify.com")
       expect(response).to have_http_status(:not_found)
     end
 
@@ -101,40 +85,50 @@ RSpec.describe "ShopifyWebhooks", type: :request do
         }.to_json
       end
 
-      it "returns 200 for customers/data_request and does not enqueue" do
+      it "returns 200 for customers/data_request without enqueuing" do
         expect {
-          post_webhook(body: redact_payload, topic: "customers/data_request")
+          post_webhook(body: redact_payload, secret: store.client_secret, topic: "customers/data_request")
         }.not_to have_enqueued_job
 
         expect(response).to have_http_status(:ok)
       end
 
-      it "returns 200 and enqueues ProcessCustomerRedactJob for customers/redact" do
+      it "enqueues ProcessCustomerRedactJob for customers/redact on a known store" do
         expect {
-          post_webhook(body: redact_payload, topic: "customers/redact")
+          post_webhook(body: redact_payload, secret: store.client_secret, topic: "customers/redact")
         }.to have_enqueued_job(ProcessCustomerRedactJob).with(store.id, anything)
 
         expect(response).to have_http_status(:ok)
       end
 
-      it "returns 200 and enqueues ProcessShopRedactJob for shop/redact" do
+      it "enqueues ProcessShopRedactJob for shop/redact on a known store" do
         expect {
-          post_webhook(body: redact_payload, topic: "shop/redact")
+          post_webhook(body: redact_payload, secret: store.client_secret, topic: "shop/redact")
         }.to have_enqueued_job(ProcessShopRedactJob).with(store.id)
 
         expect(response).to have_http_status(:ok)
       end
 
-      it "returns 200 for shop/redact even when store is already deleted" do
+      it "returns 200 for shop/redact for an unknown shop and skips HMAC" do
         expect {
-          post_webhook(body: redact_payload, topic: "shop/redact", shop_domain: "gone.myshopify.com")
+          post_webhook(body: redact_payload, secret: "any-secret",
+                       topic: "shop/redact", shop_domain: "gone.myshopify.com")
         }.not_to have_enqueued_job(ProcessShopRedactJob)
 
         expect(response).to have_http_status(:ok)
       end
 
-      it "returns 401 when HMAC is invalid for GDPR topics" do
-        post_webhook(body: redact_payload, topic: "customers/redact", hmac: "bad-hmac")
+      it "returns 200 for customers/redact for an unknown shop and skips HMAC" do
+        expect {
+          post_webhook(body: redact_payload, secret: "any-secret",
+                       topic: "customers/redact", shop_domain: "gone.myshopify.com")
+        }.not_to have_enqueued_job(ProcessCustomerRedactJob)
+
+        expect(response).to have_http_status(:ok)
+      end
+
+      it "returns 401 for a known store when the HMAC is invalid on a GDPR topic" do
+        post_webhook(body: redact_payload, secret: "wrong-secret", topic: "customers/redact")
         expect(response).to have_http_status(:unauthorized)
       end
     end
