@@ -20,7 +20,7 @@
       </ol>
     </details>
 
-    <%= form_tag shopify_auth_path, method: :get, data: { turbo: false }, class: "mt-4 space-y-3" do %>
+    <%= form_tag shopify_auth_path, method: :post, data: { turbo: false }, class: "mt-4 space-y-3" do %>
       <div>
         <label for="shop" class="block text-sm font-medium text-gray-500 mb-1"><%= t("shopify_stores.enter_shop_domain") %></label>
         <input type="text" name="shop" id="shop"

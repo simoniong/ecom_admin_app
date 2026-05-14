@@ -20,8 +20,15 @@ class ShopifyStore < ApplicationRecord
 
   # One-time backfill invoked by the add_credentials_to_shopify_stores migration.
   # Copies the legacy global app credentials onto any store still missing them.
-  # Must run through the model (not update_all) so client_secret is encrypted.
+  # Goes through the model (not update_all) so client_secret is encrypted, but
+  # saves with validations off: pre-existing rows may fail unrelated validations
+  # (e.g. a nil group_id once the company has groups) that must not block the
+  # backfill. The legacy ENV vars are only required when a store actually needs
+  # backfilling, so post-deploy migrations on an empty DB don't fail needlessly.
   def self.backfill_credentials_from_env!
+    scope = where(client_id: nil).or(where(client_secret: nil))
+    return if scope.none?
+
     client_id = ENV["SHOPIFY_CLIENT_ID"]
     client_secret = ENV["SHOPIFY_CLIENT_SECRET"]
 
@@ -29,8 +36,9 @@ class ShopifyStore < ApplicationRecord
       raise "backfill_credentials_from_env!: SHOPIFY_CLIENT_ID / SHOPIFY_CLIENT_SECRET must be set"
     end
 
-    where(client_id: nil).or(where(client_secret: nil)).find_each do |store|
-      store.update!(client_id: client_id, client_secret: client_secret)
+    scope.find_each do |store|
+      store.assign_attributes(client_id: client_id, client_secret: client_secret)
+      store.save!(validate: false)
     end
   end
 

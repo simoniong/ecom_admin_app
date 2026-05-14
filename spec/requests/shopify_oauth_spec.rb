@@ -9,15 +9,15 @@ RSpec.describe "ShopifyOauth", type: :request do
     { shop: "test.myshopify.com", client_id: client_id, client_secret: client_secret }.merge(extra)
   end
 
-  describe "GET /shopify/auth" do
+  describe "POST /shopify/auth" do
     it "redirects unauthenticated user" do
-      get shopify_auth_path, params: auth_params
+      post shopify_auth_path, params: auth_params
       expect(response).to redirect_to(new_user_session_path)
     end
 
     it "redirects to the Shopify authorize URL using the submitted client_id" do
       sign_in user
-      get shopify_auth_path, params: auth_params
+      post shopify_auth_path, params: auth_params
       expect(response).to have_http_status(:redirect)
       expect(response.location).to include("test.myshopify.com/admin/oauth/authorize")
       expect(response.location).to include("merchant-client-id")
@@ -25,7 +25,7 @@ RSpec.describe "ShopifyOauth", type: :request do
 
     it "stashes the nonce and pending credentials in the session" do
       sign_in user
-      get shopify_auth_path, params: auth_params
+      post shopify_auth_path, params: auth_params
       expect(session[:shopify_oauth_nonce]).to be_present
       expect(session[:shopify_pending_client_id]).to eq(client_id)
       expect(session[:shopify_pending_client_secret]).to eq(client_secret)
@@ -34,26 +34,26 @@ RSpec.describe "ShopifyOauth", type: :request do
 
     it "rejects an invalid shop domain" do
       sign_in user
-      get shopify_auth_path, params: auth_params(shop: "invalid-domain.com")
+      post shopify_auth_path, params: auth_params(shop: "invalid-domain.com")
       expect(response).to redirect_to(shopify_stores_path)
     end
 
     it "rejects a blank shop domain" do
       sign_in user
-      get shopify_auth_path, params: auth_params(shop: "")
+      post shopify_auth_path, params: auth_params(shop: "")
       expect(response).to redirect_to(shopify_stores_path)
     end
 
     it "rejects a missing client_id" do
       sign_in user
-      get shopify_auth_path, params: auth_params(client_id: "")
+      post shopify_auth_path, params: auth_params(client_id: "")
       expect(response).to redirect_to(shopify_stores_path)
       expect(flash[:alert]).to be_present
     end
 
     it "rejects a missing client_secret" do
       sign_in user
-      get shopify_auth_path, params: auth_params(client_secret: "")
+      post shopify_auth_path, params: auth_params(client_secret: "")
       expect(response).to redirect_to(shopify_stores_path)
       expect(flash[:alert]).to be_present
     end
@@ -65,13 +65,13 @@ RSpec.describe "ShopifyOauth", type: :request do
       before { sign_in user }
 
       it "redirects with an alert when owner omits group_id" do
-        get shopify_auth_path, params: auth_params
+        post shopify_auth_path, params: auth_params
         expect(response).to redirect_to(shopify_stores_path)
         expect(flash[:alert]).to be_present
       end
 
       it "stores pending_binding_group_id when owner supplies group_id" do
-        get shopify_auth_path, params: auth_params(group_id: group.id)
+        post shopify_auth_path, params: auth_params(group_id: group.id)
         expect(response.location).to include("test.myshopify.com/admin/oauth/authorize")
         expect(session[:pending_binding_group_id]).to eq(group.id)
       end
@@ -83,7 +83,7 @@ RSpec.describe "ShopifyOauth", type: :request do
 
     # Drives #auth to populate the session the way the real flow does.
     def start_auth(extra = {})
-      get shopify_auth_path, params: auth_params(extra)
+      post shopify_auth_path, params: auth_params(extra)
       session[:shopify_oauth_nonce]
     end
 

@@ -37,7 +37,7 @@ RSpec.describe "Backward compatibility — companies with no Groups", type: :req
     end
 
     it "can connect a new shopify store without group_id" do
-      get shopify_auth_path, params: {
+      post shopify_auth_path, params: {
         shop: "new-store.myshopify.com",
         client_id: "merchant-client-id",
         client_secret: "merchant-client-secret"

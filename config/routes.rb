@@ -6,7 +6,7 @@ Rails.application.routes.draw do
   get "auth/failure", to: "oauth_callbacks#failure"
 
   # Shopify OAuth (outside locale scope — Shopify redirects to a fixed URL)
-  get "shopify/auth", to: "shopify_oauth#auth", as: :shopify_auth
+  post "shopify/auth", to: "shopify_oauth#auth", as: :shopify_auth
   get "shopify/callback", to: "shopify_oauth#callback", as: :shopify_callback
 
   # Shopify Webhooks (outside locale scope, no auth required — HMAC verified)
