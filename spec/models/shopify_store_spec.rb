@@ -100,4 +100,51 @@ RSpec.describe ShopifyStore, type: :model do
       expect(store.reload.client_secret).to eq("shpss_plain_value")
     end
   end
+
+  describe ".backfill_credentials_from_env!" do
+    around do |example|
+      original_id = ENV["SHOPIFY_CLIENT_ID"]
+      original_secret = ENV["SHOPIFY_CLIENT_SECRET"]
+      example.run
+      ENV["SHOPIFY_CLIENT_ID"] = original_id
+      ENV["SHOPIFY_CLIENT_SECRET"] = original_secret
+    end
+
+    it "fills missing credentials from ENV and encrypts the secret" do
+      ENV["SHOPIFY_CLIENT_ID"] = "env-client-id"
+      ENV["SHOPIFY_CLIENT_SECRET"] = "env-client-secret"
+      store.update_columns(client_id: nil, client_secret: nil)
+
+      ShopifyStore.backfill_credentials_from_env!
+
+      store.reload
+      expect(store.client_id).to eq("env-client-id")
+      expect(store.client_secret).to eq("env-client-secret")
+      raw = ShopifyStore.connection.select_value(
+        "SELECT client_secret FROM shopify_stores WHERE id = '#{store.id}'"
+      )
+      expect(raw).not_to include("env-client-secret")
+    end
+
+    it "does not overwrite stores that already have credentials" do
+      ENV["SHOPIFY_CLIENT_ID"] = "env-client-id"
+      ENV["SHOPIFY_CLIENT_SECRET"] = "env-client-secret"
+      store.update!(client_id: "own-id", client_secret: "own-secret")
+
+      ShopifyStore.backfill_credentials_from_env!
+
+      store.reload
+      expect(store.client_id).to eq("own-id")
+      expect(store.client_secret).to eq("own-secret")
+    end
+
+    it "raises when ENV credentials are not set" do
+      ENV["SHOPIFY_CLIENT_ID"] = nil
+      ENV["SHOPIFY_CLIENT_SECRET"] = nil
+      store.update_columns(client_id: nil, client_secret: nil)
+
+      expect { ShopifyStore.backfill_credentials_from_env! }
+        .to raise_error(/SHOPIFY_CLIENT_ID/)
+    end
+  end
 end
