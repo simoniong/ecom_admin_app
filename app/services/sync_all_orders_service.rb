@@ -96,11 +96,41 @@ class SyncAllOrdersService
       order.update!(attrs)
     end
 
+    sync_line_items(order, shopify_order)
     sync_fulfillments(order, shopify_order)
 
     trigger_email_workflows(order, is_new_order, old_fulfillment_status)
 
     order
+  end
+
+  def sync_line_items(order, shopify_order)
+    (shopify_order["line_items"] || []).each do |li|
+      variant = variant_lookup[li["variant_id"]]
+
+      line_item = order.order_line_items.find_or_initialize_by(shopify_line_item_id: li["id"])
+      line_item.assign_attributes(
+        product_variant: variant,
+        sku_at_sale: li["sku"],
+        title_at_sale: li["title"],
+        quantity: li["quantity"],
+        unit_price: li["price"],
+        currency: shopify_order["currency"],
+        shopify_data: li
+      )
+
+      if line_item.unit_cost_snapshot.nil? && variant&.unit_cost.present?
+        line_item.unit_cost_snapshot = variant.unit_cost
+      end
+
+      line_item.save!
+    end
+  end
+
+  def variant_lookup
+    @variant_lookup ||= ProductVariant.joins(:product)
+                                      .where(products: { shopify_store_id: @store.id })
+                                      .index_by(&:shopify_variant_id)
   end
 
   def resolve_customer(shopify_order)
