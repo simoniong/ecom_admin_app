@@ -1,0 +1,90 @@
+<div class="max-w-7xl mx-auto">
+  <h1 class="text-2xl font-semibold text-gray-900 mb-4"><%= t("products.title") %></h1>
+
+  <%= form_with url: products_path, method: :get, local: true, class: "flex items-center gap-4 mb-4" do %>
+    <input type="text" name="search" value="<%= @search %>"
+           placeholder="<%= t("products.search_placeholder") %>"
+           class="border border-gray-300 rounded px-3 py-1 w-80 text-sm">
+
+    <% if visible_shopify_stores.count > 1 %>
+      <label class="text-sm text-gray-600"><%= t("products.store") %></label>
+      <select name="store_id"
+              class="text-sm rounded-md border border-gray-300 bg-white py-1 pl-2 pr-7">
+        <% visible_shopify_stores.each do |s| %>
+          <option value="<%= s.id %>" <%= "selected" if @shopify_store&.id == s.id %>>
+            <%= s.shop_domain %>
+          </option>
+        <% end %>
+      </select>
+    <% else %>
+      <input type="hidden" name="store_id" value="<%= @shopify_store&.id %>">
+    <% end %>
+
+    <button type="submit" class="px-3 py-1 text-sm bg-blue-600 text-white rounded">Search</button>
+
+    <% if @search.present? %>
+      <%= link_to "Clear", products_path(store_id: @shopify_store&.id),
+          class: "text-sm text-gray-500" %>
+    <% end %>
+  <% end %>
+
+  <table class="w-full bg-white shadow-sm rounded-lg border border-gray-200">
+    <thead class="bg-gray-50 text-left text-xs uppercase text-gray-500">
+      <tr>
+        <th class="px-2 py-2">
+          <input type="checkbox"
+                 data-bulk-select-target="pageToggle"
+                 data-action="change->bulk-select#togglePage">
+        </th>
+        <th class="px-2 py-2"><%= t("products.columns.image") %></th>
+        <th class="px-2 py-2"><%= t("products.columns.product") %></th>
+        <th class="px-2 py-2"><%= t("products.columns.variant") %></th>
+        <th class="px-2 py-2"><%= t("products.columns.sku") %></th>
+        <th class="px-2 py-2"><%= t("products.columns.price") %></th>
+        <th class="px-2 py-2"><%= t("products.columns.shopify_cost") %></th>
+        <th class="px-2 py-2"><%= t("products.columns.unit_cost") %></th>
+        <th class="px-2 py-2"><%= t("products.columns.shopify_weight") %></th>
+        <th class="px-2 py-2"><%= t("products.columns.weight") %></th>
+      </tr>
+    </thead>
+    <tbody>
+      <% @variants.each do |variant| %>
+        <%= render "product_variants/row", variant: variant %>
+      <% end %>
+    </tbody>
+  </table>
+
+  <nav class="flex items-center justify-between mt-4">
+    <p class="text-sm text-gray-600">
+      <% if @total_count > 0 %>
+        <%= t("products.showing", from: ((@page - 1) * @per_page) + 1, to: [ @page * @per_page, @total_count ].min, total: @total_count) %>
+      <% end %>
+    </p>
+    <div class="flex items-center gap-4">
+      <div class="flex items-center gap-2">
+        <label for="per_page" class="text-sm text-gray-600"><%= t("products.per_page") %></label>
+        <select id="per_page" onchange="window.location.href = this.value"
+                class="text-sm rounded-md border border-gray-300 bg-white py-1 pl-2 pr-7">
+          <% ProductsController::PER_PAGE_OPTIONS.each do |opt| %>
+            <option value="<%= products_path(request.query_parameters.merge(per_page: opt, page: 1)) %>"
+                    <%= "selected" if opt == @per_page %>>
+              <%= opt %>
+            </option>
+          <% end %>
+        </select>
+      </div>
+      <% if @total_pages > 1 %>
+        <div class="flex gap-1">
+          <% if @page > 1 %>
+            <%= link_to "←", products_path(request.query_parameters.merge(page: @page - 1)),
+                class: "px-3 py-1 text-sm rounded-md border border-gray-300 bg-white" %>
+          <% end %>
+          <% if @page < @total_pages %>
+            <%= link_to "→", products_path(request.query_parameters.merge(page: @page + 1)),
+                class: "px-3 py-1 text-sm rounded-md border border-gray-300 bg-white" %>
+          <% end %>
+        </div>
+      <% end %>
+    </div>
+  </nav>
+</div>
