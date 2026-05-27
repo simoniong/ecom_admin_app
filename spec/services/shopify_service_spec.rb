@@ -175,4 +175,50 @@ RSpec.describe ShopifyService do
 
     expect { service.find_customers_by_email("fail@example.com") }.to raise_error(RuntimeError, /Shopify API error/)
   end
+
+  describe "#fetch_all_products" do
+    it "GETs /products.json and returns the products array" do
+      stub_request(:get, "#{base_url}/products.json")
+        .with(query: { limit: 250, order: "id asc" })
+        .to_return(status: 200, body: { products: [ { "id" => 1 } ] }.to_json,
+                   headers: { "Content-Type" => "application/json" })
+
+      expect(service.fetch_all_products).to eq([ { "id" => 1 } ])
+    end
+
+    it "passes since_id when given" do
+      stub_request(:get, "#{base_url}/products.json")
+        .with(query: { limit: 250, order: "id asc", since_id: 42 })
+        .to_return(status: 200, body: { products: [] }.to_json,
+                   headers: { "Content-Type" => "application/json" })
+
+      expect(service.fetch_all_products(since_id: 42)).to eq([])
+    end
+  end
+
+  describe "#fetch_inventory_items" do
+    it "returns [] when ids is empty without calling Shopify" do
+      expect(service.fetch_inventory_items(ids: [])).to eq([])
+    end
+
+    it "GETs /inventory_items.json with comma-joined ids" do
+      stub_request(:get, "#{base_url}/inventory_items.json")
+        .with(query: { ids: "1,2,3" })
+        .to_return(status: 200,
+                   body: { inventory_items: [ { "id" => 1, "cost" => "5.00" } ] }.to_json,
+                   headers: { "Content-Type" => "application/json" })
+
+      expect(service.fetch_inventory_items(ids: [ 1, 2, 3 ])).to eq([ { "id" => 1, "cost" => "5.00" } ])
+    end
+  end
+
+  describe "#fetch_shop" do
+    it "GETs /shop.json and returns the shop hash" do
+      stub_request(:get, "#{base_url}/shop.json")
+        .to_return(status: 200, body: { shop: { "currency" => "USD" } }.to_json,
+                   headers: { "Content-Type" => "application/json" })
+
+      expect(service.fetch_shop).to eq({ "currency" => "USD" })
+    end
+  end
 end
