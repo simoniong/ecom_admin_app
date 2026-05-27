@@ -17,4 +17,22 @@ class Order < ApplicationRecord
   }
   scope :by_financial_status, ->(status) { where(financial_status: status) }
   scope :by_fulfillment_status, ->(status) { where(fulfillment_status: status) }
+
+  def cogs_total
+    order_line_items.sum("quantity * COALESCE(unit_cost_snapshot, 0)")
+  end
+
+  def gross_profit
+    return nil unless total_price
+    total_price - cogs_total
+  end
+
+  def gross_margin_pct
+    return nil unless total_price && total_price.positive?
+    (gross_profit / total_price * 100).round(2)
+  end
+
+  def cogs_complete?
+    !order_line_items.where(unit_cost_snapshot: nil).exists?
+  end
 end
