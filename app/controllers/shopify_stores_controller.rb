@@ -1,5 +1,5 @@
 class ShopifyStoresController < AdminController
-  before_action :set_shopify_store, only: [ :show, :update, :destroy ]
+  before_action :set_shopify_store, only: [ :show, :update, :destroy, :sync_products ]
 
   def index
     @shopify_stores = visible_shopify_stores.order(created_at: :desc)
@@ -40,6 +40,11 @@ class ShopifyStoresController < AdminController
   def destroy
     ShopifyStoreDeletionService.new(@shopify_store).call
     redirect_to shopify_stores_path, notice: t("shopify_stores.disconnect_success")
+  end
+
+  def sync_products
+    SyncShopifyProductsJob.perform_later(@shopify_store.id)
+    redirect_to shopify_store_path(@shopify_store), notice: t("shopify_stores.sync_products_enqueued")
   end
 
   private
