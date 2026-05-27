@@ -28,63 +28,91 @@
     <% end %>
   <% end %>
 
-  <table class="w-full bg-white shadow-sm rounded-lg border border-gray-200">
-    <thead class="bg-gray-50 text-left text-xs uppercase text-gray-500">
-      <tr>
-        <th class="px-2 py-2">
-          <input type="checkbox"
-                 data-bulk-select-target="pageToggle"
-                 data-action="change->bulk-select#togglePage">
-        </th>
-        <th class="px-2 py-2"><%= t("products.columns.image") %></th>
-        <th class="px-2 py-2"><%= t("products.columns.product") %></th>
-        <th class="px-2 py-2"><%= t("products.columns.variant") %></th>
-        <th class="px-2 py-2"><%= t("products.columns.sku") %></th>
-        <th class="px-2 py-2"><%= t("products.columns.price") %></th>
-        <th class="px-2 py-2"><%= t("products.columns.shopify_cost") %></th>
-        <th class="px-2 py-2"><%= t("products.columns.unit_cost") %></th>
-        <th class="px-2 py-2"><%= t("products.columns.shopify_weight") %></th>
-        <th class="px-2 py-2"><%= t("products.columns.weight") %></th>
-      </tr>
-    </thead>
-    <tbody>
-      <% @variants.each do |variant| %>
-        <%= render "product_variants/row", variant: variant %>
-      <% end %>
-    </tbody>
-  </table>
+  <%= form_with url: bulk_update_product_variants_path, method: :post, local: true,
+                data: {
+                  controller: "bulk-select",
+                  bulk_select_matching_url_value: matching_ids_product_variants_path,
+                  bulk_select_store_id_value: @shopify_store.id,
+                  bulk_select_search_value: @search.to_s,
+                  bulk_select_total_value: @total_count
+                } do |f| %>
 
-  <nav class="flex items-center justify-between mt-4">
-    <p class="text-sm text-gray-600">
-      <% if @total_count > 0 %>
-        <%= t("products.showing", from: ((@page - 1) * @per_page) + 1, to: [ @page * @per_page, @total_count ].min, total: @total_count) %>
-      <% end %>
-    </p>
-    <div class="flex items-center gap-4">
-      <div class="flex items-center gap-2">
-        <label for="per_page" class="text-sm text-gray-600"><%= t("products.per_page") %></label>
-        <select id="per_page" onchange="window.location.href = this.value"
-                class="text-sm rounded-md border border-gray-300 bg-white py-1 pl-2 pr-7">
-          <% ProductsController::PER_PAGE_OPTIONS.each do |opt| %>
-            <option value="<%= products_path(request.query_parameters.merge(per_page: opt, page: 1)) %>"
-                    <%= "selected" if opt == @per_page %>>
-              <%= opt %>
-            </option>
-          <% end %>
-        </select>
-      </div>
-      <% if @total_pages > 1 %>
-        <div class="flex gap-1">
-          <% if @page > 1 %>
-            <%= link_to "←", products_path(request.query_parameters.merge(page: @page - 1)),
-                class: "px-3 py-1 text-sm rounded-md border border-gray-300 bg-white" %>
-          <% end %>
-          <% if @page < @total_pages %>
-            <%= link_to "→", products_path(request.query_parameters.merge(page: @page + 1)),
-                class: "px-3 py-1 text-sm rounded-md border border-gray-300 bg-white" %>
-          <% end %>
-        </div>
-      <% end %>
+    <div data-bulk-select-target="bar"
+         class="hidden flex items-center gap-4 px-4 py-2 mb-2 bg-yellow-50 border border-yellow-200 rounded">
+      <span><strong data-bulk-select-target="count">0</strong> selected</span>
+      <button type="button" class="text-sm text-blue-600"
+              data-action="click->bulk-select#selectAllMatching">
+        Select all <%= @total_count %> matching
+      </button>
+      <button type="button" class="text-sm text-gray-500"
+              data-action="click->bulk-select#clear">Clear</button>
+      <input type="number" step="0.01" min="0" name="unit_cost"
+             placeholder="<%= t("products.columns.unit_cost") %>"
+             class="w-28 border border-gray-300 rounded px-2 py-1 text-sm">
+      <input type="number" step="0.001" min="0.001" name="weight_grams"
+             placeholder="<%= t("products.columns.weight") %>"
+             class="w-28 border border-gray-300 rounded px-2 py-1 text-sm">
+      <%= f.submit "Apply", class: "px-3 py-1 text-sm bg-blue-600 text-white rounded" %>
     </div>
-  </nav>
+
+    <table class="w-full bg-white shadow-sm rounded-lg border border-gray-200">
+      <thead class="bg-gray-50 text-left text-xs uppercase text-gray-500">
+        <tr>
+          <th class="px-2 py-2">
+            <input type="checkbox"
+                   data-bulk-select-target="pageToggle"
+                   data-action="change->bulk-select#togglePage">
+          </th>
+          <th class="px-2 py-2"><%= t("products.columns.image") %></th>
+          <th class="px-2 py-2"><%= t("products.columns.product") %></th>
+          <th class="px-2 py-2"><%= t("products.columns.variant") %></th>
+          <th class="px-2 py-2"><%= t("products.columns.sku") %></th>
+          <th class="px-2 py-2"><%= t("products.columns.price") %></th>
+          <th class="px-2 py-2"><%= t("products.columns.shopify_cost") %></th>
+          <th class="px-2 py-2"><%= t("products.columns.unit_cost") %></th>
+          <th class="px-2 py-2"><%= t("products.columns.shopify_weight") %></th>
+          <th class="px-2 py-2"><%= t("products.columns.weight") %></th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @variants.each do |variant| %>
+          <%= render "product_variants/row", variant: variant %>
+        <% end %>
+      </tbody>
+    </table>
+
+    <nav class="flex items-center justify-between mt-4">
+      <p class="text-sm text-gray-600">
+        <% if @total_count > 0 %>
+          <%= t("products.showing", from: ((@page - 1) * @per_page) + 1, to: [ @page * @per_page, @total_count ].min, total: @total_count) %>
+        <% end %>
+      </p>
+      <div class="flex items-center gap-4">
+        <div class="flex items-center gap-2">
+          <label for="per_page" class="text-sm text-gray-600"><%= t("products.per_page") %></label>
+          <select id="per_page" onchange="window.location.href = this.value"
+                  class="text-sm rounded-md border border-gray-300 bg-white py-1 pl-2 pr-7">
+            <% ProductsController::PER_PAGE_OPTIONS.each do |opt| %>
+              <option value="<%= products_path(request.query_parameters.merge(per_page: opt, page: 1)) %>"
+                      <%= "selected" if opt == @per_page %>>
+                <%= opt %>
+              </option>
+            <% end %>
+          </select>
+        </div>
+        <% if @total_pages > 1 %>
+          <div class="flex gap-1">
+            <% if @page > 1 %>
+              <%= link_to "←", products_path(request.query_parameters.merge(page: @page - 1)),
+                  class: "px-3 py-1 text-sm rounded-md border border-gray-300 bg-white" %>
+            <% end %>
+            <% if @page < @total_pages %>
+              <%= link_to "→", products_path(request.query_parameters.merge(page: @page + 1)),
+                  class: "px-3 py-1 text-sm rounded-md border border-gray-300 bg-white" %>
+            <% end %>
+          </div>
+        <% end %>
+      </div>
+    </nav>
+  <% end %>
 </div>
