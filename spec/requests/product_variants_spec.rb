@@ -24,6 +24,20 @@ RSpec.describe "ProductVariants", type: :request do
       expect(variant.reload.unit_cost).to be_nil
     end
 
+    it "redirects to sign-in (not a Turbo Stream) when unauthenticated" do
+      # Guards the JS fix in cell_edit_controller.js: if the session expires
+      # mid-edit, the server must redirect to login instead of returning a
+      # 200 Turbo Stream, so the controller can detect it and navigate away
+      # rather than silently swallowing the failed save.
+      sign_out user
+      patch product_variant_path(id: variant.id),
+            params: { product_variant: { unit_cost: "5" } },
+            headers: { "Accept" => "text/vnd.turbo-stream.html" }
+
+      expect(response).to redirect_to(new_user_session_path)
+      expect(response.media_type).not_to include("turbo-stream")
+    end
+
     it "does not update a cross-company variant" do
       other_store = create(:shopify_store)
       other_product = create(:product, shopify_store: other_store)

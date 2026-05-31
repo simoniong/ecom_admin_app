@@ -68,22 +68,35 @@ export default class extends Controller {
         body,
         headers: { "Accept": "text/vnd.turbo-stream.html" }
       })
-      const text = await response.text()
 
-      if (response.ok) {
-        // Server returns a Turbo Stream replacing the whole row.
+      // If the session expired (or any other 30x), fetch silently follows
+      // the redirect and returns a 200 HTML page — NOT a Turbo Stream.
+      // Treating that as success would leave the row in a broken state.
+      // Navigate to the final URL so Devise can handle re-auth properly.
+      if (response.redirected) {
+        window.Turbo.visit(response.url)
+        return
+      }
+
+      const contentType = response.headers.get("Content-Type") || ""
+      const isTurboStream = contentType.includes("turbo-stream")
+
+      if (response.ok && isTurboStream) {
+        const text = await response.text()
         window.Turbo.renderStreamMessage(text)
       } else {
-        input.dataset.saving = ""
-        input.classList.remove("border-blue-500")
-        input.classList.add("border-red-500", "bg-red-50")
-        input.focus()
+        this._markFailed(input)
       }
     } catch (e) {
-      input.dataset.saving = ""
-      input.classList.remove("border-blue-500")
-      input.classList.add("border-red-500", "bg-red-50")
+      this._markFailed(input)
     }
+  }
+
+  _markFailed(input) {
+    input.dataset.saving = ""
+    input.classList.remove("border-blue-500")
+    input.classList.add("border-red-500", "bg-red-50")
+    input.focus()
   }
 
   cancel() {
