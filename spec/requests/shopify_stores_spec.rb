@@ -254,4 +254,28 @@ RSpec.describe "ShopifyStores", type: :request do
       expect(response).to redirect_to(shopify_store_path(store))
     end
   end
+
+  describe "PATCH /shopify_stores/:id default_service_type" do
+    let(:owner) { create(:user) }
+    let(:company) { owner.companies.first }
+    let(:store) { create(:shopify_store, user: owner, company: company) }
+    let(:member_user) { create(:user) }
+    let!(:member_membership) do
+      create(:membership, company: company, user: member_user, role: :member, permissions: %w[shopify_stores])
+    end
+
+    it "updates default_service_type for an owner" do
+      sign_in owner
+      patch shopify_store_path(id: store.id), params: { shopify_store: { default_service_type: "standard_with_battery" } }
+      expect(store.reload.default_service_type).to eq("standard_with_battery")
+      expect(response).to redirect_to(shopify_store_path(id: store.id))
+    end
+
+    it "blocks a non-owner" do
+      sign_in member_user
+      patch switch_company_path(id: company.id)
+      patch shopify_store_path(id: store.id), params: { shopify_store: { default_service_type: "hacked" } }
+      expect(store.reload.default_service_type).to be_nil
+    end
+  end
 end
