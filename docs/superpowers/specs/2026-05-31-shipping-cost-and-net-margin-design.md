@@ -20,29 +20,44 @@ We're keeping ad attribution as today (aggregate ad spend ÷ orders); the goal o
 | Rate card maintenance | Admin UI with **direct in-page editing**: new-row form at top, inline click-to-edit cells per row, per-row delete |
 | Currency | Rate cards stored in CNY; sync converts to store currency at order sync time using `shopify_stores.cost_fx_rate` |
 | Frozen snapshot | `orders.shipping_cost` is frozen at sync time (same snapshot semantics as `unit_cost_snapshot`); editing rate cards does NOT retroactively change historical orders |
+| Versioning | Rate cards come in **named versions**. A version is `(country, service, name, effective_from, effective_to)` and owns many weight-band rates. When estimating cost for an order, the calculator picks the newest version whose `effective_from <= order_date` (and `effective_to` is null or >= order_date). Names make audit / change tracking possible (e.g. "Q4 2025 US Battery Rates"). |
 | Ad attribution | **No change**: still aggregate `ad_spend / orders` in the existing dashboard |
 
 ## Schema
 
-### New table `shipping_rate_cards`
+Two tables: a **version** is one rate update for a country × service combo (carries name and effective dates), and a **rate** is a single weight band inside a version.
+
+### New table `shipping_rate_card_versions`
 
 ```ruby
-create_table :shipping_rate_cards, id: :uuid, default: -> { "gen_random_uuid()" } do |t|
+create_table :shipping_rate_card_versions, id: :uuid, default: -> { "gen_random_uuid()" } do |t|
   t.uuid    :company_id, null: false
+  t.string  :name, null: false                  # e.g., "Q4 2025 US Battery Rates"
   t.string  :country_code, null: false          # ISO-3166-1 alpha-2, e.g., "US", "CA", "GB"
-  t.string  :service_type, null: false          # admin-defined string, e.g., "standard_with_battery", "general"
+  t.string  :service_type, null: false          # admin-defined string, e.g., "standard_with_battery"
+  t.date    :effective_from, null: false
+  t.date    :effective_to                       # nullable; null = "until superseded"
+  t.timestamps
+end
+add_index :shipping_rate_card_versions,
+          [:company_id, :country_code, :service_type, :effective_from],
+          name: "idx_rate_versions_lookup"
+add_foreign_key :shipping_rate_card_versions, :companies
+```
+
+### New table `shipping_rate_card_rates`
+
+```ruby
+create_table :shipping_rate_card_rates, id: :uuid, default: -> { "gen_random_uuid()" } do |t|
+  t.uuid    :version_id, null: false
   t.decimal :weight_min_kg,   precision: 8,  scale: 3, null: false
   t.decimal :weight_max_kg,   precision: 8,  scale: 3, null: false
   t.decimal :per_kg_rate_cny, precision: 10, scale: 2, null: false
   t.decimal :flat_fee_cny,    precision: 10, scale: 2, default: 0, null: false
-  t.date    :effective_from, null: false
-  t.date    :effective_to                       # nullable; null = still current
   t.timestamps
 end
-add_index :shipping_rate_cards,
-          [:company_id, :country_code, :service_type, :effective_from],
-          name: "idx_rate_cards_lookup"
-add_foreign_key :shipping_rate_cards, :companies
+add_index :shipping_rate_card_rates, :version_id
+add_foreign_key :shipping_rate_card_rates, :shipping_rate_card_versions, column: :version_id
 ```
 
 ### `shopify_stores` additions
@@ -61,46 +76,71 @@ add_column :orders, :shipping_cost, :decimal, precision: 10, scale: 2
 
 The source spreadsheets use intervals `min < W ≤ max` (e.g., `0.05 < W ≤ 0.2`, then `0.201 < W ≤ 0.45`). We store `weight_min_kg = 0.05`, `weight_max_kg = 0.2`, and lookup uses `weight_min_kg < W AND weight_max_kg >= W`. Same semantics — bands cleanly tile by 0.001 kg gaps.
 
-No DB-level uniqueness/overlap constraint — admins can technically create overlapping rows; the lookup returns the most-recent `effective_from` to break ties.
+### Version fallback semantics
+
+If no version explicitly covers an order's date, we **fall back to the most recent past version**. Example:
+
+- Version A: name "Q1 2026 US Battery", `effective_from = 2026-03-22`, `effective_to = nil`
+- Today's order date: 2026-04-15 → picks Version A
+- Admin adds Version B: name "Q2 2026 US Battery", `effective_from = 2026-05-01`, `effective_to = nil`
+- Order on 2026-04-15 still picks A; order on 2026-05-10 picks B
+
+This means admins don't need to backfill `effective_to` on the old version when adding a new one — the lookup orders by `effective_from DESC` and just takes the first one that's already active.
+
+If the admin DOES set `effective_to`, the version stops applying after that date.
+
+No DB-level uniqueness/overlap constraint — admins can technically create overlapping versions; the lookup picks newest `effective_from` to break ties.
 
 ## Models
 
 ```ruby
-class ShippingRateCard < ApplicationRecord
+class ShippingRateCardVersion < ApplicationRecord
   belongs_to :company
+  has_many :rates, class_name: "ShippingRateCardRate", foreign_key: :version_id, dependent: :destroy
 
-  validates :country_code, :service_type, presence: true
-  validates :weight_min_kg, presence: true, numericality: { greater_than_or_equal_to: 0 }
-  validates :weight_max_kg, presence: true, numericality: { greater_than_or_equal_to: 0 }
-  validates :per_kg_rate_cny, presence: true, numericality: { greater_than_or_equal_to: 0 }
-  validates :flat_fee_cny,    presence: true, numericality: { greater_than_or_equal_to: 0 }
-  validates :effective_from, presence: true
-  validate  :weight_max_greater_than_min
+  validates :name, :country_code, :service_type, :effective_from, presence: true
   validate  :effective_to_after_from
 
-  scope :effective_on, ->(date) {
-    where("effective_from <= ?", date)
-      .where("effective_to IS NULL OR effective_to >= ?", date)
+  scope :for_lookup, ->(country:, service_type:, on_date:) {
+    where(country_code: country, service_type: service_type)
+      .where("effective_from <= ?", on_date)
+      .where("effective_to IS NULL OR effective_to >= ?", on_date)
+      .order(effective_from: :desc)
   }
 
-  def self.lookup(company:, country:, service_type:, weight_kg:, on_date:)
-    where(company_id: company.id, country_code: country, service_type: service_type)
-      .effective_on(on_date)
-      .where("weight_min_kg < ? AND weight_max_kg >= ?", weight_kg, weight_kg)
-      .order(effective_from: :desc)
+  def self.lookup(company:, country:, service_type:, on_date:)
+    where(company_id: company.id)
+      .for_lookup(country: country, service_type: service_type, on_date: on_date)
       .first
   end
+
+  private
+
+  def effective_to_after_from
+    return unless effective_from && effective_to
+    errors.add(:effective_to, "must be on or after effective_from") if effective_to < effective_from
+  end
+end
+
+class ShippingRateCardRate < ApplicationRecord
+  belongs_to :version, class_name: "ShippingRateCardVersion", foreign_key: :version_id, inverse_of: :rates
+  has_one :company, through: :version
+
+  validates :weight_min_kg,   presence: true, numericality: { greater_than_or_equal_to: 0 }
+  validates :weight_max_kg,   presence: true, numericality: { greater_than_or_equal_to: 0 }
+  validates :per_kg_rate_cny, presence: true, numericality: { greater_than_or_equal_to: 0 }
+  validates :flat_fee_cny,    presence: true, numericality: { greater_than_or_equal_to: 0 }
+  validate  :weight_max_greater_than_min
+
+  scope :for_weight, ->(kg) {
+    where("weight_min_kg < ? AND weight_max_kg >= ?", kg, kg)
+  }
 
   private
 
   def weight_max_greater_than_min
     return unless weight_min_kg && weight_max_kg
     errors.add(:weight_max_kg, "must be greater than weight_min_kg") if weight_max_kg <= weight_min_kg
-  end
-
-  def effective_to_after_from
-    return unless effective_from && effective_to
-    errors.add(:effective_to, "must be on or after effective_from") if effective_to < effective_from
   end
 end
 ```
@@ -153,13 +193,15 @@ class ShippingCostCalculator
     weight_kg = total_weight_kg
     return nil if weight_kg <= 0
 
-    rate = ShippingRateCard.lookup(
+    version = ShippingRateCardVersion.lookup(
       company:      @store.company,
       country:      country,
       service_type: @store.default_service_type,
-      weight_kg:    weight_kg,
       on_date:      @order.ordered_at.to_date
     )
+    return nil unless version
+
+    rate = version.rates.for_weight(weight_kg).first
     return nil unless rate
 
     cost_cny = (weight_kg * rate.per_kg_rate_cny) + rate.flat_fee_cny
@@ -228,82 +270,136 @@ end
 ## Routes
 
 ```ruby
-resources :shipping_rate_cards, only: [:index, :create, :update, :destroy]
+resources :shipping_rate_card_versions, only: [:index, :create, :update, :destroy] do
+  resources :rates, only: [:create, :update, :destroy],
+            controller: "shipping_rate_card_rates"
+end
 ```
 
-Standard REST CRUD. No `:new` / `:edit` — both happen on the index page (new-row form at top, inline cell edit on existing rows).
+Versions own their weight-band rates as a nested resource. No `:new` / `:edit` — both happen on the index page (inline new-version + new-rate forms, click-to-edit cells).
 
 ## Controllers
 
-### `ShippingRateCardsController` (new)
-
-Standard CRUD. All mutating actions require owner role.
+### `ShippingRateCardVersionsController` (new)
 
 ```ruby
-class ShippingRateCardsController < AdminController
+class ShippingRateCardVersionsController < AdminController
   before_action :require_owner!, only: [:create, :update, :destroy]
-  before_action :set_card, only: [:update, :destroy]
+  before_action :set_version, only: [:update, :destroy]
 
   def index
-    cards = current_company.shipping_rate_cards
-    @countries = cards.distinct.pluck(:country_code).sort
-    @services  = cards.distinct.pluck(:service_type).sort
+    versions = current_company.shipping_rate_card_versions.includes(:rates)
+    @countries = versions.distinct.pluck(:country_code).sort
+    @services  = versions.distinct.pluck(:service_type).sort
 
-    cards = cards.where(country_code: params[:country_code]) if params[:country_code].present?
-    cards = cards.where(service_type: params[:service_type]) if params[:service_type].present?
+    versions = versions.where(country_code: params[:country_code]) if params[:country_code].present?
+    versions = versions.where(service_type: params[:service_type]) if params[:service_type].present?
 
     @selected_country = params[:country_code]
     @selected_service = params[:service_type]
-    @cards = cards.order(:country_code, :service_type, :effective_from, :weight_min_kg)
-    @new_card = current_company.shipping_rate_cards.new  # for the new-row form
+    @versions = versions.order(country_code: :asc, service_type: :asc, effective_from: :desc)
   end
 
   def create
-    card = current_company.shipping_rate_cards.new(card_params)
-    if card.save
-      redirect_to shipping_rate_cards_path(request.query_parameters.slice(:country_code, :service_type)),
-                  notice: t("shipping_rate_cards.created")
+    version = current_company.shipping_rate_card_versions.new(version_params)
+    if version.save
+      redirect_to shipping_rate_card_versions_path, notice: t("shipping_rate_cards.version_created")
     else
-      redirect_to shipping_rate_cards_path, alert: card.errors.full_messages.join(", ")
+      redirect_to shipping_rate_card_versions_path, alert: version.errors.full_messages.join(", ")
     end
   end
 
   def update
-    if @card.update(card_params)
+    if @version.update(version_params)
       respond_to do |format|
-        format.turbo_stream  # replaces the single row
-        format.html { redirect_to shipping_rate_cards_path, notice: t("shipping_rate_cards.updated") }
+        format.turbo_stream  # replaces the version's header row
+        format.html { redirect_to shipping_rate_card_versions_path, notice: t("shipping_rate_cards.version_updated") }
       end
     else
       respond_to do |format|
         format.turbo_stream { render :update, status: :unprocessable_entity }
-        format.html { redirect_to shipping_rate_cards_path, alert: @card.errors.full_messages.join(", ") }
+        format.html { redirect_to shipping_rate_card_versions_path, alert: @version.errors.full_messages.join(", ") }
       end
     end
   end
 
   def destroy
-    @card.destroy
-    redirect_to shipping_rate_cards_path, notice: t("shipping_rate_cards.deleted")
+    @version.destroy
+    redirect_to shipping_rate_card_versions_path, notice: t("shipping_rate_cards.version_deleted")
   end
 
   private
 
-  def set_card
-    @card = current_company.shipping_rate_cards.find(params[:id])
+  def set_version
+    @version = current_company.shipping_rate_card_versions.find(params[:id])
   end
 
-  def card_params
-    params.require(:shipping_rate_card).permit(
-      :country_code, :service_type,
-      :weight_min_kg, :weight_max_kg,
-      :per_kg_rate_cny, :flat_fee_cny,
-      :effective_from, :effective_to
+  def version_params
+    params.require(:shipping_rate_card_version).permit(
+      :name, :country_code, :service_type, :effective_from, :effective_to
     )
   end
 
   def require_owner!
-    redirect_to(shipping_rate_cards_path, alert: t("companies.no_permission")) unless current_membership&.owner?
+    redirect_to(shipping_rate_card_versions_path, alert: t("companies.no_permission")) unless current_membership&.owner?
+  end
+end
+```
+
+### `ShippingRateCardRatesController` (new)
+
+Nested. Each action affects one weight-band row inside a specific version.
+
+```ruby
+class ShippingRateCardRatesController < AdminController
+  before_action :require_owner!
+  before_action :set_version
+  before_action :set_rate, only: [:update, :destroy]
+
+  def create
+    rate = @version.rates.new(rate_params)
+    if rate.save
+      redirect_to shipping_rate_card_versions_path, notice: t("shipping_rate_cards.rate_created")
+    else
+      redirect_to shipping_rate_card_versions_path, alert: rate.errors.full_messages.join(", ")
+    end
+  end
+
+  def update
+    if @rate.update(rate_params)
+      respond_to do |format|
+        format.turbo_stream  # replaces the single weight-band row
+        format.html { redirect_to shipping_rate_card_versions_path, notice: t("shipping_rate_cards.rate_updated") }
+      end
+    else
+      respond_to do |format|
+        format.turbo_stream { render :update, status: :unprocessable_entity }
+        format.html { redirect_to shipping_rate_card_versions_path, alert: @rate.errors.full_messages.join(", ") }
+      end
+    end
+  end
+
+  def destroy
+    @rate.destroy
+    redirect_to shipping_rate_card_versions_path, notice: t("shipping_rate_cards.rate_deleted")
+  end
+
+  private
+
+  def set_version
+    @version = current_company.shipping_rate_card_versions.find(params[:shipping_rate_card_version_id])
+  end
+
+  def set_rate
+    @rate = @version.rates.find(params[:id])
+  end
+
+  def rate_params
+    params.require(:shipping_rate_card_rate).permit(:weight_min_kg, :weight_max_kg, :per_kg_rate_cny, :flat_fee_cny)
+  end
+
+  def require_owner!
+    redirect_to(shipping_rate_card_versions_path, alert: t("companies.no_permission")) unless current_membership&.owner?
   end
 end
 ```
@@ -333,7 +429,14 @@ end
 
 ### Authorization mapping
 
-`AdminController::PERMISSION_KEY_MAP` gains `"shipping_rate_cards" => "shopify_stores"` so anyone with shopify_stores access can VIEW the page; mutating actions (create / update / destroy) are gated to owner inside the controller.
+`AdminController::PERMISSION_KEY_MAP` gains two entries:
+
+```ruby
+"shipping_rate_card_versions" => "shopify_stores",
+"shipping_rate_card_rates"    => "shopify_stores"
+```
+
+Anyone with `shopify_stores` access can VIEW the page; mutating actions (create / update / destroy) are gated to owner inside each controller.
 
 ## UI
 
@@ -349,40 +452,51 @@ Used when estimating shipping cost for orders from this store.
 
 Non-owners see the chosen service as read-only text.
 
-### Shipping rate cards page (`/shipping_rate_cards`)
+### Shipping rate cards page (`/shipping_rate_card_versions`)
 
-Single page combining: filter at top, **new-row form** that posts to `create`, and a table where each existing row is **inline-editable cell by cell**.
+Each VERSION is a card. Inside each card is its weight-band rate table. New versions and new rates within a version are both added inline.
 
 ```
-Shipping Rate Cards
+Shipping Rate Cards (Versions)
 
 Filter:  Country [All ▾]    Service [All ▾]
 
-┌──────────────────────────────────────── New rate card (owner only) ───────────────────────────────┐
-│ Country: [US____]  Service: [standard_with_battery_]                                              │
-│ Weight: [0.05_] kg – [0.200] kg    ¥/kg: [92.00]   ¥/pkg: [25.00]                                 │
-│ Effective from: [2025-12-29]    Until: [          ] (blank = current)            [+ Add row]      │
-└────────────────────────────────────────────────────────────────────────────────────────────────────┘
+┌──────────────────────── New version (owner only) ─────────────────────────────────────┐
+│ Name: [Q1 2026 US Battery_______________]                                             │
+│ Country: [US]  Service: [standard_with_battery]                                       │
+│ Effective from: [2026-03-22]    Until: [        ] (blank = "until superseded")        │
+│                                                                  [+ Create version]   │
+└────────────────────────────────────────────────────────────────────────────────────────┘
 
-┌──────────┬──────────────────────────┬─────────┬─────────┬───────┬───────┬─────────────┬─────────────┬───┐
-│ Country  │ Service                  │ Min kg  │ Max kg  │ ¥/kg  │ ¥/pkg │ From        │ Until       │   │
-├──────────┼──────────────────────────┼─────────┼─────────┼───────┼───────┼─────────────┼─────────────┼───┤
-│ [US]     │ [standard_with_battery]  │ [0.05]  │ [0.200] │ [92]  │ [25]  │ [2025-12-29]│ [—]         │ 🗑 │
-│ [US]     │ [standard_with_battery]  │ [0.201] │ [0.450] │ [92]  │ [23]  │ [2025-12-29]│ [—]         │ 🗑 │
-│ ...                                                                                                       │
-└──────────┴──────────────────────────┴─────────┴─────────┴───────┴───────┴─────────────┴─────────────┴───┘
-                                              ← Prev    Next →   Per page [50 ▾]
+┌─ Version: [Q1 2026 US Battery]  ·  [US] [standard_with_battery]  ·  [2026-03-22] → [—] · 🗑 ┐
+│                                                                                              │
+│   ┌──────────┬──────────┬─────────┬─────────┬───┐                                            │
+│   │ Min kg   │ Max kg   │ ¥/kg    │ ¥/pkg   │   │                                            │
+│   ├──────────┼──────────┼─────────┼─────────┼───┤                                            │
+│   │ [0.05]   │ [0.200]  │ [92.00] │ [25.00] │ 🗑 │                                            │
+│   │ [0.201]  │ [0.450]  │ [92.00] │ [23.00] │ 🗑 │                                            │
+│   │ [0.451]  │ [0.700]  │ [92.00] │ [22.00] │ 🗑 │                                            │
+│   │   ... add new band: [____] – [____]  ¥/kg [_____]  ¥/pkg [_____]   [+ Add band]          │
+│   └──────────┴──────────┴─────────┴─────────┴───┘                                            │
+└──────────────────────────────────────────────────────────────────────────────────────────────┘
+
+┌─ Version: [Q4 2025 US Battery]  ·  [US] [standard_with_battery]  ·  [2025-12-29] → [2026-03-21] · 🗑 ┐
+│ ...                                                                                                   │
+└────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-Every existing cell uses the **`cell_edit_controller.js` pattern** introduced in PR #136 (text default → click to swap to input → blur or Enter saves via PATCH that returns a Turbo Stream replacing the row → Escape cancels). The controller is extended to support three input types:
+**Version header row** (name, country, service, dates): each cell uses `cell_edit_controller.js` → click to edit → blur/Enter saves via `PATCH /shipping_rate_card_versions/:id`.
 
+**Rate band row** (min, max, per_kg, flat_fee): same `cell_edit_controller.js` pattern → `PATCH /shipping_rate_card_versions/:version_id/rates/:id`.
+
+The controller is extended to support three input types:
 - `number` (existing) — for weight_min/max, per_kg, flat_fee
-- `text` — for country_code, service_type
+- `text` — for name, country_code, service_type
 - `date` — for effective_from, effective_to (blank input means null)
 
-All edits go to `PATCH /shipping_rate_cards/:id` with one field at a time, same as `/product_variants/:id`.
+New-version form and new-band form are regular `form_with` POSTs, owner-only.
 
-The new-row form is a regular `form_with` POSTing to `create`, visible only to owners. Non-owners see the table read-only, no new-row form, no delete buttons.
+Non-owners see read-only — no edit, no add, no delete buttons.
 
 ### Dashboard cards
 
@@ -447,13 +561,18 @@ shipping_rate_cards:
   filter_country: "Country"
   filter_service: "Service"
   filter_all: "All"
-  new_row_title: "New rate card"
-  add_row: "+ Add row"
-  created: "Rate card added"
-  updated: "Rate card updated"
-  deleted: "Rate card deleted"
-  empty: "No rate cards yet — add the first row above"
+  new_version_title: "New version"
+  create_version: "+ Create version"
+  add_band: "+ Add band"
+  version_created: "Version created"
+  version_updated: "Version updated"
+  version_deleted: "Version deleted"
+  rate_created: "Rate band added"
+  rate_updated: "Rate band updated"
+  rate_deleted: "Rate band deleted"
+  empty: "No rate card versions yet — create one above"
   columns:
+    name: "Name"
     country: "Country"
     service: "Service"
     weight_min: "Min kg"
@@ -474,36 +593,48 @@ dashboard:
 
 ## Data entry workflow
 
-Admins enter rate cards one row at a time through the new-row form, then click to edit existing cells.
+Admins create a **version** first, then add weight-band **rates** inside it.
 
+- Version `name`: free text (`Q4 2025 US Battery`, `2026-Mar Yanwen Cosmetics`, etc.)
 - `country_code`: uppercase ISO-3166-1 alpha-2 (`US`, `CA`, `GB`)
-- `service_type`: admin-defined string; reuse the same string across rows that share a service (the form's `service_type` input could autosuggest from existing rows in a later iteration)
-- `flat_fee_cny`: defaults to 0
-- `effective_to`: blank means "still current" — when rates change, edit the previous row to set its `effective_to`, then add the new rows
+- `service_type`: admin-defined string (`standard_with_battery`, `general`)
+- `effective_from`: required
+- `effective_to`: blank = "until superseded by a newer version"; only set explicitly if you want to deactivate a version
 
-Typical workflow for a rate update:
+Typical workflow when rates change:
 
-1. Filter to the country + service being updated
-2. Edit each existing row's `effective_to` to the day before the new rates kick in
-3. Use the new-row form to add new rows for the new effective period
+1. (Optional) Filter to the country + service being updated
+2. Click "+ Create version" → fill name + dates → submit
+3. Inside the new version's card, add weight bands one by one
+4. **Don't touch the old version** — lookup automatically uses the newer version once its `effective_from` arrives
+
+This is much easier than maintaining `effective_to` on every old row: old versions remain unchanged history, new version takes over from its start date.
 
 ## Testing
 
 ### Model specs
-- `shipping_rate_card_spec.rb`:
+- `shipping_rate_card_version_spec.rb`:
+  - presence validations on name / country / service / effective_from
+  - `effective_to >= effective_from` (when both present)
+  - `.lookup` returns the newest applicable version
+  - `.lookup` falls back to most recent past version when no version explicitly contains the date
+  - `.lookup` returns nil when no version covers the date
+  - destroying a version cascades to its rates
+- `shipping_rate_card_rate_spec.rb`:
   - presence / numericality validations
   - `weight_max > weight_min`
-  - `effective_to >= effective_from` (when both present)
-  - `effective_on` scope
-  - `.lookup` returns the matching card; returns most recent on ties
-  - `.lookup` returns nil when weight outside all bands
+  - `for_weight` scope picks the right band
+  - belongs to version; through to company
 
 ### Service specs
 - `shipping_cost_calculator_spec.rb`:
-  - happy path: USD store, 0.3 kg US order → looks up correct band → returns CNY/fx_rate value
+  - happy path: USD store, 0.3 kg US order → looks up newest applicable version → correct band → returns CNY/fx_rate value
+  - older version still applies when no newer version yet exists
+  - newer version takes over for orders on or after its `effective_from`
   - missing variant weights → nil
   - missing country in shipping_address → falls back to billing_address; else nil
-  - missing rate card → nil
+  - no version covers date → nil
+  - version exists but no rate band matches the weight → nil
   - store missing `default_service_type` → nil
   - store missing `cost_fx_rate` → nil
 - `sync_all_orders_service_spec.rb` extend:
@@ -513,21 +644,27 @@ Typical workflow for a rate update:
   - backfill fills shipping_cost when null; counts returned
 
 ### Request specs
-- `shipping_rate_cards_spec.rb`:
-  - GET /shipping_rate_cards — 200, filters work
-  - POST /shipping_rate_cards (owner) — creates
-  - POST /shipping_rate_cards (non-owner) — 302 + alert, nothing created
-  - PATCH /shipping_rate_cards/:id (owner) — updates single field, returns Turbo Stream
-  - PATCH /shipping_rate_cards/:id (non-owner) — alert, nothing updated
-  - DELETE /shipping_rate_cards/:id (owner) — gone
-  - DELETE /shipping_rate_cards/:id (non-owner) — alert
-  - Cross-company guard: trying to PATCH another company's card → 404
+- `shipping_rate_card_versions_spec.rb`:
+  - GET /shipping_rate_card_versions — 200, filters work, shows versions with their rates
+  - POST (owner) — creates version
+  - POST (non-owner) — 302 + alert, nothing created
+  - PATCH (owner) — updates single field, returns Turbo Stream
+  - PATCH (non-owner) — alert
+  - DELETE (owner) — gone (and cascade-deletes rates)
+  - DELETE (non-owner) — alert
+  - Cross-company: another company's version → 404
+- `shipping_rate_card_rates_spec.rb`:
+  - POST nested under version (owner) — creates rate row
+  - POST (non-owner) — alert
+  - PATCH (owner) — returns Turbo Stream
+  - DELETE (owner) — gone
+  - Cross-version: trying to PATCH a rate belonging to another company's version → 404
 - `shopify_stores_spec.rb` extend:
   - PATCH default_service_type (owner) — updates
   - PATCH default_service_type (non-owner) — blocked
 
 ### System spec
-- `shipping_rate_cards_spec.rb` system: visit page, fill new-row form, see row added; click a cell on the new row, change value, blur, see updated value
+- `shipping_rate_cards_spec.rb` system: visit page, fill new-version form, see version card; add a rate band, click a cell, change value, blur, see updated
 
 ### Dashboard spec
 - `dashboard_metrics_service_spec.rb` extend:
@@ -540,10 +677,13 @@ Typical workflow for a rate update:
 ```
 Admin (owner)
   │
-  ├── GET   /shipping_rate_cards         (table + new-row form, filters)
-  ├── POST  /shipping_rate_cards         (create from new-row form)
-  ├── PATCH /shipping_rate_cards/:id     (inline cell edit → Turbo Stream replace row)
-  ├── DELETE /shipping_rate_cards/:id    (per-row delete)
+  ├── GET    /shipping_rate_card_versions                (versions list + filters)
+  ├── POST   /shipping_rate_card_versions                (create version)
+  ├── PATCH  /shipping_rate_card_versions/:id            (inline edit version header)
+  ├── DELETE /shipping_rate_card_versions/:id            (delete version + cascade rates)
+  ├── POST   /shipping_rate_card_versions/:vid/rates     (add weight band to a version)
+  ├── PATCH  /shipping_rate_card_versions/:vid/rates/:id (inline edit rate band)
+  ├── DELETE /shipping_rate_card_versions/:vid/rates/:id (delete rate band)
   │
   ├── PATCH /shopify_stores/:id with default_service_type
   │     └─ ShopifyStore#default_service_type
@@ -557,7 +697,8 @@ Order sync (SyncAllOrdersService)
        │    └─ ShippingCostCalculator
        │         ├─ weight from line_items × variant.weight_grams
        │         ├─ country from order.shopify_data.shipping_address
-       │         ├─ ShippingRateCard.lookup → per_kg + flat
+       │         ├─ ShippingRateCardVersion.lookup → newest applicable version
+       │         ├─ version.rates.for_weight(kg) → matching band
        │         ├─ cost CNY / store.cost_fx_rate → store currency
        │         └─ orders.shipping_cost (frozen)
        └─ sync_fulfillments   (existing)
@@ -584,27 +725,27 @@ DashboardMetricsService (existing, extended)
 
 ## Rollout / operator steps
 
-1. Deploy migrations
+1. Deploy migrations (2 new tables)
 2. Owner: visit a shop detail page → set `default_service_type` (e.g., `standard_with_battery`)
-3. Owner: visit `/shipping_rate_cards` → fill new-row form for each weight band (1 country × 1 service × N bands)
+3. Owner: visit `/shipping_rate_card_versions` → create first version (name + country + service + effective_from) → add weight bands one by one inside that version
 4. New orders auto-snapshot `shipping_cost` from now on
 5. In Rails console: `BackfillOrderLineItemsService.new(store).call` — also fills historical `shipping_cost`
-6. Dashboard shipping coverage % approaches 100% as historical orders get backfilled
+6. When rates change: create a NEW version with a new `effective_from`. Old version stays untouched as history — calculator picks newest applicable version automatically.
 
-For initial seeding of many rows, admin can also use Rails console to bulk-create — the UI is the primary path but Ruby remains available for first-time setup if rate tables are large.
+For initial seeding of many rows, admin can also use Rails console to bulk-create versions + rates — the UI is the primary path but Ruby remains available for first-time setup if rate tables are large.
 
 ## Estimated work
 
 | Section | Effort |
 |---|---|
-| Migrations + model + spec | 30 min |
-| Calculator service + spec | 30 min |
+| Migrations (2 tables) + 2 models + specs | 45 min |
+| Calculator service + spec (two-level lookup) | 40 min |
 | Sync integration + spec | 20 min |
 | Backfill extension + spec | 15 min |
-| Controller (CRUD) + routes + i18n | 40 min |
-| Index page UI: new-row form + table | 45 min |
+| 2 controllers (versions + rates) + routes + i18n | 50 min |
+| Index page UI: versions list + nested rates table + new-row forms | 60 min |
 | Cell edit controller extension (text + date input types) | 30 min |
 | Shop detail page service-type form | 20 min |
 | Dashboard service extension + cards + spec | 30 min |
-| System spec for new-row + cell edit | 30 min |
-| Total | **~5 hours** |
+| System spec for new-version + add-band + cell edit | 30 min |
+| Total | **~6 hours** |
