@@ -71,7 +71,6 @@ RSpec.describe ShippingRateCardVersion, type: :model do
 
   describe "associations" do
     it "destroys its rates when destroyed" do
-      skip "ShippingRateCardRate model + factory are created in Task 3; un-skip there"
       version = create(:shipping_rate_card_version, company: company)
       create(:shipping_rate_card_rate, version: version)
       expect { version.destroy }.to change(ShippingRateCardRate, :count).by(-1)
