@@ -1,0 +1,6 @@
+<h1><%= t("shipping_rate_cards.title") %></h1>
+<div id="versions">
+  <% @versions.each do |version| %>
+    <div id="<%= dom_id(version) %>"><%= version.name %></div>
+  <% end %>
+</div>
