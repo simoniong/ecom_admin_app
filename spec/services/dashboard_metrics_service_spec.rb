@@ -169,4 +169,39 @@ RSpec.describe DashboardMetricsService do
       end
     end
   end
+
+  describe "COGS / gross / net profit" do
+    let(:cogs_user) { create(:user) }
+    let(:company) { cogs_user.companies.first }
+    let!(:store) { create(:shopify_store, user: cogs_user, company: company, timezone: "UTC") }
+    let!(:customer) { create(:customer, shopify_store: store) }
+    let!(:order) do
+      create(:order, customer: customer, shopify_store: store,
+                     total_price: 100, ordered_at: Date.current.beginning_of_day)
+    end
+
+    before do
+      create(:order_line_item, order: order, quantity: 2, unit_cost_snapshot: 10) # 20
+      create(:order_line_item, order: order, quantity: 1, unit_cost_snapshot: 5)  # 5
+    end
+
+    it "computes cogs over the date range" do
+      result = described_class.new(company, range_key: "today").call
+      expect(result[:current][:cogs]).to eq(25)
+    end
+
+    it "computes gross_profit and net_profit" do
+      create(:shopify_daily_metric, shopify_store: store, date: Date.current,
+                                    revenue: 100, orders_count: 1)
+      result = described_class.new(company, range_key: "today").call
+      expect(result[:current][:gross_profit]).to eq(75)   # 100 - 25
+      expect(result[:current][:net_profit]).to eq(75)     # no ad spend
+    end
+
+    it "reports cogs_coverage_pct" do
+      create(:order_line_item, order: order, quantity: 1, unit_cost_snapshot: nil)
+      result = described_class.new(company, range_key: "today").call
+      expect(result[:current][:cogs_coverage_pct]).to eq(66.7)
+    end
+  end
 end

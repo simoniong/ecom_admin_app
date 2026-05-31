@@ -357,4 +357,69 @@ RSpec.describe SyncAllOrdersService do
       expect { service.sync_single_order(order_no_customer) }.not_to change(Order, :count)
     end
   end
+
+  describe "line item sync" do
+    let(:shopify_customer) do
+      { "id" => 100, "email" => "buyer@example.com", "first_name" => "Jane", "last_name" => "Buyer" }
+    end
+
+    let!(:product) { create(:product, shopify_store: store, shopify_product_id: 7001) }
+    let!(:variant_a) do
+      create(:product_variant, product: product, shopify_variant_id: 8001, unit_cost: 12.50)
+    end
+
+    let(:shopify_order_with_lines) do
+      {
+        "id" => 200, "email" => "buyer@example.com", "name" => "#1001",
+        "total_price" => "73.00", "currency" => "USD",
+        "financial_status" => "paid", "fulfillment_status" => "fulfilled",
+        "created_at" => "2026-03-20",
+        "customer" => shopify_customer,
+        "line_items" => [
+          { "id" => 6001, "variant_id" => 8001, "sku" => "PK-BL", "title" => "Paint / Black",
+            "quantity" => 2, "price" => "29.00" },
+          { "id" => 6002, "variant_id" => 9999, "sku" => "UNKNOWN", "title" => "Mystery",
+            "quantity" => 1, "price" => "15.00" }
+        ],
+        "fulfillments" => []
+      }
+    end
+
+    before do
+      allow(shopify_service).to receive(:fetch_all_customers).and_return([ shopify_customer ], [])
+      allow(shopify_service).to receive(:fetch_all_orders).and_return([ shopify_order_with_lines ], [])
+      allow(shopify_service).to receive(:fetch_fulfillments).and_return([])
+    end
+
+    it "creates OrderLineItem rows from each line item in the shopify payload" do
+      expect { service.call }.to change(OrderLineItem, :count).by(2)
+    end
+
+    it "snapshots unit_cost from matching variant" do
+      service.call
+      li = OrderLineItem.find_by(shopify_line_item_id: 6001)
+      expect(li.product_variant).to eq(variant_a)
+      expect(li.unit_cost_snapshot).to eq(12.50)
+      expect(li.quantity).to eq(2)
+      expect(li.unit_price).to eq(29.00)
+    end
+
+    it "saves the line item with null variant when variant_id is unknown" do
+      service.call
+      li = OrderLineItem.find_by(shopify_line_item_id: 6002)
+      expect(li.product_variant).to be_nil
+      expect(li.unit_cost_snapshot).to be_nil
+      expect(li.sku_at_sale).to eq("UNKNOWN")
+    end
+
+    it "does not overwrite existing snapshot on re-sync" do
+      service.call
+      OrderLineItem.find_by(shopify_line_item_id: 6001).update!(unit_cost_snapshot: 7.77)
+
+      allow(shopify_service).to receive(:fetch_all_orders).and_return([ shopify_order_with_lines ], [])
+      described_class.new(store).call
+
+      expect(OrderLineItem.find_by(shopify_line_item_id: 6001).unit_cost_snapshot).to eq(7.77)
+    end
+  end
 end

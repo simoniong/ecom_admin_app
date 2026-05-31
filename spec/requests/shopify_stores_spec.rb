@@ -199,4 +199,21 @@ RSpec.describe "ShopifyStores", type: :request do
       expect(response).to have_http_status(:not_found)
     end
   end
+
+  describe "POST /shopify_stores/:id/sync_products" do
+    let(:store) { create(:shopify_store, user: user, company: user.companies.first) }
+
+    before { sign_in user }
+
+    it "enqueues SyncShopifyProductsJob" do
+      expect {
+        post sync_products_shopify_store_path(id: store.id)
+      }.to have_enqueued_job(SyncShopifyProductsJob).with(store.id)
+    end
+
+    it "redirects with notice" do
+      post sync_products_shopify_store_path(id: store.id)
+      expect(response).to redirect_to(shopify_store_path(store))
+    end
+  end
 end

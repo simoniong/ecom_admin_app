@@ -104,4 +104,59 @@ RSpec.describe Order, type: :model do
       expect(Order.by_fulfillment_status("fulfilled")).to eq([ fulfilled ])
     end
   end
+
+  describe "profit methods" do
+    let(:order) { create(:order, total_price: 100) }
+
+    it "#cogs_total sums quantity * unit_cost_snapshot" do
+      create(:order_line_item, order: order, quantity: 2, unit_cost_snapshot: 10)
+      create(:order_line_item, order: order, quantity: 1, unit_cost_snapshot: 5)
+      expect(order.cogs_total).to eq(25)
+    end
+
+    it "#cogs_total treats null snapshots as 0" do
+      create(:order_line_item, order: order, quantity: 2, unit_cost_snapshot: nil)
+      create(:order_line_item, order: order, quantity: 1, unit_cost_snapshot: 5)
+      expect(order.cogs_total).to eq(5)
+    end
+
+    it "#gross_profit = total_price - cogs_total" do
+      create(:order_line_item, order: order, quantity: 1, unit_cost_snapshot: 30)
+      expect(order.gross_profit).to eq(70)
+    end
+
+    it "#gross_profit returns nil when total_price is nil" do
+      nil_order = create(:order, total_price: nil)
+      expect(nil_order.gross_profit).to be_nil
+    end
+
+    it "#gross_margin_pct = gross_profit / total_price * 100" do
+      create(:order_line_item, order: order, quantity: 1, unit_cost_snapshot: 30)
+      expect(order.gross_margin_pct).to eq(70.0)
+    end
+
+    it "#gross_margin_pct returns nil when total_price is 0" do
+      zero_order = create(:order, total_price: 0)
+      expect(zero_order.gross_margin_pct).to be_nil
+    end
+
+    it "#gross_margin_pct returns nil when total_price is nil" do
+      nil_order = create(:order, total_price: nil)
+      expect(nil_order.gross_margin_pct).to be_nil
+    end
+
+    it "#cogs_complete? is true when all snapshots are set" do
+      create(:order_line_item, order: order, unit_cost_snapshot: 1)
+      expect(order.cogs_complete?).to be true
+    end
+
+    it "#cogs_complete? is false when any snapshot is null" do
+      create(:order_line_item, order: order, unit_cost_snapshot: nil)
+      expect(order.cogs_complete?).to be false
+    end
+
+    it "#cogs_complete? is true when there are no line items" do
+      expect(order.cogs_complete?).to be true
+    end
+  end
 end

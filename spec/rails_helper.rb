@@ -42,6 +42,7 @@ RSpec.configure do |config|
   config.include FactoryBot::Syntax::Methods
   config.include ActiveSupport::Testing::TimeHelpers
   config.include Devise::Test::IntegrationHelpers, type: :request
+  config.include ActiveJob::TestHelper, type: :request
 
   config.before(:each, type: :system) do
     ENV["no_proxy"] = "localhost,127.0.0.1"

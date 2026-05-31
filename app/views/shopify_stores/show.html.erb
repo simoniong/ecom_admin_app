@@ -61,6 +61,22 @@
     </dl>
   </div>
 
+  <div class="mt-6 bg-white shadow-sm rounded-lg border border-gray-200 p-6">
+    <h2 class="text-lg font-medium text-gray-900"><%= t("products.title") %></h2>
+    <p class="mt-1 text-sm text-gray-500">
+      <%= t("shopify_stores.products_synced_at") %>:
+      <%= @shopify_store.products_synced_at ? l(@shopify_store.products_synced_at, format: :long) : "—" %>
+    </p>
+    <div class="mt-3 flex items-center gap-3">
+      <%= button_to t("shopify_stores.sync_products"),
+          sync_products_shopify_store_path(@shopify_store), method: :post,
+          class: "inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700" %>
+      <%= link_to t("shopify_stores.manage_products"),
+          products_path(store_id: @shopify_store.id),
+          class: "text-sm text-blue-600 hover:underline" %>
+    </div>
+  </div>
+
   <%= render "shared/group_reassign_form", resource: @shopify_store, form_url: shopify_store_path(@shopify_store), scope_key: "shopify_store" %>
 
   <%# Linked Accounts %>
