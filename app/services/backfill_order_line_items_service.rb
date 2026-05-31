@@ -3,16 +3,18 @@ class BackfillOrderLineItemsService
     @store = shopify_store
     @processed = 0
     @snapshotted = 0
+    @shipping_filled = 0
   end
 
   def call
     Rails.logger.info("[BackfillLineItems] start store=#{@store.shop_domain}")
     @store.orders.find_each(batch_size: 200) do |order|
       (order.shopify_data&.dig("line_items") || []).each { |li| upsert_line_item(order, li) }
+      backfill_estimated_shipping(order)
       @processed += 1
     end
-    Rails.logger.info("[BackfillLineItems] done orders=#{@processed} snapshotted=#{@snapshotted}")
-    { orders: @processed, snapshotted: @snapshotted }
+    Rails.logger.info("[BackfillLineItems] done orders=#{@processed} snapshotted=#{@snapshotted} shipping=#{@shipping_filled}")
+    { orders: @processed, snapshotted: @snapshotted, shipping_filled: @shipping_filled }
   end
 
   private
@@ -35,6 +37,14 @@ class BackfillOrderLineItemsService
       @snapshotted += 1
     end
     line_item.save!
+  end
+
+  def backfill_estimated_shipping(order)
+    return if order.estimated_shipping_cost.present?
+    cost = ShippingCostCalculator.estimate(order)
+    return unless cost
+    order.update!(estimated_shipping_cost: cost)
+    @shipping_filled += 1
   end
 
   def variant_lookup
