@@ -99,6 +99,33 @@
           previous: @metrics[:previous][:new_customer_cpa],
           current_raw: @metrics[:current][:new_customer_cpa],
           invert_color: true %>
+
+      <%# Gross Profit %>
+      <%= render "dashboard/metric_card",
+          title: t("dashboard.gross_profit"),
+          value: number_to_currency(@metrics[:current][:gross_profit]),
+          previous: @metrics[:previous][:gross_profit],
+          current_raw: @metrics[:current][:gross_profit] %>
+
+      <%# Gross Margin %>
+      <%= render "dashboard/metric_card",
+          title: t("dashboard.gross_margin"),
+          value: @metrics[:current][:gross_margin_pct] ? "#{@metrics[:current][:gross_margin_pct]}%" : "—",
+          previous: @metrics[:previous][:gross_margin_pct],
+          current_raw: @metrics[:current][:gross_margin_pct] %>
+
+      <%# Net Profit %>
+      <%= render "dashboard/metric_card",
+          title: t("dashboard.net_profit"),
+          value: number_to_currency(@metrics[:current][:net_profit]),
+          previous: @metrics[:previous][:net_profit],
+          current_raw: @metrics[:current][:net_profit] %>
     </div>
+
+    <% if @metrics[:current][:cogs_coverage_pct] && @metrics[:current][:cogs_coverage_pct] < 100 %>
+      <p class="mt-2 text-xs text-gray-500">
+        <%= t("dashboard.cogs_coverage") %>: <%= @metrics[:current][:cogs_coverage_pct] %>%
+      </p>
+    <% end %>
   <% end %>
 </div>

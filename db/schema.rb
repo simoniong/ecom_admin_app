@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_14_000001) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_31_100001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -286,6 +286,23 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_14_000001) do
     t.index ["ticket_id"], name: "index_messages_on_ticket_id"
   end
 
+  create_table "order_line_items", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "currency"
+    t.uuid "order_id", null: false
+    t.uuid "product_variant_id"
+    t.integer "quantity", null: false
+    t.jsonb "shopify_data", default: {}
+    t.bigint "shopify_line_item_id", null: false
+    t.string "sku_at_sale"
+    t.string "title_at_sale"
+    t.decimal "unit_cost_snapshot", precision: 10, scale: 2
+    t.decimal "unit_price", precision: 10, scale: 2
+    t.datetime "updated_at", null: false
+    t.index ["order_id", "shopify_line_item_id"], name: "idx_line_items_order_shopify_id", unique: true
+    t.index ["product_variant_id"], name: "index_order_line_items_on_product_variant_id"
+  end
+
   create_table "orders", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.datetime "created_at", null: false
     t.string "currency"
@@ -301,8 +318,39 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_14_000001) do
     t.decimal "total_price", precision: 10, scale: 2
     t.datetime "updated_at", null: false
     t.index ["customer_id"], name: "index_orders_on_customer_id"
+    t.index ["shopify_store_id", "ordered_at"], name: "idx_orders_store_ordered_at"
     t.index ["shopify_store_id", "shopify_order_id"], name: "idx_orders_store_shopify_id", unique: true
     t.index ["shopify_store_id"], name: "index_orders_on_shopify_store_id"
+  end
+
+  create_table "product_variants", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "currency"
+    t.decimal "price", precision: 10, scale: 2
+    t.uuid "product_id", null: false
+    t.jsonb "shopify_data", default: {}
+    t.bigint "shopify_variant_id", null: false
+    t.string "sku"
+    t.string "title"
+    t.decimal "unit_cost", precision: 10, scale: 2
+    t.datetime "updated_at", null: false
+    t.decimal "weight_grams", precision: 12, scale: 3
+    t.index ["product_id", "shopify_variant_id"], name: "idx_variants_product_shopify_id", unique: true
+    t.index ["sku"], name: "index_product_variants_on_sku"
+  end
+
+  create_table "products", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "handle"
+    t.string "image_url"
+    t.jsonb "shopify_data", default: {}
+    t.bigint "shopify_product_id", null: false
+    t.uuid "shopify_store_id", null: false
+    t.string "status"
+    t.string "title"
+    t.datetime "updated_at", null: false
+    t.index ["shopify_store_id", "shopify_product_id"], name: "idx_products_store_shopify_id", unique: true
+    t.index ["shopify_store_id"], name: "index_products_on_shopify_store_id"
   end
 
   create_table "shipping_reminder_rules", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -349,10 +397,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_14_000001) do
     t.string "client_id"
     t.text "client_secret"
     t.uuid "company_id", null: false
+    t.decimal "cost_fx_rate", precision: 10, scale: 4
     t.datetime "created_at", null: false
+    t.string "currency"
     t.uuid "group_id"
     t.datetime "installed_at"
     t.datetime "orders_synced_at"
+    t.datetime "products_synced_at"
     t.string "scopes"
     t.string "shop_domain", null: false
     t.string "timezone", default: "UTC", null: false
@@ -559,8 +610,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_14_000001) do
   add_foreign_key "memberships", "groups"
   add_foreign_key "memberships", "users"
   add_foreign_key "messages", "tickets"
+  add_foreign_key "order_line_items", "orders"
+  add_foreign_key "order_line_items", "product_variants"
   add_foreign_key "orders", "customers"
   add_foreign_key "orders", "shopify_stores"
+  add_foreign_key "product_variants", "products"
+  add_foreign_key "products", "shopify_stores"
   add_foreign_key "shipping_reminder_rules", "companies"
   add_foreign_key "shipping_reminder_settings", "companies"
   add_foreign_key "shopify_stores", "companies"

@@ -7,6 +7,7 @@ class ShopifyStore < ApplicationRecord
   has_many :ad_accounts, dependent: :nullify
   has_many :customers, dependent: :destroy
   has_many :orders, dependent: :destroy
+  has_many :products, dependent: :destroy
   has_many :email_workflows, dependent: :destroy
 
   encrypts :access_token, deterministic: false
@@ -17,6 +18,7 @@ class ShopifyStore < ApplicationRecord
   validates :access_token, presence: true
   validates :client_id, presence: true
   validates :client_secret, presence: true
+  validates :cost_fx_rate, numericality: { greater_than: 0, allow_nil: true }
 
   def active_timezone
     ActiveSupport::TimeZone[timezone] || ActiveSupport::TimeZone["UTC"]

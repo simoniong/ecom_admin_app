@@ -2,6 +2,7 @@ class Order < ApplicationRecord
   belongs_to :customer
   belongs_to :shopify_store, optional: true
   has_many :fulfillments, dependent: :destroy
+  has_many :order_line_items, dependent: :destroy
   has_many :email_workflow_runs, dependent: :destroy
 
   validates :shopify_order_id, presence: true, uniqueness: { scope: :shopify_store_id }
@@ -16,4 +17,22 @@ class Order < ApplicationRecord
   }
   scope :by_financial_status, ->(status) { where(financial_status: status) }
   scope :by_fulfillment_status, ->(status) { where(fulfillment_status: status) }
+
+  def cogs_total
+    order_line_items.sum("quantity * COALESCE(unit_cost_snapshot, 0)")
+  end
+
+  def gross_profit
+    return nil unless total_price
+    total_price - cogs_total
+  end
+
+  def gross_margin_pct
+    return nil unless total_price && total_price.positive?
+    (gross_profit / total_price * 100).round(2)
+  end
+
+  def cogs_complete?
+    !order_line_items.where(unit_cost_snapshot: nil).exists?
+  end
 end

@@ -35,6 +35,18 @@ class ShopifyService
     response["customers"] || []
   end
 
+  def fetch_all_products(limit: 250, since_id: nil)
+    params = { limit: limit, order: "id asc" }
+    params[:since_id] = since_id if since_id
+    response = get("/products.json", **params)
+    response["products"] || []
+  end
+
+  def fetch_shop
+    response = get("/shop.json")
+    response["shop"] || {}
+  end
+
   def register_webhook(topic:, address:)
     post("/webhooks.json", body: { webhook: { topic: topic, address: address, format: "json" } })
   end

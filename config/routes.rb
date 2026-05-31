@@ -53,10 +53,20 @@ Rails.application.routes.draw do
     end
     post "email_oauth/start", to: "email_oauth#start", as: :email_oauth_start
     resources :shopify_stores, only: [ :index, :show, :update, :destroy ] do
+      member do
+        post :sync_products
+      end
       resources :email_workflows, only: [ :index, :new, :create, :edit, :update, :destroy ] do
         resources :email_workflow_steps, only: [ :create, :update, :destroy ] do
           post :move, on: :member
         end
+      end
+    end
+    resources :products, only: [ :index ]
+    resources :product_variants, only: [ :update ] do
+      collection do
+        post :bulk_update
+        get :matching_ids
       end
     end
     resources :ad_accounts, only: [ :index, :show, :update, :destroy ]

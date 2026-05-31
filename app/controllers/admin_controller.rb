@@ -11,7 +11,9 @@ class AdminController < ApplicationController
     "campaign_display_templates" => "ad_campaigns",
     "shipping_reminder_settings" => "shipping_reminder_rules",
     "email_workflows" => "shopify_stores",
-    "email_workflow_steps" => "shopify_stores"
+    "email_workflow_steps" => "shopify_stores",
+    "products" => "shopify_stores",
+    "product_variants" => "shopify_stores"
   }.freeze
 
   private

@@ -199,4 +199,59 @@ RSpec.describe "ShopifyStores", type: :request do
       expect(response).to have_http_status(:not_found)
     end
   end
+
+  describe "PATCH /shopify_stores/:id with cost_fx_rate" do
+    let(:store) { create(:shopify_store, user: user, company: user.companies.first) }
+
+    before { sign_in user }
+
+    it "updates cost_fx_rate when user is owner" do
+      patch shopify_store_path(id: store.id), params: { shopify_store: { cost_fx_rate: "7.2000" } }
+      expect(store.reload.cost_fx_rate).to eq(7.2)
+      expect(response).to redirect_to(shopify_store_path(store))
+    end
+
+    it "rejects zero" do
+      patch shopify_store_path(id: store.id), params: { shopify_store: { cost_fx_rate: "0" } }
+      expect(store.reload.cost_fx_rate).to be_nil
+    end
+
+    it "accepts clearing the rate" do
+      store.update!(cost_fx_rate: 7.2)
+      patch shopify_store_path(id: store.id), params: { shopify_store: { cost_fx_rate: "" } }
+      expect(store.reload.cost_fx_rate).to be_nil
+    end
+
+    it "blocks non-owner members from changing cost_fx_rate" do
+      # Owner-only financial setting; member with shopify_stores page access alone
+      # must NOT be able to alter the conversion rate used for profit math.
+      member = create(:user)
+      company = user.companies.first
+      create(:membership, user: member, company: company, role: :member, permissions: [ "shopify_stores" ])
+      sign_out user
+      sign_in member
+
+      patch shopify_store_path(id: store.id), params: { shopify_store: { cost_fx_rate: "9.99" } }
+
+      expect(store.reload.cost_fx_rate).to be_nil
+      expect(flash[:alert]).to be_present
+    end
+  end
+
+  describe "POST /shopify_stores/:id/sync_products" do
+    let(:store) { create(:shopify_store, user: user, company: user.companies.first) }
+
+    before { sign_in user }
+
+    it "enqueues SyncShopifyProductsJob" do
+      expect {
+        post sync_products_shopify_store_path(id: store.id)
+      }.to have_enqueued_job(SyncShopifyProductsJob).with(store.id)
+    end
+
+    it "redirects with notice" do
+      post sync_products_shopify_store_path(id: store.id)
+      expect(response).to redirect_to(shopify_store_path(store))
+    end
+  end
 end
