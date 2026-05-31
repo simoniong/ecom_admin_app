@@ -10,7 +10,7 @@
               class="block mt-1 border border-gray-300 rounded px-2 py-1 text-sm">
         <option value=""><%= t("shipping_rate_cards.filter_all") %></option>
         <% @countries.each do |c| %>
-          <option value="<%= c %>" <%= "selected" if @selected_country == c %>><%= c %></option>
+          <option value="<%= c %>" <%= "selected" if @selected_country == c %>><%= t("shipping_rate_cards.countries.#{c}", default: c) %></option>
         <% end %>
       </select>
     </label>
@@ -20,7 +20,7 @@
               class="block mt-1 border border-gray-300 rounded px-2 py-1 text-sm">
         <option value=""><%= t("shipping_rate_cards.filter_all") %></option>
         <% @services.each do |s| %>
-          <option value="<%= s %>" <%= "selected" if @selected_service == s %>><%= s %></option>
+          <option value="<%= s %>" <%= "selected" if @selected_service == s %>><%= t("shipping_rate_cards.service_types.#{s}", default: s) %></option>
         <% end %>
       </select>
     </label>

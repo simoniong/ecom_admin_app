@@ -99,18 +99,14 @@
     <% if current_membership&.owner? %>
       <%= form_with url: shopify_store_path(@shopify_store), method: :patch, local: true,
                     class: "mt-3 flex items-center gap-2" do %>
-        <input type="text"
-               name="shopify_store[default_service_type]"
-               id="shopify_store_default_service_type"
-               value="<%= @shopify_store.default_service_type %>"
-               list="service_type_options"
-               placeholder="standard_with_battery"
-               class="w-64 border border-gray-300 rounded px-2 py-1 text-sm">
-        <datalist id="service_type_options">
-          <% current_company.shipping_rate_card_versions.distinct.pluck(:service_type).sort.each do |st| %>
-            <option value="<%= st %>"></option>
+        <select name="shopify_store[default_service_type]"
+                id="shopify_store_default_service_type"
+                class="w-64 border border-gray-300 rounded px-2 py-1 text-sm">
+          <option value=""><%= t("shopify_stores.service_not_set") %></option>
+          <% ShippingRateCardVersion::SERVICE_TYPES.each do |st| %>
+            <option value="<%= st %>" <%= "selected" if @shopify_store.default_service_type == st %>><%= t("shipping_rate_cards.service_types.#{st}") %></option>
           <% end %>
-        </datalist>
+        </select>
         <button type="submit"
                 class="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700">
           <%= t("shopify_stores.save_service_type") %>
@@ -118,7 +114,7 @@
       <% end %>
     <% else %>
       <p class="mt-3 text-sm text-gray-700">
-        <strong><%= @shopify_store.default_service_type.presence || "—" %></strong>
+        <strong><%= @shopify_store.default_service_type.present? ? t("shipping_rate_cards.service_types.#{@shopify_store.default_service_type}", default: @shopify_store.default_service_type) : "—" %></strong>
         <span class="text-xs text-gray-500 ml-2"><%= t("shopify_stores.service_type_owner_only") %></span>
       </p>
     <% end %>

@@ -267,6 +267,7 @@ en:
     service_type_updated: "Default service type updated"
     service_type_owner_only: "(Only owners can change this)"
     save_service_type: "Save"
+    service_not_set: "Not set"
   shipping_rate_cards:
     title: "Shipping Rate Cards"
     filter_country: "Country"
@@ -283,6 +284,19 @@ en:
     rate_deleted: "Rate band deleted"
     empty: "No rate card versions yet — create one above"
     until_superseded: "until superseded"
+    select_prompt: "Select…"
+    service_types:
+      general: "General"
+      with_battery: "With battery"
+    countries:
+      US: "United States"
+      CA: "Canada"
+      AU: "Australia"
+      NZ: "New Zealand"
+      GB: "United Kingdom"
+      DE: "Germany"
+      NL: "Netherlands"
+      FR: "France"
     columns:
       name: "Name"
       country: "Country"

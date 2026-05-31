@@ -7,12 +7,22 @@
              class="block w-full mt-1 border border-gray-300 rounded px-2 py-1 text-sm">
     </label>
     <label class="text-sm text-gray-700"><%= t("shipping_rate_cards.columns.country") %>
-      <input type="text" name="shipping_rate_card_version[country_code]" required maxlength="2"
-             class="block w-full mt-1 border border-gray-300 rounded px-2 py-1 text-sm uppercase">
+      <select name="shipping_rate_card_version[country_code]" required
+              class="block w-full mt-1 border border-gray-300 rounded px-2 py-1 text-sm">
+        <option value=""><%= t("shipping_rate_cards.select_prompt") %></option>
+        <% ShippingRateCardVersion::COUNTRY_CODES.each do |code| %>
+          <option value="<%= code %>"><%= t("shipping_rate_cards.countries.#{code}") %> (<%= code %>)</option>
+        <% end %>
+      </select>
     </label>
     <label class="text-sm text-gray-700"><%= t("shipping_rate_cards.columns.service") %>
-      <input type="text" name="shipping_rate_card_version[service_type]" required
-             class="block w-full mt-1 border border-gray-300 rounded px-2 py-1 text-sm">
+      <select name="shipping_rate_card_version[service_type]" required
+              class="block w-full mt-1 border border-gray-300 rounded px-2 py-1 text-sm">
+        <option value=""><%= t("shipping_rate_cards.select_prompt") %></option>
+        <% ShippingRateCardVersion::SERVICE_TYPES.each do |st| %>
+          <option value="<%= st %>"><%= t("shipping_rate_cards.service_types.#{st}") %></option>
+        <% end %>
+      </select>
     </label>
     <label class="text-sm text-gray-700"><%= t("shipping_rate_cards.columns.effective_from") %>
       <input type="date" name="shipping_rate_card_version[effective_from]" required

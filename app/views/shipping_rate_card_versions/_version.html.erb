@@ -12,24 +12,9 @@
               data: { "cell-edit-target": "display",
                       action: "click->cell-edit#startEdit keydown.enter->cell-edit#startEdit keydown.space->cell-edit#startEdit" } %>
       <% end %>
-      <%= tag.span class: "text-gray-600",
-            data: { controller: "cell-edit", "cell-edit-url-value": shipping_rate_card_version_path(id: version.id),
-                    "cell-edit-param-value": "shipping_rate_card_version", "cell-edit-field-value": "country_code",
-                    "cell-edit-type-value": "text" } do %>
-        <%= tag.span version.country_code, tabindex: "0", role: "button",
-              "aria-label": t("shipping_rate_cards.columns.country"),
-              data: { "cell-edit-target": "display",
-                      action: "click->cell-edit#startEdit keydown.enter->cell-edit#startEdit keydown.space->cell-edit#startEdit" } %>
-      <% end %>
-      <%= tag.span class: "text-gray-600",
-            data: { controller: "cell-edit", "cell-edit-url-value": shipping_rate_card_version_path(id: version.id),
-                    "cell-edit-param-value": "shipping_rate_card_version", "cell-edit-field-value": "service_type",
-                    "cell-edit-type-value": "text" } do %>
-        <%= tag.span version.service_type, tabindex: "0", role: "button",
-              "aria-label": t("shipping_rate_cards.columns.service"),
-              data: { "cell-edit-target": "display",
-                      action: "click->cell-edit#startEdit keydown.enter->cell-edit#startEdit keydown.space->cell-edit#startEdit" } %>
-      <% end %>
+      <%# Country & service are chosen at creation (dropdowns) and are read-only here. %>
+      <span class="text-gray-600"><%= t("shipping_rate_cards.countries.#{version.country_code}", default: version.country_code) %></span>
+      <span class="text-gray-600"><%= t("shipping_rate_cards.service_types.#{version.service_type}", default: version.service_type) %></span>
       <%= tag.span class: "text-gray-600",
             data: { controller: "cell-edit", "cell-edit-url-value": shipping_rate_card_version_path(id: version.id),
                     "cell-edit-param-value": "shipping_rate_card_version", "cell-edit-field-value": "effective_from",
@@ -54,8 +39,8 @@
             class: "text-gray-400 hover:text-red-600" %>
     <% else %>
       <span class="font-medium text-gray-900"><%= version.name %></span>
-      <span class="text-gray-600"><%= version.country_code %></span>
-      <span class="text-gray-600"><%= version.service_type %></span>
+      <span class="text-gray-600"><%= t("shipping_rate_cards.countries.#{version.country_code}", default: version.country_code) %></span>
+      <span class="text-gray-600"><%= t("shipping_rate_cards.service_types.#{version.service_type}", default: version.service_type) %></span>
       <span class="text-gray-600"><%= version.effective_from %></span>
       <span class="text-gray-400">&rarr;</span>
       <span class="text-gray-600"><%= version.effective_to || "—" %></span>

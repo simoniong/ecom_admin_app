@@ -10,8 +10,9 @@ RSpec.describe "Shipping rate cards", type: :system do
 
     within("div.bg-white.border.border-gray-200.rounded-lg.shadow-sm.p-5.mb-6") do
       fill_in "shipping_rate_card_version[name]", with: "Q2 2026 US Battery"
-      fill_in "shipping_rate_card_version[country_code]", with: "US"
-      fill_in "shipping_rate_card_version[service_type]", with: "standard_with_battery"
+      # Country and service are dropdowns; select by option value (locale-independent).
+      find("select[name='shipping_rate_card_version[country_code]'] option[value='US']").select_option
+      find("select[name='shipping_rate_card_version[service_type]'] option[value='with_battery']").select_option
       # date inputs need MM/DD/YYYY in Chrome; send keystrokes instead of .set
       find("input[name='shipping_rate_card_version[effective_from]']").send_keys("04012026")
       click_button I18n.t("shipping_rate_cards.create_version")

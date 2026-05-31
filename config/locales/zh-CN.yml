@@ -266,6 +266,7 @@
     service_type_updated: "默认服务类型已更新"
     service_type_owner_only: "（仅所有者可修改）"
     save_service_type: "保存"
+    service_not_set: "未设置"
   shipping_rate_cards:
     title: "运费费率卡"
     filter_country: "国家"
@@ -282,6 +283,19 @@
     rate_deleted: "费率段已删除"
     empty: "暂无费率卡版本 — 请在上方创建"
     until_superseded: "直到被取代"
+    select_prompt: "请选择…"
+    service_types:
+      general: "普货"
+      with_battery: "带电"
+    countries:
+      US: "美国"
+      CA: "加拿大"
+      AU: "澳大利亚"
+      NZ: "新西兰"
+      GB: "英国"
+      DE: "德国"
+      NL: "荷兰"
+      FR: "法国"
     columns:
       name: "名称"
       country: "国家"
