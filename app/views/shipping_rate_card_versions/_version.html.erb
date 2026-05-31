@@ -7,32 +7,47 @@
             data: { controller: "cell-edit", "cell-edit-url-value": shipping_rate_card_version_path(id: version.id),
                     "cell-edit-param-value": "shipping_rate_card_version", "cell-edit-field-value": "name",
                     "cell-edit-type-value": "text" } do %>
-        <%= tag.span version.name, data: { "cell-edit-target": "display", action: "click->cell-edit#startEdit" } %>
+        <%= tag.span version.name, tabindex: "0", role: "button",
+              "aria-label": t("shipping_rate_cards.columns.name"),
+              data: { "cell-edit-target": "display",
+                      action: "click->cell-edit#startEdit keydown.enter->cell-edit#startEdit keydown.space->cell-edit#startEdit" } %>
       <% end %>
       <%= tag.span class: "text-gray-600",
             data: { controller: "cell-edit", "cell-edit-url-value": shipping_rate_card_version_path(id: version.id),
                     "cell-edit-param-value": "shipping_rate_card_version", "cell-edit-field-value": "country_code",
                     "cell-edit-type-value": "text" } do %>
-        <%= tag.span version.country_code, data: { "cell-edit-target": "display", action: "click->cell-edit#startEdit" } %>
+        <%= tag.span version.country_code, tabindex: "0", role: "button",
+              "aria-label": t("shipping_rate_cards.columns.country"),
+              data: { "cell-edit-target": "display",
+                      action: "click->cell-edit#startEdit keydown.enter->cell-edit#startEdit keydown.space->cell-edit#startEdit" } %>
       <% end %>
       <%= tag.span class: "text-gray-600",
             data: { controller: "cell-edit", "cell-edit-url-value": shipping_rate_card_version_path(id: version.id),
                     "cell-edit-param-value": "shipping_rate_card_version", "cell-edit-field-value": "service_type",
                     "cell-edit-type-value": "text" } do %>
-        <%= tag.span version.service_type, data: { "cell-edit-target": "display", action: "click->cell-edit#startEdit" } %>
+        <%= tag.span version.service_type, tabindex: "0", role: "button",
+              "aria-label": t("shipping_rate_cards.columns.service"),
+              data: { "cell-edit-target": "display",
+                      action: "click->cell-edit#startEdit keydown.enter->cell-edit#startEdit keydown.space->cell-edit#startEdit" } %>
       <% end %>
       <%= tag.span class: "text-gray-600",
             data: { controller: "cell-edit", "cell-edit-url-value": shipping_rate_card_version_path(id: version.id),
                     "cell-edit-param-value": "shipping_rate_card_version", "cell-edit-field-value": "effective_from",
                     "cell-edit-type-value": "date" } do %>
-        <%= tag.span version.effective_from, data: { "cell-edit-target": "display", action: "click->cell-edit#startEdit" } %>
+        <%= tag.span version.effective_from, tabindex: "0", role: "button",
+              "aria-label": t("shipping_rate_cards.columns.effective_from"),
+              data: { "cell-edit-target": "display",
+                      action: "click->cell-edit#startEdit keydown.enter->cell-edit#startEdit keydown.space->cell-edit#startEdit" } %>
       <% end %>
       <span class="text-gray-400">&rarr;</span>
       <%= tag.span class: "text-gray-600",
             data: { controller: "cell-edit", "cell-edit-url-value": shipping_rate_card_version_path(id: version.id),
                     "cell-edit-param-value": "shipping_rate_card_version", "cell-edit-field-value": "effective_to",
                     "cell-edit-type-value": "date" } do %>
-        <%= tag.span (version.effective_to || "—"), data: { "cell-edit-target": "display", action: "click->cell-edit#startEdit" } %>
+        <%= tag.span (version.effective_to || "—"), tabindex: "0", role: "button",
+              "aria-label": t("shipping_rate_cards.columns.effective_to"),
+              data: { "cell-edit-target": "display",
+                      action: "click->cell-edit#startEdit keydown.enter->cell-edit#startEdit keydown.space->cell-edit#startEdit" } %>
       <% end %>
       <%= button_to "🗑", shipping_rate_card_version_path(id: version.id), method: :delete,
             form: { class: "ml-auto", data: { turbo_confirm: t("shipping_rate_cards.version_deleted") } },

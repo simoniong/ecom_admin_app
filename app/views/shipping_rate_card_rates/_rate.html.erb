@@ -12,7 +12,9 @@
           data-cell-edit-type-value="number"
           data-cell-edit-step-value="<%= step %>"
           data-cell-edit-min-value="0">
-        <span data-cell-edit-target="display" data-action="click->cell-edit#startEdit">
+        <span data-cell-edit-target="display" tabindex="0" role="button"
+              aria-label="<%= field.to_s.humanize %>"
+              data-action="click->cell-edit#startEdit keydown.enter->cell-edit#startEdit keydown.space->cell-edit#startEdit">
           <%= rate.public_send(field) %>
         </span>
       </td>
