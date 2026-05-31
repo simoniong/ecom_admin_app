@@ -1,11 +1,11 @@
 require "rails_helper"
 
 RSpec.describe BackfillOrderLineItemsService do
-  let(:store) { create(:shopify_store) }
+  let(:store) { create(:shopify_store, cost_fx_rate: 7.2) }
   let(:customer) { create(:customer, shopify_store: store) }
   let!(:product) { create(:product, shopify_store: store, shopify_product_id: 7001) }
   let!(:variant) do
-    create(:product_variant, product: product, shopify_variant_id: 8001, unit_cost: 10.00)
+    create(:product_variant, product: product, shopify_variant_id: 8001, unit_cost: 72.00)
   end
 
   let(:line_items_payload) do
@@ -26,11 +26,19 @@ RSpec.describe BackfillOrderLineItemsService do
     expect { described_class.new(store).call }.to change(OrderLineItem, :count).by(2)
   end
 
-  it "snapshots current unit_cost when variant is known" do
+  it "snapshots unit_cost converted from CNY to store currency" do
     described_class.new(store).call
     li = order.order_line_items.find_by(shopify_line_item_id: 6001)
+    # 72 CNY / 7.2 = 10.00 USD
     expect(li.unit_cost_snapshot).to eq(10.00)
     expect(li.product_variant).to eq(variant)
+  end
+
+  it "leaves snapshot nil when store.cost_fx_rate is nil" do
+    store.update!(cost_fx_rate: nil)
+    described_class.new(store).call
+    li = order.order_line_items.find_by(shopify_line_item_id: 6001)
+    expect(li.unit_cost_snapshot).to be_nil
   end
 
   it "leaves snapshot null when variant is unknown" do

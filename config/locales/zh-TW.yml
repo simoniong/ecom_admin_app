@@ -249,6 +249,12 @@
     sync_products_enqueued: "產品同步已加入佇列"
     products_synced_at: "上次同步產品"
     manage_products: "管理產品與成本"
+    cost_fx_rate: "成本匯率"
+    cost_fx_rate_hint: "成本以人民幣 (CNY) 輸入；請設定 1 %{store_currency} 等於多少 CNY。"
+    cost_fx_rate_input_aria: "1 %{store_currency} 等於多少 CNY"
+    fx_rate_owner_only: "（只有管理員能修改）"
+    save_fx_rate: "儲存"
+    fx_rate_updated: "成本匯率已更新"
   products:
     title: "產品"
     no_store: "請先連結一個 Shopify Store"
@@ -256,6 +262,7 @@
     per_page: "每頁顯示"
     showing: "顯示 %{from} – %{to}，共 %{total} 筆"
     search_placeholder: "搜尋 product / variant / SKU"
+    fx_rate_missing_html: "⚠ 請先到 <a class='underline' href='%{url}'>店鋪詳情頁</a> 設定成本匯率，否則新訂單無法計算 COGS。"
     columns:
       image: "圖"
       product: "產品"

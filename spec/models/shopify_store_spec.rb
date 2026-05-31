@@ -100,4 +100,26 @@ RSpec.describe ShopifyStore, type: :model do
       expect(store.reload.client_secret).to eq("shpss_plain_value")
     end
   end
+
+  describe "cost_fx_rate validation" do
+    it "accepts nil" do
+      store.cost_fx_rate = nil
+      expect(store).to be_valid
+    end
+
+    it "accepts positive values" do
+      store.cost_fx_rate = 7.2
+      expect(store).to be_valid
+    end
+
+    it "rejects zero" do
+      store.cost_fx_rate = 0
+      expect(store).not_to be_valid
+    end
+
+    it "rejects negative values" do
+      store.cost_fx_rate = -1
+      expect(store).not_to be_valid
+    end
+  end
 end

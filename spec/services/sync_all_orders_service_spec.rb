@@ -365,8 +365,10 @@ RSpec.describe SyncAllOrdersService do
 
     let!(:product) { create(:product, shopify_store: store, shopify_product_id: 7001) }
     let!(:variant_a) do
-      create(:product_variant, product: product, shopify_variant_id: 8001, unit_cost: 12.50)
+      create(:product_variant, product: product, shopify_variant_id: 8001, unit_cost: 90)
     end
+
+    before { store.update!(cost_fx_rate: 7.2) }  # 1 USD = 7.2 CNY
 
     let(:shopify_order_with_lines) do
       {
@@ -395,13 +397,21 @@ RSpec.describe SyncAllOrdersService do
       expect { service.call }.to change(OrderLineItem, :count).by(2)
     end
 
-    it "snapshots unit_cost from matching variant" do
+    it "snapshots unit_cost from matching variant, converted from CNY to store currency" do
       service.call
       li = OrderLineItem.find_by(shopify_line_item_id: 6001)
       expect(li.product_variant).to eq(variant_a)
+      # 90 CNY / 7.2 = 12.50 USD
       expect(li.unit_cost_snapshot).to eq(12.50)
       expect(li.quantity).to eq(2)
       expect(li.unit_price).to eq(29.00)
+    end
+
+    it "leaves snapshot nil when store.cost_fx_rate is not set" do
+      store.update!(cost_fx_rate: nil)
+      service.call
+      li = OrderLineItem.find_by(shopify_line_item_id: 6001)
+      expect(li.unit_cost_snapshot).to be_nil
     end
 
     it "saves the line item with null variant when variant_id is unknown" do
@@ -420,6 +430,50 @@ RSpec.describe SyncAllOrdersService do
       described_class.new(store).call
 
       expect(OrderLineItem.find_by(shopify_line_item_id: 6001).unit_cost_snapshot).to eq(7.77)
+    end
+
+    context "multi-currency (Shopify Markets)" do
+      let(:multi_currency_order) do
+        {
+          "id" => 200, "email" => "buyer@example.com", "name" => "#1001",
+          "total_price" => "60.00", "currency" => "EUR",
+          "current_total_price_set" => {
+            "shop_money" => { "amount" => "73.00", "currency_code" => "USD" }
+          },
+          "financial_status" => "paid", "fulfillment_status" => "fulfilled",
+          "created_at" => "2026-03-20",
+          "customer" => shopify_customer,
+          "line_items" => [
+            {
+              "id" => 6001, "variant_id" => 8001, "sku" => "PK-BL", "title" => "Paint / Black",
+              "quantity" => 2,
+              "price" => "24.00",
+              "price_set" => {
+                "shop_money" => { "amount" => "29.00", "currency_code" => "USD" }
+              }
+            }
+          ],
+          "fulfillments" => []
+        }
+      end
+
+      before do
+        allow(shopify_service).to receive(:fetch_all_orders).and_return([ multi_currency_order ], [])
+      end
+
+      it "stores order total_price using shop_money (store currency)" do
+        service.call
+        order = Order.find_by(shopify_order_id: 200)
+        expect(order.total_price).to eq(73.00)
+        expect(order.currency).to eq("USD")
+      end
+
+      it "stores line item unit_price using shop_money (store currency)" do
+        service.call
+        li = OrderLineItem.find_by(shopify_line_item_id: 6001)
+        expect(li.unit_price).to eq(29.00)
+        expect(li.currency).to eq("USD")
+      end
     end
   end
 end

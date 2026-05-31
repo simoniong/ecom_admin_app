@@ -1,6 +1,13 @@
 <div class="max-w-7xl mx-auto">
   <h1 class="text-2xl font-semibold text-gray-900 mb-4"><%= t("products.title") %></h1>
 
+  <% if @shopify_store && @shopify_store.cost_fx_rate.blank? %>
+    <div class="mb-4 px-4 py-3 rounded border border-yellow-300 bg-yellow-50 text-sm text-yellow-800">
+      <%= t("products.fx_rate_missing_html",
+            url: shopify_store_path(@shopify_store)).html_safe %>
+    </div>
+  <% end %>
+
   <%= form_with url: products_path, method: :get, local: true, class: "flex items-center gap-4 mb-4" do %>
     <input type="text" name="search" value="<%= @search %>"
            placeholder="<%= t("products.search_placeholder") %>"
@@ -85,7 +92,7 @@
           <th class="px-2 py-2"><%= t("products.columns.variant") %></th>
           <th class="px-2 py-2"><%= t("products.columns.sku") %></th>
           <th class="px-2 py-2"><%= t("products.columns.price") %></th>
-          <th class="px-2 py-2"><%= t("products.columns.unit_cost") %></th>
+          <th class="px-2 py-2"><%= t("products.columns.unit_cost") %> (CNY)</th>
           <th class="px-2 py-2"><%= t("products.columns.weight") %></th>
         </tr>
       </thead>

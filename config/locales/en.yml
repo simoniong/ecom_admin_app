@@ -251,6 +251,12 @@ en:
     sync_products_enqueued: "Product sync queued"
     products_synced_at: "Products last synced"
     manage_products: "Manage products & costs"
+    cost_fx_rate: "Cost FX rate"
+    cost_fx_rate_hint: "Costs are entered in CNY; set how many CNY equal 1 %{store_currency}."
+    cost_fx_rate_input_aria: "CNY per 1 %{store_currency}"
+    fx_rate_owner_only: "(Only owners can change this)"
+    save_fx_rate: "Save"
+    fx_rate_updated: "Cost FX rate updated"
   products:
     title: "Products"
     no_store: "Connect a Shopify store first"
@@ -258,6 +264,7 @@ en:
     per_page: "Per page"
     showing: "Showing %{from} – %{to} of %{total}"
     search_placeholder: "Search by product, variant, or SKU"
+    fx_rate_missing_html: "⚠ Set the cost FX rate on the <a class='underline' href='%{url}'>store detail page</a> before COGS can be calculated for new orders."
     columns:
       image: "Image"
       product: "Product"
