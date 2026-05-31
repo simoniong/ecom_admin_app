@@ -24,13 +24,16 @@ export default class extends Controller {
     blank: { type: String, default: "—" }
   }
 
-  startEdit() {
+  startEdit(event) {
+    // Stimulus also fires this on keydown.space; stop the default page scroll.
+    if (event && event.type === "keydown" && event.key === " ") event.preventDefault()
     if (this.element.querySelector("input")) return // already editing
 
     const currentText = this.displayTarget.textContent.trim()
-    // Strip trailing units like " g"
-    const numericMatch = currentText.match(/^-?\d+(\.\d+)?/)
-    const currentValue = (currentText === this.blankValue || !numericMatch) ? "" : numericMatch[0]
+    // Strip thousands separators, currency / unit suffixes, etc.
+    // Keep only digits, decimal point, and a leading minus sign.
+    const cleaned = currentText.replace(/[^\d.\-]/g, "")
+    const currentValue = (currentText === this.blankValue || cleaned === "" || cleaned === "-") ? "" : cleaned
 
     const input = document.createElement("input")
     input.type  = "number"

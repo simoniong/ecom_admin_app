@@ -267,6 +267,7 @@
       weight: "重量 (g)"
   product_variants:
     updated: "已更新"
+    cell_edit_aria: "点击或按 Enter 编辑"
     bulk_no_selection: "请至少选择一个 variant"
     bulk_no_fields: "请至少填入 COGS 或重量"
     bulk_updated: "已批量更新 %{count} 个 SKU"

@@ -24,8 +24,11 @@
       data-cell-edit-step-value="0.01"
       data-cell-edit-min-value="0">
     <span data-cell-edit-target="display"
-          data-action="click->cell-edit#startEdit"
-          class="cursor-pointer hover:bg-gray-100 px-2 py-1 rounded inline-block min-w-[64px] text-sm border border-dashed border-transparent hover:border-gray-300">
+          role="button"
+          tabindex="0"
+          aria-label="<%= t("product_variants.cell_edit_aria") %>"
+          data-action="click->cell-edit#startEdit keydown.enter->cell-edit#startEdit keydown.space->cell-edit#startEdit"
+          class="cursor-pointer hover:bg-gray-100 focus:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-300 px-2 py-1 rounded inline-block min-w-[64px] text-sm border border-dashed border-transparent hover:border-gray-300">
       <%= variant.unit_cost.present? ? number_with_precision(variant.unit_cost, precision: 2) : "—" %>
     </span>
   </td>
@@ -36,8 +39,11 @@
       data-cell-edit-step-value="0.001"
       data-cell-edit-min-value="0.001">
     <span data-cell-edit-target="display"
-          data-action="click->cell-edit#startEdit"
-          class="cursor-pointer hover:bg-gray-100 px-2 py-1 rounded inline-block min-w-[64px] text-sm border border-dashed border-transparent hover:border-gray-300">
+          role="button"
+          tabindex="0"
+          aria-label="<%= t("product_variants.cell_edit_aria") %>"
+          data-action="click->cell-edit#startEdit keydown.enter->cell-edit#startEdit keydown.space->cell-edit#startEdit"
+          class="cursor-pointer hover:bg-gray-100 focus:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-300 px-2 py-1 rounded inline-block min-w-[64px] text-sm border border-dashed border-transparent hover:border-gray-300">
       <%= variant.weight_grams.present? ? "#{number_with_precision(variant.weight_grams, precision: 3, strip_insignificant_zeros: true)} g" : "—" %>
     </span>
   </td>
