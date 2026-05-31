@@ -70,13 +70,23 @@ class SyncAllOrdersService
     customer = resolve_customer(shopify_order)
     return unless customer
 
+    # Prefer shop_money amounts so totals are always in the store's currency
+    # even when the customer paid in a different presentment currency
+    # (Shopify Markets). Falls back to the top-level field for older payloads.
+    shop_total = shopify_order.dig("current_total_price_set", "shop_money", "amount") ||
+                 shopify_order.dig("total_price_set", "shop_money", "amount") ||
+                 shopify_order["total_price"]
+    shop_currency = shopify_order.dig("current_total_price_set", "shop_money", "currency_code") ||
+                    shopify_order.dig("total_price_set", "shop_money", "currency_code") ||
+                    shopify_order["currency"]
+
     attrs = {
       customer: customer,
       shopify_store: @store,
       email: shopify_order["email"],
       name: shopify_order["name"],
-      total_price: shopify_order["total_price"],
-      currency: shopify_order["currency"],
+      total_price: shop_total,
+      currency: shop_currency,
       financial_status: shopify_order["financial_status"],
       fulfillment_status: shopify_order["fulfillment_status"],
       ordered_at: shopify_order["created_at"],
@@ -108,19 +118,26 @@ class SyncAllOrdersService
     (shopify_order["line_items"] || []).each do |li|
       variant = variant_lookup[li["variant_id"]]
 
+      # Use shop_money so unit_price and currency match the order's store
+      # currency (same as where cost_fx_rate converts cost to). Falls back to
+      # presentment fields if shop_money is absent (older payloads).
+      shop_price = li.dig("price_set", "shop_money", "amount") || li["price"]
+      shop_currency = li.dig("price_set", "shop_money", "currency_code") || order.currency
+
       line_item = order.order_line_items.find_or_initialize_by(shopify_line_item_id: li["id"])
       line_item.assign_attributes(
         product_variant: variant,
         sku_at_sale: li["sku"],
         title_at_sale: li["title"],
         quantity: li["quantity"],
-        unit_price: li["price"],
-        currency: shopify_order["currency"],
+        unit_price: shop_price,
+        currency: shop_currency,
         shopify_data: li
       )
 
       if line_item.unit_cost_snapshot.nil? && variant&.unit_cost.present? && @store.cost_fx_rate&.positive?
         # variant.unit_cost is in CNY; divide by CNY-per-store-currency rate.
+        # Snapshot is always in store currency (matches shop_money above).
         line_item.unit_cost_snapshot = variant.unit_cost / @store.cost_fx_rate
       end
 

@@ -431,5 +431,49 @@ RSpec.describe SyncAllOrdersService do
 
       expect(OrderLineItem.find_by(shopify_line_item_id: 6001).unit_cost_snapshot).to eq(7.77)
     end
+
+    context "multi-currency (Shopify Markets)" do
+      let(:multi_currency_order) do
+        {
+          "id" => 200, "email" => "buyer@example.com", "name" => "#1001",
+          "total_price" => "60.00", "currency" => "EUR",
+          "current_total_price_set" => {
+            "shop_money" => { "amount" => "73.00", "currency_code" => "USD" }
+          },
+          "financial_status" => "paid", "fulfillment_status" => "fulfilled",
+          "created_at" => "2026-03-20",
+          "customer" => shopify_customer,
+          "line_items" => [
+            {
+              "id" => 6001, "variant_id" => 8001, "sku" => "PK-BL", "title" => "Paint / Black",
+              "quantity" => 2,
+              "price" => "24.00",
+              "price_set" => {
+                "shop_money" => { "amount" => "29.00", "currency_code" => "USD" }
+              }
+            }
+          ],
+          "fulfillments" => []
+        }
+      end
+
+      before do
+        allow(shopify_service).to receive(:fetch_all_orders).and_return([ multi_currency_order ], [])
+      end
+
+      it "stores order total_price using shop_money (store currency)" do
+        service.call
+        order = Order.find_by(shopify_order_id: 200)
+        expect(order.total_price).to eq(73.00)
+        expect(order.currency).to eq("USD")
+      end
+
+      it "stores line item unit_price using shop_money (store currency)" do
+        service.call
+        li = OrderLineItem.find_by(shopify_line_item_id: 6001)
+        expect(li.unit_price).to eq(29.00)
+        expect(li.currency).to eq("USD")
+      end
+    end
   end
 end

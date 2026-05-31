@@ -23,6 +23,8 @@ class ShopifyStoresController < AdminController
     end
 
     if params[:shopify_store].is_a?(ActionController::Parameters) && params[:shopify_store].key?(:cost_fx_rate)
+      return redirect_to(shopify_store_path(@shopify_store), alert: t("companies.no_permission")) unless current_membership&.owner?
+
       if @shopify_store.update(shopify_store_fx_params)
         redirect_to shopify_store_path(@shopify_store), notice: t("shopify_stores.fx_rate_updated")
       else
