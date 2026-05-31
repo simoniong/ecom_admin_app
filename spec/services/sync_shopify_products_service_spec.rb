@@ -11,12 +11,10 @@ RSpec.describe SyncShopifyProductsService do
   end
 
   let(:variant_a) do
-    { "id" => 8001, "inventory_item_id" => 9001, "sku" => "PK-BL",
-      "title" => "Black/Large", "price" => "29.00", "grams" => 450 }
+    { "id" => 8001, "sku" => "PK-BL", "title" => "Black/Large", "price" => "29.00" }
   end
   let(:variant_b) do
-    { "id" => 8002, "inventory_item_id" => 9002, "sku" => "PK-BS",
-      "title" => "Black/Small", "price" => "24.00", "grams" => 320 }
+    { "id" => 8002, "sku" => "PK-BS", "title" => "Black/Small", "price" => "24.00" }
   end
   let(:product_payload) do
     { "id" => 7001, "title" => "Paint Kit", "handle" => "paint-kit",
@@ -26,10 +24,6 @@ RSpec.describe SyncShopifyProductsService do
 
   before do
     allow(shopify_service).to receive(:fetch_all_products).and_return([ product_payload ], [])
-    allow(shopify_service).to receive(:fetch_inventory_items).and_return([
-      { "id" => 9001, "cost" => "12.50" },
-      { "id" => 9002, "cost" => "10.00" }
-    ])
   end
 
   it "creates products" do
@@ -51,14 +45,14 @@ RSpec.describe SyncShopifyProductsService do
     expect(v.sku).to eq("PK-BL")
     expect(v.title).to eq("Black/Large")
     expect(v.price).to eq(29.00)
-    expect(v.shopify_weight_grams).to eq(450)
-    expect(v.shopify_inventory_item_id).to eq(9001)
+    expect(v.currency).to eq("USD")
   end
 
-  it "populates shopify_cost from inventory_items" do
+  it "leaves unit_cost and weight_grams nil — admin must set them in the UI" do
     service.call
     v = ProductVariant.find_by(shopify_variant_id: 8001)
-    expect(v.shopify_cost).to eq(12.50)
+    expect(v.unit_cost).to be_nil
+    expect(v.weight_grams).to be_nil
   end
 
   it "updates store currency from /shop.json" do

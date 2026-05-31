@@ -42,12 +42,6 @@ class ShopifyService
     response["products"] || []
   end
 
-  def fetch_inventory_items(ids:)
-    return [] if ids.empty?
-    response = get("/inventory_items.json", ids: ids.join(","))
-    response["inventory_items"] || []
-  end
-
   def fetch_shop
     response = get("/shop.json")
     response["shop"] || {}

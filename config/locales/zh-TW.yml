@@ -262,9 +262,7 @@
       variant: "規格"
       sku: "SKU"
       price: "售價"
-      shopify_cost: "Shopify 成本"
       unit_cost: "我們的 COGS"
-      shopify_weight: "Shopify 重量"
       weight: "重量 (g)"
   product_variants:
     updated: "已更新"

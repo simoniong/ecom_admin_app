@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_26_000005) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_31_000001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -328,18 +328,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_26_000005) do
     t.string "currency"
     t.decimal "price", precision: 10, scale: 2
     t.uuid "product_id", null: false
-    t.decimal "shopify_cost", precision: 10, scale: 2
     t.jsonb "shopify_data", default: {}
-    t.bigint "shopify_inventory_item_id"
     t.bigint "shopify_variant_id", null: false
-    t.decimal "shopify_weight_grams", precision: 12, scale: 3
     t.string "sku"
     t.string "title"
     t.decimal "unit_cost", precision: 10, scale: 2
     t.datetime "updated_at", null: false
     t.decimal "weight_grams", precision: 12, scale: 3
     t.index ["product_id", "shopify_variant_id"], name: "idx_variants_product_shopify_id", unique: true
-    t.index ["shopify_inventory_item_id"], name: "index_product_variants_on_shopify_inventory_item_id"
     t.index ["sku"], name: "index_product_variants_on_sku"
   end
 

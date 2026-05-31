@@ -196,22 +196,6 @@ RSpec.describe ShopifyService do
     end
   end
 
-  describe "#fetch_inventory_items" do
-    it "returns [] when ids is empty without calling Shopify" do
-      expect(service.fetch_inventory_items(ids: [])).to eq([])
-    end
-
-    it "GETs /inventory_items.json with comma-joined ids" do
-      stub_request(:get, "#{base_url}/inventory_items.json")
-        .with(query: { ids: "1,2,3" })
-        .to_return(status: 200,
-                   body: { inventory_items: [ { "id" => 1, "cost" => "5.00" } ] }.to_json,
-                   headers: { "Content-Type" => "application/json" })
-
-      expect(service.fetch_inventory_items(ids: [ 1, 2, 3 ])).to eq([ { "id" => 1, "cost" => "5.00" } ])
-    end
-  end
-
   describe "#fetch_shop" do
     it "GETs /shop.json and returns the shop hash" do
       stub_request(:get, "#{base_url}/shop.json")

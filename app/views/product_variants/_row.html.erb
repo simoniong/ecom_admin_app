@@ -17,9 +17,6 @@
   <td class="px-2 py-2 text-sm">
     <%= variant.price ? number_to_currency(variant.price, unit: "$") : "—" %>
   </td>
-  <td class="px-2 py-2 text-sm text-gray-500">
-    <%= variant.shopify_cost ? number_with_precision(variant.shopify_cost, precision: 2) : "—" %>
-  </td>
   <td class="px-2 py-2">
     <%= form_with model: variant, url: product_variant_path(variant), method: :patch,
                   data: { controller: "auto-submit" } do |f| %>
@@ -27,9 +24,6 @@
                          class: "w-24 border border-gray-300 rounded px-2 py-1 text-sm",
                          data: { action: "blur->auto-submit#submit" } %>
     <% end %>
-  </td>
-  <td class="px-2 py-2 text-sm text-gray-500">
-    <%= variant.shopify_weight_grams ? "#{variant.shopify_weight_grams} g" : "—" %>
   </td>
   <td class="px-2 py-2">
     <%= form_with model: variant, url: product_variant_path(variant), method: :patch,

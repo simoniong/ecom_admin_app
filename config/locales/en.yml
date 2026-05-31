@@ -264,9 +264,7 @@ en:
       variant: "Variant"
       sku: "SKU"
       price: "Price"
-      shopify_cost: "Shopify cost"
       unit_cost: "Our COGS"
-      shopify_weight: "Shopify weight"
       weight: "Weight (g)"
   product_variants:
     updated: "Updated"

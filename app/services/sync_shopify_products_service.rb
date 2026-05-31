@@ -1,6 +1,4 @@
 class SyncShopifyProductsService
-  INVENTORY_BATCH = 100
-
   def initialize(shopify_store)
     @store = shopify_store
     @shopify = ShopifyService.new(shopify_store)
@@ -14,7 +12,6 @@ class SyncShopifyProductsService
 
     update_store_currency
     sync_all_products
-    apply_inventory_costs
 
     @store.update!(products_synced_at: sync_started_at)
     Rails.logger.info("[SyncProducts] done #{@synced_products} products, #{@synced_variants} variants")
@@ -56,27 +53,13 @@ class SyncShopifyProductsService
 
   def upsert_variant(product, sv)
     variant = product.product_variants.find_or_initialize_by(shopify_variant_id: sv["id"])
-    variant.shopify_inventory_item_id = sv["inventory_item_id"]
     variant.sku = sv["sku"]
     variant.title = sv["title"]
     variant.price = sv["price"]
     variant.currency = @store.currency
-    variant.shopify_weight_grams = sv["grams"]
     variant.shopify_data = sv
     # Never overwrite admin-edited unit_cost / weight_grams.
     variant.save!
     @synced_variants += 1
-  end
-
-  def apply_inventory_costs
-    variants = ProductVariant.joins(:product)
-                             .where(products: { shopify_store_id: @store.id })
-                             .where.not(shopify_inventory_item_id: nil)
-    variants.pluck(:shopify_inventory_item_id).uniq.each_slice(INVENTORY_BATCH) do |ids|
-      @shopify.fetch_inventory_items(ids: ids).each do |item|
-        ProductVariant.where(shopify_inventory_item_id: item["id"])
-                      .update_all(shopify_cost: item["cost"])
-      end
-    end
   end
 end
