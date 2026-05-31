@@ -69,6 +69,10 @@ Rails.application.routes.draw do
         get :matching_ids
       end
     end
+    resources :shipping_rate_card_versions, only: [ :index, :create, :update, :destroy ] do
+      resources :rates, only: [ :create, :update, :destroy ],
+                controller: "shipping_rate_card_rates"
+    end
     resources :ad_accounts, only: [ :index, :show, :update, :destroy ]
     resources :ad_campaigns, only: [ :index ] do
       post :sync, on: :collection
