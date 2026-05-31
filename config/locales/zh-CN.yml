@@ -270,6 +270,12 @@
     bulk_no_selection: "请至少选择一个 variant"
     bulk_no_fields: "请至少填入 COGS 或重量"
     bulk_updated: "已批量更新 %{count} 个 SKU"
+    bulk:
+      selected: "已选"
+      select_all_matching: "全选符合的 %{count} 个"
+      clear: "清空"
+      set_label: "设置："
+      apply: "应用到所选"
   ad_accounts:
     title: "广告账户"
     empty: "尚未绑定任何广告账户。"
