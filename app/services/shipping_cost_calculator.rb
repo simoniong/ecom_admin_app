@@ -44,9 +44,9 @@ class ShippingCostCalculator
   def total_weight_kg
     items = @order.order_line_items.includes(:product_variant).to_a
     return nil if items.empty?
-    # If any line lacks a usable weight, refuse to estimate rather than
-    # silently treating it as 0 (which would underestimate the cost).
-    return nil if items.any? { |li| li.product_variant&.weight_grams.blank? }
+    # If any line lacks a usable (positive) weight, refuse to estimate rather
+    # than silently treating it as 0 (which would underestimate the cost).
+    return nil unless items.all? { |li| li.product_variant&.weight_grams&.positive? }
     items.sum { |li| li.product_variant.weight_grams * li.quantity } / 1000.0
   end
 end
