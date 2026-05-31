@@ -30,41 +30,42 @@ RSpec.describe ShippingRateCardVersion, type: :model do
   end
 
   describe ".lookup" do
-    let(:args) { { country: "US", service_type: "standard_with_battery" } }
+    let(:lookup_args)  { { country: "US", service_type: "standard_with_battery" } }
+    let(:factory_args) { { country_code: "US", service_type: "standard_with_battery" } }
 
     it "returns the newest applicable version for the date" do
       old = create(:shipping_rate_card_version, company: company,
-                   effective_from: Date.new(2026, 1, 1), effective_to: nil, **args)
+                   effective_from: Date.new(2026, 1, 1), effective_to: nil, **factory_args)
       new_v = create(:shipping_rate_card_version, company: company,
-                     effective_from: Date.new(2026, 4, 1), effective_to: nil, **args)
+                     effective_from: Date.new(2026, 4, 1), effective_to: nil, **factory_args)
 
-      expect(described_class.lookup(company: company, on_date: Date.new(2026, 5, 1), **args)).to eq(new_v)
-      expect(described_class.lookup(company: company, on_date: Date.new(2026, 2, 1), **args)).to eq(old)
+      expect(described_class.lookup(company: company, on_date: Date.new(2026, 5, 1), **lookup_args)).to eq(new_v)
+      expect(described_class.lookup(company: company, on_date: Date.new(2026, 2, 1), **lookup_args)).to eq(old)
     end
 
     it "falls back to the most recent past version when none explicitly contains the date" do
       old = create(:shipping_rate_card_version, company: company,
-                   effective_from: Date.new(2026, 1, 1), effective_to: nil, **args)
-      expect(described_class.lookup(company: company, on_date: Date.new(2026, 12, 31), **args)).to eq(old)
+                   effective_from: Date.new(2026, 1, 1), effective_to: nil, **factory_args)
+      expect(described_class.lookup(company: company, on_date: Date.new(2026, 12, 31), **lookup_args)).to eq(old)
     end
 
     it "returns nil when no version covers the date" do
       create(:shipping_rate_card_version, company: company,
-             effective_from: Date.new(2026, 6, 1), effective_to: nil, **args)
-      expect(described_class.lookup(company: company, on_date: Date.new(2026, 1, 1), **args)).to be_nil
+             effective_from: Date.new(2026, 6, 1), effective_to: nil, **factory_args)
+      expect(described_class.lookup(company: company, on_date: Date.new(2026, 1, 1), **lookup_args)).to be_nil
     end
 
     it "excludes a version whose effective_to has passed" do
       create(:shipping_rate_card_version, company: company,
-             effective_from: Date.new(2026, 1, 1), effective_to: Date.new(2026, 3, 31), **args)
-      expect(described_class.lookup(company: company, on_date: Date.new(2026, 5, 1), **args)).to be_nil
+             effective_from: Date.new(2026, 1, 1), effective_to: Date.new(2026, 3, 31), **factory_args)
+      expect(described_class.lookup(company: company, on_date: Date.new(2026, 5, 1), **lookup_args)).to be_nil
     end
 
     it "scopes by company" do
       other = create(:company)
       create(:shipping_rate_card_version, company: other,
-             effective_from: Date.new(2026, 1, 1), **args)
-      expect(described_class.lookup(company: company, on_date: Date.new(2026, 5, 1), **args)).to be_nil
+             effective_from: Date.new(2026, 1, 1), **factory_args)
+      expect(described_class.lookup(company: company, on_date: Date.new(2026, 5, 1), **lookup_args)).to be_nil
     end
   end
 

@@ -2,8 +2,6 @@ class ShippingRateCardVersion < ApplicationRecord
   belongs_to :company
   has_many :rates, class_name: "ShippingRateCardRate", foreign_key: :version_id, dependent: :destroy, inverse_of: :version
 
-  alias_attribute :country, :country_code
-
   validates :name, :country_code, :service_type, :effective_from, presence: true
   validate  :effective_to_after_from
 
