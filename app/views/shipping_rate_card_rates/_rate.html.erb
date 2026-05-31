@@ -1,0 +1,32 @@
+<% owner = current_membership&.owner? %>
+<tr id="<%= dom_id(rate) %>" class="border-b border-gray-50">
+  <% if owner %>
+    <% {
+         weight_min_kg: "0.001", weight_max_kg: "0.001", per_kg_rate_cny: "0.01", flat_fee_cny: "0.01"
+       }.each do |field, step| %>
+      <td class="px-5 py-2"
+          data-controller="cell-edit"
+          data-cell-edit-url-value="<%= shipping_rate_card_version_rate_path(shipping_rate_card_version_id: version.id, id: rate.id) %>"
+          data-cell-edit-param-value="shipping_rate_card_rate"
+          data-cell-edit-field-value="<%= field %>"
+          data-cell-edit-type-value="number"
+          data-cell-edit-step-value="<%= step %>"
+          data-cell-edit-min-value="0">
+        <span data-cell-edit-target="display" data-action="click->cell-edit#startEdit">
+          <%= rate.public_send(field) %>
+        </span>
+      </td>
+    <% end %>
+    <td class="px-5 py-2">
+      <%= button_to "🗑", shipping_rate_card_version_rate_path(shipping_rate_card_version_id: version.id, id: rate.id), method: :delete,
+            form: { data: { turbo_confirm: t("shipping_rate_cards.rate_deleted") } },
+            class: "text-gray-400 hover:text-red-600" %>
+    </td>
+  <% else %>
+    <td class="px-5 py-2"><%= rate.weight_min_kg %></td>
+    <td class="px-5 py-2"><%= rate.weight_max_kg %></td>
+    <td class="px-5 py-2"><%= rate.per_kg_rate_cny %></td>
+    <td class="px-5 py-2"><%= rate.flat_fee_cny %></td>
+    <td class="px-5 py-2"></td>
+  <% end %>
+</tr>

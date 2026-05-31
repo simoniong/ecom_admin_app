@@ -1,6 +1,42 @@
-<h1><%= t("shipping_rate_cards.title") %></h1>
-<div id="versions">
-  <% @versions.each do |version| %>
-    <div id="<%= dom_id(version) %>"><%= version.name %></div>
+<div class="max-w-5xl mx-auto px-4 py-6">
+  <h1 class="text-2xl font-semibold text-gray-900 mb-4"><%= t("shipping_rate_cards.title") %></h1>
+
+  <%# Filters %>
+  <%= form_with url: shipping_rate_card_versions_path, method: :get, local: true,
+                class: "flex items-end gap-4 mb-6" do %>
+    <label class="text-sm text-gray-700">
+      <%= t("shipping_rate_cards.filter_country") %>
+      <select name="country_code" onchange="this.form.requestSubmit()"
+              class="block mt-1 border border-gray-300 rounded px-2 py-1 text-sm">
+        <option value=""><%= t("shipping_rate_cards.filter_all") %></option>
+        <% @countries.each do |c| %>
+          <option value="<%= c %>" <%= "selected" if @selected_country == c %>><%= c %></option>
+        <% end %>
+      </select>
+    </label>
+    <label class="text-sm text-gray-700">
+      <%= t("shipping_rate_cards.filter_service") %>
+      <select name="service_type" onchange="this.form.requestSubmit()"
+              class="block mt-1 border border-gray-300 rounded px-2 py-1 text-sm">
+        <option value=""><%= t("shipping_rate_cards.filter_all") %></option>
+        <% @services.each do |s| %>
+          <option value="<%= s %>" <%= "selected" if @selected_service == s %>><%= s %></option>
+        <% end %>
+      </select>
+    </label>
   <% end %>
+
+  <% if current_membership&.owner? %>
+    <%= render "new_version_form" %>
+  <% end %>
+
+  <div id="versions" class="space-y-6">
+    <% if @versions.empty? %>
+      <p class="text-sm text-gray-500"><%= t("shipping_rate_cards.empty") %></p>
+    <% else %>
+      <% @versions.each do |version| %>
+        <%= render "version", version: version %>
+      <% end %>
+    <% end %>
+  </div>
 </div>
