@@ -19,8 +19,9 @@ We're keeping ad attribution as today (aggregate ad spend ÷ orders); the goal o
 | Rate card scope | Company-level (`companies.id` FK) so multi-store companies share rate cards |
 | Rate card maintenance | Admin UI with **direct in-page editing**: new-row form at top, inline click-to-edit cells per row, per-row delete |
 | Currency | Rate cards stored in CNY; sync converts to store currency at order sync time using `shopify_stores.cost_fx_rate` |
-| Frozen snapshot | `orders.shipping_cost` is frozen at sync time (same snapshot semantics as `unit_cost_snapshot`); editing rate cards does NOT retroactively change historical orders |
+| Frozen snapshot | `orders.estimated_shipping_cost` is frozen at sync time (same snapshot semantics as `unit_cost_snapshot`); editing rate cards does NOT retroactively change historical orders |
 | Versioning | Rate cards come in **named versions**. A version is `(country, service, name, effective_from, effective_to)` and owns many weight-band rates. When estimating cost for an order, the calculator picks the newest version whose `effective_from <= order_date` (and `effective_to` is null or >= order_date). Names make audit / change tracking possible (e.g. "Q4 2025 US Battery Rates"). |
+| Estimated vs actual | This spec covers **estimated** shipping cost only (computed from rate cards). A separate future spec will add **actual** shipping cost imported from carrier invoice CSVs. Schema reserves both columns so the future work doesn't reshape this one. The dashboard picks `actual` when present and falls back to `estimated`. |
 | Ad attribution | **No change**: still aggregate `ad_spend / orders` in the existing dashboard |
 
 ## Schema
@@ -69,8 +70,12 @@ add_column :shopify_stores, :default_service_type, :string
 ### `orders` additions
 
 ```ruby
-add_column :orders, :shipping_cost, :decimal, precision: 10, scale: 2
+add_column :orders, :estimated_shipping_cost, :decimal, precision: 10, scale: 2
+add_column :orders, :actual_shipping_cost,    :decimal, precision: 10, scale: 2
 ```
+
+- `estimated_shipping_cost` is set by `ShippingCostCalculator` at sync time (frozen once set).
+- `actual_shipping_cost` is reserved for a future CSV importer that ingests carrier-reported per-shipment costs. This spec does NOT populate it.
 
 ### Band semantics — important
 
@@ -151,13 +156,22 @@ Extension to existing models:
 class Order
   # existing: total_price, cogs_total, gross_profit, ...
 
+  # Prefer real carrier-reported cost when available; fall back to our estimate.
+  def effective_shipping_cost
+    actual_shipping_cost || estimated_shipping_cost
+  end
+
   def net_profit_per_order
     return nil unless total_price
-    total_price - cogs_total - (shipping_cost || 0)
+    total_price - cogs_total - (effective_shipping_cost || 0)
   end
 
   def shipping_complete?
-    shipping_cost.present?
+    effective_shipping_cost.present?
+  end
+
+  def shipping_is_actual?
+    actual_shipping_cost.present?
   end
 end
 
@@ -225,31 +239,31 @@ end
 
 ### `SyncAllOrdersService` modification
 
-After `sync_line_items`, before `sync_fulfillments`, call a small helper that snapshots shipping cost. Frozen once set.
+After `sync_line_items`, before `sync_fulfillments`, call a small helper that snapshots **estimated** shipping cost. Frozen once set. (Actual shipping cost is filled by the future CSV importer, on a separate column.)
 
 ```ruby
 sync_line_items(order, shopify_order)
-sync_shipping_cost(order)   # NEW
+sync_estimated_shipping_cost(order)   # NEW
 sync_fulfillments(order, shopify_order)
 # ...
 
-def sync_shipping_cost(order)
-  return if order.shipping_cost.present?  # frozen once set
+def sync_estimated_shipping_cost(order)
+  return if order.estimated_shipping_cost.present?  # frozen once set
   cost = ShippingCostCalculator.estimate(order)
-  order.update!(shipping_cost: cost) if cost
+  order.update!(estimated_shipping_cost: cost) if cost
 end
 ```
 
 ### `BackfillOrderLineItemsService` extension
 
-Extended to also fill `orders.shipping_cost` for historical orders (only if currently null). Same idempotency semantics.
+Extended to also fill `orders.estimated_shipping_cost` for historical orders (only if currently null). Same idempotency semantics. Does NOT touch `actual_shipping_cost`.
 
 ```ruby
 def call
   Rails.logger.info("[BackfillLineItems] start store=#{@store.shop_domain}")
   @store.orders.find_each(batch_size: 200) do |order|
     (order.shopify_data&.dig("line_items") || []).each { |li| upsert_line_item(order, li) }
-    backfill_shipping_cost(order)                                  # NEW
+    backfill_estimated_shipping(order)                              # NEW
     @processed += 1
   end
   Rails.logger.info("[BackfillLineItems] done orders=#{@processed} snapshotted=#{@snapshotted} shipping=#{@shipping_filled}")
@@ -258,11 +272,11 @@ end
 
 private
 
-def backfill_shipping_cost(order)
-  return if order.shipping_cost.present?
+def backfill_estimated_shipping(order)
+  return if order.estimated_shipping_cost.present?
   cost = ShippingCostCalculator.estimate(order)
   return unless cost
-  order.update!(shipping_cost: cost)
+  order.update!(estimated_shipping_cost: cost)
   @shipping_filled += 1
 end
 ```
@@ -504,38 +518,47 @@ Add to the existing grid:
 
 | Card | Value | Notes |
 |---|---|---|
-| **Shipping Cost** | `number_to_currency(@metrics[:current][:shipping_cost])` | new; invert color (higher = worse) |
-| **Net Profit** | revised: `revenue − cogs − shipping_cost − ad_spend` | already exists; formula change |
+| **Shipping Cost** | `number_to_currency(@metrics[:current][:shipping_cost])` | new; invert color (higher = worse). Uses `effective_shipping_cost` (actual ∥ estimated). |
+| **Net Profit** | revised: `revenue − cogs − effective_shipping − ad_spend` | already exists; formula change |
 | **Net Margin** | revised: `net_profit / revenue * 100` | already exists; formula change |
 
 Coverage indicator below grid (extend existing `cogs_coverage` line):
 
 ```
-COGS coverage: 92.3%   ·   Shipping coverage: 86.5%
+COGS coverage: 92.3%   ·   Shipping coverage: 86.5%  (actual: 12.0% · estimated: 74.5%)
 ```
 
-`shipping_coverage_pct` = `count(orders with shipping_cost) / count(orders in range)`.
+`shipping_coverage_pct` = `count(orders with effective_shipping_cost) / count(orders in range)`.
+
+Optional breakdown numbers:
+- `shipping_coverage_actual_pct` = orders with `actual_shipping_cost` / total
+- `shipping_coverage_estimated_pct` = orders with `estimated_shipping_cost` only (no actual) / total
+
+This way as the future CSV importer adds actuals, the dashboard transparently shows the data-quality shift from "all estimates" to "actuals".
 
 ## Dashboard service extension
 
 `DashboardMetricsService.aggregate_metrics` adds:
 
 ```ruby
-shipping_cost, shipping_coverage = aggregate_shipping(store_scope, range)
-net_profit = revenue - cogs - shipping_cost - ad_spend
+shipping_total, shipping_breakdown = aggregate_shipping(store_scope, range)
+net_profit = revenue - cogs - shipping_total - ad_spend
 
 {
   # existing keys...
-  shipping_cost:         shipping_cost,
-  shipping_coverage_pct: shipping_coverage,
-  net_profit:            net_profit,
-  net_margin_pct:        revenue > 0 ? (net_profit / revenue * 100).round(2) : nil
+  shipping_cost:                  shipping_total,
+  shipping_coverage_pct:          shipping_breakdown[:coverage],
+  shipping_coverage_actual_pct:   shipping_breakdown[:actual],
+  shipping_coverage_estimated_pct:shipping_breakdown[:estimated_only],
+  net_profit:                     net_profit,
+  net_margin_pct:                 revenue > 0 ? (net_profit / revenue * 100).round(2) : nil
 }
 
 def aggregate_shipping(store_scope, range)
   total = BigDecimal("0")
   count_total = 0
-  count_covered = 0
+  count_actual = 0
+  count_estimated_only = 0
 
   store_scope.find_each do |store|
     tz = store.active_timezone
@@ -543,13 +566,23 @@ def aggregate_shipping(store_scope, range)
     end_utc   = tz.local(range.last.year,  range.last.month,  range.last.day).end_of_day.utc
 
     orders = Order.where(shopify_store_id: store.id, ordered_at: start_utc..end_utc)
-    total          += orders.sum("COALESCE(shipping_cost, 0)")
-    count_total    += orders.count
-    count_covered  += orders.where.not(shipping_cost: nil).count
+
+    # Prefer actual; fall back to estimated. SQL: COALESCE(actual, estimated, 0)
+    total += orders.sum("COALESCE(actual_shipping_cost, estimated_shipping_cost, 0)")
+    count_total          += orders.count
+    count_actual         += orders.where.not(actual_shipping_cost: nil).count
+    count_estimated_only += orders.where(actual_shipping_cost: nil).where.not(estimated_shipping_cost: nil).count
   end
 
-  coverage = count_total > 0 ? (count_covered.to_f / count_total * 100).round(1) : nil
-  [ total, coverage ]
+  pct = ->(n) { count_total > 0 ? (n.to_f / count_total * 100).round(1) : nil }
+  [
+    total,
+    {
+      coverage:       pct.call(count_actual + count_estimated_only),
+      actual:         pct.call(count_actual),
+      estimated_only: pct.call(count_estimated_only)
+    }
+  ]
 end
 ```
 
@@ -638,10 +671,12 @@ This is much easier than maintaining `effective_to` on every old row: old versio
   - store missing `default_service_type` → nil
   - store missing `cost_fx_rate` → nil
 - `sync_all_orders_service_spec.rb` extend:
-  - syncs an order with weighted variants + rate card → orders.shipping_cost set
-  - re-sync does not overwrite existing shipping_cost
+  - syncs an order with weighted variants + active version → orders.estimated_shipping_cost set
+  - re-sync does not overwrite existing estimated_shipping_cost
+  - never touches actual_shipping_cost
 - `backfill_order_line_items_service_spec.rb` extend:
-  - backfill fills shipping_cost when null; counts returned
+  - backfill fills estimated_shipping_cost when null; counts returned
+  - does not touch actual_shipping_cost
 
 ### Request specs
 - `shipping_rate_card_versions_spec.rb`:
@@ -668,9 +703,11 @@ This is much easier than maintaining `effective_to` on every old row: old versio
 
 ### Dashboard spec
 - `dashboard_metrics_service_spec.rb` extend:
-  - `:shipping_cost` aggregates orders.shipping_cost over range
-  - `:net_profit` = revenue - cogs - shipping - ad_spend
-  - `:shipping_coverage_pct` correct
+  - `:shipping_cost` aggregates `COALESCE(actual, estimated, 0)` over range
+  - actual-only order → counted under `shipping_coverage_actual_pct`
+  - estimated-only order → counted under `shipping_coverage_estimated_pct`
+  - both nil → counted as missing
+  - `:net_profit` = revenue - cogs - effective_shipping - ad_spend
 
 ## Architecture summary
 
@@ -700,7 +737,7 @@ Order sync (SyncAllOrdersService)
        │         ├─ ShippingRateCardVersion.lookup → newest applicable version
        │         ├─ version.rates.for_weight(kg) → matching band
        │         ├─ cost CNY / store.cost_fx_rate → store currency
-       │         └─ orders.shipping_cost (frozen)
+       │         └─ orders.estimated_shipping_cost (frozen)
        └─ sync_fulfillments   (existing)
 
 Backfill (BackfillOrderLineItemsService)
@@ -709,9 +746,13 @@ Backfill (BackfillOrderLineItemsService)
 DashboardMetricsService (existing, extended)
   └─ aggregate_metrics
        ├─ existing cogs / gross_profit
-       ├─ shipping_cost = SUM(orders.shipping_cost in range)            ← NEW
-       ├─ net_profit    = revenue - cogs - shipping_cost - ad_spend     ← FORMULA CHANGE
-       └─ shipping_coverage_pct = orders_with_shipping / total_orders   ← NEW
+       ├─ shipping_cost = SUM(COALESCE(actual, estimated, 0)) in range   ← NEW
+       ├─ net_profit    = revenue - cogs - shipping_cost - ad_spend      ← FORMULA CHANGE
+       └─ shipping_coverage_pct (+ actual / estimated_only breakdowns)   ← NEW
+
+Future spec (NOT in this PR):
+  ImportCarrierInvoiceService
+    └─ writes orders.actual_shipping_cost from a CSV of carrier-reported shipments
 ```
 
 ## Out of scope
@@ -720,8 +761,9 @@ DashboardMetricsService (existing, extended)
 - Multi-zone rate cards (column exists in some logistics tables; not modeled here)
 - "Minimum chargeable weight" (`最低計費重`) and "weight rounding step" (`進位制`) from the logistics spreadsheets — assume `weight_kg` is used as-is and bands are `min < W ≤ max`
 - Source attribution for ad spend per order (UTM / source_name) — stays aggregate
-- Bulk CSV import — admins use the new-row form (or Rails console for initial seed)
+- Bulk CSV import for rate cards — admins use the new-row form (or Rails console for initial seed)
 - Currency for rate cards other than CNY
+- **Actual** shipping cost ingestion from carrier invoices — a separate future spec will add `ImportCarrierInvoiceService` that writes `orders.actual_shipping_cost`. This PR only reserves the column.
 
 ## Rollout / operator steps
 
