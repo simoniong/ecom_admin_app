@@ -1,0 +1,3 @@
+<%= turbo_stream.replace dom_id(@rate) do %>
+  <tr id="<%= dom_id(@rate) %>"><td><%= @rate.per_kg_rate_cny %></td></tr>
+<% end %>
