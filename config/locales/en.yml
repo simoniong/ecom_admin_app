@@ -268,9 +268,16 @@ en:
       weight: "Weight (g)"
   product_variants:
     updated: "Updated"
+    cell_edit_aria: "Click or press Enter to edit"
     bulk_no_selection: "Select at least one variant"
     bulk_no_fields: "Enter at least a COGS or weight value"
     bulk_updated: "Bulk updated %{count} SKUs"
+    bulk:
+      selected: "selected"
+      select_all_matching: "Select all %{count} matching"
+      clear: "Clear"
+      set_label: "Set:"
+      apply: "Apply to selected"
   ad_accounts:
     title: "Ad Accounts"
     empty: "No ad accounts connected yet."

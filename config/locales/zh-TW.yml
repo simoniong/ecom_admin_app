@@ -266,9 +266,16 @@
       weight: "重量 (g)"
   product_variants:
     updated: "已更新"
+    cell_edit_aria: "點擊或按 Enter 編輯"
     bulk_no_selection: "請至少選擇一個 variant"
     bulk_no_fields: "請至少填入 COGS 或重量"
     bulk_updated: "已批量更新 %{count} 個 SKU"
+    bulk:
+      selected: "已選"
+      select_all_matching: "全選符合的 %{count} 個"
+      clear: "清空"
+      set_label: "設定："
+      apply: "套用到所選"
   ad_accounts:
     title: "廣告帳戶"
     empty: "尚未綁定任何廣告帳戶。"

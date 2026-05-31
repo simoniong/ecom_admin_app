@@ -38,21 +38,38 @@
                 } do |f| %>
 
     <div data-bulk-select-target="bar"
-         class="hidden flex items-center gap-4 px-4 py-2 mb-2 bg-yellow-50 border border-yellow-200 rounded">
-      <span><strong data-bulk-select-target="count">0</strong> selected</span>
-      <button type="button" class="text-sm text-blue-600"
+         class="hidden flex flex-wrap items-center gap-3 px-4 py-3 mb-3 bg-yellow-50 border border-yellow-300 rounded shadow-sm">
+      <span class="text-sm">
+        <strong data-bulk-select-target="count">0</strong>
+        <%= t("product_variants.bulk.selected") %>
+      </span>
+      <button type="button"
+              class="text-sm text-blue-600 underline hover:text-blue-800"
               data-action="click->bulk-select#selectAllMatching">
-        Select all <%= @total_count %> matching
+        <%= t("product_variants.bulk.select_all_matching", count: @total_count) %>
       </button>
-      <button type="button" class="text-sm text-gray-500"
-              data-action="click->bulk-select#clear">Clear</button>
-      <input type="number" step="0.01" min="0" name="unit_cost"
-             placeholder="<%= t("products.columns.unit_cost") %>"
-             class="w-28 border border-gray-300 rounded px-2 py-1 text-sm">
-      <input type="number" step="0.001" min="0.001" name="weight_grams"
-             placeholder="<%= t("products.columns.weight") %>"
-             class="w-28 border border-gray-300 rounded px-2 py-1 text-sm">
-      <%= f.submit "Apply", class: "px-3 py-1 text-sm bg-blue-600 text-white rounded" %>
+      <button type="button"
+              class="text-sm text-gray-500 hover:text-gray-700"
+              data-action="click->bulk-select#clear">
+        <%= t("product_variants.bulk.clear") %>
+      </button>
+
+      <span class="text-sm text-gray-700 ml-4"><%= t("product_variants.bulk.set_label") %></span>
+      <label class="text-sm text-gray-600">
+        <%= t("products.columns.unit_cost") %>
+        <input type="number" step="0.01" min="0" name="unit_cost"
+               placeholder="—"
+               class="w-24 border border-gray-300 rounded px-2 py-1 text-sm ml-1">
+      </label>
+      <label class="text-sm text-gray-600">
+        <%= t("products.columns.weight") %>
+        <input type="number" step="0.001" min="0.001" name="weight_grams"
+               placeholder="—"
+               class="w-24 border border-gray-300 rounded px-2 py-1 text-sm ml-1">
+      </label>
+
+      <%= f.submit t("product_variants.bulk.apply"),
+                   class: "ml-auto px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded hover:bg-blue-700 shadow" %>
     </div>
 
     <table class="w-full bg-white shadow-sm rounded-lg border border-gray-200">

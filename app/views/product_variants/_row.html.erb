@@ -17,20 +17,34 @@
   <td class="px-2 py-2 text-sm">
     <%= variant.price ? number_to_currency(variant.price, unit: "$") : "—" %>
   </td>
-  <td class="px-2 py-2">
-    <%= form_with model: variant, url: product_variant_path(variant), method: :patch,
-                  data: { controller: "auto-submit" } do |f| %>
-      <%= f.number_field :unit_cost, value: variant.unit_cost, step: 0.01, min: 0,
-                         class: "w-24 border border-gray-300 rounded px-2 py-1 text-sm",
-                         data: { action: "blur->auto-submit#submit" } %>
-    <% end %>
+  <td class="px-2 py-2"
+      data-controller="cell-edit"
+      data-cell-edit-url-value="<%= product_variant_path(id: variant.id) %>"
+      data-cell-edit-field-value="unit_cost"
+      data-cell-edit-step-value="0.01"
+      data-cell-edit-min-value="0">
+    <span data-cell-edit-target="display"
+          role="button"
+          tabindex="0"
+          aria-label="<%= t("product_variants.cell_edit_aria") %>"
+          data-action="click->cell-edit#startEdit keydown.enter->cell-edit#startEdit keydown.space->cell-edit#startEdit"
+          class="cursor-pointer hover:bg-gray-100 focus:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-300 px-2 py-1 rounded inline-block min-w-[64px] text-sm border border-dashed border-transparent hover:border-gray-300">
+      <%= variant.unit_cost.present? ? number_with_precision(variant.unit_cost, precision: 2) : "—" %>
+    </span>
   </td>
-  <td class="px-2 py-2">
-    <%= form_with model: variant, url: product_variant_path(variant), method: :patch,
-                  data: { controller: "auto-submit" } do |f| %>
-      <%= f.number_field :weight_grams, value: variant.weight_grams, step: 0.001, min: 0.001,
-                         class: "w-24 border border-gray-300 rounded px-2 py-1 text-sm",
-                         data: { action: "blur->auto-submit#submit" } %>
-    <% end %>
+  <td class="px-2 py-2"
+      data-controller="cell-edit"
+      data-cell-edit-url-value="<%= product_variant_path(id: variant.id) %>"
+      data-cell-edit-field-value="weight_grams"
+      data-cell-edit-step-value="0.001"
+      data-cell-edit-min-value="0.001">
+    <span data-cell-edit-target="display"
+          role="button"
+          tabindex="0"
+          aria-label="<%= t("product_variants.cell_edit_aria") %>"
+          data-action="click->cell-edit#startEdit keydown.enter->cell-edit#startEdit keydown.space->cell-edit#startEdit"
+          class="cursor-pointer hover:bg-gray-100 focus:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-300 px-2 py-1 rounded inline-block min-w-[64px] text-sm border border-dashed border-transparent hover:border-gray-300">
+      <%= variant.weight_grams.present? ? "#{number_with_precision(variant.weight_grams, precision: 3, strip_insignificant_zeros: true)} g" : "—" %>
+    </span>
   </td>
 </tr>
