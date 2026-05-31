@@ -74,7 +74,7 @@
       </tr>
     </thead>
     <tbody id="<%= dom_id(version, :rates) %>">
-      <% version.rates.order(:weight_min_kg).each do |rate| %>
+      <% version.rates.sort_by(&:weight_min_kg).each do |rate| %>
         <%= render "shipping_rate_card_rates/rate", version: version, rate: rate %>
       <% end %>
     </tbody>
