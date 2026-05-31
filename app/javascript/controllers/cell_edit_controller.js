@@ -72,7 +72,7 @@ export default class extends Controller {
     input.dataset.saving = "1"
 
     const body = new FormData()
-    body.append("authenticity_token", document.querySelector('meta[name="csrf-token"]').content)
+    body.append("authenticity_token", document.querySelector('meta[name="csrf-token"]')?.content ?? "")
     body.append("_method", "patch")
     body.append(`${this.paramValue}[${this.fieldValue}]`, input.value)
 
