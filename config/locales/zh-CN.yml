@@ -250,6 +250,10 @@
     sync_products_enqueued: "产品同步已加入队列"
     products_synced_at: "上次同步产品"
     manage_products: "管理产品与成本"
+    cost_fx_rate: "成本汇率"
+    cost_fx_rate_hint: "成本以人民币 (CNY) 输入；请设定 1 %{store_currency} 等于多少 CNY。"
+    save_fx_rate: "保存"
+    fx_rate_updated: "成本汇率已更新"
   products:
     title: "产品"
     no_store: "请先连接一个 Shopify Store"
@@ -257,6 +261,7 @@
     per_page: "每页显示"
     showing: "显示 %{from} – %{to}，共 %{total} 条"
     search_placeholder: "搜索 product / variant / SKU"
+    fx_rate_missing_html: "⚠ 请先到 <a class='underline' href='%{url}'>店铺详情页</a> 设置成本汇率，否则新订单无法计算 COGS。"
     columns:
       image: "图"
       product: "产品"

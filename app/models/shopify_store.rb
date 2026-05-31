@@ -18,6 +18,7 @@ class ShopifyStore < ApplicationRecord
   validates :access_token, presence: true
   validates :client_id, presence: true
   validates :client_secret, presence: true
+  validates :cost_fx_rate, numericality: { greater_than: 0, allow_nil: true }
 
   def active_timezone
     ActiveSupport::TimeZone[timezone] || ActiveSupport::TimeZone["UTC"]

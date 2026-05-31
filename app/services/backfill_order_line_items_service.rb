@@ -29,8 +29,9 @@ class BackfillOrderLineItemsService
       currency: order.currency,
       shopify_data: li
     )
-    if line_item.unit_cost_snapshot.nil? && variant&.unit_cost.present?
-      line_item.unit_cost_snapshot = variant.unit_cost
+    if line_item.unit_cost_snapshot.nil? && variant&.unit_cost.present? && @store.cost_fx_rate.present?
+      # variant.unit_cost is in CNY; divide by CNY-per-store-currency rate.
+      line_item.unit_cost_snapshot = variant.unit_cost / @store.cost_fx_rate
       @snapshotted += 1
     end
     line_item.save!

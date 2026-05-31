@@ -200,6 +200,29 @@ RSpec.describe "ShopifyStores", type: :request do
     end
   end
 
+  describe "PATCH /shopify_stores/:id with cost_fx_rate" do
+    let(:store) { create(:shopify_store, user: user, company: user.companies.first) }
+
+    before { sign_in user }
+
+    it "updates cost_fx_rate" do
+      patch shopify_store_path(id: store.id), params: { shopify_store: { cost_fx_rate: "7.2000" } }
+      expect(store.reload.cost_fx_rate).to eq(7.2)
+      expect(response).to redirect_to(shopify_store_path(store))
+    end
+
+    it "rejects zero" do
+      patch shopify_store_path(id: store.id), params: { shopify_store: { cost_fx_rate: "0" } }
+      expect(store.reload.cost_fx_rate).to be_nil
+    end
+
+    it "accepts clearing the rate" do
+      store.update!(cost_fx_rate: 7.2)
+      patch shopify_store_path(id: store.id), params: { shopify_store: { cost_fx_rate: "" } }
+      expect(store.reload.cost_fx_rate).to be_nil
+    end
+  end
+
   describe "POST /shopify_stores/:id/sync_products" do
     let(:store) { create(:shopify_store, user: user, company: user.companies.first) }
 
