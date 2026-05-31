@@ -13,7 +13,7 @@ class ShippingRateCardVersion < ApplicationRecord
   }
 
   def self.lookup(company:, country:, service_type:, on_date:)
-    where(company_id: company.id)
+    where(company: company)
       .for_lookup(country: country, service_type: service_type, on_date: on_date)
       .first
   end
