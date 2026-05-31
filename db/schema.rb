@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_31_100001) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_31_120004) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -304,10 +304,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_31_100001) do
   end
 
   create_table "orders", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.decimal "actual_shipping_cost", precision: 10, scale: 2
     t.datetime "created_at", null: false
     t.string "currency"
     t.uuid "customer_id", null: false
     t.string "email"
+    t.decimal "estimated_shipping_cost", precision: 10, scale: 2
     t.string "financial_status"
     t.string "fulfillment_status"
     t.string "name"
@@ -351,6 +353,29 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_31_100001) do
     t.datetime "updated_at", null: false
     t.index ["shopify_store_id", "shopify_product_id"], name: "idx_products_store_shopify_id", unique: true
     t.index ["shopify_store_id"], name: "index_products_on_shopify_store_id"
+  end
+
+  create_table "shipping_rate_card_rates", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.decimal "flat_fee_cny", precision: 10, scale: 2, default: "0.0", null: false
+    t.decimal "per_kg_rate_cny", precision: 10, scale: 2, null: false
+    t.datetime "updated_at", null: false
+    t.uuid "version_id", null: false
+    t.decimal "weight_max_kg", precision: 8, scale: 3, null: false
+    t.decimal "weight_min_kg", precision: 8, scale: 3, null: false
+    t.index ["version_id"], name: "index_shipping_rate_card_rates_on_version_id"
+  end
+
+  create_table "shipping_rate_card_versions", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "company_id", null: false
+    t.string "country_code", null: false
+    t.datetime "created_at", null: false
+    t.date "effective_from", null: false
+    t.date "effective_to"
+    t.string "name", null: false
+    t.string "service_type", null: false
+    t.datetime "updated_at", null: false
+    t.index ["company_id", "country_code", "service_type", "effective_from"], name: "idx_rate_versions_lookup"
   end
 
   create_table "shipping_reminder_rules", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -400,6 +425,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_31_100001) do
     t.decimal "cost_fx_rate", precision: 10, scale: 4
     t.datetime "created_at", null: false
     t.string "currency"
+    t.string "default_service_type"
     t.uuid "group_id"
     t.datetime "installed_at"
     t.datetime "orders_synced_at"
@@ -616,6 +642,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_31_100001) do
   add_foreign_key "orders", "shopify_stores"
   add_foreign_key "product_variants", "products"
   add_foreign_key "products", "shopify_stores"
+  add_foreign_key "shipping_rate_card_rates", "shipping_rate_card_versions", column: "version_id"
+  add_foreign_key "shipping_rate_card_versions", "companies"
   add_foreign_key "shipping_reminder_rules", "companies"
   add_foreign_key "shipping_reminder_settings", "companies"
   add_foreign_key "shopify_stores", "companies"
