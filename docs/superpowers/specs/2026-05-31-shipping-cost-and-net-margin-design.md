@@ -17,7 +17,7 @@ We're keeping ad attribution as today (aggregate ad spend ÷ orders); the goal o
 | Shipping cost source | Estimated from `weight_kg × per-kg rate + flat fee`, looked up against a rate-card table per country × service type × weight band × effective date |
 | Service type selection | Per shop: `shopify_stores.default_service_type`. All orders from a store use that one service. |
 | Rate card scope | Company-level (`companies.id` FK) so multi-store companies share rate cards |
-| Rate card maintenance | Admin UI with **CSV upload** (rate tables come from logistics provider as spreadsheets; ~90+ rows typical) |
+| Rate card maintenance | Admin UI with **direct in-page editing**: new-row form at top, inline click-to-edit cells per row, per-row delete |
 | Currency | Rate cards stored in CNY; sync converts to store currency at order sync time using `shopify_stores.cost_fx_rate` |
 | Frozen snapshot | `orders.shipping_cost` is frozen at sync time (same snapshot semantics as `unit_cost_snapshot`); editing rate cards does NOT retroactively change historical orders |
 | Ad attribution | **No change**: still aggregate `ad_spend / orders` in the existing dashboard |
@@ -61,7 +61,7 @@ add_column :orders, :shipping_cost, :decimal, precision: 10, scale: 2
 
 The source spreadsheets use intervals `min < W ≤ max` (e.g., `0.05 < W ≤ 0.2`, then `0.201 < W ≤ 0.45`). We store `weight_min_kg = 0.05`, `weight_max_kg = 0.2`, and lookup uses `weight_min_kg < W AND weight_max_kg >= W`. Same semantics — bands cleanly tile by 0.001 kg gaps.
 
-No DB-level uniqueness/overlap constraint — admins can technically upload overlapping rows; the lookup returns the most-recent `effective_from` to break ties.
+No DB-level uniqueness/overlap constraint — admins can technically create overlapping rows; the lookup returns the most-recent `effective_from` to break ties.
 
 ## Models
 
@@ -89,11 +89,6 @@ class ShippingRateCard < ApplicationRecord
       .where("weight_min_kg < ? AND weight_max_kg >= ?", weight_kg, weight_kg)
       .order(effective_from: :desc)
       .first
-  end
-
-  def self.csv_template
-    headers = %w[country_code service_type weight_min_kg weight_max_kg per_kg_rate_cny flat_fee_cny effective_from effective_to]
-    CSV.generate { |csv| csv << headers }
   end
 
   private
@@ -186,54 +181,6 @@ class ShippingCostCalculator
 end
 ```
 
-### `ImportShippingRateCardsService` (new)
-
-Imports a CSV. Transaction-wrapped; any row failure rolls back the whole batch.
-
-```ruby
-class ImportShippingRateCardsService
-  REQUIRED_HEADERS = %w[country_code service_type weight_min_kg weight_max_kg per_kg_rate_cny flat_fee_cny effective_from].freeze
-
-  def initialize(company, csv_io)
-    @company = company
-    @csv = csv_io
-    @errors = []
-    @imported = 0
-  end
-
-  def call
-    rows = CSV.parse(@csv.read, headers: true)
-    missing = REQUIRED_HEADERS - (rows.headers || [])
-    return { imported: 0, errors: [ "Missing CSV columns: #{missing.join(', ')}" ] } if missing.any?
-
-    ShippingRateCard.transaction do
-      rows.each_with_index do |row, idx|
-        card = @company.shipping_rate_cards.new(
-          country_code:    row["country_code"]&.strip,
-          service_type:    row["service_type"]&.strip,
-          weight_min_kg:   row["weight_min_kg"],
-          weight_max_kg:   row["weight_max_kg"],
-          per_kg_rate_cny: row["per_kg_rate_cny"],
-          flat_fee_cny:    row["flat_fee_cny"].presence || 0,
-          effective_from:  row["effective_from"],
-          effective_to:    row["effective_to"].presence
-        )
-        if card.save
-          @imported += 1
-        else
-          @errors << "Row #{idx + 2}: #{card.errors.full_messages.join(', ')}"
-        end
-      end
-
-      raise ActiveRecord::Rollback if @errors.any?
-    end
-
-    @imported = 0 if @errors.any?
-    { imported: @imported, errors: @errors }
-  end
-end
-```
-
 ### `SyncAllOrdersService` modification
 
 After `sync_line_items`, before `sync_fulfillments`, call a small helper that snapshots shipping cost. Frozen once set.
@@ -281,21 +228,21 @@ end
 ## Routes
 
 ```ruby
-resources :shipping_rate_cards, only: [:index, :destroy] do
-  collection do
-    post :import
-    get  :template
-  end
-end
+resources :shipping_rate_cards, only: [:index, :create, :update, :destroy]
 ```
+
+Standard REST CRUD. No `:new` / `:edit` — both happen on the index page (new-row form at top, inline cell edit on existing rows).
 
 ## Controllers
 
 ### `ShippingRateCardsController` (new)
 
+Standard CRUD. All mutating actions require owner role.
+
 ```ruby
 class ShippingRateCardsController < AdminController
-  before_action :require_owner!, only: [:import, :destroy]
+  before_action :require_owner!, only: [:create, :update, :destroy]
+  before_action :set_card, only: [:update, :destroy]
 
   def index
     cards = current_company.shipping_rate_cards
@@ -308,35 +255,52 @@ class ShippingRateCardsController < AdminController
     @selected_country = params[:country_code]
     @selected_service = params[:service_type]
     @cards = cards.order(:country_code, :service_type, :effective_from, :weight_min_kg)
+    @new_card = current_company.shipping_rate_cards.new  # for the new-row form
   end
 
-  def import
-    return redirect_to(shipping_rate_cards_path, alert: t("shipping_rate_cards.no_file")) if params[:file].blank?
-
-    result = ImportShippingRateCardsService.new(current_company, params[:file]).call
-
-    if result[:errors].empty?
-      redirect_to shipping_rate_cards_path,
-                  notice: t("shipping_rate_cards.imported", count: result[:imported])
+  def create
+    card = current_company.shipping_rate_cards.new(card_params)
+    if card.save
+      redirect_to shipping_rate_cards_path(request.query_parameters.slice(:country_code, :service_type)),
+                  notice: t("shipping_rate_cards.created")
     else
-      redirect_to shipping_rate_cards_path,
-                  alert: result[:errors].first(5).join(" / ")
+      redirect_to shipping_rate_cards_path, alert: card.errors.full_messages.join(", ")
     end
   end
 
-  def template
-    send_data ShippingRateCard.csv_template,
-              filename: "shipping_rate_card_template.csv",
-              type: "text/csv"
+  def update
+    if @card.update(card_params)
+      respond_to do |format|
+        format.turbo_stream  # replaces the single row
+        format.html { redirect_to shipping_rate_cards_path, notice: t("shipping_rate_cards.updated") }
+      end
+    else
+      respond_to do |format|
+        format.turbo_stream { render :update, status: :unprocessable_entity }
+        format.html { redirect_to shipping_rate_cards_path, alert: @card.errors.full_messages.join(", ") }
+      end
+    end
   end
 
   def destroy
-    card = current_company.shipping_rate_cards.find(params[:id])
-    card.destroy
+    @card.destroy
     redirect_to shipping_rate_cards_path, notice: t("shipping_rate_cards.deleted")
   end
 
   private
+
+  def set_card
+    @card = current_company.shipping_rate_cards.find(params[:id])
+  end
+
+  def card_params
+    params.require(:shipping_rate_card).permit(
+      :country_code, :service_type,
+      :weight_min_kg, :weight_max_kg,
+      :per_kg_rate_cny, :flat_fee_cny,
+      :effective_from, :effective_to
+    )
+  end
 
   def require_owner!
     redirect_to(shipping_rate_cards_path, alert: t("companies.no_permission")) unless current_membership&.owner?
@@ -369,7 +333,7 @@ end
 
 ### Authorization mapping
 
-`AdminController::PERMISSION_KEY_MAP` gains `"shipping_rate_cards" => "shopify_stores"` so anyone with shopify_stores access can VIEW the page; mutating actions (import/destroy) are gated to owner inside the controller.
+`AdminController::PERMISSION_KEY_MAP` gains `"shipping_rate_cards" => "shopify_stores"` so anyone with shopify_stores access can VIEW the page; mutating actions (create / update / destroy) are gated to owner inside the controller.
 
 ## UI
 
@@ -387,21 +351,38 @@ Non-owners see the chosen service as read-only text.
 
 ### Shipping rate cards page (`/shipping_rate_cards`)
 
+Single page combining: filter at top, **new-row form** that posts to `create`, and a table where each existing row is **inline-editable cell by cell**.
+
 ```
 Shipping Rate Cards
 
 Filter:  Country [All ▾]    Service [All ▾]
 
-[ Download CSV template ]    [ Upload CSV ]   (owner only)
+┌──────────────────────────────────────── New rate card (owner only) ───────────────────────────────┐
+│ Country: [US____]  Service: [standard_with_battery_]                                              │
+│ Weight: [0.05_] kg – [0.200] kg    ¥/kg: [92.00]   ¥/pkg: [25.00]                                 │
+│ Effective from: [2025-12-29]    Until: [          ] (blank = current)            [+ Add row]      │
+└────────────────────────────────────────────────────────────────────────────────────────────────────┘
 
 ┌──────────┬──────────────────────────┬─────────┬─────────┬───────┬───────┬─────────────┬─────────────┬───┐
-│ Country  │ Service                  │ Min kg  │ Max kg  │ ¥/kg  │ ¥/pkg │ Effective ↓ │ Until       │   │
+│ Country  │ Service                  │ Min kg  │ Max kg  │ ¥/kg  │ ¥/pkg │ From        │ Until       │   │
 ├──────────┼──────────────────────────┼─────────┼─────────┼───────┼───────┼─────────────┼─────────────┼───┤
-│ US       │ standard_with_battery    │ 0.05    │ 0.200   │ 92.00 │ 25.00 │ 2025-12-29  │ —           │ 🗑 │
-│ US       │ standard_with_battery    │ 0.201   │ 0.450   │ 92.00 │ 23.00 │ 2025-12-29  │ —           │ 🗑 │
+│ [US]     │ [standard_with_battery]  │ [0.05]  │ [0.200] │ [92]  │ [25]  │ [2025-12-29]│ [—]         │ 🗑 │
+│ [US]     │ [standard_with_battery]  │ [0.201] │ [0.450] │ [92]  │ [23]  │ [2025-12-29]│ [—]         │ 🗑 │
 │ ...                                                                                                       │
 └──────────┴──────────────────────────┴─────────┴─────────┴───────┴───────┴─────────────┴─────────────┴───┘
+                                              ← Prev    Next →   Per page [50 ▾]
 ```
+
+Every existing cell uses the **`cell_edit_controller.js` pattern** introduced in PR #136 (text default → click to swap to input → blur or Enter saves via PATCH that returns a Turbo Stream replacing the row → Escape cancels). The controller is extended to support three input types:
+
+- `number` (existing) — for weight_min/max, per_kg, flat_fee
+- `text` — for country_code, service_type
+- `date` — for effective_from, effective_to (blank input means null)
+
+All edits go to `PATCH /shipping_rate_cards/:id` with one field at a time, same as `/product_variants/:id`.
+
+The new-row form is a regular `form_with` POSTing to `create`, visible only to owners. Non-owners see the table read-only, no new-row form, no delete buttons.
 
 ### Dashboard cards
 
@@ -466,12 +447,12 @@ shipping_rate_cards:
   filter_country: "Country"
   filter_service: "Service"
   filter_all: "All"
-  upload_csv: "Upload CSV"
-  download_template: "Download CSV template"
-  no_file: "Choose a CSV file first"
-  imported: "Imported %{count} rows"
+  new_row_title: "New rate card"
+  add_row: "+ Add row"
+  created: "Rate card added"
+  updated: "Rate card updated"
   deleted: "Rate card deleted"
-  empty: "No rate cards yet — upload a CSV to start"
+  empty: "No rate cards yet — add the first row above"
   columns:
     country: "Country"
     service: "Service"
@@ -479,7 +460,7 @@ shipping_rate_cards:
     weight_max: "Max kg"
     per_kg: "¥/kg"
     flat_fee: "¥/pkg"
-    effective_from: "Effective"
+    effective_from: "From"
     effective_to: "Until"
 shopify_stores:
   default_service_type: "Default shipping service type"
@@ -491,27 +472,20 @@ dashboard:
   shipping_coverage: "Shipping coverage"
 ```
 
-## CSV format
+## Data entry workflow
 
-Header row required. Example matching the user's spreadsheet:
+Admins enter rate cards one row at a time through the new-row form, then click to edit existing cells.
 
-```csv
-country_code,service_type,weight_min_kg,weight_max_kg,per_kg_rate_cny,flat_fee_cny,effective_from,effective_to
-US,standard_with_battery,0.05,0.2,92,25,2025-12-29,
-US,standard_with_battery,0.201,0.45,92,23,2025-12-29,
-US,standard_with_battery,0.451,0.7,92,22,2025-12-29,
-US,standard_with_battery,0.701,0.9,92,22,2025-12-29,
-US,standard_with_battery,0.901,2,92,15,2025-12-29,
-US,standard_with_battery,2.001,5,92,15,2025-12-29,
-```
+- `country_code`: uppercase ISO-3166-1 alpha-2 (`US`, `CA`, `GB`)
+- `service_type`: admin-defined string; reuse the same string across rows that share a service (the form's `service_type` input could autosuggest from existing rows in a later iteration)
+- `flat_fee_cny`: defaults to 0
+- `effective_to`: blank means "still current" — when rates change, edit the previous row to set its `effective_to`, then add the new rows
 
-Notes:
-- `country_code` is uppercase ISO-2 (`US`, `CA`, `GB`)
-- `service_type` is admin-defined; can be any string that the admin uses consistently
-- `flat_fee_cny` defaults to 0 if blank
-- `effective_to` blank means "still current"
+Typical workflow for a rate update:
 
-Re-uploading is **additive** (creates more rows) — admins should delete or expire old rows before re-uploading a new rate set, or upload with a new `effective_from` and set the prior row's `effective_to` to the day before. (Future iteration could add an "upsert by composite key" mode.)
+1. Filter to the country + service being updated
+2. Edit each existing row's `effective_to` to the day before the new rates kick in
+3. Use the new-row form to add new rows for the new effective period
 
 ## Testing
 
@@ -532,12 +506,6 @@ Re-uploading is **additive** (creates more rows) — admins should delete or exp
   - missing rate card → nil
   - store missing `default_service_type` → nil
   - store missing `cost_fx_rate` → nil
-- `import_shipping_rate_cards_service_spec.rb`:
-  - imports a valid CSV
-  - missing header columns → error, no rows imported
-  - one bad row → entire batch rolled back
-  - blank `flat_fee_cny` → defaults to 0
-  - blank `effective_to` → stored as null
 - `sync_all_orders_service_spec.rb` extend:
   - syncs an order with weighted variants + rate card → orders.shipping_cost set
   - re-sync does not overwrite existing shipping_cost
@@ -547,17 +515,19 @@ Re-uploading is **additive** (creates more rows) — admins should delete or exp
 ### Request specs
 - `shipping_rate_cards_spec.rb`:
   - GET /shipping_rate_cards — 200, filters work
-  - POST /shipping_rate_cards/import (owner) — imports
-  - POST /shipping_rate_cards/import (non-owner) — 302 + alert, nothing imported
+  - POST /shipping_rate_cards (owner) — creates
+  - POST /shipping_rate_cards (non-owner) — 302 + alert, nothing created
+  - PATCH /shipping_rate_cards/:id (owner) — updates single field, returns Turbo Stream
+  - PATCH /shipping_rate_cards/:id (non-owner) — alert, nothing updated
   - DELETE /shipping_rate_cards/:id (owner) — gone
   - DELETE /shipping_rate_cards/:id (non-owner) — alert
-  - GET /shipping_rate_cards/template — CSV with right headers
+  - Cross-company guard: trying to PATCH another company's card → 404
 - `shopify_stores_spec.rb` extend:
   - PATCH default_service_type (owner) — updates
   - PATCH default_service_type (non-owner) — blocked
 
 ### System spec
-- `shipping_rate_cards_spec.rb` system: visit page, upload CSV, see new rows
+- `shipping_rate_cards_spec.rb` system: visit page, fill new-row form, see row added; click a cell on the new row, change value, blur, see updated value
 
 ### Dashboard spec
 - `dashboard_metrics_service_spec.rb` extend:
@@ -570,8 +540,10 @@ Re-uploading is **additive** (creates more rows) — admins should delete or exp
 ```
 Admin (owner)
   │
-  ├── POST /shipping_rate_cards/import (CSV)
-  │     └─ ImportShippingRateCardsService → ShippingRateCard rows
+  ├── GET   /shipping_rate_cards         (table + new-row form, filters)
+  ├── POST  /shipping_rate_cards         (create from new-row form)
+  ├── PATCH /shipping_rate_cards/:id     (inline cell edit → Turbo Stream replace row)
+  ├── DELETE /shipping_rate_cards/:id    (per-row delete)
   │
   ├── PATCH /shopify_stores/:id with default_service_type
   │     └─ ShopifyStore#default_service_type
@@ -607,17 +579,19 @@ DashboardMetricsService (existing, extended)
 - Multi-zone rate cards (column exists in some logistics tables; not modeled here)
 - "Minimum chargeable weight" (`最低計費重`) and "weight rounding step" (`進位制`) from the logistics spreadsheets — assume `weight_kg` is used as-is and bands are `min < W ≤ max`
 - Source attribution for ad spend per order (UTM / source_name) — stays aggregate
-- Automated rate-card upsert by composite key on CSV re-upload — manual delete/expire for now
+- Bulk CSV import — admins use the new-row form (or Rails console for initial seed)
 - Currency for rate cards other than CNY
 
 ## Rollout / operator steps
 
 1. Deploy migrations
 2. Owner: visit a shop detail page → set `default_service_type` (e.g., `standard_with_battery`)
-3. Owner: visit `/shipping_rate_cards` → upload CSV
+3. Owner: visit `/shipping_rate_cards` → fill new-row form for each weight band (1 country × 1 service × N bands)
 4. New orders auto-snapshot `shipping_cost` from now on
 5. In Rails console: `BackfillOrderLineItemsService.new(store).call` — also fills historical `shipping_cost`
 6. Dashboard shipping coverage % approaches 100% as historical orders get backfilled
+
+For initial seeding of many rows, admin can also use Rails console to bulk-create — the UI is the primary path but Ruby remains available for first-time setup if rate tables are large.
 
 ## Estimated work
 
@@ -625,12 +599,12 @@ DashboardMetricsService (existing, extended)
 |---|---|
 | Migrations + model + spec | 30 min |
 | Calculator service + spec | 30 min |
-| CSV import service + spec | 45 min |
 | Sync integration + spec | 20 min |
 | Backfill extension + spec | 15 min |
-| Controller + routes + i18n | 30 min |
-| Index page UI + filter | 45 min |
+| Controller (CRUD) + routes + i18n | 40 min |
+| Index page UI: new-row form + table | 45 min |
+| Cell edit controller extension (text + date input types) | 30 min |
 | Shop detail page service-type form | 20 min |
 | Dashboard service extension + cards + spec | 30 min |
-| System spec for upload flow | 30 min |
+| System spec for new-row + cell edit | 30 min |
 | Total | **~5 hours** |
