@@ -252,6 +252,7 @@
     manage_products: "管理产品与成本"
     cost_fx_rate: "成本汇率"
     cost_fx_rate_hint: "成本以人民币 (CNY) 输入；请设定 1 %{store_currency} 等于多少 CNY。"
+    cost_fx_rate_input_aria: "1 %{store_currency} 等于多少 CNY"
     save_fx_rate: "保存"
     fx_rate_updated: "成本汇率已更新"
   products:

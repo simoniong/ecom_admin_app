@@ -253,6 +253,7 @@ en:
     manage_products: "Manage products & costs"
     cost_fx_rate: "Cost FX rate"
     cost_fx_rate_hint: "Costs are entered in CNY; set how many CNY equal 1 %{store_currency}."
+    cost_fx_rate_input_aria: "CNY per 1 %{store_currency}"
     save_fx_rate: "Save"
     fx_rate_updated: "Cost FX rate updated"
   products:

@@ -72,7 +72,10 @@
       <span class="text-sm text-gray-700">1 <%= @shopify_store.currency.presence || "store currency" %> =</span>
       <input type="number" step="0.0001" min="0.0001"
              name="shopify_store[cost_fx_rate]"
+             id="shopify_store_cost_fx_rate"
              value="<%= @shopify_store.cost_fx_rate %>"
+             aria-label="<%= t("shopify_stores.cost_fx_rate_input_aria",
+                              store_currency: @shopify_store.currency.presence || "store currency") %>"
              class="w-28 border border-gray-300 rounded px-2 py-1 text-sm">
       <span class="text-sm text-gray-700">CNY</span>
       <button type="submit"
