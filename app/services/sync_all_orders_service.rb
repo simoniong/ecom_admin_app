@@ -107,6 +107,7 @@ class SyncAllOrdersService
     end
 
     sync_line_items(order, shopify_order)
+    sync_estimated_shipping_cost(order)
     sync_fulfillments(order, shopify_order)
 
     trigger_email_workflows(order, is_new_order, old_fulfillment_status)
@@ -143,6 +144,12 @@ class SyncAllOrdersService
 
       line_item.save!
     end
+  end
+
+  def sync_estimated_shipping_cost(order)
+    return if order.estimated_shipping_cost.present? # frozen once set
+    cost = ShippingCostCalculator.estimate(order)
+    order.update!(estimated_shipping_cost: cost) if cost
   end
 
   def variant_lookup

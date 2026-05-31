@@ -476,4 +476,83 @@ RSpec.describe SyncAllOrdersService do
       end
     end
   end
+
+  describe "estimated shipping cost snapshot" do
+    let(:shopify_customer) do
+      { "id" => 100, "email" => "buyer@example.com", "first_name" => "Jane", "last_name" => "Buyer" }
+    end
+
+    let!(:product) { create(:product, shopify_store: store, shopify_product_id: 7001) }
+    let!(:variant_300g) do
+      create(:product_variant, product: product, shopify_variant_id: 8001, weight_grams: 300)
+    end
+
+    # Rate card: 0.3 kg * 92.0 CNY/kg + 23.0 CNY flat = 50.6 CNY / 7.0 = 7.23 USD
+    let!(:rate_card_version) do
+      create(:shipping_rate_card_version,
+             company: store.company,
+             country_code: "US",
+             service_type: "standard_with_battery",
+             effective_from: Date.new(2026, 1, 1),
+             effective_to: nil)
+    end
+
+    let!(:rate_card_rate) do
+      create(:shipping_rate_card_rate,
+             version: rate_card_version,
+             weight_min_kg: 0.201,
+             weight_max_kg: 0.45,
+             per_kg_rate_cny: 92.0,
+             flat_fee_cny: 23.0)
+    end
+
+    # Shopify order payload: US shipping address, April 2026, 0.3 kg variant
+    let(:shopify_order_with_weight) do
+      {
+        "id" => 200, "email" => "buyer@example.com", "name" => "#1001",
+        "total_price" => "49.99", "currency" => "USD",
+        "financial_status" => "paid", "fulfillment_status" => "unfulfilled",
+        "created_at" => "2026-04-15T10:00:00Z",
+        "customer" => shopify_customer,
+        "shipping_address" => { "country_code" => "US" },
+        "line_items" => [
+          { "id" => 6001, "variant_id" => 8001, "sku" => "PK-BL", "title" => "Paint / Black",
+            "quantity" => 1, "price" => "49.99" }
+        ],
+        "fulfillments" => [
+          { "id" => 300, "status" => "success", "tracking_number" => "TRACK1",
+            "tracking_company" => "USPS", "tracking_url" => "https://track.example.com" }
+        ]
+      }
+    end
+
+    before do
+      store.update!(cost_fx_rate: 7.0, default_service_type: "standard_with_battery")
+    end
+
+    it "sets estimated_shipping_cost after sync using the calculator (0.3 kg / US / April 2026 → 7.23)" do
+      service.sync_single_order(shopify_order_with_weight)
+
+      order = Order.find_by(shopify_order_id: 200)
+      expect(order.estimated_shipping_cost).to eq(7.23)
+    end
+
+    it "does not overwrite estimated_shipping_cost on re-sync (frozen once set)" do
+      service.sync_single_order(shopify_order_with_weight)
+
+      order = Order.find_by(shopify_order_id: 200)
+      order.update!(estimated_shipping_cost: 99.99)
+
+      described_class.new(store).sync_single_order(shopify_order_with_weight)
+
+      expect(order.reload.estimated_shipping_cost).to eq(99.99)
+    end
+
+    it "never sets actual_shipping_cost during sync" do
+      service.sync_single_order(shopify_order_with_weight)
+
+      order = Order.find_by(shopify_order_id: 200)
+      expect(order.actual_shipping_cost).to be_nil
+    end
+  end
 end
