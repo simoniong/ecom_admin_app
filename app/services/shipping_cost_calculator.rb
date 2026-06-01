@@ -27,10 +27,10 @@ class ShippingCostCalculator
     )
     return nil unless version
 
-    zone = resolve_zone(country)
+    zone = resolve_zone(country)   # nil = unzoned country, String = matched zone, :unmatched = give up
     return nil if zone == :unmatched
 
-    rate = version.rates.where(zone: (zone == :flat ? nil : zone)).for_weight(weight_kg).first
+    rate = version.rates.where(zone: zone).for_weight(weight_kg).first
     return nil unless rate
 
     cost_cny = (weight_kg * rate.per_kg_rate_cny) + rate.flat_fee_cny
@@ -40,7 +40,7 @@ class ShippingCostCalculator
   private
 
   def resolve_zone(country)
-    return :flat unless ShippingZonePostalRule.country_zoned?(company: @store.company, country: country)
+    return nil unless ShippingZonePostalRule.country_zoned?(company: @store.company, country: country)
     key = PostalNormalizer.normalize(country, postal_from_order)
     return :unmatched unless key
     ShippingZonePostalRule.zone_for(company: @store.company, country: country, key: key) || :unmatched
