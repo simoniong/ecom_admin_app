@@ -30,10 +30,10 @@ class ShippingCostCalculator
     zone = resolve_zone(country)   # nil = unzoned country, String = matched zone, :unmatched = give up
     return nil if zone == :unmatched
 
-    rate = version.rates.where(zone: zone).for_weight(weight_kg).first
-    return nil unless rate
+    bands = version.rates.where(zone: zone).to_a
+    cost_cny = cost_cny_for(bands, weight_kg)
+    return nil unless cost_cny
 
-    cost_cny = (weight_kg * rate.per_kg_rate_cny) + rate.flat_fee_cny
     (cost_cny / @store.cost_fx_rate).round(2)
   end
 
@@ -72,5 +72,42 @@ class ShippingCostCalculator
     # than silently treating it as 0 (which would underestimate the cost).
     return nil unless items.all? { |li| li.product_variant&.weight_grams&.positive? }
     items.sum { |li| li.product_variant.weight_grams * li.quantity } / 1000.0
+  end
+
+  # Cost in CNY for a weight against a set of bands. If the weight exceeds the
+  # heaviest band, simulate a greedy split into parcels at the max band weight,
+  # charging each parcel its own per-kg charge + handling fee. Returns nil if any
+  # parcel's weight matches no band.
+  def cost_cny_for(bands, weight_kg)
+    band = band_for(bands, weight_kg)
+    return parcel_cost(band, weight_kg) if band
+
+    max = bands.map(&:weight_max_kg).max
+    return nil unless max && weight_kg > max
+
+    total = BigDecimal("0")
+    remaining = weight_kg
+    while remaining > max
+      full = band_for(bands, max)
+      return nil unless full
+
+      total += parcel_cost(full, max)
+      remaining -= max
+    end
+    if remaining > 0
+      rem = band_for(bands, remaining)
+      return nil unless rem
+
+      total += parcel_cost(rem, remaining)
+    end
+    total
+  end
+
+  def band_for(bands, weight_kg)
+    bands.find { |b| b.weight_min_kg < weight_kg && b.weight_max_kg >= weight_kg }
+  end
+
+  def parcel_cost(band, weight_kg)
+    (weight_kg * band.per_kg_rate_cny) + band.flat_fee_cny
   end
 end

@@ -177,4 +177,70 @@ RSpec.describe ShippingCostCalculator do
       expect(ShippingCostCalculator.estimate(order)).to be_nil
     end
   end
+
+  describe "over-max orders split into parcels" do
+    let(:version) do
+      create(:shipping_rate_card_version, company: company, country_code: "US",
+             service_type: "with_battery", effective_from: Date.new(2026, 1, 1))
+    end
+
+    before do
+      create(:shipping_rate_card_rate, version: version, zone: nil, weight_min_kg: 0, weight_max_kg: 1, per_kg_rate_cny: 27, flat_fee_cny: 23)
+      create(:shipping_rate_card_rate, version: version, zone: nil, weight_min_kg: 1, weight_max_kg: 5, per_kg_rate_cny: 30, flat_fee_cny: 25)
+    end
+
+    def us_order(grams:)
+      order = create(:order, customer: customer, shopify_store: store,
+                     ordered_at: store.active_timezone.local(2026, 4, 15, 12),
+                     shopify_data: { "shipping_address" => { "country_code" => "US" } })
+      product = create(:product, shopify_store: store)
+      variant = create(:product_variant, product: product, weight_grams: grams)
+      create(:order_line_item, order: order, product_variant: variant, quantity: 1)
+      order
+    end
+
+    it "splits into 5kg + 0.5kg parcels, each with its own handling fee, using each parcel's band" do
+      # 5kg → band 1–5: 5*30+25 = 175 ; 0.5kg → band 0–1: 0.5*27+23 = 36.5 ; sum 211.5 / 7.0 = 30.21
+      expect(ShippingCostCalculator.estimate(us_order(grams: 5500))).to eq(30.21)
+    end
+
+    it "handles an exact multiple of the max (10kg → 5 + 5)" do
+      # 2 × (5*30+25 = 175) = 350 / 7.0 = 50.0
+      expect(ShippingCostCalculator.estimate(us_order(grams: 10_000))).to eq(50.0)
+    end
+
+    it "splits into three parcels (12kg → 5 + 5 + 2)" do
+      # 175 + 175 + (2*30+25 = 85) = 435 / 7.0 = 62.14
+      expect(ShippingCostCalculator.estimate(us_order(grams: 12_000))).to eq(62.14)
+    end
+
+    it "does not split an order at exactly the max (5kg → single parcel)" do
+      # band 1–5: 5*30+25 = 175 / 7.0 = 25.0
+      expect(ShippingCostCalculator.estimate(us_order(grams: 5000))).to eq(25.0)
+    end
+
+    it "returns nil when a remainder parcel matches no band (below the lowest min)" do
+      version.rates.delete_all
+      create(:shipping_rate_card_rate, version: version, zone: nil, weight_min_kg: 0.5, weight_max_kg: 1, per_kg_rate_cny: 27, flat_fee_cny: 23)
+      create(:shipping_rate_card_rate, version: version, zone: nil, weight_min_kg: 1, weight_max_kg: 5, per_kg_rate_cny: 30, flat_fee_cny: 25)
+      # 5.4kg → 5kg parcel (band 1–5) + 0.4kg remainder → no band (lowest min 0.5) → nil
+      expect(ShippingCostCalculator.estimate(us_order(grams: 5400))).to be_nil
+    end
+
+    it "splits a zoned (AU) over-max order using that zone's bands" do
+      create(:shipping_zone_postal_rule, company: company, country_code: "AU", zone: "1", postal_start: "2000", postal_end: "2079")
+      au_version = create(:shipping_rate_card_version, company: company, country_code: "AU",
+                          service_type: "with_battery", effective_from: Date.new(2026, 1, 1))
+      create(:shipping_rate_card_rate, version: au_version, zone: "1", weight_min_kg: 0, weight_max_kg: 1, per_kg_rate_cny: 27, flat_fee_cny: 23)
+      create(:shipping_rate_card_rate, version: au_version, zone: "1", weight_min_kg: 1, weight_max_kg: 5, per_kg_rate_cny: 30, flat_fee_cny: 25)
+
+      order = create(:order, customer: customer, shopify_store: store,
+                     ordered_at: store.active_timezone.local(2026, 4, 15, 12),
+                     shopify_data: { "shipping_address" => { "country_code" => "AU", "zip" => "2075" } })
+      product = create(:product, shopify_store: store)
+      variant = create(:product_variant, product: product, weight_grams: 5500)
+      create(:order_line_item, order: order, product_variant: variant, quantity: 1)
+      expect(ShippingCostCalculator.estimate(order)).to eq(30.21)
+    end
+  end
 end
