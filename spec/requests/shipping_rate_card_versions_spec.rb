@@ -9,7 +9,7 @@ RSpec.describe "ShippingRateCardVersions", type: :request do
   end
 
   let(:valid_attrs) do
-    { name: "Q2 2026 US Battery", country_code: "US", service_type: "standard_with_battery",
+    { name: "Q2 2026 US Battery", country_code: "US", service_type: "with_battery",
       effective_from: "2026-04-01", effective_to: "" }
   end
 

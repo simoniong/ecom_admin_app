@@ -492,7 +492,7 @@ RSpec.describe SyncAllOrdersService do
       create(:shipping_rate_card_version,
              company: store.company,
              country_code: "US",
-             service_type: "standard_with_battery",
+             service_type: "with_battery",
              effective_from: Date.new(2026, 1, 1),
              effective_to: nil)
     end
@@ -527,7 +527,7 @@ RSpec.describe SyncAllOrdersService do
     end
 
     before do
-      store.update!(cost_fx_rate: 7.0, default_service_type: "standard_with_battery")
+      store.update!(cost_fx_rate: 7.0, default_service_type: "with_battery")
     end
 
     it "sets estimated_shipping_cost after sync using the calculator (0.3 kg / US / April 2026 → 7.23)" do

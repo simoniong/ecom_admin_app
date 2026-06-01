@@ -122,4 +122,24 @@ RSpec.describe ShopifyStore, type: :model do
       expect(store).not_to be_valid
     end
   end
+
+  describe "default_service_type validation" do
+    it "accepts nil / blank (no service configured)" do
+      store.default_service_type = nil
+      expect(store).to be_valid
+      store.default_service_type = ""
+      expect(store).to be_valid
+    end
+
+    it "accepts a canonical service type" do
+      store.default_service_type = "with_battery"
+      expect(store).to be_valid
+    end
+
+    it "rejects a non-canonical service type" do
+      store.default_service_type = "standard_with_battery"
+      expect(store).not_to be_valid
+      expect(store.errors[:default_service_type]).to be_present
+    end
+  end
 end

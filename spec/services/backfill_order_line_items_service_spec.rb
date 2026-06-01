@@ -71,7 +71,7 @@ RSpec.describe BackfillOrderLineItemsService do
     # Separate store configured for ShippingCostCalculator compatibility.
     let(:shipping_store) do
       create(:shopify_store, currency: "USD", cost_fx_rate: 7.0,
-             default_service_type: "standard_with_battery")
+             default_service_type: "with_battery")
     end
     let(:shipping_customer) { create(:customer, shopify_store: shipping_store) }
 
@@ -80,7 +80,7 @@ RSpec.describe BackfillOrderLineItemsService do
       version = create(:shipping_rate_card_version,
                        company: shipping_store.company,
                        country_code: "US",
-                       service_type: "standard_with_battery",
+                       service_type: "with_battery",
                        effective_from: Date.new(2026, 1, 1))
       create(:shipping_rate_card_rate, version: version,
              weight_min_kg: 0.201, weight_max_kg: 0.45,

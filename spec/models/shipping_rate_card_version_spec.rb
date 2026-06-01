@@ -27,11 +27,32 @@ RSpec.describe ShippingRateCardVersion, type: :model do
       version = build(:shipping_rate_card_version, company: company, effective_to: nil)
       expect(version).to be_valid
     end
+
+    it "rejects a country_code outside the supported list" do
+      version = build(:shipping_rate_card_version, company: company, country_code: "ZZ")
+      expect(version).not_to be_valid
+      expect(version.errors[:country_code]).to be_present
+    end
+
+    it "rejects a service_type outside the canonical list" do
+      version = build(:shipping_rate_card_version, company: company, service_type: "standard_with_battery")
+      expect(version).not_to be_valid
+      expect(version.errors[:service_type]).to be_present
+    end
+
+    it "accepts the canonical service types and supported countries" do
+      ShippingRateCardVersion::SERVICE_TYPES.each do |st|
+        expect(build(:shipping_rate_card_version, company: company, service_type: st)).to be_valid
+      end
+      ShippingRateCardVersion::COUNTRY_CODES.each do |cc|
+        expect(build(:shipping_rate_card_version, company: company, country_code: cc)).to be_valid
+      end
+    end
   end
 
   describe ".lookup" do
-    let(:lookup_args)  { { country: "US", service_type: "standard_with_battery" } }
-    let(:factory_args) { { country_code: "US", service_type: "standard_with_battery" } }
+    let(:lookup_args)  { { country: "US", service_type: "with_battery" } }
+    let(:factory_args) { { country_code: "US", service_type: "with_battery" } }
 
     it "returns the newest applicable version for the date" do
       old = create(:shipping_rate_card_version, company: company,

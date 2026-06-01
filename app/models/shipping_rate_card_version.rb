@@ -9,6 +9,8 @@ class ShippingRateCardVersion < ApplicationRecord
   has_many :rates, class_name: "ShippingRateCardRate", foreign_key: :version_id, dependent: :destroy, inverse_of: :version
 
   validates :name, :country_code, :service_type, :effective_from, presence: true
+  validates :country_code, inclusion: { in: COUNTRY_CODES }, allow_blank: true
+  validates :service_type, inclusion: { in: SERVICE_TYPES }, allow_blank: true
   validate  :effective_to_after_from
 
   scope :for_lookup, ->(country:, service_type:, on_date:) {
