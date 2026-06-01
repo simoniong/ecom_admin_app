@@ -47,4 +47,12 @@ RSpec.describe ShippingRateCardRate, type: :model do
       expect(rate.company).to eq(company)
     end
   end
+
+  describe "zone normalization" do
+    it "strips whitespace and blanks to nil" do
+      v = create(:shipping_rate_card_version)
+      expect(create(:shipping_rate_card_rate, version: v, zone: " 1 ").zone).to eq("1")
+      expect(create(:shipping_rate_card_rate, version: v, zone: "  ").zone).to be_nil
+    end
+  end
 end

@@ -15,7 +15,8 @@ class AdminController < ApplicationController
     "products" => "shopify_stores",
     "product_variants" => "shopify_stores",
     "shipping_rate_card_versions" => "shopify_stores",
-    "shipping_rate_card_rates"    => "shopify_stores"
+    "shipping_rate_card_rates"    => "shopify_stores",
+    "shipping_zone_postal_rules" => "shopify_stores"
   }.freeze
 
   private

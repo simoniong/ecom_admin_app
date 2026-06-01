@@ -27,7 +27,10 @@ class ShippingCostCalculator
     )
     return nil unless version
 
-    rate = version.rates.for_weight(weight_kg).first
+    zone = resolve_zone(country)   # nil = unzoned country, String = matched zone, :unmatched = give up
+    return nil if zone == :unmatched
+
+    rate = version.rates.where(zone: zone).for_weight(weight_kg).first
     return nil unless rate
 
     cost_cny = (weight_kg * rate.per_kg_rate_cny) + rate.flat_fee_cny
@@ -36,9 +39,30 @@ class ShippingCostCalculator
 
   private
 
+  def resolve_zone(country)
+    return nil unless ShippingZonePostalRule.country_zoned?(company: @store.company, country: country)
+    key = PostalNormalizer.normalize(country, postal_from_order)
+    return :unmatched unless key
+    ShippingZonePostalRule.zone_for(company: @store.company, country: country, key: key) || :unmatched
+  end
+
+  def postal_from_order
+    destination_address&.dig("zip")
+  end
+
   def country_code_from_order
-    @order.shopify_data&.dig("shipping_address", "country_code") ||
-      @order.shopify_data&.dig("billing_address", "country_code")
+    destination_address&.dig("country_code")
+  end
+
+  # Resolve country AND postal from the SAME address: prefer shipping (when it
+  # carries a country), else billing — so a zoned country never matches a
+  # billing postal against a shipping country.
+  def destination_address
+    data = @order.shopify_data
+    return nil unless data
+    shipping = data["shipping_address"]
+    return shipping if shipping && shipping["country_code"].present?
+    data["billing_address"]
   end
 
   def total_weight_kg

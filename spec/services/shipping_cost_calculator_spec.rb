@@ -114,4 +114,67 @@ RSpec.describe ShippingCostCalculator do
     order = build_order
     expect(ShippingCostCalculator.estimate(order)).to be_nil
   end
+
+  describe "zone-based countries" do
+    def au_order(zip:, ordered_on: Date.new(2026, 4, 15))
+      order = create(:order, customer: customer, shopify_store: store,
+                     ordered_at: store.active_timezone.local(ordered_on.year, ordered_on.month, ordered_on.day, 12),
+                     shopify_data: { "shipping_address" => { "country_code" => "AU", "zip" => zip } })
+      product = create(:product, shopify_store: store)
+      variant = create(:product_variant, product: product, weight_grams: 300)
+      create(:order_line_item, order: order, product_variant: variant, quantity: 1)
+      order
+    end
+
+    before do
+      create(:shipping_zone_postal_rule, company: company, country_code: "AU", zone: "1", postal_start: "2000", postal_end: "2079")
+      create(:shipping_zone_postal_rule, company: company, country_code: "AU", zone: "2", postal_start: "2080", postal_end: "2084")
+      version = create(:shipping_rate_card_version, company: company, country_code: "AU",
+                       service_type: "with_battery", effective_from: Date.new(2026, 1, 1))
+      create(:shipping_rate_card_rate, version: version, zone: "1", weight_min_kg: 0.201, weight_max_kg: 0.45, per_kg_rate_cny: 92.0, flat_fee_cny: 23.0)
+      create(:shipping_rate_card_rate, version: version, zone: "2", weight_min_kg: 0.201, weight_max_kg: 0.45, per_kg_rate_cny: 100.0, flat_fee_cny: 30.0)
+    end
+
+    it "uses the zone-1 rate for a zone-1 postcode" do
+      expect(ShippingCostCalculator.estimate(au_order(zip: "2075"))).to eq(7.23)
+    end
+
+    it "uses the zone-2 rate for a zone-2 postcode" do
+      expect(ShippingCostCalculator.estimate(au_order(zip: "2082"))).to eq(8.57)
+    end
+
+    it "returns nil when the postcode matches no zone" do
+      expect(ShippingCostCalculator.estimate(au_order(zip: "9999"))).to be_nil
+    end
+
+    it "returns nil when the order has no postcode" do
+      order = create(:order, customer: customer, shopify_store: store,
+                     ordered_at: store.active_timezone.local(2026, 4, 15, 12),
+                     shopify_data: { "shipping_address" => { "country_code" => "AU" } })
+      product = create(:product, shopify_store: store)
+      variant = create(:product_variant, product: product, weight_grams: 300)
+      create(:order_line_item, order: order, product_variant: variant, quantity: 1)
+      expect(ShippingCostCalculator.estimate(order)).to be_nil
+    end
+
+    it "returns nil when the version has no rate for the resolved zone" do
+      create(:shipping_zone_postal_rule, company: company, country_code: "AU", zone: "3", postal_start: "3000", postal_end: "3062")
+      expect(ShippingCostCalculator.estimate(au_order(zip: "3050"))).to be_nil
+    end
+
+    it "does not match a billing postcode against the shipping country" do
+      # shipping has the country but no zip; billing has a zone-1 zip.
+      # country+postal must come from the same address, so this is uncovered.
+      order = create(:order, customer: customer, shopify_store: store,
+                     ordered_at: store.active_timezone.local(2026, 4, 15, 12),
+                     shopify_data: {
+                       "shipping_address" => { "country_code" => "AU" },
+                       "billing_address" => { "country_code" => "AU", "zip" => "2075" }
+                     })
+      product = create(:product, shopify_store: store)
+      variant = create(:product_variant, product: product, weight_grams: 300)
+      create(:order_line_item, order: order, product_variant: variant, quantity: 1)
+      expect(ShippingCostCalculator.estimate(order)).to be_nil
+    end
+  end
 end

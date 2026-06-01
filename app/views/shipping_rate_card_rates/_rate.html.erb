@@ -1,5 +1,6 @@
 <% owner = current_membership&.owner? %>
-<div id="<%= dom_id(rate) %>" class="grid grid-cols-[1fr_1fr_1fr_1fr_auto] gap-3 items-center px-5 py-2 border-b border-gray-50">
+<div id="<%= dom_id(rate) %>" class="grid grid-cols-[auto_1fr_1fr_1fr_1fr_auto] gap-3 items-center px-5 py-2 border-b border-gray-50">
+  <div class="text-gray-600 min-w-[3rem]"><%= rate.zone.presence || "—" %></div>
   <% if owner %>
     <% {
          weight_min_kg: "0.001", weight_max_kg: "0.001", per_kg_rate_cny: "0.01", flat_fee_cny: "0.01"
