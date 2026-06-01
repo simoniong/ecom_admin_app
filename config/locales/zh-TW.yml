@@ -38,6 +38,7 @@
     email_workflows: "郵件工作流"
     groups: "部門"
     shipping_rate_cards: "運費費率卡"
+    shipping_zone_postal_rules: "郵編分區"
   group_view_switcher:
     label: "部門"
     all: "全部部門"
@@ -282,6 +283,10 @@
     rate_deleted: "費率段已刪除"
     empty: "尚無費率卡版本 — 請在上方建立"
     until_superseded: "直到被取代"
+    bulk_import_rates: "批量匯入費率"
+    bulk_import_rates_hint: "每行一筆：分區,最小kg,最大kg,¥/kg,¥/件（分區留空=單一費率）"
+    bulk_import_done: "已匯入 %{count} 列"
+    bulk_import_errors: "匯入失敗——請修正這些行："
     select_prompt: "請選擇…"
     service_types:
       general: "普貨"
@@ -305,6 +310,19 @@
       flat_fee: "¥/件"
       effective_from: "生效日"
       effective_to: "截止日"
+      zone: "分區"
+  shipping_zone_postal_rules:
+    title: "郵編分區"
+    country: "國家"
+    import_label: "批量匯入 郵編→分區 表"
+    au_hint: "每個分區一行：1: 1000-1935, 2000-2079, 2158"
+    ca_hint: "每筆一行：G0A4V0,1 或 G0B,1"
+    import_button: "匯入（會取代該國整份表）"
+    imported: "已為 %{country} 匯入 %{count} 筆規則"
+    errors_title: "匯入失敗——未儲存任何內容。請修正這些行："
+    summary_title: "目前的對應表"
+    zone_count: "%{zone}區：%{count} 段"
+    empty: "尚未匯入任何郵編分區"
   products:
     title: "產品"
     no_store: "請先連結一個 Shopify Store"

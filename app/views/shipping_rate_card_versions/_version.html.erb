@@ -49,7 +49,8 @@
 
   <%# Rate bands: header / rows / add-form share one grid template so columns align regardless of row count. %>
   <div class="text-sm">
-    <div class="grid grid-cols-[1fr_1fr_1fr_1fr_auto] gap-3 items-center px-5 py-2 text-left text-gray-500 border-b border-gray-100">
+    <div class="grid grid-cols-[auto_1fr_1fr_1fr_1fr_auto] gap-3 items-center px-5 py-2 text-left text-gray-500 border-b border-gray-100">
+      <span><%= t("shipping_rate_cards.columns.zone") %></span>
       <span><%= t("shipping_rate_cards.columns.weight_min") %></span>
       <span><%= t("shipping_rate_cards.columns.weight_max") %></span>
       <span><%= t("shipping_rate_cards.columns.per_kg") %></span>
@@ -58,14 +59,17 @@
     </div>
 
     <div id="<%= dom_id(version, :rates) %>">
-      <% version.rates.sort_by(&:weight_min_kg).each do |rate| %>
+      <% version.rates.sort_by { |r| [ r.zone.to_s, r.weight_min_kg ] }.each do |rate| %>
         <%= render "shipping_rate_card_rates/rate", version: version, rate: rate %>
       <% end %>
     </div>
 
     <% if owner %>
       <%= form_with url: shipping_rate_card_version_rates_path(shipping_rate_card_version_id: version.id), method: :post, local: true,
-                    class: "grid grid-cols-[1fr_1fr_1fr_1fr_auto] gap-3 items-center px-5 py-3 border-t border-gray-100" do %>
+                    class: "grid grid-cols-[auto_1fr_1fr_1fr_1fr_auto] gap-3 items-center px-5 py-3 border-t border-gray-100" do %>
+        <input type="text" name="shipping_rate_card_rate[zone]"
+               placeholder="<%= t('shipping_rate_cards.columns.zone') %>"
+               class="w-16 border border-gray-300 rounded px-2 py-1 text-sm">
         <input type="number" step="0.001" min="0" name="shipping_rate_card_rate[weight_min_kg]"
                placeholder="<%= t('shipping_rate_cards.columns.weight_min') %>" required
                class="w-full border border-gray-300 rounded px-2 py-1 text-sm">
@@ -81,6 +85,14 @@
         <button type="submit"
                 class="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 whitespace-nowrap">
           <%= t("shipping_rate_cards.add_band") %>
+        </button>
+      <% end %>
+      <%= form_with url: import_shipping_rate_card_version_rates_path(shipping_rate_card_version_id: version.id), method: :post, local: true,
+                    class: "px-5 py-3 border-t border-gray-100 space-y-2" do %>
+        <p class="text-xs text-gray-500"><%= t("shipping_rate_cards.bulk_import_rates_hint") %></p>
+        <textarea name="text" rows="4" class="w-full border border-gray-300 rounded px-2 py-1 text-sm font-mono"></textarea>
+        <button type="submit" class="px-3 py-1 text-sm bg-gray-700 text-white rounded hover:bg-gray-800">
+          <%= t("shipping_rate_cards.bulk_import_rates") %>
         </button>
       <% end %>
     <% end %>

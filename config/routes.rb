@@ -71,7 +71,12 @@ Rails.application.routes.draw do
     end
     resources :shipping_rate_card_versions, only: [ :index, :create, :update, :destroy ] do
       resources :rates, only: [ :create, :update, :destroy ],
-                controller: "shipping_rate_card_rates"
+                controller: "shipping_rate_card_rates" do
+        post :import, on: :collection
+      end
+    end
+    resources :shipping_zone_postal_rules, only: [ :index ] do
+      post :import, on: :collection
     end
     resources :ad_accounts, only: [ :index, :show, :update, :destroy ]
     resources :ad_campaigns, only: [ :index ] do

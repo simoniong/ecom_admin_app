@@ -31,6 +31,18 @@ class ShippingRateCardRatesController < AdminController
     redirect_to shipping_rate_card_versions_path, notice: t("shipping_rate_cards.rate_deleted")
   end
 
+  def import
+    result = RateCardRateImporter.new(version: @version, text: params[:text]).call
+    if result[:errors].empty?
+      redirect_to shipping_rate_card_versions_path,
+                  notice: t("shipping_rate_cards.bulk_import_done", count: result[:count])
+    else
+      flash[:rate_import_errors] = result[:errors]
+      redirect_to shipping_rate_card_versions_path,
+                  alert: t("shipping_rate_cards.bulk_import_errors")
+    end
+  end
+
   private
 
   def set_version
@@ -42,7 +54,7 @@ class ShippingRateCardRatesController < AdminController
   end
 
   def rate_params
-    params.require(:shipping_rate_card_rate).permit(:weight_min_kg, :weight_max_kg, :per_kg_rate_cny, :flat_fee_cny)
+    params.require(:shipping_rate_card_rate).permit(:zone, :weight_min_kg, :weight_max_kg, :per_kg_rate_cny, :flat_fee_cny)
   end
 
   def require_owner!

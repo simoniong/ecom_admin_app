@@ -1,0 +1,60 @@
+<div class="max-w-4xl mx-auto px-4 py-6">
+  <h1 class="text-2xl font-semibold text-gray-900 mb-4"><%= t("shipping_zone_postal_rules.title") %></h1>
+
+  <% if flash[:import_errors].present? %>
+    <div class="mb-4 rounded border border-red-300 bg-red-50 p-3 text-sm text-red-700">
+      <p class="font-medium"><%= t("shipping_zone_postal_rules.errors_title") %></p>
+      <ul class="mt-1 list-disc list-inside">
+        <% flash[:import_errors].each do |e| %><li><%= e %></li><% end %>
+      </ul>
+    </div>
+  <% end %>
+
+  <% owner = current_membership&.owner? %>
+
+  <%# Existing countries — each shown with its current map (all ranges visible) %>
+  <% if @countries_with_rules.empty? %>
+    <p class="text-sm text-gray-500 mb-6"><%= t("shipping_zone_postal_rules.empty") %></p>
+  <% else %>
+    <% @countries_with_rules.each do |country| %>
+      <div class="bg-white border border-gray-200 rounded-lg shadow-sm p-5 mb-4">
+        <h2 class="text-sm font-medium text-gray-900 mb-1">
+          <%= t("shipping_rate_cards.countries.#{country}", default: country) %> (<%= country %>)
+        </h2>
+        <p class="text-xs text-gray-500 mb-2">
+          <%= @summary[country].sort.map { |zone, n| t("shipping_zone_postal_rules.zone_count", zone: zone, count: n) }.join(" · ") %>
+        </p>
+        <% if owner %>
+          <%= form_with url: import_shipping_zone_postal_rules_path, method: :post, local: true, class: "space-y-2" do %>
+            <input type="hidden" name="country_code" value="<%= country %>">
+            <textarea name="text" rows="8" class="w-full border border-gray-300 rounded px-2 py-1 text-sm font-mono"><%= @maps[country] %></textarea>
+            <button type="submit" class="px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700">
+              <%= t("shipping_zone_postal_rules.import_button") %>
+            </button>
+          <% end %>
+        <% else %>
+          <pre class="w-full border border-gray-200 rounded bg-gray-50 px-2 py-1 text-xs font-mono whitespace-pre-wrap"><%= @maps[country] %></pre>
+        <% end %>
+      </div>
+    <% end %>
+  <% end %>
+
+  <%# Add a country that doesn't have a map yet (owner only) %>
+  <% if owner && @available_countries.any? %>
+    <div class="bg-white border border-gray-200 rounded-lg shadow-sm p-5 mb-4">
+      <h2 class="text-sm font-medium text-gray-700 mb-3"><%= t("shipping_zone_postal_rules.import_label") %></h2>
+      <%= form_with url: import_shipping_zone_postal_rules_path, method: :post, local: true, class: "space-y-2" do %>
+        <select name="country_code" class="border border-gray-300 rounded px-2 py-1 text-sm">
+          <% @available_countries.each do |c| %>
+            <option value="<%= c %>"><%= t("shipping_rate_cards.countries.#{c}") %> (<%= c %>)</option>
+          <% end %>
+        </select>
+        <p class="text-xs text-gray-500"><%= t("shipping_zone_postal_rules.au_hint") %> · <%= t("shipping_zone_postal_rules.ca_hint") %></p>
+        <textarea name="text" rows="8" class="w-full border border-gray-300 rounded px-2 py-1 text-sm font-mono"></textarea>
+        <button type="submit" class="px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700">
+          <%= t("shipping_zone_postal_rules.import_button") %>
+        </button>
+      <% end %>
+    </div>
+  <% end %>
+</div>
