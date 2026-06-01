@@ -161,5 +161,20 @@ RSpec.describe ShippingCostCalculator do
       create(:shipping_zone_postal_rule, company: company, country_code: "AU", zone: "3", postal_start: "3000", postal_end: "3062")
       expect(ShippingCostCalculator.estimate(au_order(zip: "3050"))).to be_nil
     end
+
+    it "does not match a billing postcode against the shipping country" do
+      # shipping has the country but no zip; billing has a zone-1 zip.
+      # country+postal must come from the same address, so this is uncovered.
+      order = create(:order, customer: customer, shopify_store: store,
+                     ordered_at: store.active_timezone.local(2026, 4, 15, 12),
+                     shopify_data: {
+                       "shipping_address" => { "country_code" => "AU" },
+                       "billing_address" => { "country_code" => "AU", "zip" => "2075" }
+                     })
+      product = create(:product, shopify_store: store)
+      variant = create(:product_variant, product: product, weight_grams: 300)
+      create(:order_line_item, order: order, product_variant: variant, quantity: 1)
+      expect(ShippingCostCalculator.estimate(order)).to be_nil
+    end
   end
 end

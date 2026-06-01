@@ -47,13 +47,22 @@ class ShippingCostCalculator
   end
 
   def postal_from_order
-    @order.shopify_data&.dig("shipping_address", "zip") ||
-      @order.shopify_data&.dig("billing_address", "zip")
+    destination_address&.dig("zip")
   end
 
   def country_code_from_order
-    @order.shopify_data&.dig("shipping_address", "country_code") ||
-      @order.shopify_data&.dig("billing_address", "country_code")
+    destination_address&.dig("country_code")
+  end
+
+  # Resolve country AND postal from the SAME address: prefer shipping (when it
+  # carries a country), else billing — so a zoned country never matches a
+  # billing postal against a shipping country.
+  def destination_address
+    data = @order.shopify_data
+    return nil unless data
+    shipping = data["shipping_address"]
+    return shipping if shipping && shipping["country_code"].present?
+    data["billing_address"]
   end
 
   def total_weight_kg
