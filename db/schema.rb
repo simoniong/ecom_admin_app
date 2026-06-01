@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_31_120004) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_01_120002) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -363,6 +363,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_31_120004) do
     t.uuid "version_id", null: false
     t.decimal "weight_max_kg", precision: 8, scale: 3, null: false
     t.decimal "weight_min_kg", precision: 8, scale: 3, null: false
+    t.string "zone"
+    t.index ["version_id", "zone"], name: "index_shipping_rate_card_rates_on_version_id_and_zone"
     t.index ["version_id"], name: "index_shipping_rate_card_rates_on_version_id"
   end
 
@@ -401,6 +403,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_31_120004) do
     t.string "timezone", default: "UTC", null: false
     t.datetime "updated_at", null: false
     t.index ["company_id"], name: "index_shipping_reminder_settings_on_company_id", unique: true
+  end
+
+  create_table "shipping_zone_postal_rules", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "company_id", null: false
+    t.string "country_code", null: false
+    t.datetime "created_at", null: false
+    t.string "postal_end", null: false
+    t.string "postal_start", null: false
+    t.datetime "updated_at", null: false
+    t.string "zone", null: false
+    t.index ["company_id", "country_code", "postal_start"], name: "idx_zone_postal_lookup"
   end
 
   create_table "shopify_daily_metrics", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -646,6 +659,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_31_120004) do
   add_foreign_key "shipping_rate_card_versions", "companies"
   add_foreign_key "shipping_reminder_rules", "companies"
   add_foreign_key "shipping_reminder_settings", "companies"
+  add_foreign_key "shipping_zone_postal_rules", "companies"
   add_foreign_key "shopify_stores", "companies"
   add_foreign_key "shopify_stores", "groups"
   add_foreign_key "shopify_stores", "users"
