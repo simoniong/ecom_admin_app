@@ -11,7 +11,7 @@
 **Spec:** `docs/superpowers/specs/2026-06-01-split-parcel-shipping-estimate-design.md`
 
 **Conventions (verified):**
-- `bin/rails`/`bundle`/`rspec` need ruby on PATH: `export PATH="/home/simon/.rubies/ruby-3.4.7/bin:$PATH"`.
+- `bin/rails`/`bundle`/`rspec` need the project Ruby active. On this machine that means prepending `/home/simon/.rubies/ruby-3.4.7/bin` to `PATH`; on other setups activate the version from `.ruby-version` via your manager (rbenv/asdf/chruby).
 - SimpleCov fails single-file runs with exit 2 (global 95% gate) — EXPECTED; judge by `N examples, M failures`.
 - Branch: `feature/shipping-cost-split-parcel` (already created off main; spec committed there). Do NOT switch branches.
 - The store in the existing calculator spec has `cost_fx_rate: 7.0, default_service_type: "with_battery"`; reuse the file's existing `company`/`store`/`customer` lets.
