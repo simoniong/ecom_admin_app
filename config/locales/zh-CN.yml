@@ -251,6 +251,7 @@
       installed_at: "安装时间"
       connected_at: "连接时间"
       linked_email_accounts: "关联邮箱"
+      linked_ad_accounts: "关联广告账户"
     sync_products: "同步产品"
     sync_products_enqueued: "产品同步已加入队列"
     products_synced_at: "上次同步产品"

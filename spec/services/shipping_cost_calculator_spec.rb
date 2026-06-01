@@ -5,7 +5,7 @@ RSpec.describe ShippingCostCalculator do
   let(:user) { create(:user) }
   let(:store) do
     create(:shopify_store, user: user, company: company,
-           currency: "USD", cost_fx_rate: 7.0, default_service_type: "standard_with_battery")
+           currency: "USD", cost_fx_rate: 7.0, default_service_type: "with_battery")
   end
   let(:customer) { create(:customer, shopify_store: store) }
 
@@ -20,7 +20,7 @@ RSpec.describe ShippingCostCalculator do
     order
   end
 
-  def build_version_with_band(country: "US", service: "standard_with_battery",
+  def build_version_with_band(country: "US", service: "with_battery",
                               from: Date.new(2026, 1, 1), to: nil,
                               min: 0.201, max: 0.45, per_kg: 92.0, flat: 23.0, name: "V")
     version = create(:shipping_rate_card_version, company: company, name: name,

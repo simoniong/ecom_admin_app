@@ -266,8 +266,8 @@ RSpec.describe "ShopifyStores", type: :request do
 
     it "updates default_service_type for an owner" do
       sign_in owner
-      patch shopify_store_path(id: store.id), params: { shopify_store: { default_service_type: "standard_with_battery" } }
-      expect(store.reload.default_service_type).to eq("standard_with_battery")
+      patch shopify_store_path(id: store.id), params: { shopify_store: { default_service_type: "with_battery" } }
+      expect(store.reload.default_service_type).to eq("with_battery")
       expect(response).to redirect_to(shopify_store_path(id: store.id))
     end
 
