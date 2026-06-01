@@ -79,28 +79,28 @@ class ShippingCostCalculator
   # charging each parcel its own per-kg charge + handling fee. Returns nil if any
   # parcel's weight matches no band.
   def cost_cny_for(bands, weight_kg)
-    band = band_for(bands, weight_kg)
-    return parcel_cost(band, weight_kg) if band
+    weight = BigDecimal(weight_kg.to_s)   # exact decimal; also keeps all math in BigDecimal
+    band = band_for(bands, weight)
+    return parcel_cost(band, weight) if band
 
     max = bands.map(&:weight_max_kg).max
-    return nil unless max && weight_kg > max
+    return nil unless max && weight > max
 
-    total = BigDecimal("0")
-    remaining = weight_kg
-    while remaining > max
-      full = band_for(bands, max)
-      return nil unless full
+    full_band = band_for(bands, max)
+    return nil unless full_band
 
-      total += parcel_cost(full, max)
-      remaining -= max
+    # O(1) greedy split: N full parcels at `max` + one remainder parcel.
+    full_count = (weight / max).floor
+    remainder  = weight - (full_count * max)
+
+    cost = parcel_cost(full_band, max) * full_count
+    if remainder.positive?
+      rem_band = band_for(bands, remainder)
+      return nil unless rem_band
+
+      cost += parcel_cost(rem_band, remainder)
     end
-    if remaining > 0
-      rem = band_for(bands, remaining)
-      return nil unless rem
-
-      total += parcel_cost(rem, remaining)
-    end
-    total
+    cost
   end
 
   def band_for(bands, weight_kg)

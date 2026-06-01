@@ -219,6 +219,14 @@ RSpec.describe ShippingCostCalculator do
       expect(ShippingCostCalculator.estimate(us_order(grams: 5000))).to eq(25.0)
     end
 
+    it "computes a many-parcel split with a tiny max band in O(1)" do
+      # A small top band (max 0.05kg) over a 0.2kg order = 4 parcels — must not loop per-parcel.
+      version.rates.delete_all
+      create(:shipping_rate_card_rate, version: version, zone: nil, weight_min_kg: 0, weight_max_kg: 0.05, per_kg_rate_cny: 100, flat_fee_cny: 5)
+      # 4 × (0.05*100 + 5 = 10) = 40 / 7.0 = 5.71 (5.714… rounds to 5.71)
+      expect(ShippingCostCalculator.estimate(us_order(grams: 200))).to eq(5.71)
+    end
+
     it "returns nil when a remainder parcel matches no band (below the lowest min)" do
       version.rates.delete_all
       create(:shipping_rate_card_rate, version: version, zone: nil, weight_min_kg: 0.5, weight_max_kg: 1, per_kg_rate_cny: 27, flat_fee_cny: 23)
