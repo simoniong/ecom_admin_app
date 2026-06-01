@@ -54,7 +54,7 @@ class ShippingRateCardRatesController < AdminController
   end
 
   def rate_params
-    params.require(:shipping_rate_card_rate).permit(:weight_min_kg, :weight_max_kg, :per_kg_rate_cny, :flat_fee_cny)
+    params.require(:shipping_rate_card_rate).permit(:zone, :weight_min_kg, :weight_max_kg, :per_kg_rate_cny, :flat_fee_cny)
   end
 
   def require_owner!
