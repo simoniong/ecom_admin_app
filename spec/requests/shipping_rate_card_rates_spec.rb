@@ -55,6 +55,35 @@ RSpec.describe "ShippingRateCardRates", type: :request do
     end
   end
 
+  describe "POST .../rates/import" do
+    let!(:version) { create(:shipping_rate_card_version, company: company) }
+
+    it "bulk-imports rates for an owner (replace)" do
+      create(:shipping_rate_card_rate, version: version)  # wiped
+      sign_in owner
+      post import_shipping_rate_card_version_rates_path(shipping_rate_card_version_id: version.id),
+           params: { text: "1,0,0.25,27,23\n2,0,0.25,27,31" }
+      expect(version.rates.reload.count).to eq(2)
+      expect(response).to redirect_to(shipping_rate_card_versions_path)
+    end
+
+    it "blocks a non-owner" do
+      sign_in member_user
+      patch switch_company_path(id: company.id)
+      post import_shipping_rate_card_version_rates_path(shipping_rate_card_version_id: version.id),
+           params: { text: "1,0,0.25,27,23" }
+      expect(version.rates.reload.count).to eq(0)
+    end
+
+    it "reports errors and changes nothing on bad input" do
+      create(:shipping_rate_card_rate, version: version)
+      sign_in owner
+      post import_shipping_rate_card_version_rates_path(shipping_rate_card_version_id: version.id),
+           params: { text: "1,0.3,0.3,27,23" }
+      expect(version.rates.reload.count).to eq(1)  # unchanged
+    end
+  end
+
   describe "cross-company isolation" do
     it "404s when the version belongs to another company" do
       other_version = create(:shipping_rate_card_version)

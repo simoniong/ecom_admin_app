@@ -31,6 +31,18 @@ class ShippingRateCardRatesController < AdminController
     redirect_to shipping_rate_card_versions_path, notice: t("shipping_rate_cards.rate_deleted")
   end
 
+  def import
+    result = RateCardRateImporter.new(version: @version, text: params[:text]).call
+    if result[:errors].empty?
+      redirect_to shipping_rate_card_versions_path,
+                  notice: t("shipping_rate_cards.bulk_import_done", count: result[:count])
+    else
+      flash[:rate_import_errors] = result[:errors]
+      redirect_to shipping_rate_card_versions_path,
+                  alert: t("shipping_rate_cards.bulk_import_errors")
+    end
+  end
+
   private
 
   def set_version
