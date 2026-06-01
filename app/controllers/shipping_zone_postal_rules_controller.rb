@@ -3,10 +3,14 @@ class ShippingZonePostalRulesController < AdminController
 
   def index
     rules = current_company.shipping_zone_postal_rules
-    @countries = rules.distinct.pluck(:country_code).sort
     @summary = rules.group(:country_code, :zone).count.each_with_object({}) do |((cc, zone), n), h|
       (h[cc] ||= {})[zone] = n
     end
+    @countries_with_rules = @summary.keys.sort
+    @maps = @countries_with_rules.index_with do |cc|
+      PostalZoneImporter.dump(country: cc, rules: rules.where(country_code: cc).to_a)
+    end
+    @available_countries = ShippingRateCardVersion::COUNTRY_CODES - @countries_with_rules
   end
 
   def import

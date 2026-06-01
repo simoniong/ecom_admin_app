@@ -53,4 +53,29 @@ RSpec.describe PostalZoneImporter do
       expect(company.shipping_zone_postal_rules.where(country_code: "CA").count).to eq(0)
     end
   end
+
+  describe ".dump (round-trip)" do
+    let(:company) { create(:company) }
+
+    it "serializes AU rules back to paste format" do
+      described_class.new(company: company, country: "AU", text: "1: 1000-1935, 2158\n2: 2080-2084").call
+      rules = company.shipping_zone_postal_rules.where(country_code: "AU").to_a
+      expect(described_class.dump(country: "AU", rules: rules)).to eq("1: 1000-1935, 2158\n2: 2080-2084")
+    end
+
+    it "serializes CA rules back (FSA vs full token)" do
+      described_class.new(company: company, country: "CA", text: "G0A4V0,1\nV9N,2").call
+      rules = company.shipping_zone_postal_rules.where(country_code: "CA").to_a
+      expect(described_class.dump(country: "CA", rules: rules)).to eq("G0A4V0,1\nV9N,2")
+    end
+
+    it "round-trips: dump then re-import yields identical rules" do
+      described_class.new(company: company, country: "AU", text: "1: 1000-1935, 2000-2079\n2: 2080-2084").call
+      before = company.shipping_zone_postal_rules.where(country_code: "AU").pluck(:zone, :postal_start, :postal_end).sort
+      dumped = described_class.dump(country: "AU", rules: company.shipping_zone_postal_rules.where(country_code: "AU").to_a)
+      described_class.new(company: company, country: "AU", text: dumped).call
+      after = company.shipping_zone_postal_rules.where(country_code: "AU").pluck(:zone, :postal_start, :postal_end).sort
+      expect(after).to eq(before)
+    end
+  end
 end

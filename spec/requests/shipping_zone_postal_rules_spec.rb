@@ -18,6 +18,15 @@ RSpec.describe "ShippingZonePostalRules", type: :request do
     end
   end
 
+  describe "GET index shows existing map editable" do
+    it "pre-fills the textarea with the current map" do
+      PostalZoneImporter.new(company: company, country: "AU", text: "1: 2000-2079, 2158").call
+      sign_in owner
+      get shipping_zone_postal_rules_path
+      expect(response.body).to include("1: 2000-2079, 2158")
+    end
+  end
+
   describe "POST /shipping_zone_postal_rules/import" do
     it "imports for an owner and replaces the country's map" do
       sign_in owner

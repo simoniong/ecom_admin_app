@@ -5,6 +5,16 @@ class PostalZoneImporter
     @text = text.to_s
   end
 
+  # Serialize a country's rules back into the paste format (inverse of parse),
+  # so the import textarea can be pre-filled for editing.
+  def self.dump(country:, rules:)
+    case country
+    when "AU" then dump_au(rules)
+    when "CA" then dump_ca(rules)
+    else ""
+    end
+  end
+
   def call
     rows, errors = parse
     return { count: 0, errors: errors } if errors.any?
@@ -65,4 +75,21 @@ class PostalZoneImporter
     return "bad postal '#{token.strip}'" unless range
     [ { zone: zone.strip, postal_start: range[0], postal_end: range[1] } ]
   end
+
+  def self.dump_au(rules)
+    rules.group_by(&:zone).sort.map do |zone, zone_rules|
+      ranges = zone_rules.sort_by(&:postal_start).map do |r|
+        r.postal_start == r.postal_end ? r.postal_start : "#{r.postal_start}-#{r.postal_end}"
+      end
+      "#{zone}: #{ranges.join(', ')}"
+    end.join("\n")
+  end
+
+  def self.dump_ca(rules)
+    rules.sort_by(&:postal_start).map do |r|
+      token = r.postal_start[3, 3] == "000" ? r.postal_start[0, 3] : r.postal_start
+      "#{token},#{r.zone}"
+    end.join("\n")
+  end
+  private_class_method :dump_au, :dump_ca
 end
