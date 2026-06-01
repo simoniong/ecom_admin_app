@@ -120,11 +120,27 @@
           value: number_to_currency(@metrics[:current][:net_profit]),
           previous: @metrics[:previous][:net_profit],
           current_raw: @metrics[:current][:net_profit] %>
+
+      <%# Shipping Cost %>
+      <%= render "dashboard/metric_card",
+          title: t("dashboard.shipping_cost"),
+          value: number_to_currency(@metrics[:current][:shipping_cost]),
+          previous: @metrics[:previous][:shipping_cost],
+          current_raw: @metrics[:current][:shipping_cost],
+          invert_color: true %>
     </div>
 
     <% if @metrics[:current][:cogs_coverage_pct] && @metrics[:current][:cogs_coverage_pct] < 100 %>
       <p class="mt-2 text-xs text-gray-500">
         <%= t("dashboard.cogs_coverage") %>: <%= @metrics[:current][:cogs_coverage_pct] %>%
+      </p>
+    <% end %>
+
+    <% if @metrics[:current][:shipping_coverage_pct] && @metrics[:current][:shipping_coverage_pct] < 100 %>
+      <p class="mt-1 text-xs text-gray-500">
+        <%= t("dashboard.shipping_coverage") %>: <%= @metrics[:current][:shipping_coverage_pct] %>%
+        (<%= t("dashboard.shipping_coverage_actual") %>: <%= @metrics[:current][:shipping_coverage_actual_pct] %>%
+        · <%= t("dashboard.shipping_coverage_estimated") %>: <%= @metrics[:current][:shipping_coverage_estimated_pct] %>%)
       </p>
     <% end %>
   <% end %>

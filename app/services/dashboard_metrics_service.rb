@@ -56,8 +56,9 @@ class DashboardMetricsService
     ad_spend = ad.sum(:spend)
 
     cogs, coverage = aggregate_cogs(store_scope, range)
+    shipping_total, shipping_breakdown = aggregate_shipping(store_scope, range)
     gross_profit = revenue - cogs
-    net_profit = gross_profit - ad_spend
+    net_profit = gross_profit - shipping_total - ad_spend
 
     {
       sessions: sessions,
@@ -75,7 +76,11 @@ class DashboardMetricsService
       gross_margin_pct: revenue > 0 ? (gross_profit / revenue * 100).round(2) : nil,
       net_profit: net_profit,
       net_margin_pct: revenue > 0 ? (net_profit / revenue * 100).round(2) : nil,
-      cogs_coverage_pct: coverage
+      cogs_coverage_pct: coverage,
+      shipping_cost: shipping_total,
+      shipping_coverage_pct: shipping_breakdown[:coverage],
+      shipping_coverage_actual_pct: shipping_breakdown[:actual],
+      shipping_coverage_estimated_pct: shipping_breakdown[:estimated_only]
     }
   end
 
@@ -100,6 +105,36 @@ class DashboardMetricsService
 
     coverage = total_lines > 0 ? (covered_lines.to_f / total_lines * 100).round(1) : nil
     [ total_cogs, coverage ]
+  end
+
+  def aggregate_shipping(store_scope, range)
+    total = BigDecimal("0")
+    count_total = 0
+    count_actual = 0
+    count_estimated_only = 0
+
+    store_scope.find_each do |store|
+      tz = store.active_timezone
+      start_utc = tz.local(range.first.year, range.first.month, range.first.day).utc
+      end_utc   = tz.local(range.last.year,  range.last.month,  range.last.day).end_of_day.utc
+
+      orders = Order.where(shopify_store_id: store.id, ordered_at: start_utc..end_utc)
+
+      total += orders.sum("COALESCE(actual_shipping_cost, estimated_shipping_cost, 0)")
+      count_total          += orders.count
+      count_actual         += orders.where.not(actual_shipping_cost: nil).count
+      count_estimated_only += orders.where(actual_shipping_cost: nil).where.not(estimated_shipping_cost: nil).count
+    end
+
+    pct = ->(n) { count_total > 0 ? (n.to_f / count_total * 100).round(1) : nil }
+    [
+      total,
+      {
+        coverage:       pct.call(count_actual + count_estimated_only),
+        actual:         pct.call(count_actual),
+        estimated_only: pct.call(count_estimated_only)
+      }
+    ]
   end
 
   def previous_range

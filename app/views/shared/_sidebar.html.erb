@@ -140,6 +140,16 @@
             <% end %>
           <% end %>
 
+          <% if current_membership&.has_permission?("shopify_stores") %>
+            <%= link_to shipping_rate_card_versions_path, data: { action: "click->sidebar#close" },
+                class: "flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md #{current_page?(shipping_rate_card_versions_path) ? 'bg-gray-100 text-gray-900' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'}" do %>
+              <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 9.75h16.5m-16.5 0v7.5a2.25 2.25 0 0 0 2.25 2.25h12a2.25 2.25 0 0 0 2.25-2.25v-7.5m-16.5 0L5.25 5.25A2.25 2.25 0 0 1 7.5 3.75h9a2.25 2.25 0 0 1 2.25 1.5l1.5 4.5" />
+              </svg>
+              <%= t("nav.shipping_rate_cards") %>
+            <% end %>
+          <% end %>
+
           <% if current_membership&.has_permission?("ad_accounts") %>
             <%= link_to ad_accounts_path, data: { action: "click->sidebar#close" },
                 class: "flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md #{current_page?(ad_accounts_path) ? 'bg-gray-100 text-gray-900' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'}" do %>

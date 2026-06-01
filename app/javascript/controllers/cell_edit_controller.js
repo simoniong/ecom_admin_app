@@ -4,21 +4,27 @@ import { Controller } from "@hotwired/stimulus"
 //
 // Markup:
 //   <td data-controller="cell-edit"
-//       data-cell-edit-url-value="/product_variants/123"
-//       data-cell-edit-field-value="unit_cost"
+//       data-cell-edit-url-value="/shipping_rate_card_versions/123/rates/456"
+//       data-cell-edit-param-value="shipping_rate_card_rate"
+//       data-cell-edit-field-value="per_kg_rate_cny"
+//       data-cell-edit-type-value="number"
 //       data-cell-edit-step-value="0.01"
 //       data-cell-edit-min-value="0">
 //     <span data-cell-edit-target="display"
 //           data-action="click->cell-edit#startEdit">12.50</span>
 //   </td>
 //
+// type can be "number" (default), "text", or "date".
+// param is the strong-params wrapper key (default "product_variant").
 // Server must respond with a Turbo Stream that replaces the entire row.
 
 export default class extends Controller {
   static targets = ["display"]
   static values  = {
     url:   String,
+    param: { type: String, default: "product_variant" },
     field: String,
+    type:  { type: String, default: "number" },
     step:  { type: String, default: "0.01" },
     min:   { type: String, default: "0" },
     blank: { type: String, default: "—" }
@@ -30,23 +36,31 @@ export default class extends Controller {
     if (this.element.querySelector("input")) return // already editing
 
     const currentText = this.displayTarget.textContent.trim()
-    // Strip thousands separators, currency / unit suffixes, etc.
-    // Keep only digits, decimal point, and a leading minus sign.
-    const cleaned = currentText.replace(/[^\d.\-]/g, "")
-    const currentValue = (currentText === this.blankValue || cleaned === "" || cleaned === "-") ? "" : cleaned
+    const isBlank = currentText === this.blankValue
+    let currentValue
+    if (this.typeValue === "number") {
+      // Strip thousands separators, currency / unit suffixes, etc.
+      const cleaned = currentText.replace(/[^\d.\-]/g, "")
+      currentValue = (isBlank || cleaned === "" || cleaned === "-") ? "" : cleaned
+    } else {
+      currentValue = isBlank ? "" : currentText
+    }
 
     const input = document.createElement("input")
-    input.type  = "number"
-    input.step  = this.stepValue
-    input.min   = this.minValue
+    input.type = this.typeValue
+    if (this.typeValue === "number") {
+      input.step = this.stepValue
+      input.min  = this.minValue
+    }
     input.value = currentValue
-    input.className = "w-24 border border-blue-500 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+    input.className = "w-32 border border-blue-500 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
     input.dataset.action = "blur->cell-edit#save keydown.enter->cell-edit#save keydown.escape->cell-edit#cancel"
 
     this.displayTarget.classList.add("hidden")
     this.element.appendChild(input)
     input.focus()
-    input.select()
+    // <input type="date"> does not support select(); guard it.
+    if (this.typeValue !== "date") input.select()
   }
 
   async save(event) {
@@ -58,9 +72,9 @@ export default class extends Controller {
     input.dataset.saving = "1"
 
     const body = new FormData()
-    body.append("authenticity_token", document.querySelector('meta[name="csrf-token"]').content)
+    body.append("authenticity_token", document.querySelector('meta[name="csrf-token"]')?.content ?? "")
     body.append("_method", "patch")
-    body.append(`product_variant[${this.fieldValue}]`, input.value)
+    body.append(`${this.paramValue}[${this.fieldValue}]`, input.value)
 
     try {
       const response = await fetch(this.urlValue, {
@@ -71,7 +85,6 @@ export default class extends Controller {
 
       // If the session expired (or any other 30x), fetch silently follows
       // the redirect and returns a 200 HTML page — NOT a Turbo Stream.
-      // Treating that as success would leave the row in a broken state.
       // Navigate to the final URL so Devise can handle re-auth properly.
       if (response.redirected) {
         window.Turbo.visit(response.url)

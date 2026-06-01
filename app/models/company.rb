@@ -9,6 +9,7 @@ class Company < ApplicationRecord
   has_many :invitations, dependent: :destroy
   has_many :shipping_reminder_rules, dependent: :destroy
   has_one :shipping_reminder_setting, dependent: :destroy
+  has_many :shipping_rate_card_versions, dependent: :destroy
 
   AVAILABLE_LOCALES = I18n.available_locales.map(&:to_s).freeze
 

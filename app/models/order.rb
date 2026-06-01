@@ -35,4 +35,21 @@ class Order < ApplicationRecord
   def cogs_complete?
     !order_line_items.where(unit_cost_snapshot: nil).exists?
   end
+
+  def effective_shipping_cost
+    actual_shipping_cost || estimated_shipping_cost
+  end
+
+  def net_profit_per_order
+    return nil unless total_price
+    total_price - cogs_total - (effective_shipping_cost || 0)
+  end
+
+  def shipping_complete?
+    effective_shipping_cost.present?
+  end
+
+  def shipping_is_actual?
+    actual_shipping_cost.present?
+  end
 end

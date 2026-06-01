@@ -66,4 +66,55 @@ RSpec.describe BackfillOrderLineItemsService do
     expect(result[:orders]).to eq(1)
     expect(result[:snapshotted]).to eq(1)
   end
+
+  describe "estimated shipping backfill" do
+    # Separate store configured for ShippingCostCalculator compatibility.
+    let(:shipping_store) do
+      create(:shopify_store, currency: "USD", cost_fx_rate: 7.0,
+             default_service_type: "with_battery")
+    end
+    let(:shipping_customer) { create(:customer, shopify_store: shipping_store) }
+
+    # Rate card: 0.201–0.45 kg → cny = 0.3*92 + 23 = 50.6 → usd = 50.6/7.0 = 7.23
+    before do
+      version = create(:shipping_rate_card_version,
+                       company: shipping_store.company,
+                       country_code: "US",
+                       service_type: "with_battery",
+                       effective_from: Date.new(2026, 1, 1))
+      create(:shipping_rate_card_rate, version: version,
+             weight_min_kg: 0.201, weight_max_kg: 0.45,
+             per_kg_rate_cny: 92.0, flat_fee_cny: 23.0)
+    end
+
+    def order_with_weighted_line(estimated: nil, actual: nil)
+      order = create(:order, customer: shipping_customer, shopify_store: shipping_store,
+                     ordered_at: shipping_store.active_timezone.local(2026, 4, 15, 12),
+                     estimated_shipping_cost: estimated, actual_shipping_cost: actual,
+                     shopify_data: { "shipping_address" => { "country_code" => "US" } })
+      product = create(:product, shopify_store: shipping_store)
+      variant = create(:product_variant, product: product, weight_grams: 300)
+      create(:order_line_item, order: order, product_variant: variant, quantity: 1)
+      order
+    end
+
+    it "fills estimated_shipping_cost when nil and reports shipping_filled: 1" do
+      order = order_with_weighted_line
+      result = described_class.new(shipping_store).call
+      expect(order.reload.estimated_shipping_cost).to eq(7.23)
+      expect(result[:shipping_filled]).to eq(1)
+    end
+
+    it "does not overwrite an existing estimated_shipping_cost" do
+      order = order_with_weighted_line(estimated: 5.00)
+      described_class.new(shipping_store).call
+      expect(order.reload.estimated_shipping_cost).to eq(5.00)
+    end
+
+    it "never touches actual_shipping_cost" do
+      order = order_with_weighted_line(actual: 8.50)
+      described_class.new(shipping_store).call
+      expect(order.reload.actual_shipping_cost).to eq(8.50)
+    end
+  end
 end

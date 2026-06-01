@@ -159,4 +159,39 @@ RSpec.describe Order, type: :model do
       expect(order.cogs_complete?).to be true
     end
   end
+
+  describe "shipping cost helpers" do
+    it "prefers actual over estimated for effective_shipping_cost" do
+      order = build(:order, estimated_shipping_cost: 5, actual_shipping_cost: 8)
+      expect(order.effective_shipping_cost).to eq(8)
+    end
+
+    it "falls back to estimated when actual is nil" do
+      order = build(:order, estimated_shipping_cost: 5, actual_shipping_cost: nil)
+      expect(order.effective_shipping_cost).to eq(5)
+    end
+
+    it "returns nil for effective_shipping_cost when both are nil" do
+      order = build(:order, estimated_shipping_cost: nil, actual_shipping_cost: nil)
+      expect(order.effective_shipping_cost).to be_nil
+    end
+
+    it "computes net_profit_per_order = total_price - cogs - effective_shipping" do
+      order = create(:order, total_price: 100, estimated_shipping_cost: 10)
+      create(:order_line_item, order: order, quantity: 2, unit_cost_snapshot: 15)
+      expect(order.net_profit_per_order).to eq(100 - 30 - 10)
+    end
+
+    it "treats missing shipping as zero in net_profit_per_order" do
+      order = create(:order, total_price: 100, estimated_shipping_cost: nil, actual_shipping_cost: nil)
+      expect(order.net_profit_per_order).to eq(100 - order.cogs_total)
+    end
+
+    it "reports shipping_complete? and shipping_is_actual?" do
+      expect(build(:order, estimated_shipping_cost: 3, actual_shipping_cost: nil)).to be_shipping_complete
+      expect(build(:order, estimated_shipping_cost: 3, actual_shipping_cost: nil)).not_to be_shipping_is_actual
+      expect(build(:order, actual_shipping_cost: 4)).to be_shipping_is_actual
+      expect(build(:order, estimated_shipping_cost: nil, actual_shipping_cost: nil)).not_to be_shipping_complete
+    end
+  end
 end

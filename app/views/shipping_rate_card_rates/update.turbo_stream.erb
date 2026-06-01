@@ -1,0 +1,3 @@
+<%= turbo_stream.replace dom_id(@rate) do %>
+  <%= render "shipping_rate_card_rates/rate", version: @version, rate: @rate %>
+<% end %>
