@@ -84,6 +84,18 @@ RSpec.describe "ShippingRateCardRates", type: :request do
     end
   end
 
+  describe "rate import error rendering" do
+    let!(:version) { create(:shipping_rate_card_version, company: company) }
+
+    it "shows the per-line errors on the index after a bad import" do
+      sign_in owner
+      post import_shipping_rate_card_version_rates_path(shipping_rate_card_version_id: version.id),
+           params: { text: "1,0.3,0.3,27,23" }   # max <= min
+      follow_redirect!
+      expect(response.body).to include("Line 1")
+    end
+  end
+
   describe "cross-company isolation" do
     it "404s when the version belongs to another company" do
       other_version = create(:shipping_rate_card_version)

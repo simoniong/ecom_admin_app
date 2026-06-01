@@ -1,6 +1,8 @@
 class ShippingZonePostalRule < ApplicationRecord
   belongs_to :company
 
+  before_validation { self.zone = zone.to_s.strip.presence }
+
   validates :country_code, :zone, :postal_start, :postal_end, presence: true
   validate  :end_not_before_start
 

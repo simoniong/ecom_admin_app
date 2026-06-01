@@ -48,5 +48,10 @@ RSpec.describe ShippingZonePostalRule, type: :model do
       expect(described_class.country_zoned?(company: company, country: "AU")).to be(true)
       expect(described_class.country_zoned?(company: company, country: "US")).to be(false)
     end
+
+    it "strips whitespace on zone" do
+      r = create(:shipping_zone_postal_rule, company: company, zone: " 2 ")
+      expect(r.zone).to eq("2")
+    end
   end
 end

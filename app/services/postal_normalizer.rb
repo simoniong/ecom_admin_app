@@ -1,4 +1,6 @@
 class PostalNormalizer
+  SUPPORTED_COUNTRIES = %w[AU CA].freeze
+
   # Normalize an order's raw postal into a fixed-width lookup key, or nil.
   def self.normalize(country, raw)
     return nil if raw.blank?

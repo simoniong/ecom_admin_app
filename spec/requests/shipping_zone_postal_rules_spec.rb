@@ -53,4 +53,12 @@ RSpec.describe "ShippingZonePostalRules", type: :request do
       expect(response.body).to include(I18n.t("shipping_zone_postal_rules.errors_title"))
     end
   end
+
+  describe "POST import unsupported country" do
+    it "rejects and saves nothing" do
+      sign_in owner
+      post import_shipping_zone_postal_rules_path, params: { country_code: "US", text: "1: 2000-2079" }
+      expect(company.shipping_zone_postal_rules.count).to eq(0)
+    end
+  end
 end

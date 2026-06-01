@@ -54,6 +54,22 @@ RSpec.describe PostalZoneImporter do
     end
   end
 
+  describe "unsupported country / blank zone guards" do
+    let(:company) { create(:company) }
+
+    it "rejects an unsupported country and writes nothing" do
+      result = described_class.new(company: company, country: "US", text: "1: 2000-2079").call
+      expect(result[:errors]).not_to be_empty
+      expect(company.shipping_zone_postal_rules.count).to eq(0)
+    end
+
+    it "rejects a CA line with a blank zone" do
+      result = described_class.new(company: company, country: "CA", text: "G0A4V0,").call
+      expect(result[:errors]).not_to be_empty
+      expect(company.shipping_zone_postal_rules.where(country_code: "CA").count).to eq(0)
+    end
+  end
+
   describe ".dump (round-trip)" do
     let(:company) { create(:company) }
 

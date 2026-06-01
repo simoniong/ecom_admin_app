@@ -10,7 +10,7 @@ class ShippingZonePostalRulesController < AdminController
     @maps = @countries_with_rules.index_with do |cc|
       PostalZoneImporter.dump(country: cc, rules: rules.where(country_code: cc).to_a)
     end
-    @available_countries = ShippingRateCardVersion::COUNTRY_CODES - @countries_with_rules
+    @available_countries = PostalNormalizer::SUPPORTED_COUNTRIES - @countries_with_rules
   end
 
   def import

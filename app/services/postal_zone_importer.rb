@@ -16,6 +16,9 @@ class PostalZoneImporter
   end
 
   def call
+    unless PostalNormalizer::SUPPORTED_COUNTRIES.include?(@country)
+      return { count: 0, errors: [ "Unsupported country: #{@country}" ] }
+    end
     rows, errors = parse
     return { count: 0, errors: errors } if errors.any?
 
@@ -70,7 +73,7 @@ class PostalZoneImporter
   # "G0A4V0,1" -> rows, or an error String
   def parse_ca_line(line)
     token, zone = line.split(",", 2)
-    return "expected '<postal>,<zone>'" if zone.nil? || token.to_s.strip.empty?
+    return "expected '<postal>,<zone>'" if zone.nil? || zone.strip.empty? || token.to_s.strip.empty?
     range = PostalNormalizer.range_for("CA", token.strip)
     return "bad postal '#{token.strip}'" unless range
     [ { zone: zone.strip, postal_start: range[0], postal_end: range[1] } ]
