@@ -11,11 +11,11 @@ class ShippingZonePostalRule < ApplicationRecord
   }
 
   def self.zone_for(company:, country:, key:)
-    where(company_id: company.id).match_for(country: country, key: key).first&.zone
+    where(company: company).match_for(country: country, key: key).first&.zone
   end
 
   def self.country_zoned?(company:, country:)
-    where(company_id: company.id, country_code: country).exists?
+    where(company: company, country_code: country).exists?
   end
 
   private
