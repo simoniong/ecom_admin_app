@@ -27,7 +27,10 @@ class ShippingCostCalculator
     )
     return nil unless version
 
-    rate = version.rates.for_weight(weight_kg).first
+    zone = resolve_zone(country)
+    return nil if zone == :unmatched
+
+    rate = version.rates.where(zone: (zone == :flat ? nil : zone)).for_weight(weight_kg).first
     return nil unless rate
 
     cost_cny = (weight_kg * rate.per_kg_rate_cny) + rate.flat_fee_cny
@@ -35,6 +38,18 @@ class ShippingCostCalculator
   end
 
   private
+
+  def resolve_zone(country)
+    return :flat unless ShippingZonePostalRule.country_zoned?(company: @store.company, country: country)
+    key = PostalNormalizer.normalize(country, postal_from_order)
+    return :unmatched unless key
+    ShippingZonePostalRule.zone_for(company: @store.company, country: country, key: key) || :unmatched
+  end
+
+  def postal_from_order
+    @order.shopify_data&.dig("shipping_address", "zip") ||
+      @order.shopify_data&.dig("billing_address", "zip")
+  end
 
   def country_code_from_order
     @order.shopify_data&.dig("shipping_address", "country_code") ||
