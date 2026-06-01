@@ -160,6 +160,46 @@ RSpec.describe DashboardMetricsService do
     end
   end
 
+  describe "shipping cost aggregation" do
+    let(:user) { create(:user) }
+    let(:company) { user.companies.first }
+    let(:store) { create(:shopify_store, user: user, company: company, timezone: "UTC") }
+    let(:customer) { create(:customer, shopify_store: store) }
+
+    def order_on(day, estimated: nil, actual: nil)
+      create(:order, customer: customer, shopify_store: store,
+             ordered_at: store.active_timezone.local(2026, 4, day, 12),
+             estimated_shipping_cost: estimated, actual_shipping_cost: actual, total_price: 100)
+    end
+
+    # Public interface: returns the {current:, previous:} hash; read :current.
+    subject(:metrics) do
+      described_class.new(company, start_date: "2026-04-01", end_date: "2026-04-30").call.fetch(:current)
+    end
+
+    it "sums COALESCE(actual, estimated, 0) into :shipping_cost" do
+      order_on(5, estimated: 10, actual: nil)
+      order_on(6, estimated: 10, actual: 7)   # actual wins → 7
+      order_on(7, estimated: nil, actual: nil) # 0
+      expect(metrics[:shipping_cost]).to eq(17)
+    end
+
+    it "reports coverage breakdown" do
+      order_on(5, estimated: 10, actual: nil)  # estimated-only
+      order_on(6, estimated: 10, actual: 7)    # actual
+      order_on(7, estimated: nil, actual: nil) # missing
+      expect(metrics[:shipping_coverage_actual_pct]).to eq(33.3)
+      expect(metrics[:shipping_coverage_estimated_pct]).to eq(33.3)
+      expect(metrics[:shipping_coverage_pct]).to eq(66.7)
+    end
+
+    it "subtracts shipping from net_profit" do
+      order_on(5, estimated: 10, actual: nil)
+      # No daily metrics → revenue/cogs/ad_spend are 0, so net_profit = -shipping.
+      expect(metrics[:net_profit]).to eq(metrics[:gross_profit] - metrics[:shipping_cost] - metrics[:ad_spend])
+    end
+  end
+
   describe "all range keys" do
     %w[today yesterday past_7_days this_month last_month past_30_days].each do |key|
       it "handles #{key} range" do

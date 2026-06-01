@@ -13,7 +13,9 @@ class AdminController < ApplicationController
     "email_workflows" => "shopify_stores",
     "email_workflow_steps" => "shopify_stores",
     "products" => "shopify_stores",
-    "product_variants" => "shopify_stores"
+    "product_variants" => "shopify_stores",
+    "shipping_rate_card_versions" => "shopify_stores",
+    "shipping_rate_card_rates"    => "shopify_stores"
   }.freeze
 
   private

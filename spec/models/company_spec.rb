@@ -234,4 +234,12 @@ RSpec.describe Company, type: :model do
       expect(company.reload.tracking_api_key).to eq(secret)
     end
   end
+
+  describe "shipping_rate_card_versions association" do
+    it "destroys its shipping rate card versions when destroyed" do
+      company = create(:company)
+      create(:shipping_rate_card_version, company: company)
+      expect { company.destroy }.to change(ShippingRateCardVersion, :count).by(-1)
+    end
+  end
 end
