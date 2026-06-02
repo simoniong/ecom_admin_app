@@ -20,8 +20,9 @@ class ProductVariantsController < AdminController
     return redirect_to(products_path, alert: t("product_variants.bulk_no_selection")) if ids.empty?
 
     updates = {}
-    updates[:unit_cost]    = params[:unit_cost]    if params[:unit_cost].to_s.strip.present?
-    updates[:weight_grams] = params[:weight_grams] if params[:weight_grams].to_s.strip.present?
+    updates[:unit_cost]      = params[:unit_cost]      if params[:unit_cost].to_s.strip.present?
+    updates[:weight_grams]   = params[:weight_grams]   if params[:weight_grams].to_s.strip.present?
+    updates[:packaging_cost] = params[:packaging_cost] if params[:packaging_cost].to_s.strip.present?
     return redirect_to(products_path, alert: t("product_variants.bulk_no_fields")) if updates.empty?
 
     scope = scoped_variants.where(id: ids)
@@ -66,6 +67,6 @@ class ProductVariantsController < AdminController
   end
 
   def variant_params
-    params.require(:product_variant).permit(:unit_cost, :weight_grams)
+    params.require(:product_variant).permit(:unit_cost, :weight_grams, :packaging_cost)
   end
 end
