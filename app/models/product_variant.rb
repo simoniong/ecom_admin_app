@@ -6,4 +6,5 @@ class ProductVariant < ApplicationRecord
   validates :shopify_variant_id, presence: true
   validates :unit_cost,    numericality: { greater_than_or_equal_to: 0, allow_nil: true }
   validates :weight_grams, numericality: { greater_than: 0,            allow_nil: true }
+  validates :packaging_cost, numericality: { greater_than_or_equal_to: 0 }
 end
