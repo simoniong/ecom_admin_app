@@ -30,10 +30,9 @@ class ShippingCostCalculator
     zone = resolve_zone(country)   # nil = unzoned country, String = matched zone, :unmatched = give up
     return nil if zone == :unmatched
 
-    rate = version.rates.where(zone: zone).for_weight(weight_kg).first
-    return nil unless rate
+    cost_cny = cost_cny_for(version.rates.where(zone: zone), weight_kg)
+    return nil unless cost_cny
 
-    cost_cny = (weight_kg * rate.per_kg_rate_cny) + rate.flat_fee_cny
     (cost_cny / @store.cost_fx_rate).round(2)
   end
 
@@ -72,5 +71,46 @@ class ShippingCostCalculator
     # than silently treating it as 0 (which would underestimate the cost).
     return nil unless items.all? { |li| li.product_variant&.weight_grams&.positive? }
     items.sum { |li| li.product_variant.weight_grams * li.quantity } / 1000.0
+  end
+
+  # Cost in CNY for a weight against a set of bands. If the weight exceeds the
+  # heaviest band, simulate a greedy split into parcels at the max band weight,
+  # charging each parcel its own per-kg charge + handling fee. Returns nil if any
+  # parcel's weight matches no band.
+  def cost_cny_for(scope, weight_kg)
+    weight = BigDecimal(weight_kg.to_s)   # exact decimal; keeps the money math in BigDecimal
+
+    # Common case: a single band covers the weight — one indexed query, no over-fetch.
+    rate = scope.for_weight(weight).first
+    return parcel_cost(rate, weight) if rate
+
+    # Over-max: load the bands once and simulate a greedy parcel split.
+    bands = scope.to_a
+    max = bands.map(&:weight_max_kg).max
+    return nil unless max && weight > max
+
+    full_band = band_for(bands, max)
+    return nil unless full_band
+
+    # O(1) greedy split: N full parcels at `max` + one remainder parcel.
+    full_count = (weight / max).floor
+    remainder  = weight - (full_count * max)
+
+    cost = parcel_cost(full_band, max) * full_count
+    if remainder.positive?
+      rem_band = band_for(bands, remainder)
+      return nil unless rem_band
+
+      cost += parcel_cost(rem_band, remainder)
+    end
+    cost
+  end
+
+  def band_for(bands, weight_kg)
+    bands.find { |b| b.weight_min_kg < weight_kg && b.weight_max_kg >= weight_kg }
+  end
+
+  def parcel_cost(band, weight_kg)
+    (weight_kg * band.per_kg_rate_cny) + band.flat_fee_cny
   end
 end
