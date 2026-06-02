@@ -137,9 +137,10 @@ class SyncAllOrdersService
       )
 
       if line_item.unit_cost_snapshot.nil? && variant&.unit_cost.present? && @store.cost_fx_rate&.positive?
-        # variant.unit_cost is in CNY; divide by CNY-per-store-currency rate.
+        # unit_cost + packaging_cost are in CNY; divide by CNY-per-store-currency rate.
         # Snapshot is always in store currency (matches shop_money above).
-        line_item.unit_cost_snapshot = variant.unit_cost / @store.cost_fx_rate
+        line_item.unit_cost_snapshot =
+          (variant.unit_cost + variant.packaging_cost) / @store.cost_fx_rate
       end
 
       line_item.save!
