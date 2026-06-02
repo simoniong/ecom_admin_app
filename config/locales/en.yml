@@ -340,12 +340,13 @@ en:
       sku: "SKU"
       price: "Price"
       unit_cost: "Our COGS"
+      packaging_cost: "Packaging Cost"
       weight: "Weight (g)"
   product_variants:
     updated: "Updated"
     cell_edit_aria: "Click or press Enter to edit"
     bulk_no_selection: "Select at least one variant"
-    bulk_no_fields: "Enter at least a COGS or weight value"
+    bulk_no_fields: "Enter at least a COGS, packaging, or weight value"
     bulk_updated: "Bulk updated %{count} SKUs"
     bulk:
       selected: "selected"
