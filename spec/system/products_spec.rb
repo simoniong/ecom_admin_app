@@ -26,4 +26,11 @@ RSpec.describe "Products UI", type: :system do
     visit products_path(store_id: store.id, per_page: 25)
     expect(page).to have_select("per_page", selected: "25")
   end
+
+  it "renders the packaging cost column with a default of 0.00" do
+    variant.update!(packaging_cost: 0)
+    visit products_path(store_id: store.id)
+    expect(page).to have_text(/packaging cost/i)
+    expect(page).to have_content("0.00")
+  end
 end

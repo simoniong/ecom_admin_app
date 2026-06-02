@@ -54,6 +54,26 @@ RSpec.describe ProductVariant, type: :model do
       v = build(:product_variant, weight_grams: nil)
       expect(v).to be_valid
     end
+
+    it "defaults packaging_cost to 0" do
+      v = create(:product_variant)
+      expect(v.packaging_cost).to eq(0)
+    end
+
+    it "accepts packaging_cost = 0" do
+      v = build(:product_variant, packaging_cost: 0)
+      expect(v).to be_valid
+    end
+
+    it "accepts a positive packaging_cost" do
+      v = build(:product_variant, packaging_cost: 3.50)
+      expect(v).to be_valid
+    end
+
+    it "rejects negative packaging_cost" do
+      v = build(:product_variant, packaging_cost: -0.01)
+      expect(v).not_to be_valid
+    end
   end
 
   describe "uniqueness of shopify_variant_id within a product" do
