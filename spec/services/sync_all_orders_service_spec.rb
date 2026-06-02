@@ -415,6 +415,14 @@ RSpec.describe SyncAllOrdersService do
       expect(li.unit_cost_snapshot).to eq(13.75)
     end
 
+    it "snapshots packaging_cost alone when unit_cost is zero" do
+      variant_a.update!(unit_cost: 0, packaging_cost: 9.00)
+      service.call
+      li = OrderLineItem.find_by(shopify_line_item_id: 6001)
+      # (0 + 9) CNY / 7.2 = 1.25 USD
+      expect(li.unit_cost_snapshot).to eq(1.25)
+    end
+
     it "leaves snapshot nil when unit_cost is nil even if packaging_cost is set" do
       variant_a.update!(unit_cost: nil, packaging_cost: 5.00)
       service.call

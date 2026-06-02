@@ -42,6 +42,14 @@ RSpec.describe BackfillOrderLineItemsService do
     expect(li.unit_cost_snapshot).to eq(11.00)
   end
 
+  it "snapshots packaging_cost alone when unit_cost is zero" do
+    variant.update!(unit_cost: 0, packaging_cost: 7.20)
+    described_class.new(store).call
+    li = order.order_line_items.find_by(shopify_line_item_id: 6001)
+    # (0 + 7.2) CNY / 7.2 = 1.00 USD
+    expect(li.unit_cost_snapshot).to eq(1.00)
+  end
+
   it "leaves snapshot nil when unit_cost is nil even if packaging_cost is set" do
     variant.update!(unit_cost: nil, packaging_cost: 5.00)
     described_class.new(store).call
