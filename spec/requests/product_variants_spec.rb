@@ -19,6 +19,11 @@ RSpec.describe "ProductVariants", type: :request do
       expect(variant.reload.weight_grams).to eq(250.5)
     end
 
+    it "updates packaging_cost" do
+      patch product_variant_path(id: variant.id), params: { product_variant: { packaging_cost: "2.75" } }
+      expect(variant.reload.packaging_cost).to eq(2.75)
+    end
+
     it "rejects negative unit_cost" do
       patch product_variant_path(id: variant.id), params: { product_variant: { unit_cost: "-1" } }
       expect(variant.reload.unit_cost).to be_nil
@@ -68,6 +73,19 @@ RSpec.describe "ProductVariants", type: :request do
            params: { variant_ids: [ variant.id ], weight_grams: "300" }
       expect(variant.reload.weight_grams).to eq(300)
       expect(variant.unit_cost).to be_nil
+    end
+
+    it "updates packaging_cost across selected variants" do
+      post bulk_update_product_variants_path,
+           params: { variant_ids: [ variant.id, variant2.id ], packaging_cost: "1.20" }
+      expect(variant.reload.packaging_cost).to eq(1.20)
+      expect(variant2.reload.packaging_cost).to eq(1.20)
+    end
+
+    it "treats packaging_cost alone as a provided field (not bulk_no_fields)" do
+      post bulk_update_product_variants_path,
+           params: { variant_ids: [ variant.id ], packaging_cost: "0.50" }
+      expect(variant.reload.packaging_cost).to eq(0.50)
     end
 
     it "alerts when no ids selected" do

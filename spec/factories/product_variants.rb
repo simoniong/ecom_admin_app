@@ -8,6 +8,7 @@ FactoryBot.define do
     currency { "USD" }
     unit_cost { nil }
     weight_grams { nil }
+    packaging_cost { 0 }
     shopify_data { {} }
   end
 end

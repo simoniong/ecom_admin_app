@@ -340,12 +340,13 @@
       sku: "SKU"
       price: "售价"
       unit_cost: "我们的 COGS"
+      packaging_cost: "包材成本"
       weight: "重量 (g)"
   product_variants:
     updated: "已更新"
     cell_edit_aria: "点击或按 Enter 编辑"
     bulk_no_selection: "请至少选择一个 variant"
-    bulk_no_fields: "请至少填入 COGS 或重量"
+    bulk_no_fields: "请至少填入 COGS、包材成本或重量"
     bulk_updated: "已批量更新 %{count} 个 SKU"
     bulk:
       selected: "已选"
