@@ -855,6 +855,7 @@ en:
       without_updates: "Without updates for over X days"
       ready_for_pickup: "Ready for Pickup for over X days"
       tracking_stopped: "Tracking stopped"
+      customs_stuck: "Stuck in customs for over X days"
     email:
       subject: "Shipping Tracking Alert - %{company}"
       title: "Shipping Tracking Alert — %{company}"
@@ -869,6 +870,7 @@ en:
       rule_without_updates: "Without updates for over %{days} days"
       rule_ready_for_pickup: "Ready for Pickup for over %{days} days"
       rule_tracking_stopped: "Tracking stopped"
+      rule_customs_stuck: "Stuck in customs for over %{days} days"
       item_count:
         one: "%{count} item"
         other: "%{count} items"
@@ -879,6 +881,7 @@ en:
       without_updates: "have not been updated for over"
       ready_for_pickup: "have been waiting for pickup for over"
       tracking_stopped: "have stopped"
+      customs_stuck: "have been stuck in customs for over"
   email_workflows:
     title: "Email Workflows"
     description: "Automated email follow-ups triggered by order status changes."

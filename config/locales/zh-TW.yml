@@ -853,6 +853,7 @@
       without_updates: "超過 X 天無更新"
       ready_for_pickup: "待取件超過 X 天"
       tracking_stopped: "物流軌跡停止"
+      customs_stuck: "清關卡住超過 X 天"
     email:
       subject: "物流追蹤提醒 - %{company}"
       title: "物流追蹤提醒 — %{company}"
@@ -867,6 +868,7 @@
       rule_without_updates: "超過 %{days} 天無更新"
       rule_ready_for_pickup: "待取件超過 %{days} 天"
       rule_tracking_stopped: "物流軌跡停止"
+      rule_customs_stuck: "清關卡住超過 %{days} 天"
       item_count:
         one: "%{count} 條"
         other: "%{count} 條"
@@ -877,6 +879,7 @@
       without_updates: "的包裹超過"
       ready_for_pickup: "的包裹等待取件超過"
       tracking_stopped: "的包裹物流軌跡已停止"
+      customs_stuck: "的包裹清關卡住超過"
   email_workflows:
     title: "Email 工作流"
     description: "根據訂單狀態變化自動觸發的 Email 跟進流程。"
