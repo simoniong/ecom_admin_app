@@ -521,6 +521,8 @@
       max: "最大"
       tag: "标签"
       store: "店铺"
+      customs: "清关"
+      customs_stuck: "卡在清关"
     sort:
       input_time: "录入时间"
       order_time: "下单时间"
@@ -855,6 +857,7 @@
       without_updates: "超过 X 天无更新"
       ready_for_pickup: "待取件超过 X 天"
       tracking_stopped: "物流轨迹停止"
+      customs_stuck: "清关卡住超过 X 天"
     email:
       subject: "物流追踪提醒 - %{company}"
       title: "物流追踪提醒 — %{company}"
@@ -869,6 +872,7 @@
       rule_without_updates: "超过 %{days} 天无更新"
       rule_ready_for_pickup: "待取件超过 %{days} 天"
       rule_tracking_stopped: "物流轨迹停止"
+      rule_customs_stuck: "清关卡住超过 %{days} 天"
       item_count:
         one: "%{count} 条"
         other: "%{count} 条"
@@ -879,6 +883,7 @@
       without_updates: "的包裹超过"
       ready_for_pickup: "的包裹等待取件超过"
       tracking_stopped: "的包裹物流轨迹已停止"
+      customs_stuck: "的包裹清关卡住超过"
   email_workflows:
     title: "Email 工作流"
     description: "根据订单状态变化自动触发的 Email 跟进流程。"
