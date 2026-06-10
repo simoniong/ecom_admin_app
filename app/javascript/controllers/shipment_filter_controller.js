@@ -60,7 +60,11 @@ export default class extends Controller {
     }
     const input = this.filterFormTarget.querySelector(`[name="${filterName}"]`)
     if (input) {
-      input.value = ""
+      if (input.type === "checkbox") {
+        input.checked = false
+      } else {
+        input.value = ""
+      }
     }
     this.filterFormTarget.requestSubmit()
   }
@@ -73,7 +77,7 @@ export default class extends Controller {
   clearAllFilters() {
     this.filterFormTarget.querySelectorAll("select").forEach(s => s.value = "")
     this.filterFormTarget.querySelectorAll("input[type='text'], input[type='date'], input[type='number']").forEach(i => i.value = "")
-    this.filterFormTarget.querySelectorAll("input[type='checkbox'][name='tags[]']").forEach(cb => cb.checked = false)
+    this.filterFormTarget.querySelectorAll("input[type='checkbox'][name='tags[]'], input[type='checkbox'][name='customs_stuck']").forEach(cb => cb.checked = false)
     this.statusTabTarget.value = "All"
     this.filterFormTarget.requestSubmit()
   }

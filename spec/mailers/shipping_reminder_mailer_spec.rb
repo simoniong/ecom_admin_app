@@ -82,7 +82,8 @@ RSpec.describe ShippingReminderMailer, type: :mailer do
       expect(mail.body.encoded).to include("Stuck in customs for over 7 days")
     end
 
-    it "links to the shipments page filtered by stale last event" do
+    it "links to the shipments page filtered by the customs-stuck condition" do
+      expect(mail.body.encoded).to include("customs_stuck=1")
       expect(mail.body.encoded).to include("event_to=")
     end
 

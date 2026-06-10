@@ -519,6 +519,8 @@
       max: "最大"
       tag: "標籤"
       store: "店鋪"
+      customs: "清關"
+      customs_stuck: "卡在清關"
     sort:
       input_time: "錄入時間"
       order_time: "下單時間"

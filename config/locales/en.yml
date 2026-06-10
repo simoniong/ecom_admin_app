@@ -521,6 +521,8 @@ en:
       max: "Max"
       tag: "Tag"
       store: "Store"
+      customs: "Customs"
+      customs_stuck: "Stuck in customs"
     sort:
       input_time: "Input time"
       order_time: "Order time"

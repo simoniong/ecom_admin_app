@@ -26,15 +26,6 @@ class ShippingReminderRule < ApplicationRecord
     "customs_stuck" => "have been stuck in customs for over"
   }.freeze
 
-  # 17Track does not normalize customs status into tracking_sub_status (it stays
-  # InTransit_Other), so customs clearance is only detectable from the latest
-  # event description text. Patterns are matched case-insensitively (ILIKE).
-  # Add new carrier/country phrasings here as they surface.
-  CUSTOMS_CLEARANCE_PATTERNS = [
-    "%customs clearance completed%",
-    "%customs clearance in progress%"
-  ].freeze
-
   validates :rule_type, presence: true, inclusion: { in: RULE_TYPES }
   validates :rule_type, uniqueness: { scope: :company_id }
   validate :validate_country_thresholds
@@ -115,7 +106,7 @@ class ShippingReminderRule < ApplicationRecord
           .where.not(last_event_at: nil)
     when "customs_stuck"
       base.non_terminal
-          .where(*customs_clearance_condition)
+          .in_customs_clearance
           .where(last_event_at: ...cutoff)
           .where.not(last_event_at: nil)
     when "tracking_stopped"
@@ -123,10 +114,5 @@ class ShippingReminderRule < ApplicationRecord
     else
       Fulfillment.none
     end.to_a
-  end
-
-  def customs_clearance_condition
-    sql = CUSTOMS_CLEARANCE_PATTERNS.map { "latest_event_description ILIKE ?" }.join(" OR ")
-    [ sql, *CUSTOMS_CLEARANCE_PATTERNS ]
   end
 end
