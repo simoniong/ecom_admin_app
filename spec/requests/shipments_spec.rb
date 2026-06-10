@@ -74,12 +74,14 @@ RSpec.describe "Shipments", type: :request do
 
     it "filters by status tab" do
       order = create(:order, customer: customer, shopify_store: store)
-      create(:fulfillment, order: order, tracking_number: "T1", tracking_status: "InTransit")
-      create(:fulfillment, order: order, tracking_number: "T2", tracking_status: "Delivered")
+      # Use distinctive tracking numbers: a short "not_to include" needle like
+      # "T2" randomly collides with the CSRF authenticity_token in the page.
+      create(:fulfillment, order: order, tracking_number: "TABFILTER_INTRANSIT", tracking_status: "InTransit")
+      create(:fulfillment, order: order, tracking_number: "TABFILTER_DELIVERED", tracking_status: "Delivered")
 
       get shipments_path, params: { status_tab: "InTransit" }
-      expect(response.body).to include("T1")
-      expect(response.body).not_to include("T2")
+      expect(response.body).to include("TABFILTER_INTRANSIT")
+      expect(response.body).not_to include("TABFILTER_DELIVERED")
     end
 
     it "filters by search query on tracking number" do
@@ -203,6 +205,21 @@ RSpec.describe "Shipments", type: :request do
       get shipments_path, params: { sub_status: "InTransit_Collected" }
       expect(response.body).to include("SUBSTATUS_COLLECTED")
       expect(response.body).not_to include("SUBSTATUS_CUSTOMS")
+    end
+
+    it "filters by customs_stuck" do
+      order = create(:order, customer: customer, shopify_store: store)
+      create(:fulfillment, order: order, tracking_number: "CUSTOMS_DONE", tracking_status: "InTransit",
+             latest_event_description: "Customs clearance completed, in transit")
+      create(:fulfillment, order: order, tracking_number: "CUSTOMS_WIP", tracking_status: "InTransit",
+             latest_event_description: "Customs clearance in progress")
+      create(:fulfillment, order: order, tracking_number: "NOT_CUSTOMS", tracking_status: "InTransit",
+             latest_event_description: "Arrived at sorting facility")
+
+      get shipments_path, params: { customs_stuck: "1" }
+      expect(response.body).to include("CUSTOMS_DONE")
+      expect(response.body).to include("CUSTOMS_WIP")
+      expect(response.body).not_to include("NOT_CUSTOMS")
     end
 
     it "filters by status dropdown" do

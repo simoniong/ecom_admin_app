@@ -351,6 +351,17 @@
           </div>
         </div>
 
+        <%# Stuck in customs %>
+        <div>
+          <label class="block text-xs font-medium text-gray-500 mb-1"><%= t("shipments.filters.customs") %></label>
+          <label class="inline-flex items-center gap-2 px-3 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-700 cursor-pointer hover:bg-gray-50">
+            <input type="checkbox" name="customs_stuck" value="1" <%= "checked" if @customs_stuck %>
+                   data-action="change->shipment-filter#filterChanged"
+                   class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+            <%= t("shipments.filters.customs_stuck") %>
+          </label>
+        </div>
+
         <% if @stores.count > 1 %>
           <div>
             <label class="block text-xs font-medium text-gray-500 mb-1"><%= t("shipments.filters.store") %></label>
@@ -386,6 +397,7 @@
     <% active_filters << ["transit_min", "Transit ≥ #{@transit_min}d"] if @transit_min %>
     <% active_filters << ["transit_max", "Transit ≤ #{@transit_max}d"] if @transit_max %>
     <% active_filters << ["bulk_tracking", t("shipments.bulk_search.active_filter", count: @bulk_tracking_numbers.size)] if @bulk_tracking_numbers.any? %>
+    <% active_filters << ["customs_stuck", t("shipments.filters.customs_stuck")] if @customs_stuck %>
     <% if active_filters.any? %>
       <div class="flex flex-wrap items-center gap-2">
         <% active_filters.each do |filter_name, label| %>

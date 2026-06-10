@@ -5,6 +5,15 @@ class Fulfillment < ApplicationRecord
 
   TRACKING_STATUSES = %w[NotFound InfoReceived InTransit AvailableForPickup OutForDelivery DeliveryFailure Delivered Exception Expired].freeze
 
+  # 17Track does not normalize customs status into tracking_sub_status (it stays
+  # InTransit_Other), so customs clearance is only detectable from the latest
+  # event description text. Matched case-insensitively (ILIKE). Add new
+  # carrier/country phrasings here as they surface.
+  CUSTOMS_CLEARANCE_PATTERNS = [
+    "%customs clearance completed%",
+    "%customs clearance in progress%"
+  ].freeze
+
   # Display names for UI (camelCase → human readable)
   STATUS_DISPLAY_NAMES = {
     "NotFound" => "Not Found",
@@ -46,6 +55,10 @@ class Fulfillment < ApplicationRecord
   scope :active, -> { where(archived_at: nil) }
   scope :archived, -> { where.not(archived_at: nil) }
   scope :non_terminal, -> { where(tracking_status: [ nil, "" ]).or(where.not(tracking_status: %w[Delivered Expired])) }
+  scope :in_customs_clearance, -> {
+    sql = CUSTOMS_CLEARANCE_PATTERNS.map { "latest_event_description ILIKE ?" }.join(" OR ")
+    where(sql, *CUSTOMS_CLEARANCE_PATTERNS)
+  }
   scope :by_tracking_status, ->(status) { where(tracking_status: status) }
   scope :by_destination, ->(country) { where(destination_country: country) }
   scope :by_origin_carrier, ->(carrier) { where(origin_carrier: carrier) }

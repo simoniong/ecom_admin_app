@@ -174,6 +174,56 @@ RSpec.describe ShippingReminderRule, type: :model do
       end
     end
 
+    context "customs_stuck rule" do
+      let(:rule) do
+        create(:shipping_reminder_rule, company: company, rule_type: "customs_stuck",
+               country_thresholds: [ { "country" => "US", "days" => 7 } ])
+      end
+
+      it "matches shipments stuck after/in customs clearance over X days" do
+        completed = create(:fulfillment, order: order, tracking_number: "T1",
+                           destination_country: "US", last_event_at: 10.days.ago,
+                           tracking_status: "InTransit",
+                           latest_event_description: "Customs clearance completed, in transit")
+        in_progress = create(:fulfillment, order: order, tracking_number: "T2",
+                             destination_country: "US", last_event_at: 10.days.ago,
+                             tracking_status: "InTransit",
+                             latest_event_description: "Customs clearance in progress")
+        # Recent — should not match
+        create(:fulfillment, order: order, tracking_number: "T3",
+               destination_country: "US", last_event_at: 2.days.ago,
+               tracking_status: "InTransit",
+               latest_event_description: "Customs clearance completed, in transit")
+        # Non-customs latest event — should not match
+        create(:fulfillment, order: order, tracking_number: "T4",
+               destination_country: "US", last_event_at: 10.days.ago,
+               tracking_status: "InTransit",
+               latest_event_description: "Arrived at sorting facility")
+        # Terminal status — should not match
+        create(:fulfillment, order: order, tracking_number: "T5",
+               destination_country: "US", last_event_at: 10.days.ago,
+               tracking_status: "Delivered",
+               latest_event_description: "Customs clearance completed, in transit")
+        # Wrong country — should not match
+        create(:fulfillment, order: order, tracking_number: "T6",
+               destination_country: "CA", last_event_at: 10.days.ago,
+               tracking_status: "InTransit",
+               latest_event_description: "Customs clearance completed, in transit")
+
+        results = rule.matching_fulfillments([ store.id ])
+        expect(results).to contain_exactly(completed, in_progress)
+      end
+
+      it "matches case-insensitively" do
+        match = create(:fulfillment, order: order, tracking_number: "T1",
+                       destination_country: "US", last_event_at: 10.days.ago,
+                       tracking_status: "InTransit",
+                       latest_event_description: "CUSTOMS CLEARANCE COMPLETED")
+
+        expect(rule.matching_fulfillments([ store.id ])).to eq([ match ])
+      end
+    end
+
     context "excludes archived fulfillments" do
       it "skips archived fulfillments for not_delivered rule" do
         rule = create(:shipping_reminder_rule, company: company, rule_type: "not_delivered",
@@ -210,6 +260,18 @@ RSpec.describe ShippingReminderRule, type: :model do
                       country_thresholds: [ { "country" => "US" } ])
         create(:fulfillment, order: order, tracking_number: "A1",
                destination_country: "US", tracking_status: "Exception",
+               archived_at: Time.current)
+
+        expect(rule.matching_fulfillments([ store.id ])).to be_empty
+      end
+
+      it "skips archived fulfillments for customs_stuck rule" do
+        rule = create(:shipping_reminder_rule, company: company, rule_type: "customs_stuck",
+                      country_thresholds: [ { "country" => "US", "days" => 7 } ])
+        create(:fulfillment, order: order, tracking_number: "A1",
+               destination_country: "US", last_event_at: 10.days.ago,
+               tracking_status: "InTransit",
+               latest_event_description: "Customs clearance completed, in transit",
                archived_at: Time.current)
 
         expect(rule.matching_fulfillments([ store.id ])).to be_empty

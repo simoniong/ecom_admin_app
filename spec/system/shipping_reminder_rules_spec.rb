@@ -22,6 +22,7 @@ RSpec.describe "Shipping Reminder Rules", type: :system do
     expect(page).to have_text("Without updates for over X days")
     expect(page).to have_text("Ready for Pickup for over X days")
     expect(page).to have_text("Tracking stopped")
+    expect(page).to have_text("Stuck in customs for over X days")
   end
 
   it "expands an accordion and adds a country/days item" do

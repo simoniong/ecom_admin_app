@@ -257,6 +257,7 @@ class ShipmentsController < AdminController
     @shipped_to = params[:shipped_to].presence
     @transit_min = params[:transit_min].presence
     @transit_max = params[:transit_max].presence
+    @customs_stuck = params[:customs_stuck].in?(%w[1 true on])
     @tag_filters = Array(params[:tags]).reject(&:blank?)
     @bulk_tracking = params[:bulk_tracking].to_s.strip.presence
     @bulk_tracking_numbers = @bulk_tracking&.split(/\r?\n/)&.map(&:strip)&.reject(&:blank?)&.uniq&.first(BULK_TRACKING_MAX) || []
@@ -289,6 +290,7 @@ class ShipmentsController < AdminController
       @filtered_scope = @filtered_scope.where(transit_days: ..val)
     end
 
+    @filtered_scope = @filtered_scope.in_customs_clearance if @customs_stuck
     if @store_filter
       @filtered_scope = @filtered_scope.joins(:order).where(orders: { shopify_store_id: @store_filter })
     end

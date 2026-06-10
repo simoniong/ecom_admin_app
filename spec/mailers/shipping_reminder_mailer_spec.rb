@@ -58,6 +58,40 @@ RSpec.describe ShippingReminderMailer, type: :mailer do
     end
   end
 
+  describe "#digest for customs_stuck rule" do
+    let!(:customs_rule) do
+      create(:shipping_reminder_rule, company: company, rule_type: "customs_stuck",
+             country_thresholds: [ { "country" => "US", "days" => 7 } ])
+    end
+    let(:customs_fulfillment) do
+      create(:fulfillment, order: order, tracking_number: "CUST123",
+             destination_country: "US", last_event_at: 12.days.ago,
+             tracking_status: "InTransit",
+             latest_event_description: "Customs clearance completed, in transit")
+    end
+    let(:mail) do
+      described_class.digest(
+        company: company,
+        recipients: [ "admin@example.com" ],
+        alerts: { "customs_stuck" => [ customs_fulfillment ] },
+        locale: "en"
+      )
+    end
+
+    it "includes the customs heading with configured days" do
+      expect(mail.body.encoded).to include("Stuck in customs for over 7 days")
+    end
+
+    it "links to the shipments page filtered by the customs-stuck condition" do
+      expect(mail.body.encoded).to include("customs_stuck=1")
+      expect(mail.body.encoded).to include("event_to=")
+    end
+
+    it "shows days stuck based on last event" do
+      expect(mail.body.encoded).to include("Customs clearance completed")
+    end
+  end
+
   describe "#digest in Chinese" do
     let(:mail) do
       described_class.digest(

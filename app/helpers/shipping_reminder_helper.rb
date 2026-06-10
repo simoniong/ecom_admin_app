@@ -32,6 +32,10 @@ module ShippingReminderHelper
       params[:status] = "AvailableForPickup"
     when "tracking_stopped"
       params[:status] = "Exception"
+    when "customs_stuck"
+      params[:customs_stuck] = "1"
+      days = rule&.parsed_thresholds&.map { |t| t[:days].to_i }&.min
+      params[:event_to] = days.days.ago.to_date.iso8601 if days&.positive?
     end
 
     shipments_url(params)

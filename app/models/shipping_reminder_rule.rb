@@ -1,26 +1,29 @@
 class ShippingReminderRule < ApplicationRecord
   belongs_to :company
 
-  RULE_TYPES = %w[not_delivered without_updates ready_for_pickup tracking_stopped].freeze
+  RULE_TYPES = %w[not_delivered without_updates ready_for_pickup tracking_stopped customs_stuck].freeze
 
   RULE_DISPLAY_NAMES = {
     "not_delivered" => "Not delivered for over X days",
     "without_updates" => "Without updates for over X days",
     "ready_for_pickup" => "Ready for Pickup for over X days",
-    "tracking_stopped" => "Tracking stopped"
+    "tracking_stopped" => "Tracking stopped",
+    "customs_stuck" => "Stuck in customs for over X days"
   }.freeze
 
   DEFAULT_DAYS = {
     "not_delivered" => 14,
     "without_updates" => 3,
-    "ready_for_pickup" => 5
+    "ready_for_pickup" => 5,
+    "customs_stuck" => 7
   }.freeze
 
   RULE_DESCRIPTIONS = {
     "not_delivered" => "have not been delivered for over",
     "without_updates" => "have not been updated for over",
     "ready_for_pickup" => "have been waiting for pickup for over",
-    "tracking_stopped" => "have stopped"
+    "tracking_stopped" => "have stopped",
+    "customs_stuck" => "have been stuck in customs for over"
   }.freeze
 
   validates :rule_type, presence: true, inclusion: { in: RULE_TYPES }
@@ -99,6 +102,11 @@ class ShippingReminderRule < ApplicationRecord
           .where.not(last_event_at: nil)
     when "ready_for_pickup"
       base.where(tracking_status: "AvailableForPickup")
+          .where(last_event_at: ...cutoff)
+          .where.not(last_event_at: nil)
+    when "customs_stuck"
+      base.non_terminal
+          .in_customs_clearance
           .where(last_event_at: ...cutoff)
           .where.not(last_event_at: nil)
     when "tracking_stopped"
