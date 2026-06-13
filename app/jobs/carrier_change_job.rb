@@ -17,15 +17,17 @@ class CarrierChangeJob < ApplicationJob
 
     by_number.keys.each_slice(BATCH_SIZE) do |numbers|
       result = service.change_carrier(numbers, carrier_new: carrier_code)
+      changed = result[:accepted].dup
 
       if result[:rejected].any?
-        retry_numbers = result[:rejected].map { |r| r[:number] }
-        Rails.logger.warn("[CarrierChange] changecarrier rejected #{retry_numbers.inspect}; registering with carrier #{carrier_code}")
-        service.register(retry_numbers, carrier: carrier_code, auto_detection: false)
+        rejected_numbers = result[:rejected].map { |r| r[:number] }
+        Rails.logger.warn("[CarrierChange] changecarrier rejected #{rejected_numbers.inspect}; registering with carrier #{carrier_code}")
+        registered = service.register(rejected_numbers, carrier: carrier_code, auto_detection: false)
+        changed.concat(Array(registered).map { |entry| entry["number"] })
       end
 
-      ids = numbers.map { |n| by_number[n]&.id }.compact
-      Fulfillment.where(id: ids).update_all(carrier_code: carrier_code)
+      ids = changed.map { |n| by_number[n]&.id }.compact
+      Fulfillment.where(id: ids).update_all(carrier_code: carrier_code) if ids.any?
 
       service.track(numbers).each do |res|
         by_number[res[:tracking_number]]&.update_from_tracking_result(res)
@@ -36,7 +38,7 @@ class CarrierChangeJob < ApplicationJob
   private
 
   def scoped_fulfillments(company, ids)
-    store_ids = company.shopify_stores.pluck(:id)
+    store_ids = company.shopify_stores.select(:id)
     Fulfillment.with_tracking
                .where(id: ids)
                .joins(:order)

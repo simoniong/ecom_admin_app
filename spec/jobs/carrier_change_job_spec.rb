@@ -14,7 +14,7 @@ RSpec.describe CarrierChangeJob, type: :job do
   before do
     allow(TrackingService).to receive(:new).with(api_key: "A" * 32).and_return(service)
     allow(service).to receive(:change_carrier).and_return(accepted: [ "RR1" ], rejected: [])
-    allow(service).to receive(:register)
+    allow(service).to receive(:register).and_return([])
     allow(service).to receive(:track).and_return([
       { tracking_number: "RR1", status: "InTransit", sub_status: "InTransit_Other",
         origin_carrier: "China Post", destination_carrier: nil, origin_country: "CN",
@@ -45,6 +45,29 @@ RSpec.describe CarrierChangeJob, type: :job do
 
     described_class.perform_now(company.id, [ fulfillment.id ], 3011)
     expect(service).to have_received(:register).with([ "RR1" ], carrier: 3011, auto_detection: false)
+  end
+
+  it "persists carrier_code when the register fallback succeeds" do
+    allow(service).to receive(:change_carrier)
+      .and_return(accepted: [], rejected: [ { number: "RR1", code: -18019902 } ])
+    allow(service).to receive(:register).and_return([ { "number" => "RR1" } ])
+
+    described_class.perform_now(company.id, [ fulfillment.id ], 3011)
+    expect(fulfillment.reload.carrier_code).to eq(3011)
+  end
+
+  it "does not persist carrier_code when change and register both fail" do
+    allow(service).to receive(:change_carrier)
+      .and_return(accepted: [], rejected: [ { number: "RR1", code: -18019902 } ])
+    allow(service).to receive(:register).and_return([])
+
+    described_class.perform_now(company.id, [ fulfillment.id ], 3011)
+    expect(fulfillment.reload.carrier_code).to be_nil
+  end
+
+  it "does nothing when no scoped fulfillments match" do
+    expect(TrackingService).not_to receive(:new)
+    described_class.perform_now(company.id, [], 3011)
   end
 
   it "does nothing when tracking disabled" do
