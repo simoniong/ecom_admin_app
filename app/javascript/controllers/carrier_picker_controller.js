@@ -29,6 +29,10 @@ export default class extends Controller {
 
   filter() {
     if (!this.carriers) return
+    // Typing invalidates any committed selection: confirm re-enables only on a
+    // result click, so the submitted code always matches what the user picked.
+    this.codeTarget.value = ""
+    this.confirmTarget.disabled = true
     const q = this.searchTarget.value.trim().toLowerCase()
     if (!q) return this.render(this.carriers.slice(0, 50))
     const matches = this.carriers.filter(c =>
