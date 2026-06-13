@@ -5,8 +5,12 @@ namespace :tracking do
     response = HTTParty.get(url, headers: { "User-Agent" => "ecom_admin_app" })
     raise "Carrier fetch failed (#{response.code})" unless response.success?
 
-    entries = JSON.parse(response.body).map do |c|
-      { "code" => c["key"], "name" => c["_name"], "country" => c["_country_iso"] }
+    entries = begin
+      JSON.parse(response.body)
+    rescue JSON::ParserError
+      abort "17Track returned non-JSON response"
+    end.map do |c|
+      { "code" => c["key"], "name" => c["_name"]&.strip, "country" => c["_country_iso"]&.strip }
     end.select { |c| c["code"] && c["name"] }.sort_by { |c| c["name"].to_s }
 
     path = CarrierCatalog::DEFAULT_PATH

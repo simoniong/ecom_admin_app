@@ -39,4 +39,25 @@ RSpec.describe CarrierCatalog do
       expect(empty.valid?(21051)).to be(false)
     end
   end
+
+  describe "invalid JSON file" do
+    it "returns an empty list instead of raising" do
+      bad = described_class.new(path: Rails.root.join("spec/fixtures/files/bad_carriers.json"))
+      expect(bad.all).to eq([])
+    end
+  end
+
+  describe ".default" do
+    after { described_class.reset! }
+
+    it "returns the same instance across calls" do
+      expect(described_class.default).to be(described_class.default)
+    end
+
+    it "is cleared by .reset!" do
+      first = described_class.default
+      described_class.reset!
+      expect(described_class.default).not_to be(first)
+    end
+  end
 end
