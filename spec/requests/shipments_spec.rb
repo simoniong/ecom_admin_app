@@ -626,5 +626,16 @@ RSpec.describe "Shipments", type: :request do
 
       expect(flash[:alert]).to eq(I18n.t("shipments.carrier.none"))
     end
+
+    it "enqueues only the caller's own shipments, dropping foreign ids" do
+      order = create(:order, customer: customer, shopify_store: store)
+      mine = create(:fulfillment, order: order, tracking_number: "IDOR_MINE", tracking_status: "InTransit")
+      foreign_store = create(:shopify_store, company: create(:company))
+      foreign = create(:fulfillment, order: create(:order, shopify_store: foreign_store), tracking_number: "IDOR_FOREIGN")
+
+      expect {
+        post bulk_change_carrier_shipments_path, params: { ids: [ mine.id, foreign.id ], carrier_code: 21051 }
+      }.to have_enqueued_job(CarrierChangeJob).with(kind_of(String), [ mine.id ], 21051)
+    end
   end
 end

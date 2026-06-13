@@ -82,4 +82,27 @@ RSpec.describe CarrierChangeJob, type: :job do
     described_class.perform_now(company.id, [ fulfillment.id, other_f.id ], 3011)
     expect(service).to have_received(:change_carrier).with([ "RR1" ], carrier_new: 3011)
   end
+
+  it "applies the carrier change to every fulfillment sharing a tracking number" do
+    dup = create(:fulfillment, order: order, tracking_number: "RR1", tracking_status: "InTransit")
+
+    described_class.perform_now(company.id, [ fulfillment.id, dup.id ], 3011)
+
+    expect(fulfillment.reload.carrier_code).to eq(3011)
+    expect(dup.reload.carrier_code).to eq(3011)
+    expect(dup.reload.origin_carrier).to eq("China Post")
+  end
+
+  it "still persists accepted numbers when the register fallback raises" do
+    other = create(:fulfillment, order: order, tracking_number: "RR2", tracking_status: "InTransit")
+    allow(service).to receive(:change_carrier)
+      .and_return(accepted: [ "RR1" ], rejected: [ { number: "RR2", code: -18019902 } ])
+    allow(service).to receive(:register).and_raise(StandardError, "boom")
+    allow(service).to receive(:track).and_return([])
+
+    described_class.perform_now(company.id, [ fulfillment.id, other.id ], 3011)
+
+    expect(fulfillment.reload.carrier_code).to eq(3011)   # accepted persisted despite fallback raising
+    expect(other.reload.carrier_code).to be_nil           # rejected + failed register: not persisted
+  end
 end

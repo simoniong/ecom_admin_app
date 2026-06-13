@@ -13,24 +13,28 @@ class CarrierChangeJob < ApplicationJob
     return if fulfillments.empty?
 
     service = TrackingService.new(api_key: company.tracking_api_key)
-    by_number = fulfillments.index_by(&:tracking_number)
+    groups = fulfillments.group_by(&:tracking_number)
 
-    by_number.keys.each_slice(BATCH_SIZE) do |numbers|
+    groups.keys.each_slice(BATCH_SIZE) do |numbers|
       result = service.change_carrier(numbers, carrier_new: carrier_code)
-      changed = result[:accepted].dup
+      applied = result[:accepted].dup
 
       if result[:rejected].any?
         rejected_numbers = result[:rejected].map { |r| r[:number] }
         Rails.logger.warn("[CarrierChange] changecarrier rejected #{rejected_numbers.inspect}; registering with carrier #{carrier_code}")
-        registered = service.register(rejected_numbers, carrier: carrier_code, auto_detection: false)
-        changed.concat(Array(registered).map { |entry| entry["number"] })
+        begin
+          registered = service.register(rejected_numbers, carrier: carrier_code, auto_detection: false)
+          applied.concat(Array(registered).map { |entry| entry["number"] })
+        rescue StandardError => e
+          Rails.logger.warn("[CarrierChange] register fallback failed for #{rejected_numbers.inspect}: #{e.message}")
+        end
       end
 
-      ids = changed.map { |n| by_number[n]&.id }.compact
+      ids = applied.flat_map { |n| groups[n] || [] }.map(&:id)
       Fulfillment.where(id: ids).update_all(carrier_code: carrier_code) if ids.any?
 
       service.track(numbers).each do |res|
-        by_number[res[:tracking_number]]&.update_from_tracking_result(res)
+        Array(groups[res[:tracking_number]]).each { |f| f.update_from_tracking_result(res) }
       end
     end
   end
