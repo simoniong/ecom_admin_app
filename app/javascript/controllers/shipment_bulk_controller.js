@@ -101,6 +101,25 @@ export default class extends Controller {
     tagsController.open(event)
   }
 
+  openCarrierModal(event) {
+    const picker = this.application.getControllerForElementAndIdentifier(
+      document.querySelector("[data-controller='carrier-picker']"),
+      "carrier-picker"
+    )
+    if (!picker) return
+
+    picker.idsContainerTarget.innerHTML = ""
+    this.selectedData().forEach(d => {
+      const input = document.createElement("input")
+      input.type = "hidden"
+      input.name = "ids[]"
+      input.value = d.id
+      picker.idsContainerTarget.appendChild(input)
+    })
+
+    picker.open(event)
+  }
+
   exportExcel(event) {
     const url = event.currentTarget.dataset.url
     const form = document.createElement("form")
