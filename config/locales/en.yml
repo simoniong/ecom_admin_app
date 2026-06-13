@@ -652,6 +652,18 @@ en:
       apply: "Apply"
       added_notice: "Tags updated successfully."
       removed_notice: "Tags removed successfully."
+    carrier:
+      invalid: "Please select a valid carrier."
+      none: "No matching shipments to update."
+      queued:
+        one: "Queued carrier change for %{count} shipment."
+        other: "Queued carrier change for %{count} shipments."
+      button: "Change carrier"
+      modal_title: "Change carrier"
+      search_placeholder: "Search carriers…"
+      confirm: "Change carrier"
+      cancel: "Cancel"
+      no_results: "No carriers found"
   companies:
     title: "Company Settings"
     general_section: "General"

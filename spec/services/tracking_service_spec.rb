@@ -277,4 +277,51 @@ RSpec.describe TrackingService do
       expect { service.track([ "TRACK1" ]) }.to raise_error(RuntimeError, /17Track API error/)
     end
   end
+
+  describe "#change_carrier" do
+    let(:service) { described_class.new(api_key: "KEY") }
+
+    it "posts number + carrier_new and returns accepted/rejected" do
+      stub_request(:post, TrackingService::CHANGECARRIER_URL)
+        .with(body: [ { number: "RR1", carrier_new: 3011 } ].to_json)
+        .to_return(status: 200, body: {
+          data: { accepted: [ { number: "RR1" } ], rejected: [] }
+        }.to_json)
+
+      result = service.change_carrier([ "RR1" ], carrier_new: 3011)
+      expect(result).to eq(accepted: [ "RR1" ], rejected: [])
+    end
+
+    it "parses rejected entries with their error code" do
+      stub_request(:post, TrackingService::CHANGECARRIER_URL)
+        .to_return(status: 200, body: {
+          data: { accepted: [], rejected: [ { number: "BAD", error: { code: -18019902 } } ] }
+        }.to_json)
+
+      result = service.change_carrier([ "BAD" ], carrier_new: 3011)
+      expect(result[:rejected]).to eq([ { number: "BAD", code: -18019902 } ])
+    end
+
+    it "batches in groups of 40" do
+      numbers = (1..45).map { |i| "N#{i}" }
+      stub = stub_request(:post, TrackingService::CHANGECARRIER_URL)
+        .to_return(status: 200, body: { data: { accepted: [], rejected: [] } }.to_json)
+
+      service.change_carrier(numbers, carrier_new: 3011)
+      expect(stub).to have_been_requested.twice
+    end
+  end
+
+  describe "#register with a carrier" do
+    let(:service) { described_class.new(api_key: "KEY") }
+
+    it "includes carrier and auto_detection=false when carrier given" do
+      stub = stub_request(:post, TrackingService::REGISTER_URL)
+        .with(body: [ { number: "T1", carrier: 3011, auto_detection: false } ].to_json)
+        .to_return(status: 200, body: { data: { accepted: [ { number: "T1" } ] } }.to_json)
+
+      service.register([ "T1" ], carrier: 3011)
+      expect(stub).to have_been_requested
+    end
+  end
 end

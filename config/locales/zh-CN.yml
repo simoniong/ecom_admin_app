@@ -652,6 +652,18 @@
       apply: "应用"
       added_notice: "标签更新成功。"
       removed_notice: "标签删除成功。"
+    carrier:
+      invalid: "请选择有效的承运商。"
+      none: "没有可更新的货件。"
+      queued:
+        one: "已为 %{count} 个货件排入承运商变更。"
+        other: "已为 %{count} 个货件排入承运商变更。"
+      button: "更改承运商"
+      modal_title: "更改承运商"
+      search_placeholder: "搜索承运商…"
+      confirm: "更改承运商"
+      cancel: "取消"
+      no_results: "未找到承运商"
   companies:
     title: "公司设置"
     general_section: "基本信息"

@@ -584,4 +584,58 @@ RSpec.describe "Shipments", type: :request do
       expect(response).to redirect_to(shipments_path)
     end
   end
+
+  describe "carrier actions" do
+    before do
+      allow(CarrierCatalog).to receive(:default)
+        .and_return(CarrierCatalog.new(path: Rails.root.join("spec/fixtures/files/17track_carriers.json")))
+    end
+
+    it "returns the carrier catalog as JSON" do
+      get carriers_shipments_path
+      expect(response).to have_http_status(:ok)
+      expect(response.media_type).to eq("application/json")
+    end
+
+    it "enqueues CarrierChangeJob for scoped shipments" do
+      order = create(:order, customer: customer, shopify_store: store)
+      f = create(:fulfillment, order: order, tracking_number: "CARRIER_T1", tracking_status: "InTransit")
+
+      expect {
+        post bulk_change_carrier_shipments_path, params: { ids: [ f.id ], carrier_code: 21051 }
+      }.to have_enqueued_job(CarrierChangeJob).with(kind_of(String), [ f.id ], 21051)
+
+      expect(response).to redirect_to(shipments_path(archived: nil))
+    end
+
+    it "rejects an invalid carrier code without enqueuing" do
+      order = create(:order, customer: customer, shopify_store: store)
+      f = create(:fulfillment, order: order, tracking_number: "CARRIER_T2", tracking_status: "InTransit")
+
+      expect {
+        post bulk_change_carrier_shipments_path, params: { ids: [ f.id ], carrier_code: 99999999 }
+      }.not_to have_enqueued_job(CarrierChangeJob)
+
+      expect(flash[:alert]).to be_present
+    end
+
+    it "shows an alert and enqueues nothing when no tracking shipments match" do
+      expect {
+        post bulk_change_carrier_shipments_path, params: { ids: [ SecureRandom.uuid ], carrier_code: 21051 }
+      }.not_to have_enqueued_job(CarrierChangeJob)
+
+      expect(flash[:alert]).to eq(I18n.t("shipments.carrier.none"))
+    end
+
+    it "enqueues only the caller's own shipments, dropping foreign ids" do
+      order = create(:order, customer: customer, shopify_store: store)
+      mine = create(:fulfillment, order: order, tracking_number: "IDOR_MINE", tracking_status: "InTransit")
+      foreign_store = create(:shopify_store, company: create(:company))
+      foreign = create(:fulfillment, order: create(:order, shopify_store: foreign_store), tracking_number: "IDOR_FOREIGN")
+
+      expect {
+        post bulk_change_carrier_shipments_path, params: { ids: [ mine.id, foreign.id ], carrier_code: 21051 }
+      }.to have_enqueued_job(CarrierChangeJob).with(kind_of(String), [ mine.id ], 21051)
+    end
+  end
 end
