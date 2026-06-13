@@ -1,0 +1,34 @@
+<div data-controller="carrier-picker"
+     data-carrier-picker-url-value="<%= carriers_shipments_path(format: :json) %>"
+     data-carrier-picker-no-results-value="<%= t("shipments.carrier.no_results") %>">
+  <div data-carrier-picker-target="modal" class="hidden fixed inset-0 z-50 flex items-center justify-center" role="dialog" aria-modal="true">
+    <div class="fixed inset-0 bg-black/40" data-action="click->carrier-picker#close"></div>
+    <div class="relative bg-white rounded-xl shadow-2xl w-full max-w-lg mx-4 flex flex-col max-h-[80vh] overflow-y-auto">
+      <div class="flex items-center justify-between px-6 pt-5 pb-3">
+        <h2 class="text-lg font-semibold text-gray-900"><%= t("shipments.carrier.modal_title") %></h2>
+        <button type="button" data-action="click->carrier-picker#close" class="text-gray-400 hover:text-gray-600" aria-label="<%= t("shipments.carrier.cancel") %>">
+          <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+
+      <%= form_with url: bulk_change_carrier_shipments_path(archived: @archived ? "true" : nil), method: :post, data: { carrier_picker_target: "form" } do |f| %>
+        <div class="px-6 pb-2">
+          <input type="text" data-carrier-picker-target="search"
+                 data-action="input->carrier-picker#filter"
+                 placeholder="<%= t("shipments.carrier.search_placeholder") %>"
+                 class="block w-full px-3 py-2 rounded-md border border-gray-300 shadow-sm text-sm focus:border-blue-500 focus:ring-blue-500">
+          <div data-carrier-picker-target="results" class="mt-2 max-h-64 overflow-y-auto border border-gray-100 rounded-md"></div>
+          <input type="hidden" name="carrier_code" data-carrier-picker-target="code">
+          <div data-carrier-picker-target="idsContainer"></div>
+        </div>
+        <div class="flex items-center justify-end gap-2 px-6 py-4 border-t border-gray-100">
+          <button type="button" data-action="click->carrier-picker#close" class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"><%= t("shipments.carrier.cancel") %></button>
+          <%= f.submit t("shipments.carrier.confirm"), data: { carrier_picker_target: "confirm" }, disabled: true,
+                class: "px-4 py-2 text-sm font-medium text-white bg-gray-900 rounded-md hover:bg-gray-800 disabled:opacity-50 cursor-pointer" %>
+        </div>
+      <% end %>
+    </div>
+  </div>
+</div>

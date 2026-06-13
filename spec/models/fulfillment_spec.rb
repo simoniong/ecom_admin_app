@@ -293,6 +293,17 @@ RSpec.describe Fulfillment, type: :model do
     end
   end
 
+  describe "carrier_code" do
+    it "persists a 17Track carrier code" do
+      fulfillment = create(:fulfillment, carrier_code: 21051)
+      expect(fulfillment.reload.carrier_code).to eq(21051)
+    end
+
+    it "defaults to nil" do
+      expect(create(:fulfillment).carrier_code).to be_nil
+    end
+  end
+
   describe "after_commit :register_tracking" do
     def enable_tracking_on(company, mode: "backfill", days: 30)
       effective_days = mode == "backfill" ? days : nil
