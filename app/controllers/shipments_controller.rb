@@ -119,8 +119,11 @@ class ShipmentsController < AdminController
     end
 
     fulfillment_ids = scoped_fulfillments(ids).with_tracking.pluck(:id)
-    CarrierChangeJob.perform_later(current_company.id, fulfillment_ids, code) if fulfillment_ids.any?
+    if fulfillment_ids.empty?
+      return redirect_to shipments_path(archived: params[:archived]), alert: t("shipments.carrier.none")
+    end
 
+    CarrierChangeJob.perform_later(current_company.id, fulfillment_ids, code)
     redirect_to shipments_path(archived: params[:archived]),
                 notice: t("shipments.carrier.queued", count: fulfillment_ids.size)
   end

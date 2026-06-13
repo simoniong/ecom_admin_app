@@ -654,6 +654,7 @@
       removed_notice: "标签删除成功。"
     carrier:
       invalid: "请选择有效的承运商。"
+      none: "没有可更新的货件。"
       queued:
         one: "已为 %{count} 个货件排入承运商变更。"
         other: "已为 %{count} 个货件排入承运商变更。"

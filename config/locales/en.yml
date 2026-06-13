@@ -654,6 +654,7 @@ en:
       removed_notice: "Tags removed successfully."
     carrier:
       invalid: "Please select a valid carrier."
+      none: "No matching shipments to update."
       queued:
         one: "Queued carrier change for %{count} shipment."
         other: "Queued carrier change for %{count} shipments."

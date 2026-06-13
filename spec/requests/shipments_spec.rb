@@ -618,5 +618,13 @@ RSpec.describe "Shipments", type: :request do
 
       expect(flash[:alert]).to be_present
     end
+
+    it "shows an alert and enqueues nothing when no tracking shipments match" do
+      expect {
+        post bulk_change_carrier_shipments_path, params: { ids: [ SecureRandom.uuid ], carrier_code: 21051 }
+      }.not_to have_enqueued_job(CarrierChangeJob)
+
+      expect(flash[:alert]).to eq(I18n.t("shipments.carrier.none"))
+    end
   end
 end

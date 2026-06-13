@@ -652,6 +652,7 @@
       removed_notice: "標籤刪除成功。"
     carrier:
       invalid: "請選擇有效的承運商。"
+      none: "沒有可更新的貨件。"
       queued:
         one: "已為 %{count} 個貨件排入承運商變更。"
         other: "已為 %{count} 個貨件排入承運商變更。"
