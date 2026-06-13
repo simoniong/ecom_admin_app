@@ -3,7 +3,7 @@
      data-carrier-picker-no-results-value="<%= t("shipments.carrier.no_results") %>">
   <div data-carrier-picker-target="modal" class="hidden fixed inset-0 z-50 flex items-center justify-center" role="dialog" aria-modal="true">
     <div class="fixed inset-0 bg-black/40" data-action="click->carrier-picker#close"></div>
-    <div class="relative bg-white rounded-xl shadow-2xl w-full max-w-lg mx-4 flex flex-col">
+    <div class="relative bg-white rounded-xl shadow-2xl w-full max-w-lg mx-4 flex flex-col max-h-[80vh] overflow-y-auto">
       <div class="flex items-center justify-between px-6 pt-5 pb-3">
         <h2 class="text-lg font-semibold text-gray-900"><%= t("shipments.carrier.modal_title") %></h2>
         <button type="button" data-action="click->carrier-picker#close" class="text-gray-400 hover:text-gray-600" aria-label="<%= t("shipments.carrier.cancel") %>">
