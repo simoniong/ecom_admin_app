@@ -94,6 +94,8 @@ Rails.application.routes.draw do
       post :bulk_remove_tags, on: :collection
       post :bulk_export, on: :collection
       get :available_tags, on: :collection
+      post :bulk_change_carrier, on: :collection
+      get :carriers, on: :collection
       post :archive, on: :member
       post :unarchive, on: :member
       post :add_tags, on: :member

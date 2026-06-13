@@ -106,6 +106,25 @@ class ShipmentsController < AdminController
     render json: tags
   end
 
+  def carriers
+    render json: CarrierCatalog.default.all
+  end
+
+  def bulk_change_carrier
+    ids = sanitize_ids(params[:ids])
+    code = params[:carrier_code].to_i
+
+    unless code.positive? && CarrierCatalog.default.valid?(code)
+      return redirect_to shipments_path(archived: params[:archived]), alert: t("shipments.carrier.invalid")
+    end
+
+    fulfillment_ids = scoped_fulfillments(ids).with_tracking.pluck(:id)
+    CarrierChangeJob.perform_later(current_company.id, fulfillment_ids, code) if fulfillment_ids.any?
+
+    redirect_to shipments_path(archived: params[:archived]),
+                notice: t("shipments.carrier.queued", count: fulfillment_ids.size)
+  end
+
   def add_tags
     fulfillment = find_fulfillment
     tags = Array(params[:tags]).map(&:strip).reject(&:blank?).uniq
