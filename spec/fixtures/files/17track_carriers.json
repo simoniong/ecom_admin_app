@@ -1,0 +1,5 @@
+[
+  { "code": 21051, "name": "USPS", "country": "US" },
+  { "code": 3011, "name": "China Post", "country": "CN" },
+  { "code": 3013, "name": "China EMS", "country": "CN" }
+]
