@@ -103,6 +103,7 @@ Rails.application.routes.draw do
     end
     resources :tickets, only: [ :index, :show, :update ] do
       get :search_customers, on: :member
+      get :search_orders, on: :member
       patch :link_customer, on: :member
       post :instruct_agent, on: :member
       patch :bind_order, on: :member

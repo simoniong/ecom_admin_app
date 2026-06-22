@@ -539,6 +539,28 @@ RSpec.describe "Tickets", type: :request do
     end
   end
 
+  describe "GET /tickets/:id/search_orders" do
+    let(:store) { create(:shopify_store, company: email_account.company) }
+    let(:customer) { create(:customer, shopify_store: store) }
+
+    it "lists the linked customer's orders when query is blank" do
+      ticket = create(:ticket, email_account: email_account, customer: customer)
+      order = create(:order, customer: customer, name: "#2001")
+      sign_in user
+      get search_orders_ticket_path(id: ticket.id)
+      expect(response.parsed_body.map { |o| o["name"] }).to include("#2001")
+    end
+
+    it "searches visible orders by number for an unlinked ticket" do
+      ticket = create(:ticket, email_account: email_account, customer: nil,
+                      customer_email: "stranger@example.com")
+      order = create(:order, customer: customer, name: "#5571")
+      sign_in user
+      get search_orders_ticket_path(id: ticket.id), params: { q: "5571" }
+      expect(response.parsed_body.map { |o| o["id"] }).to include(order.id)
+    end
+  end
+
   describe "PATCH /tickets/:id/bind_order" do
     let(:store) { create(:shopify_store, company: email_account.company) }
     let(:customer) { create(:customer, shopify_store: store) }

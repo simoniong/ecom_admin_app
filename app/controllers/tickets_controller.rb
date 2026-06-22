@@ -1,5 +1,5 @@
 class TicketsController < AdminController
-  before_action :set_ticket, only: [ :show, :update, :search_customers, :link_customer, :instruct_agent, :bind_order ]
+  before_action :set_ticket, only: [ :show, :update, :search_customers, :search_orders, :link_customer, :instruct_agent, :bind_order ]
 
   def index
     tickets = visible_tickets.includes(:email_account, :customer)
@@ -78,6 +78,30 @@ class TicketsController < AdminController
     end
 
     render json: results
+  end
+
+  def search_orders
+    query = params[:q].to_s.strip
+    stores = visible_shopify_stores
+
+    orders =
+      if query.present?
+        Order.where(shopify_store: stores).search_by(query).includes(:customer).limit(20)
+      elsif @ticket.customer_id.present?
+        @ticket.customer.orders.by_recency.limit(20)
+      else
+        Order.none
+      end
+
+    render json: orders.map { |o|
+      {
+        id: o.id,
+        name: o.name,
+        customer_name: o.customer&.full_name,
+        total: o.total_price,
+        fulfillment_status: o.fulfillment_status
+      }
+    }
   end
 
   def link_customer
