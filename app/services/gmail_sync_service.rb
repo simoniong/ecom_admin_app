@@ -112,17 +112,28 @@ class GmailSyncService
     full_thread = gmail.get_thread(thread_id)
     return if full_thread.messages.blank?
 
+    # Ignore unsent Gmail drafts (label DRAFT). A draft reply composed in Gmail but
+    # not sent is not part of the real conversation: it must not appear as if we
+    # replied, nor count toward has-our-reply / auto-close. Track their ids so any
+    # previously-synced draft rows can be cleaned up below.
+    draft_message_ids = full_thread.messages.select { |m| m.label_ids&.include?("DRAFT") }.map(&:id)
+    thread_messages = full_thread.messages.reject { |m| m.label_ids&.include?("DRAFT") }
+    # A thread with no real messages is skipped. (Stale-draft cleanup below is then
+    # also skipped, but Gmail never drops the original inbound message from a thread,
+    # so a draft-only thread with a pre-existing ticket cannot occur in practice.)
+    return if thread_messages.blank?
+
     ticket = email_account.tickets.find_by(gmail_thread_id: thread_id)
 
     # Skip threads filtered out of inbox by Gmail (e.g. Promotions, Spam, user filters).
     # The full_sync query "in:inbox" already excludes these, but the History API used by
     # incremental_sync surfaces all label/message changes regardless of inbox membership.
-    if ticket.nil? && full_thread.messages.none? { |m| m.label_ids&.include?("INBOX") }
+    if ticket.nil? && thread_messages.none? { |m| m.label_ids&.include?("INBOX") }
       return
     end
 
     ticket ||= email_account.tickets.build(gmail_thread_id: thread_id)
-    first_message = full_thread.messages.first
+    first_message = thread_messages.first
     headers = extract_headers(first_message)
 
     first_body = extract_body(first_message)
@@ -137,7 +148,7 @@ class GmailSyncService
     is_new = ticket.new_record?
 
     if is_new
-      has_our_reply = full_thread.messages.any? do |msg|
+      has_our_reply = thread_messages.any? do |msg|
         msg_from = parse_email_address(extract_headers(msg)["From"])
         msg_from&.downcase == email_account.email.downcase
       end
@@ -147,7 +158,7 @@ class GmailSyncService
 
     last_msg_time = nil
 
-    full_thread.messages.each do |gmail_msg|
+    thread_messages.each do |gmail_msg|
       msg_headers = extract_headers(gmail_msg)
       sent_time = gmail_msg.internal_date ? Time.at(gmail_msg.internal_date / 1000.0).utc : nil
       last_msg_time = sent_time if sent_time && (last_msg_time.nil? || sent_time > last_msg_time)
@@ -214,6 +225,12 @@ class GmailSyncService
       ticket.messages.each do |message|
         message.ticket_id ||= ticket.id
         message.save! if message.new_record? || message.changed?
+      end
+
+      # Remove any rows previously synced from a message that is now an unsent draft
+      # (e.g. drafts captured before drafts were ignored, or a sent reply reverted to draft).
+      if draft_message_ids.any?
+        ticket.messages.where(gmail_message_id: draft_message_ids).destroy_all
       end
     end
 
