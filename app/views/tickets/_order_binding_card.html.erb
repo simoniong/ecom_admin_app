@@ -1,0 +1,25 @@
+<div class="bg-white rounded-lg border border-blue-200 ring-1 ring-blue-100 p-4">
+  <div class="flex items-center justify-between mb-2">
+    <h3 class="text-sm font-semibold text-gray-900"><%= t("tickets.show.order_label") %></h3>
+    <% if @ticket.order %>
+      <button type="button" class="text-xs font-medium text-blue-600 hover:text-blue-800"
+              onclick="this.closest('[data-controller=customer-search-modal]').querySelector('[data-ticket-order-open]').click()">
+        <%= t("tickets.show.change_order_cta") %>
+      </button>
+    <% end %>
+  </div>
+  <% if @ticket.order %>
+    <div class="flex items-center gap-2 rounded-md bg-blue-50 border border-blue-100 px-3 py-2">
+      <span class="inline-flex w-7 h-7 rounded bg-blue-100 text-blue-700 items-center justify-center text-xs font-semibold">📦</span>
+      <div class="min-w-0 flex-1">
+        <p class="text-sm font-medium text-gray-900"><%= @ticket.order.name %></p>
+        <p class="text-[11px] text-gray-500"><%= number_to_currency(@ticket.order.total_price) %> · <%= @ticket.order.fulfillment_status %></p>
+      </div>
+    </div>
+  <% else %>
+    <button type="button" class="w-full flex items-center justify-center gap-2 rounded-md border border-dashed border-gray-300 px-3 py-3 text-sm text-gray-500 hover:border-blue-400 hover:text-blue-600"
+            onclick="this.closest('[data-controller=customer-search-modal]').querySelector('[data-ticket-order-open]').click()">
+      ＋ <%= t("tickets.show.bind_order_cta") %>
+    </button>
+  <% end %>
+</div>
