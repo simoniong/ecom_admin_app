@@ -40,18 +40,39 @@ export default class extends Controller {
   }
 
   _render(orders) {
-    const rows = orders.map((o) => `
-      <button type="button" data-action="click->order-picker#select"
-              data-order-picker-id-param="${o.id}"
-              class="w-full text-left px-5 py-3 hover:bg-gray-50">
-        <p class="text-sm font-medium text-gray-900">${o.name ?? ""}</p>
-        <p class="text-xs text-gray-500">${o.customer_name ?? ""} · ${o.fulfillment_status ?? ""}</p>
-      </button>`).join("")
-    this.resultsTarget.innerHTML = rows + `
-      <button type="button" data-action="click->order-picker#select"
-              data-order-picker-id-param=""
-              class="w-full text-left px-5 py-3 hover:bg-gray-50 text-gray-500">
-        <p class="text-sm font-medium">${this.data.get("clearLabel") || "No order"}</p>
-      </button>`
+    const nodes = orders.map((o) => {
+      const btn = document.createElement("button")
+      btn.type = "button"
+      btn.dataset.action = "click->order-picker#select"
+      btn.setAttribute("data-order-picker-id-param", o.id)
+      btn.className = "w-full text-left px-5 py-3 hover:bg-gray-50"
+
+      const nameLine = document.createElement("p")
+      nameLine.className = "text-sm font-medium text-gray-900"
+      nameLine.textContent = o.name ?? ""
+
+      const metaLine = document.createElement("p")
+      metaLine.className = "text-xs text-gray-500"
+      metaLine.textContent = `${o.customer_name ?? ""} · ${o.fulfillment_status ?? ""}`
+
+      btn.appendChild(nameLine)
+      btn.appendChild(metaLine)
+      return btn
+    })
+
+    const clearBtn = document.createElement("button")
+    clearBtn.type = "button"
+    clearBtn.dataset.action = "click->order-picker#select"
+    clearBtn.setAttribute("data-order-picker-id-param", "")
+    clearBtn.className = "w-full text-left px-5 py-3 hover:bg-gray-50 text-gray-500"
+
+    const clearLine = document.createElement("p")
+    clearLine.className = "text-sm font-medium"
+    clearLine.textContent = this.data.get("clearLabel") || "No order"
+
+    clearBtn.appendChild(clearLine)
+    nodes.push(clearBtn)
+
+    this.resultsTarget.replaceChildren(...nodes)
   }
 }
