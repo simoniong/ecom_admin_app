@@ -613,6 +613,8 @@ RSpec.describe "Tickets", type: :request do
           subject: "x", draft_reply: "y"
         } }
       }.not_to change(Ticket, :count)
+      expect(response).to redirect_to(tickets_path)
+      expect(flash[:alert]).to eq(I18n.t("tickets.create_failed"))
     end
 
     it "does not bind an order from another company" do
@@ -626,6 +628,22 @@ RSpec.describe "Tickets", type: :request do
           order_id: foreign_order.id
         } }
       }.not_to change(Ticket, :count)
+      expect(response).to redirect_to(tickets_path)
+      expect(flash[:alert]).to eq(I18n.t("tickets.create_failed"))
+    end
+
+    it "does not link a customer from another company" do
+      other_store = create(:shopify_store, company: create(:company))
+      foreign_customer = create(:customer, shopify_store: other_store)
+      sign_in user
+      expect {
+        post tickets_path, params: { ticket: {
+          email_account_id: email_account.id, customer_id: foreign_customer.id,
+          customer_email: "x@e.com", subject: "x", draft_reply: "y"
+        } }
+      }.not_to change(Ticket, :count)
+      expect(response).to redirect_to(tickets_path)
+      expect(flash[:alert]).to eq(I18n.t("tickets.create_failed"))
     end
   end
 
