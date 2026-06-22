@@ -97,6 +97,52 @@ RSpec.describe GmailSyncService do
     end
   end
 
+  describe "#sync! ignores unsent Gmail drafts" do
+    def stub_thread(messages)
+      gmail = instance_double(GmailService)
+      allow(GmailService).to receive(:new).and_return(gmail)
+      allow(gmail).to receive(:user_profile).and_return(Google::Apis::GmailV1::Profile.new(history_id: 1))
+      allow(gmail).to receive(:list_threads).and_return(
+        Google::Apis::GmailV1::ListThreadsResponse.new(threads: [ Google::Apis::GmailV1::Thread.new(id: "td") ], next_page_token: nil)
+      )
+      allow(gmail).to receive(:list_history).and_return(
+        Google::Apis::GmailV1::ListHistoryResponse.new(history: nil, history_id: 1)
+      )
+      allow(gmail).to receive(:get_thread).with("td").and_return(build_gmail_thread(id: "td", messages: messages))
+    end
+
+    it "does not store a draft message and does not treat it as our reply" do
+      stub_thread([
+        build_gmail_message(id: "c1", thread_id: "td", from: "customer@example.com", subject: "Where is my order?"),
+        build_gmail_message(id: "d1", thread_id: "td", from: "shop@gmail.com", subject: "Re: Where is my order?",
+                            body: "unsent draft text", label_ids: [ "DRAFT" ])
+      ])
+
+      expect { service.sync! }.to change(Ticket, :count).by(1).and change(Message, :count).by(1)
+
+      ticket = Ticket.last
+      expect(ticket.status).to eq("new_ticket")
+      expect(ticket.messages.pluck(:gmail_message_id)).to eq([ "c1" ])
+      expect(ticket.messages.where(gmail_message_id: "d1")).to be_empty
+    end
+
+    it "removes a previously-synced message that has reverted to a draft" do
+      ticket = create(:ticket, email_account: email_account, gmail_thread_id: "td", status: :new_ticket)
+      create(:message, ticket: ticket, gmail_message_id: "c1", from: "customer@example.com")
+      stale = create(:message, ticket: ticket, gmail_message_id: "d1", from: "shop@gmail.com", body: "old draft")
+
+      stub_thread([
+        build_gmail_message(id: "c1", thread_id: "td", from: "customer@example.com", subject: "Where is my order?"),
+        build_gmail_message(id: "d1", thread_id: "td", from: "shop@gmail.com", label_ids: [ "DRAFT" ])
+      ])
+
+      service.sync!
+
+      expect(Message.exists?(stale.id)).to be(false)
+      expect(ticket.reload.messages.pluck(:gmail_message_id)).to eq([ "c1" ])
+    end
+  end
+
   describe "#sync! (incremental sync)" do
     before do
       email_account.update!(last_history_id: 10000)
