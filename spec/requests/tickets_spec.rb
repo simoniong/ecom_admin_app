@@ -647,6 +647,19 @@ RSpec.describe "Tickets", type: :request do
     end
   end
 
+  describe "GET /tickets/:id show with sibling threads" do
+    it "assigns the customer's sibling threads" do
+      create(:ticket, email_account: email_account, customer: nil,
+             customer_email: "shared@example.com", subject: "First thread")
+      current = create(:ticket, email_account: email_account, customer: nil,
+                       customer_email: "shared@example.com", subject: "Second thread")
+      sign_in user
+      get ticket_path(id: current.id)
+      expect(response).to have_http_status(:success)
+      expect(assigns(:customer_threads).map(&:subject)).to include("First thread", "Second thread")
+    end
+  end
+
   describe "PATCH /tickets/:id/bind_order" do
     let(:store) { create(:shopify_store, company: email_account.company) }
     let(:customer) { create(:customer, shopify_store: store) }

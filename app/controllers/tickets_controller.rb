@@ -28,6 +28,7 @@ class TicketsController < AdminController
     @customer = @ticket.customer
     @orders = @customer&.orders&.by_recency || []
     @ticket_timezone = @ticket.email_account&.shopify_store&.active_timezone || store_timezone
+    @customer_threads = @ticket.customer_threads
   end
 
   def search_customers
@@ -239,6 +240,7 @@ class TicketsController < AdminController
       @customer = @ticket.customer
       @orders = @customer&.orders&.by_recency || []
       @ticket_timezone = @ticket.email_account&.shopify_store&.active_timezone || store_timezone
+      @customer_threads = @ticket.customer_threads
       render :show, status: :unprocessable_entity
     end
   end
