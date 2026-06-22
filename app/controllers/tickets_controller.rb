@@ -88,7 +88,7 @@ class TicketsController < AdminController
       if query.present?
         Order.where(shopify_store: stores).search_by(query).includes(:customer).limit(20)
       elsif @ticket.customer_id.present?
-        @ticket.customer.orders.by_recency.limit(20)
+        @ticket.customer.orders.by_recency.includes(:customer).limit(20)
       else
         Order.none
       end

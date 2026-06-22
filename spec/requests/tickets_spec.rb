@@ -559,6 +559,14 @@ RSpec.describe "Tickets", type: :request do
       get search_orders_ticket_path(id: ticket.id), params: { q: "5571" }
       expect(response.parsed_body.map { |o| o["id"] }).to include(order.id)
     end
+
+    it "returns an empty array for an unlinked ticket with no query" do
+      ticket = create(:ticket, email_account: email_account, customer: nil,
+                      customer_email: "stranger@example.com")
+      sign_in user
+      get search_orders_ticket_path(id: ticket.id)
+      expect(response.parsed_body).to eq([])
+    end
   end
 
   describe "PATCH /tickets/:id/bind_order" do
