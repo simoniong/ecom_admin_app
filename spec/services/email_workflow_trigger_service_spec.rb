@@ -78,5 +78,17 @@ RSpec.describe EmailWorkflowTriggerService do
         described_class.check("order_shipped", order)
       }.not_to change(EmailWorkflowRun, :count)
     end
+
+    it "links the order to the ticket when the ticket has no order yet" do
+      described_class.check("order_shipped", order)
+      expect(ticket.reload.order).to eq(order)
+    end
+
+    it "does not overwrite an order already bound to the ticket" do
+      other_order = create(:order, customer: customer, shopify_store: shopify_store)
+      ticket.update!(order: other_order)
+      described_class.check("order_shipped", order)
+      expect(ticket.reload.order).to eq(other_order)
+    end
   end
 end

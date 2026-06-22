@@ -21,6 +21,8 @@ class EmailWorkflowTriggerService
       started_at: Time.current
     )
 
+    ticket.update!(order: order) if ticket.order_id.nil?
+
     EmailWorkflowStepJob.perform_later(run.id)
   rescue ActiveRecord::RecordNotUnique
     Rails.logger.info("[EmailWorkflowTrigger] Duplicate run skipped: workflow=#{trigger_event} order=#{order.id}")
