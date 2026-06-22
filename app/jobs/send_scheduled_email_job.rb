@@ -19,9 +19,12 @@ class SendScheduledEmailJob < ApplicationJob
 
     gmail = GmailService.new(ticket.email_account)
 
+    new_thread = ticket.gmail_thread_id.blank?
+    subject = new_thread ? ticket.subject.to_s : "Re: #{ticket.subject}"
+
     sent_message = gmail.send_message(
       to: ticket.customer_email,
-      subject: "Re: #{ticket.subject}",
+      subject: subject,
       body: ticket.draft_reply,
       thread_id: ticket.gmail_thread_id
     )
@@ -30,18 +33,20 @@ class SendScheduledEmailJob < ApplicationJob
       gmail_message_id: sent_message.id,
       from: ticket.email_account.email,
       to: ticket.customer_email,
-      subject: "Re: #{ticket.subject}",
+      subject: subject,
       body: ticket.draft_reply,
       sent_at: Time.current,
       gmail_internal_date: (Time.current.to_f * 1000).to_i
     )
 
-    ticket.update!(
+    ticket.gmail_thread_id = sent_message.thread_id if new_thread
+    ticket.assign_attributes(
       status: :closed,
       last_message_at: Time.current,
       scheduled_send_at: nil,
       scheduled_job_id: nil
     )
+    ticket.save!
   rescue => e
     Rails.logger.error("[SendEmail] Failed for Ticket##{ticket_id}: #{e.message}")
     raise

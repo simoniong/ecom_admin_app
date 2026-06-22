@@ -1,0 +1,17 @@
+<div class="bg-amber-50 rounded-lg border border-amber-200 p-4">
+  <div class="flex items-start gap-2 mb-3">
+    <span class="text-amber-500 text-lg leading-none">⚠️</span>
+    <div>
+      <h3 class="text-sm font-semibold text-amber-800"><%= t("tickets.show.unlinked_title") %></h3>
+      <p class="text-xs text-amber-700 mt-0.5"><%= t("tickets.show.unlinked_desc") %></p>
+    </div>
+  </div>
+  <div class="space-y-2">
+    <button type="button" data-action="click->customer-search-modal#open"
+            class="w-full px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-md">🔍 <%= t("tickets.show.search_link_customer") %></button>
+    <button type="button"
+            onclick="this.closest('[data-controller=customer-search-modal]').querySelector('[data-ticket-order-open]').click()"
+            class="w-full px-3 py-2 bg-white border border-blue-300 text-blue-700 hover:bg-blue-50 text-sm font-medium rounded-md">📦 <%= t("tickets.show.reverse_bind_order") %></button>
+    <p class="text-[11px] text-amber-700/80 text-center"><%= t("tickets.show.reverse_bind_hint") %></p>
+  </div>
+</div>

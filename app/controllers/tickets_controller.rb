@@ -1,5 +1,5 @@
 class TicketsController < AdminController
-  before_action :set_ticket, only: [ :show, :update, :search_customers, :link_customer, :instruct_agent ]
+  before_action :set_ticket, only: [ :show, :update, :search_customers, :search_orders, :link_customer, :instruct_agent, :bind_order ]
 
   def index
     tickets = visible_tickets.includes(:email_account, :customer)
@@ -28,6 +28,7 @@ class TicketsController < AdminController
     @customer = @ticket.customer
     @orders = @customer&.orders&.by_recency || []
     @ticket_timezone = @ticket.email_account&.shopify_store&.active_timezone || store_timezone
+    @customer_threads = @ticket.customer_threads
   end
 
   def search_customers
@@ -80,6 +81,30 @@ class TicketsController < AdminController
     render json: results
   end
 
+  def search_orders
+    query = params[:q].to_s.strip
+    stores = visible_shopify_stores
+
+    orders =
+      if query.present?
+        Order.where(shopify_store: stores).search_by(query).includes(:customer).limit(20)
+      elsif @ticket.customer_id.present?
+        @ticket.customer.orders.by_recency.includes(:customer).limit(20)
+      else
+        Order.none
+      end
+
+    render json: orders.map { |o|
+      {
+        id: o.id,
+        name: o.name,
+        customer_name: o.customer&.full_name,
+        total: o.total_price,
+        fulfillment_status: o.fulfillment_status
+      }
+    }
+  end
+
   def link_customer
     customer_id = params[:customer_id]
     stores = visible_shopify_stores
@@ -88,6 +113,29 @@ class TicketsController < AdminController
     @ticket.update!(customer: customer, customer_name: customer.full_name, customer_email: customer.email)
 
     redirect_to ticket_path(id: @ticket.id), notice: t("tickets.show.customer_linked")
+  end
+
+  def bind_order
+    if params[:order_id].blank?
+      @ticket.update!(order: nil)
+      return redirect_to ticket_path(id: @ticket.id), notice: t("tickets.show.order_unbound")
+    end
+
+    order = Order.where(shopify_store: visible_shopify_stores).find(params[:order_id])
+
+    if @ticket.customer_id.present? && order.customer_id != @ticket.customer_id
+      return redirect_to ticket_path(id: @ticket.id), alert: t("tickets.show.order_customer_mismatch")
+    end
+
+    attrs = { order: order }
+    if @ticket.customer_id.nil?
+      attrs[:customer] = order.customer
+      attrs[:customer_email] = order.customer.email
+      attrs[:customer_name] = order.customer.full_name
+    end
+    @ticket.update!(attrs)
+
+    redirect_to ticket_path(id: @ticket.id), notice: t("tickets.show.order_bound")
   end
 
   def instruct_agent
@@ -104,6 +152,55 @@ class TicketsController < AdminController
 
     NotifyAgentJob.perform_later(@ticket.id, "revise_draft", message)
     redirect_to ticket_path(id: @ticket.id), notice: t("tickets.show.instruction_sent")
+  end
+
+  def create
+    # Fix 3: require a subject server-side
+    return redirect_to(tickets_path, alert: t("tickets.create_failed")) if params.dig(:ticket, :subject).blank?
+
+    email_account = visible_email_accounts.find_by(id: params.dig(:ticket, :email_account_id))
+    return redirect_to(tickets_path, alert: t("tickets.create_failed")) if email_account.nil?
+
+    ticket = email_account.tickets.new(new_thread_params)
+    ticket.assign_attributes(initiated_by: :agent, status: :draft,
+                             draft_reply_at: Time.current, gmail_thread_id: nil)
+
+    customer = nil
+    if (customer_id = params.dig(:ticket, :customer_id)).present?
+      customer = Customer.where(shopify_store: visible_shopify_stores).find_by(id: customer_id)
+      return redirect_to(tickets_path, alert: t("tickets.create_failed")) if customer.nil?
+    end
+
+    order = nil
+    if (order_id = params.dig(:ticket, :order_id)).present?
+      order = Order.where(shopify_store: visible_shopify_stores).find_by(id: order_id)
+      return redirect_to(tickets_path, alert: t("tickets.create_failed")) if order.nil?
+    end
+
+    # Fix 1: cross-customer order guard + reverse-link (mirrors bind_order)
+    if customer.present? && order.present? && order.customer_id != customer.id
+      return redirect_to(tickets_path, alert: t("tickets.create_failed"))
+    end
+
+    if order.present? && customer.nil?
+      # Fix 1: reverse-link — derive customer from the order
+      customer = order.customer
+    end
+
+    ticket.order = order if order.present?
+    ticket.customer = customer if customer.present?
+
+    # Fix 2: overwrite email/name from the resolved customer (ignores tampered params)
+    if customer.present?
+      ticket.customer_email = customer.email
+      ticket.customer_name = customer.full_name
+    end
+
+    if ticket.save
+      redirect_to ticket_path(id: ticket.id), notice: t("tickets.show.thread_created")
+    else
+      redirect_to tickets_path, alert: ticket.errors.full_messages.join(", ")
+    end
   end
 
   def update
@@ -163,6 +260,7 @@ class TicketsController < AdminController
       @customer = @ticket.customer
       @orders = @customer&.orders&.by_recency || []
       @ticket_timezone = @ticket.email_account&.shopify_store&.active_timezone || store_timezone
+      @customer_threads = @ticket.customer_threads
       render :show, status: :unprocessable_entity
     end
   end
@@ -173,5 +271,9 @@ class TicketsController < AdminController
 
   def ticket_params
     params.require(:ticket).permit(:draft_reply, :status)
+  end
+
+  def new_thread_params
+    params.require(:ticket).permit(:customer_email, :customer_name, :subject, :draft_reply)
   end
 end

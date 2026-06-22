@@ -4,6 +4,7 @@ class Order < ApplicationRecord
   has_many :fulfillments, dependent: :destroy
   has_many :order_line_items, dependent: :destroy
   has_many :email_workflow_runs, dependent: :destroy
+  has_many :tickets, dependent: :nullify
 
   validates :shopify_order_id, presence: true, uniqueness: { scope: :shopify_store_id }
 

@@ -6,6 +6,13 @@ RSpec.describe Order, type: :model do
     expect(order).to be_valid
   end
 
+  it "nullifies ticket order_id when destroyed" do
+    order = create(:order)
+    ticket = create(:ticket, order: order)
+    order.destroy
+    expect(ticket.reload.order_id).to be_nil
+  end
+
   it "requires shopify_order_id" do
     order = build(:order, shopify_order_id: nil)
     expect(order).not_to be_valid

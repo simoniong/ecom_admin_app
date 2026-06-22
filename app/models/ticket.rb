@@ -1,14 +1,16 @@
 class Ticket < ApplicationRecord
   belongs_to :email_account
   belongs_to :customer, optional: true
+  belongs_to :order, optional: true
   has_many :messages, dependent: :destroy
   has_many :email_workflow_runs, dependent: :nullify
 
   enum :status, { new_ticket: 0, draft: 1, draft_confirmed: 2, closed: 3 }, default: :new_ticket
+  enum :initiated_by, { customer: 0, agent: 1 }, default: :customer
 
   REOPENED_REASONS = %w[customer_inquiry customer_reply order_placed order_shipped order_delivered].freeze
 
-  validates :gmail_thread_id, presence: true, uniqueness: { scope: :email_account_id }
+  validates :gmail_thread_id, uniqueness: { scope: :email_account_id }, allow_nil: true
   validates :customer_email, presence: true
   validates :status, presence: true
   validates :reopened_reason, inclusion: { in: REOPENED_REASONS }, allow_nil: true
@@ -34,6 +36,17 @@ class Ticket < ApplicationRecord
     "draft_confirmed" => [ "draft" ],
     "closed" => [ "new_ticket" ]
   }.freeze
+
+  def customer_threads
+    base = Ticket.for_company(email_account.company)
+    scoped =
+      if customer_id.present?
+        base.where(customer_id: customer_id)
+      else
+        base.where(customer_id: nil, customer_email: customer_email)
+      end
+    scoped.by_recency
+  end
 
   def submit_draft!(content)
     raise "Can only submit draft for new tickets" unless new_ticket?

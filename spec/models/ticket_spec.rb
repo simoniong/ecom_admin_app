@@ -16,11 +16,6 @@ RSpec.describe Ticket, type: :model do
     expect(ticket.email_account).to eq(email_account)
   end
 
-  it "requires gmail_thread_id" do
-    ticket.gmail_thread_id = ""
-    expect(ticket).not_to be_valid
-  end
-
   it "enforces gmail_thread_id uniqueness per email_account" do
     duplicate = build(:ticket, email_account: email_account, gmail_thread_id: ticket.gmail_thread_id)
     expect(duplicate).not_to be_valid
@@ -227,6 +222,72 @@ RSpec.describe Ticket, type: :model do
       t3 = create(:ticket, email_account: email_account, position: 1)
 
       expect(Ticket.by_position).to eq([ t2, t3, t1 ])
+    end
+  end
+
+  describe "#customer_threads" do
+    let(:account) { create(:email_account) }
+
+    it "groups by customer_id when linked" do
+      store = create(:shopify_store, company: account.company)
+      customer = create(:customer, shopify_store: store)
+      a = create(:ticket, email_account: account, customer: customer)
+      b = create(:ticket, email_account: account, customer: customer)
+      other = create(:ticket, email_account: account, customer: create(:customer, shopify_store: store))
+      expect(a.customer_threads).to include(a, b)
+      expect(a.customer_threads).not_to include(other)
+    end
+
+    it "falls back to customer_email among unlinked tickets" do
+      a = create(:ticket, email_account: account, customer: nil, customer_email: "x@e.com")
+      b = create(:ticket, email_account: account, customer: nil, customer_email: "x@e.com")
+      linked = create(:ticket, email_account: account,
+                      customer: create(:customer, shopify_store: create(:shopify_store, company: account.company)),
+                      customer_email: "x@e.com")
+      expect(a.customer_threads).to include(a, b)
+      expect(a.customer_threads).not_to include(linked)
+    end
+
+    it "is scoped to the company" do
+      a = create(:ticket, email_account: account, customer: nil, customer_email: "y@e.com")
+      other_account = create(:email_account)
+      create(:ticket, email_account: other_account, customer: nil, customer_email: "y@e.com")
+      expect(a.customer_threads.count).to eq(1)
+    end
+  end
+
+  describe "order binding & threads" do
+    it "allows a nil gmail_thread_id" do
+      ticket = build(:ticket, gmail_thread_id: nil)
+      expect(ticket).to be_valid
+    end
+
+    it "still enforces gmail_thread_id uniqueness per account when present" do
+      account = create(:email_account)
+      create(:ticket, email_account: account, gmail_thread_id: "dup")
+      dup = build(:ticket, email_account: account, gmail_thread_id: "dup")
+      expect(dup).not_to be_valid
+    end
+
+    it "permits two threads with nil gmail_thread_id on the same account" do
+      account = create(:email_account)
+      create(:ticket, email_account: account, gmail_thread_id: nil)
+      second = build(:ticket, email_account: account, gmail_thread_id: nil)
+      expect(second).to be_valid
+    end
+
+    it "defaults initiated_by to customer" do
+      expect(create(:ticket).initiated_by).to eq("customer")
+    end
+
+    it "can be initiated by agent" do
+      expect(build(:ticket, initiated_by: :agent)).to be_agent
+    end
+
+    it "optionally belongs to an order" do
+      order = create(:order)
+      ticket = create(:ticket, order: order)
+      expect(ticket.order).to eq(order)
     end
   end
 end
