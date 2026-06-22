@@ -74,4 +74,34 @@ RSpec.describe SendScheduledEmailJob, type: :job do
 
     expect { job.perform_now }.to raise_error(RuntimeError, /Gmail API error/)
   end
+
+  context "agent-initiated thread with no gmail_thread_id" do
+    let(:agent_ticket) do
+      create(:ticket, :draft_confirmed, email_account: email_account,
+             gmail_thread_id: nil, initiated_by: :agent, subject: "Your order shipped",
+             customer_email: "buyer@example.com",
+             scheduled_send_at: Time.current, scheduled_job_id: nil)
+    end
+
+    before do
+      gmail = instance_double(GmailService)
+      allow(GmailService).to receive(:new).and_return(gmail)
+      sent = Google::Apis::GmailV1::Message.new(id: "new-sent-id", thread_id: "brand-new-thread")
+      allow(gmail).to receive(:send_message).and_return(sent)
+      @gmail = gmail
+    end
+
+    it "sends without a thread_id and with the raw subject" do
+      described_class.perform_now(agent_ticket.id)
+      expect(@gmail).to have_received(:send_message)
+        .with(hash_including(thread_id: nil, subject: "Your order shipped"))
+    end
+
+    it "backfills gmail_thread_id and closes the ticket" do
+      described_class.perform_now(agent_ticket.id)
+      agent_ticket.reload
+      expect(agent_ticket.gmail_thread_id).to eq("brand-new-thread")
+      expect(agent_ticket).to be_closed
+    end
+  end
 end
