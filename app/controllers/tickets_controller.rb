@@ -161,6 +161,13 @@ class TicketsController < AdminController
     ticket.assign_attributes(initiated_by: :agent, status: :draft,
                              draft_reply_at: Time.current, gmail_thread_id: nil)
 
+    if (order_id = params.dig(:ticket, :order_id)).present?
+      order = Order.where(shopify_store: visible_shopify_stores).find_by(id: order_id)
+      return redirect_to(tickets_path, alert: t("tickets.create_failed")) if order.nil?
+
+      ticket.order = order
+    end
+
     if ticket.save
       redirect_to ticket_path(id: ticket.id), notice: t("tickets.show.thread_created")
     else
@@ -239,6 +246,6 @@ class TicketsController < AdminController
 
   def new_thread_params
     params.require(:ticket).permit(:customer_id, :customer_email, :customer_name,
-                                   :subject, :draft_reply, :order_id)
+                                   :subject, :draft_reply)
   end
 end

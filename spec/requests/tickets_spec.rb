@@ -614,6 +614,19 @@ RSpec.describe "Tickets", type: :request do
         } }
       }.not_to change(Ticket, :count)
     end
+
+    it "does not bind an order from another company" do
+      other_store = create(:shopify_store, company: create(:company))
+      foreign_order = create(:order, customer: create(:customer, shopify_store: other_store))
+      sign_in user
+      expect {
+        post tickets_path, params: { ticket: {
+          email_account_id: email_account.id, customer_id: customer.id,
+          customer_email: customer.email, subject: "x", draft_reply: "y",
+          order_id: foreign_order.id
+        } }
+      }.not_to change(Ticket, :count)
+    end
   end
 
   describe "PATCH /tickets/:id/bind_order" do
