@@ -538,4 +538,45 @@ RSpec.describe "Tickets", type: :request do
       expect(t2.reload.position).to eq(2)
     end
   end
+
+  describe "PATCH /tickets/:id/bind_order" do
+    let(:store) { create(:shopify_store, company: email_account.company) }
+    let(:customer) { create(:customer, shopify_store: store) }
+
+    it "binds an order to a linked ticket" do
+      ticket = create(:ticket, email_account: email_account, customer: customer)
+      order = create(:order, customer: customer)
+      sign_in user
+      patch bind_order_ticket_path(id: ticket.id), params: { order_id: order.id }
+      expect(ticket.reload.order).to eq(order)
+    end
+
+    it "clears the binding when order_id is blank" do
+      order = create(:order, customer: customer)
+      ticket = create(:ticket, email_account: email_account, customer: customer, order: order)
+      sign_in user
+      patch bind_order_ticket_path(id: ticket.id), params: { order_id: "" }
+      expect(ticket.reload.order).to be_nil
+    end
+
+    it "rejects an order from a different customer when linked" do
+      ticket = create(:ticket, email_account: email_account, customer: customer)
+      other_order = create(:order, customer: create(:customer, shopify_store: store))
+      sign_in user
+      patch bind_order_ticket_path(id: ticket.id), params: { order_id: other_order.id }
+      expect(ticket.reload.order).to be_nil
+    end
+
+    it "reverse-binds: auto-links the customer when the ticket is unlinked" do
+      ticket = create(:ticket, email_account: email_account, customer: nil,
+                      customer_email: "stranger@example.com")
+      order = create(:order, customer: customer)
+      sign_in user
+      patch bind_order_ticket_path(id: ticket.id), params: { order_id: order.id }
+      ticket.reload
+      expect(ticket.order).to eq(order)
+      expect(ticket.customer).to eq(customer)
+      expect(ticket.customer_email).to eq(customer.email)
+    end
+  end
 end

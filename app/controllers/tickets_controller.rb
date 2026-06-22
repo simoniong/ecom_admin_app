@@ -1,5 +1,5 @@
 class TicketsController < AdminController
-  before_action :set_ticket, only: [ :show, :update, :search_customers, :link_customer, :instruct_agent ]
+  before_action :set_ticket, only: [ :show, :update, :search_customers, :link_customer, :instruct_agent, :bind_order ]
 
   def index
     tickets = visible_tickets.includes(:email_account, :customer)
@@ -88,6 +88,29 @@ class TicketsController < AdminController
     @ticket.update!(customer: customer, customer_name: customer.full_name, customer_email: customer.email)
 
     redirect_to ticket_path(id: @ticket.id), notice: t("tickets.show.customer_linked")
+  end
+
+  def bind_order
+    if params[:order_id].blank?
+      @ticket.update!(order: nil)
+      return redirect_to ticket_path(id: @ticket.id), notice: t("tickets.show.order_unbound")
+    end
+
+    order = Order.where(shopify_store: visible_shopify_stores).find(params[:order_id])
+
+    if @ticket.customer_id.present? && order.customer_id != @ticket.customer_id
+      return redirect_to ticket_path(id: @ticket.id), alert: t("tickets.show.order_customer_mismatch")
+    end
+
+    attrs = { order: order }
+    if @ticket.customer_id.nil?
+      attrs[:customer] = order.customer
+      attrs[:customer_email] = order.customer.email
+      attrs[:customer_name] = order.customer.full_name
+    end
+    @ticket.update!(attrs)
+
+    redirect_to ticket_path(id: @ticket.id), notice: t("tickets.show.order_bound")
   end
 
   def instruct_agent
