@@ -207,6 +207,13 @@ en:
       close_confirm_tap: "Tap again to close"
       reopen_ticket: "Reopen Ticket"
       thread_created: "New thread created as a draft"
+      bind_order_title: "Link an order to this thread"
+      bind_order_search_placeholder: "Search order # / email / item…"
+      bind_order_hint: "Binding an order also links its customer when none is linked yet."
+      order_none: "No order"
+      order_label: "Thread's order"
+      bind_order_cta: "Bind order"
+      change_order_cta: "Change"
     reopened_reasons:
       customer_inquiry: "Customer Inquiry"
       customer_reply: "Customer Reply"

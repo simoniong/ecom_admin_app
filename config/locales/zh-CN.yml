@@ -207,6 +207,13 @@
       close_confirm_tap: "再按一次确认关闭"
       reopen_ticket: "重开工单"
       thread_created: "已建立新 Thread(草稿)"
+      bind_order_title: "绑定订单到此 Thread"
+      bind_order_search_placeholder: "搜索订单号 / Email / 商品…"
+      bind_order_hint: "绑定订单后，若尚未关联客户会自动关联。"
+      order_none: "不关联订单"
+      order_label: "本 Thread 关联订单"
+      bind_order_cta: "绑定订单"
+      change_order_cta: "变更"
     reopened_reasons:
       customer_inquiry: "顾客查询"
       customer_reply: "顾客回复"
