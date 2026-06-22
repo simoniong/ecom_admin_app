@@ -37,6 +37,17 @@ class Ticket < ApplicationRecord
     "closed" => [ "new_ticket" ]
   }.freeze
 
+  def customer_threads
+    base = Ticket.for_company(email_account.company)
+    scoped =
+      if customer_id.present?
+        base.where(customer_id: customer_id)
+      else
+        base.where(customer_id: nil, customer_email: customer_email)
+      end
+    scoped.by_recency
+  end
+
   def submit_draft!(content)
     raise "Can only submit draft for new tickets" unless new_ticket?
 

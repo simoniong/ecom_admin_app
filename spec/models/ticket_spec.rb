@@ -225,6 +225,37 @@ RSpec.describe Ticket, type: :model do
     end
   end
 
+  describe "#customer_threads" do
+    let(:account) { create(:email_account) }
+
+    it "groups by customer_id when linked" do
+      store = create(:shopify_store, company: account.company)
+      customer = create(:customer, shopify_store: store)
+      a = create(:ticket, email_account: account, customer: customer)
+      b = create(:ticket, email_account: account, customer: customer)
+      other = create(:ticket, email_account: account, customer: create(:customer, shopify_store: store))
+      expect(a.customer_threads).to include(a, b)
+      expect(a.customer_threads).not_to include(other)
+    end
+
+    it "falls back to customer_email among unlinked tickets" do
+      a = create(:ticket, email_account: account, customer: nil, customer_email: "x@e.com")
+      b = create(:ticket, email_account: account, customer: nil, customer_email: "x@e.com")
+      linked = create(:ticket, email_account: account,
+                      customer: create(:customer, shopify_store: create(:shopify_store, company: account.company)),
+                      customer_email: "x@e.com")
+      expect(a.customer_threads).to include(a, b)
+      expect(a.customer_threads).not_to include(linked)
+    end
+
+    it "is scoped to the company" do
+      a = create(:ticket, email_account: account, customer: nil, customer_email: "y@e.com")
+      other_account = create(:email_account)
+      create(:ticket, email_account: other_account, customer: nil, customer_email: "y@e.com")
+      expect(a.customer_threads.count).to eq(1)
+    end
+  end
+
   describe "order binding & threads" do
     it "allows a nil gmail_thread_id" do
       ticket = build(:ticket, gmail_thread_id: nil)
