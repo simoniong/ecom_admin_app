@@ -196,6 +196,39 @@ thread id of the sent message so we can backfill `ticket.gmail_thread_id`.
 - Info panel keeps listing all customer orders, but the bound order is visually
   highlighted.
 
+## Unlinked Customer & Reverse-Binding via Order
+
+Some threads arrive from a sender with **no matching Shopify `Customer`**
+(`ticket.customer_id` is null). The thread must still be fully usable, and the
+agent needs ways to attach a customer/order after the fact.
+
+### Behavior
+
+- A thread with no `customer_id` operates normally (reply, switch, group by
+  `customer_email`). The right panel shows an **"Customer not linked"** banner.
+- Two self-service paths:
+  1. **Search & link customer** — existing `customer-search-modal` +
+     `link_customer` flow (searches Shopify customers).
+  2. **Reverse-bind via order** — open the order picker in **global search
+     mode** (search by order number / email across the company's stores rather
+     than listing one customer's orders). Selecting an order both sets
+     `ticket.order_id` **and**, when `ticket.customer_id` is null, backfills
+     `ticket.customer_id = order.customer_id` (auto-link).
+- The customer-search modal gains a no-result fallback CTA: "Reverse-bind via
+  order" that opens the order picker.
+
+### Implementation notes
+
+- `bind_order` works whether or not the customer is linked. When the ticket is
+  unlinked, after setting `order_id` it copies `order.customer_id` (and may
+  refresh `customer_email`/`customer_name`/timezone-derived fields) onto the
+  ticket. The cross-customer guard becomes: if the ticket *is* linked, the order
+  must belong to that customer; if unlinked, any order is allowed and drives the
+  link.
+- Order picker has two modes decided server-side by `customer_id` presence:
+  linked → list customer's orders (searchable within); unlinked → empty default,
+  search-driven over company orders.
+
 ## UI / UX (Option A)
 
 ### Desktop — 3-pane
@@ -251,8 +284,9 @@ end
 ## Edge Cases
 
 - **Unlinked customer (no `customer_id`):** switcher groups by `customer_email`;
-  binding an order requires a linked customer (orders hang off `Customer`), so
-  the order card prompts to link the customer first when unlinked.
+  the thread stays usable. Order binding still works via global order search and
+  **auto-links** the order's customer (see "Unlinked Customer & Reverse-Binding
+  via Order").
 - **Two not-yet-sent agent threads:** allowed (partial unique index); each gets
   its Gmail thread id on send.
 - **Customer replies into an agent-initiated thread after send:** normal sync
@@ -267,9 +301,9 @@ end
 - **Model specs:** nullable `gmail_thread_id` + partial-unique validation;
   `initiated_by` enum; `order` association + `dependent: :nullify`;
   `customer_threads` grouping (linked vs email-fallback, company scope).
-- **Request specs:** `bind_order` (success, clear, cross-customer rejection);
-  new-thread creation (agent-initiated ticket fields); `show` exposes
-  `@customer_threads`.
+- **Request specs:** `bind_order` (success, clear, cross-customer rejection when
+  linked, **reverse-bind auto-links customer when unlinked**); new-thread
+  creation (agent-initiated ticket fields); `show` exposes `@customer_threads`.
 - **Job spec:** `SendScheduledEmailJob` sends as new Gmail thread when
   `gmail_thread_id` is nil and backfills the returned thread id.
 - **System specs:** desktop thread switching; mobile bottom-sheet switch;
