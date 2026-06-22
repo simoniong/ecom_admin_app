@@ -101,10 +101,12 @@ Rails.application.routes.draw do
       post :add_tags, on: :member
       delete :remove_tag, on: :member
     end
-    resources :tickets, only: [ :index, :show, :update ] do
+    resources :tickets, only: [ :index, :show, :create, :update ] do
       get :search_customers, on: :member
+      get :search_orders, on: :member
       patch :link_customer, on: :member
       post :instruct_agent, on: :member
+      patch :bind_order, on: :member
     end
     resources :shipping_reminder_rules, only: [ :index, :create, :update ]
     resource :shipping_reminder_setting, only: [ :update ] do

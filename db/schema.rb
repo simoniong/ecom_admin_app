@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_13_041958) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_22_000001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -586,8 +586,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_13_041958) do
     t.text "draft_reply"
     t.datetime "draft_reply_at"
     t.uuid "email_account_id", null: false
-    t.string "gmail_thread_id", null: false
+    t.string "gmail_thread_id"
+    t.integer "initiated_by", default: 0, null: false
     t.datetime "last_message_at"
+    t.uuid "order_id"
     t.integer "position", default: 0, null: false
     t.string "reopened_reason"
     t.string "scheduled_job_id"
@@ -596,9 +598,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_13_041958) do
     t.string "subject"
     t.datetime "updated_at", null: false
     t.index ["customer_id"], name: "index_tickets_on_customer_id"
-    t.index ["email_account_id", "gmail_thread_id"], name: "index_tickets_on_email_account_id_and_gmail_thread_id", unique: true
+    t.index ["email_account_id", "gmail_thread_id"], name: "index_tickets_on_email_account_id_and_gmail_thread_id", unique: true, where: "(gmail_thread_id IS NOT NULL)"
     t.index ["email_account_id"], name: "index_tickets_on_email_account_id"
     t.index ["last_message_at"], name: "index_tickets_on_last_message_at"
+    t.index ["order_id"], name: "index_tickets_on_order_id"
     t.index ["scheduled_send_at"], name: "index_tickets_on_scheduled_send_at"
     t.index ["status", "position"], name: "index_tickets_on_status_and_position"
     t.index ["status"], name: "index_tickets_on_status"
@@ -673,4 +676,5 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_13_041958) do
   add_foreign_key "solid_queue_scheduled_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
   add_foreign_key "tickets", "customers"
   add_foreign_key "tickets", "email_accounts"
+  add_foreign_key "tickets", "orders"
 end

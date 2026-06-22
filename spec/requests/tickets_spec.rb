@@ -538,4 +538,213 @@ RSpec.describe "Tickets", type: :request do
       expect(t2.reload.position).to eq(2)
     end
   end
+
+  describe "GET /tickets/:id/search_orders" do
+    let(:store) { create(:shopify_store, company: email_account.company) }
+    let(:customer) { create(:customer, shopify_store: store) }
+
+    it "lists the linked customer's orders when query is blank" do
+      ticket = create(:ticket, email_account: email_account, customer: customer)
+      order = create(:order, customer: customer, name: "#2001")
+      sign_in user
+      get search_orders_ticket_path(id: ticket.id)
+      expect(response.parsed_body.map { |o| o["name"] }).to include("#2001")
+    end
+
+    it "searches visible orders by number for an unlinked ticket" do
+      ticket = create(:ticket, email_account: email_account, customer: nil,
+                      customer_email: "stranger@example.com")
+      order = create(:order, customer: customer, name: "#5571")
+      sign_in user
+      get search_orders_ticket_path(id: ticket.id), params: { q: "5571" }
+      expect(response.parsed_body.map { |o| o["id"] }).to include(order.id)
+    end
+
+    it "returns an empty array for an unlinked ticket with no query" do
+      ticket = create(:ticket, email_account: email_account, customer: nil,
+                      customer_email: "stranger@example.com")
+      sign_in user
+      get search_orders_ticket_path(id: ticket.id)
+      expect(response.parsed_body).to eq([])
+    end
+  end
+
+  describe "POST /tickets (new agent thread)" do
+    let(:store) { create(:shopify_store, company: email_account.company) }
+    let(:customer) { create(:customer, shopify_store: store) }
+
+    it "creates an agent-initiated draft thread for the customer" do
+      sign_in user
+      expect {
+        post tickets_path, params: { ticket: {
+          email_account_id: email_account.id,
+          customer_id: customer.id,
+          customer_email: customer.email,
+          customer_name: customer.full_name,
+          subject: "Proactive update",
+          draft_reply: "Hi, quick update on your order."
+        } }
+      }.to change(Ticket, :count).by(1)
+
+      ticket = Ticket.order(:created_at).last
+      expect(ticket).to be_agent
+      expect(ticket).to be_draft
+      expect(ticket.gmail_thread_id).to be_nil
+      expect(response).to redirect_to(ticket_path(id: ticket.id))
+    end
+
+    it "binds an order at creation time" do
+      order = create(:order, customer: customer)
+      sign_in user
+      post tickets_path, params: { ticket: {
+        email_account_id: email_account.id,
+        customer_id: customer.id, customer_email: customer.email,
+        subject: "Re order", draft_reply: "About your order", order_id: order.id
+      } }
+      expect(Ticket.order(:created_at).last.order).to eq(order)
+    end
+
+    it "rejects an email_account the user cannot see" do
+      other = create(:email_account)
+      sign_in user
+      expect {
+        post tickets_path, params: { ticket: {
+          email_account_id: other.id, customer_email: "x@e.com",
+          subject: "x", draft_reply: "y"
+        } }
+      }.not_to change(Ticket, :count)
+      expect(response).to redirect_to(tickets_path)
+      expect(flash[:alert]).to eq(I18n.t("tickets.create_failed"))
+    end
+
+    it "does not bind an order from another company" do
+      other_store = create(:shopify_store, company: create(:company))
+      foreign_order = create(:order, customer: create(:customer, shopify_store: other_store))
+      sign_in user
+      expect {
+        post tickets_path, params: { ticket: {
+          email_account_id: email_account.id, customer_id: customer.id,
+          customer_email: customer.email, subject: "x", draft_reply: "y",
+          order_id: foreign_order.id
+        } }
+      }.not_to change(Ticket, :count)
+      expect(response).to redirect_to(tickets_path)
+      expect(flash[:alert]).to eq(I18n.t("tickets.create_failed"))
+    end
+
+    it "does not link a customer from another company" do
+      other_store = create(:shopify_store, company: create(:company))
+      foreign_customer = create(:customer, shopify_store: other_store)
+      sign_in user
+      expect {
+        post tickets_path, params: { ticket: {
+          email_account_id: email_account.id, customer_id: foreign_customer.id,
+          customer_email: "x@e.com", subject: "x", draft_reply: "y"
+        } }
+      }.not_to change(Ticket, :count)
+      expect(response).to redirect_to(tickets_path)
+      expect(flash[:alert]).to eq(I18n.t("tickets.create_failed"))
+    end
+
+    it "rejects a same-company order that belongs to a different customer" do
+      other_customer = create(:customer, shopify_store: store)
+      mismatched_order = create(:order, customer: other_customer)
+      sign_in user
+      expect {
+        post tickets_path, params: { ticket: {
+          email_account_id: email_account.id, customer_id: customer.id,
+          customer_email: customer.email, subject: "x", draft_reply: "y",
+          order_id: mismatched_order.id
+        } }
+      }.not_to change(Ticket, :count)
+    end
+
+    it "reverse-links the customer when an unlinked new thread is bound by order" do
+      order = create(:order, customer: customer)
+      sign_in user
+      post tickets_path, params: { ticket: {
+        email_account_id: email_account.id, customer_email: "stranger@example.com",
+        subject: "x", draft_reply: "y", order_id: order.id
+      } }
+      ticket = Ticket.order(:created_at).last
+      expect(ticket.customer).to eq(customer)
+      expect(ticket.customer_email).to eq(customer.email)
+    end
+
+    it "derives email/name from the resolved customer, ignoring tampered params" do
+      sign_in user
+      post tickets_path, params: { ticket: {
+        email_account_id: email_account.id, customer_id: customer.id,
+        customer_email: "tampered@evil.com", customer_name: "Tampered",
+        subject: "x", draft_reply: "y"
+      } }
+      ticket = Ticket.order(:created_at).last
+      expect(ticket.customer_email).to eq(customer.email)
+      expect(ticket.customer_name).to eq(customer.full_name)
+    end
+
+    it "rejects a new thread with a blank subject" do
+      sign_in user
+      expect {
+        post tickets_path, params: { ticket: {
+          email_account_id: email_account.id, customer_id: customer.id,
+          customer_email: customer.email, subject: "", draft_reply: "y"
+        } }
+      }.not_to change(Ticket, :count)
+    end
+  end
+
+  describe "GET /tickets/:id show with sibling threads" do
+    it "assigns the customer's sibling threads" do
+      create(:ticket, email_account: email_account, customer: nil,
+             customer_email: "shared@example.com", subject: "First thread")
+      current = create(:ticket, email_account: email_account, customer: nil,
+                       customer_email: "shared@example.com", subject: "Second thread")
+      sign_in user
+      get ticket_path(id: current.id)
+      expect(response).to have_http_status(:success)
+      expect(assigns(:customer_threads).map(&:subject)).to include("First thread", "Second thread")
+    end
+  end
+
+  describe "PATCH /tickets/:id/bind_order" do
+    let(:store) { create(:shopify_store, company: email_account.company) }
+    let(:customer) { create(:customer, shopify_store: store) }
+
+    it "binds an order to a linked ticket" do
+      ticket = create(:ticket, email_account: email_account, customer: customer)
+      order = create(:order, customer: customer)
+      sign_in user
+      patch bind_order_ticket_path(id: ticket.id), params: { order_id: order.id }
+      expect(ticket.reload.order).to eq(order)
+    end
+
+    it "clears the binding when order_id is blank" do
+      order = create(:order, customer: customer)
+      ticket = create(:ticket, email_account: email_account, customer: customer, order: order)
+      sign_in user
+      patch bind_order_ticket_path(id: ticket.id), params: { order_id: "" }
+      expect(ticket.reload.order).to be_nil
+    end
+
+    it "rejects an order from a different customer when linked" do
+      ticket = create(:ticket, email_account: email_account, customer: customer)
+      other_order = create(:order, customer: create(:customer, shopify_store: store))
+      sign_in user
+      patch bind_order_ticket_path(id: ticket.id), params: { order_id: other_order.id }
+      expect(ticket.reload.order).to be_nil
+    end
+
+    it "reverse-binds: auto-links the customer when the ticket is unlinked" do
+      ticket = create(:ticket, email_account: email_account, customer: nil,
+                      customer_email: "stranger@example.com")
+      order = create(:order, customer: customer)
+      sign_in user
+      patch bind_order_ticket_path(id: ticket.id), params: { order_id: order.id }
+      ticket.reload
+      expect(ticket.order).to eq(order)
+      expect(ticket.customer).to eq(customer)
+      expect(ticket.customer_email).to eq(customer.email)
+    end
+  end
 end

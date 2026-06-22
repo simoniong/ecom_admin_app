@@ -1,0 +1,22 @@
+<div class="divide-y divide-gray-100">
+  <% @customer_threads.each do |thread| %>
+    <%= link_to ticket_path(id: thread.id),
+          class: "block px-4 py-3 #{thread.id == @ticket.id ? 'bg-blue-50/70 border-l-2 border-blue-500' : 'hover:bg-gray-100 border-l-2 border-transparent'}" do %>
+      <div class="flex items-center justify-between gap-2">
+        <span class="text-sm font-medium text-gray-900 truncate"><%= thread.subject.presence || t("tickets.no_subject") %></span>
+        <span class="text-[11px] text-gray-400 shrink-0"><%= l(thread.last_message_at.to_date) if thread.last_message_at %></span>
+      </div>
+      <div class="mt-1.5 flex items-center gap-1.5 flex-wrap">
+        <span class="inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium <%= ticket_status_badge_classes(thread.status) %>">
+          <%= t("tickets.status.#{thread.status}") %>
+        </span>
+        <% if thread.agent? %>
+          <span class="inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium bg-indigo-50 text-indigo-700">📤 <%= t("tickets.show.initiated_agent") %></span>
+        <% end %>
+        <% if thread.order&.name.present? %>
+          <span class="inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-600">📦 <%= thread.order.name %></span>
+        <% end %>
+      </div>
+    <% end %>
+  <% end %>
+</div>

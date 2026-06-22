@@ -104,4 +104,7 @@ group :test do
 
   # HTTP stubbing for external API tests
   gem "webmock", "~> 3.23"
+
+  # Expose assigns() in request specs
+  gem "rails-controller-testing"
 end
