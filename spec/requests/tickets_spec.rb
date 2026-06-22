@@ -645,6 +645,53 @@ RSpec.describe "Tickets", type: :request do
       expect(response).to redirect_to(tickets_path)
       expect(flash[:alert]).to eq(I18n.t("tickets.create_failed"))
     end
+
+    it "rejects a same-company order that belongs to a different customer" do
+      other_customer = create(:customer, shopify_store: store)
+      mismatched_order = create(:order, customer: other_customer)
+      sign_in user
+      expect {
+        post tickets_path, params: { ticket: {
+          email_account_id: email_account.id, customer_id: customer.id,
+          customer_email: customer.email, subject: "x", draft_reply: "y",
+          order_id: mismatched_order.id
+        } }
+      }.not_to change(Ticket, :count)
+    end
+
+    it "reverse-links the customer when an unlinked new thread is bound by order" do
+      order = create(:order, customer: customer)
+      sign_in user
+      post tickets_path, params: { ticket: {
+        email_account_id: email_account.id, customer_email: "stranger@example.com",
+        subject: "x", draft_reply: "y", order_id: order.id
+      } }
+      ticket = Ticket.order(:created_at).last
+      expect(ticket.customer).to eq(customer)
+      expect(ticket.customer_email).to eq(customer.email)
+    end
+
+    it "derives email/name from the resolved customer, ignoring tampered params" do
+      sign_in user
+      post tickets_path, params: { ticket: {
+        email_account_id: email_account.id, customer_id: customer.id,
+        customer_email: "tampered@evil.com", customer_name: "Tampered",
+        subject: "x", draft_reply: "y"
+      } }
+      ticket = Ticket.order(:created_at).last
+      expect(ticket.customer_email).to eq(customer.email)
+      expect(ticket.customer_name).to eq(customer.full_name)
+    end
+
+    it "rejects a new thread with a blank subject" do
+      sign_in user
+      expect {
+        post tickets_path, params: { ticket: {
+          email_account_id: email_account.id, customer_id: customer.id,
+          customer_email: customer.email, subject: "", draft_reply: "y"
+        } }
+      }.not_to change(Ticket, :count)
+    end
   end
 
   describe "GET /tickets/:id show with sibling threads" do

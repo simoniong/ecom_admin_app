@@ -155,6 +155,9 @@ class TicketsController < AdminController
   end
 
   def create
+    # Fix 3: require a subject server-side
+    return redirect_to(tickets_path, alert: t("tickets.create_failed")) if params.dig(:ticket, :subject).blank?
+
     email_account = visible_email_accounts.find_by(id: params.dig(:ticket, :email_account_id))
     return redirect_to(tickets_path, alert: t("tickets.create_failed")) if email_account.nil?
 
@@ -162,18 +165,35 @@ class TicketsController < AdminController
     ticket.assign_attributes(initiated_by: :agent, status: :draft,
                              draft_reply_at: Time.current, gmail_thread_id: nil)
 
+    customer = nil
     if (customer_id = params.dig(:ticket, :customer_id)).present?
       customer = Customer.where(shopify_store: visible_shopify_stores).find_by(id: customer_id)
       return redirect_to(tickets_path, alert: t("tickets.create_failed")) if customer.nil?
-
-      ticket.customer = customer
     end
 
+    order = nil
     if (order_id = params.dig(:ticket, :order_id)).present?
       order = Order.where(shopify_store: visible_shopify_stores).find_by(id: order_id)
       return redirect_to(tickets_path, alert: t("tickets.create_failed")) if order.nil?
+    end
 
-      ticket.order = order
+    # Fix 1: cross-customer order guard + reverse-link (mirrors bind_order)
+    if customer.present? && order.present? && order.customer_id != customer.id
+      return redirect_to(tickets_path, alert: t("tickets.create_failed"))
+    end
+
+    if order.present? && customer.nil?
+      # Fix 1: reverse-link — derive customer from the order
+      customer = order.customer
+    end
+
+    ticket.order = order if order.present?
+    ticket.customer = customer if customer.present?
+
+    # Fix 2: overwrite email/name from the resolved customer (ignores tampered params)
+    if customer.present?
+      ticket.customer_email = customer.email
+      ticket.customer_name = customer.full_name
     end
 
     if ticket.save

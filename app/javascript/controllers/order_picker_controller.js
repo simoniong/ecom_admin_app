@@ -21,6 +21,11 @@ export default class extends Controller {
     if (event.target === this.backdropTarget) this.close()
   }
 
+  disconnect() {
+    clearTimeout(this._debounce)
+    if (this._abortController) this._abortController.abort()
+  }
+
   search() {
     clearTimeout(this._debounce)
     this._debounce = setTimeout(() => this._performSearch(), 300)
@@ -32,11 +37,21 @@ export default class extends Controller {
   }
 
   async _performSearch() {
+    if (this._abortController) this._abortController.abort()
+    this._abortController = new AbortController()
+
     const query = this.inputTarget.value.trim()
-    const res = await fetch(`${this.urlValue}?q=${encodeURIComponent(query)}`,
-      { headers: { Accept: "application/json" } })
-    if (!res.ok) return
-    this._render(await res.json())
+    try {
+      const res = await fetch(`${this.urlValue}?q=${encodeURIComponent(query)}`, {
+        headers: { Accept: "application/json" },
+        signal: this._abortController.signal
+      })
+      if (!res.ok) throw new Error(`Request failed: ${res.status}`)
+      this._render(await res.json())
+    } catch (error) {
+      if (error.name === "AbortError") return
+      this._render([])
+    }
   }
 
   _render(orders) {
