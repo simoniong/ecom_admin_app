@@ -569,6 +569,53 @@ RSpec.describe "Tickets", type: :request do
     end
   end
 
+  describe "POST /tickets (new agent thread)" do
+    let(:store) { create(:shopify_store, company: email_account.company) }
+    let(:customer) { create(:customer, shopify_store: store) }
+
+    it "creates an agent-initiated draft thread for the customer" do
+      sign_in user
+      expect {
+        post tickets_path, params: { ticket: {
+          email_account_id: email_account.id,
+          customer_id: customer.id,
+          customer_email: customer.email,
+          customer_name: customer.full_name,
+          subject: "Proactive update",
+          draft_reply: "Hi, quick update on your order."
+        } }
+      }.to change(Ticket, :count).by(1)
+
+      ticket = Ticket.order(:created_at).last
+      expect(ticket).to be_agent
+      expect(ticket).to be_draft
+      expect(ticket.gmail_thread_id).to be_nil
+      expect(response).to redirect_to(ticket_path(id: ticket.id))
+    end
+
+    it "binds an order at creation time" do
+      order = create(:order, customer: customer)
+      sign_in user
+      post tickets_path, params: { ticket: {
+        email_account_id: email_account.id,
+        customer_id: customer.id, customer_email: customer.email,
+        subject: "Re order", draft_reply: "About your order", order_id: order.id
+      } }
+      expect(Ticket.order(:created_at).last.order).to eq(order)
+    end
+
+    it "rejects an email_account the user cannot see" do
+      other = create(:email_account)
+      sign_in user
+      expect {
+        post tickets_path, params: { ticket: {
+          email_account_id: other.id, customer_email: "x@e.com",
+          subject: "x", draft_reply: "y"
+        } }
+      }.not_to change(Ticket, :count)
+    end
+  end
+
   describe "PATCH /tickets/:id/bind_order" do
     let(:store) { create(:shopify_store, company: email_account.company) }
     let(:customer) { create(:customer, shopify_store: store) }

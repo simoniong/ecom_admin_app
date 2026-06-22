@@ -153,6 +153,21 @@ class TicketsController < AdminController
     redirect_to ticket_path(id: @ticket.id), notice: t("tickets.show.instruction_sent")
   end
 
+  def create
+    email_account = visible_email_accounts.find_by(id: params.dig(:ticket, :email_account_id))
+    return redirect_to(tickets_path, alert: t("tickets.create_failed")) if email_account.nil?
+
+    ticket = email_account.tickets.new(new_thread_params)
+    ticket.assign_attributes(initiated_by: :agent, status: :draft,
+                             draft_reply_at: Time.current, gmail_thread_id: nil)
+
+    if ticket.save
+      redirect_to ticket_path(id: ticket.id), notice: t("tickets.show.thread_created")
+    else
+      redirect_to tickets_path, alert: ticket.errors.full_messages.join(", ")
+    end
+  end
+
   def update
     if params.dig(:ticket, :status).present?
       handle_status_transition
@@ -220,5 +235,10 @@ class TicketsController < AdminController
 
   def ticket_params
     params.require(:ticket).permit(:draft_reply, :status)
+  end
+
+  def new_thread_params
+    params.require(:ticket).permit(:customer_id, :customer_email, :customer_name,
+                                   :subject, :draft_reply, :order_id)
   end
 end
