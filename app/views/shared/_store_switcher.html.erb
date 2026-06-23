@@ -1,7 +1,7 @@
 <% if store_switcher_visible? %>
   <% stores = visible_shopify_stores.to_a %>
   <% if stores.size > 1 %>
-    <div data-controller="store-switcher" class="inline-block">
+    <div data-controller="store-switcher" data-testid="store-switcher" class="inline-block">
       <select data-action="change->store-switcher#switch"
               aria-label="<%= t("store_switcher.all_stores") %>"
               class="text-sm border-gray-300 rounded-md focus:ring-gray-500 focus:border-gray-500 py-1.5 pl-3 pr-8 shadow-sm">
@@ -20,8 +20,8 @@
       </select>
     </div>
   <% elsif stores.size == 1 %>
-    <span class="inline-flex items-center text-sm text-gray-600"><%= stores.first.shop_domain %></span>
+    <span data-testid="store-switcher" class="inline-flex items-center text-sm text-gray-600"><%= stores.first.shop_domain %></span>
   <% else %>
-    <span class="inline-flex items-center text-sm text-gray-400"><%= t("store_switcher.no_stores") %></span>
+    <span data-testid="store-switcher" class="inline-flex items-center text-sm text-gray-400"><%= t("store_switcher.no_stores") %></span>
   <% end %>
 <% end %>
