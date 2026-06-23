@@ -973,5 +973,6 @@ en:
   locale_switcher:
     label: "Language"
   store_switcher:
+    label: "Store"
     all_stores: "All Stores"
     no_stores: "No stores"

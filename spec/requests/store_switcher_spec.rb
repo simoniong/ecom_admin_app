@@ -75,5 +75,42 @@ RSpec.describe "Store switcher resolution & persistence", type: :request do
       patch switch_company_path(id: other.id)
       expect(session[:store_id]).to be_nil
     end
+
+    it "clears the remembered store when creating a new company" do
+      # Sign in as a company creator (required by CompaniesController#create)
+      creator = create(:user, email: User::COMPANY_CREATOR_EMAILS.first)
+      creator_store = create(:shopify_store, company: creator.companies.first, user: creator)
+      sign_in creator
+
+      # Establish a remembered store via the dashboard (switcher page)
+      get authenticated_root_path, params: { store_id: creator_store.id }
+      expect(session[:store_id]).to eq(creator_store.id)
+
+      # Creating a new company must clear the remembered store
+      post company_path, params: { company: { name: "Brand New Co", locale: "en" } }
+      expect(session[:store_id]).to be_nil
+    end
+  end
+
+  describe "Products (non-switcher controller)" do
+    it "ignores the session store and defaults to the first store when there are multiple stores" do
+      product_a = create(:product, shopify_store: store_a)
+      create(:product_variant, product: product_a, sku: "STORE-A-ONLY-SKU")
+      product_b = create(:product, shopify_store: store_b)
+      create(:product_variant, product: product_b, sku: "STORE-B-ONLY-SKU")
+
+      # Set session to store_b via the dashboard switcher
+      get authenticated_root_path, params: { store_id: store_b.id }
+      expect(session[:store_id]).to eq(store_b.id)
+
+      # GET products with NO store_id param — Products must NOT inherit the session store.
+      # With two stores, resolve_current_store returns nil for non-switcher pages,
+      # so ProductsController falls back to visible_shopify_stores.first (store_a).
+      get products_path
+      expect(response).to have_http_status(:ok)
+      # The page renders store_a's product (first store), not the store_b stored in session.
+      expect(response.body).to include("STORE-A-ONLY-SKU")
+      expect(response.body).not_to include("STORE-B-ONLY-SKU")
+    end
   end
 end

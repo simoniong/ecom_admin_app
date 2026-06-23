@@ -3,7 +3,7 @@
   <% if stores.size > 1 %>
     <div data-controller="store-switcher" data-testid="store-switcher" class="inline-block">
       <select data-action="change->store-switcher#switch"
-              aria-label="<%= t("store_switcher.all_stores") %>"
+              aria-label="<%= t("store_switcher.label") %>"
               class="text-sm border-gray-300 rounded-md focus:ring-gray-500 focus:border-gray-500 py-1.5 pl-3 pr-8 shadow-sm">
         <% if store_all_allowed? %>
           <option value="<%= url_for(request.path_parameters.merge(request.query_parameters.merge(store_id: "all"))) %>"

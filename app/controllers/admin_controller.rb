@@ -147,6 +147,15 @@ class AdminController < ApplicationController
 
   def resolve_current_store
     stores = visible_shopify_stores
+
+    unless store_switcher_visible?
+      return stores.find_by(id: params[:store_id]) if params[:store_id].present?
+
+      return stores.first if stores.count == 1
+
+      return nil
+    end
+
     raw = params[:store_id].presence || session[:store_id].presence
 
     if raw == "all"
