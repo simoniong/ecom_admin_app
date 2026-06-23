@@ -142,4 +142,28 @@ RSpec.describe ShopifyStore, type: :model do
       expect(store.errors[:default_service_type]).to be_present
     end
   end
+
+  describe "#display_name" do
+    it "returns the Shopify shop name when present" do
+      store.update!(name: "Paint Kit Studio", shop_domain: "paint-kit.myshopify.com")
+      expect(store.display_name).to eq("Paint Kit Studio")
+    end
+
+    it "falls back to the shop_domain when name is blank" do
+      store.update!(name: nil, shop_domain: "paint-kit.myshopify.com")
+      expect(store.display_name).to eq("paint-kit.myshopify.com")
+    end
+  end
+
+  describe "#short_name" do
+    it "returns the Shopify shop name when present" do
+      store.update!(name: "Paint Kit Studio", shop_domain: "paint-kit.myshopify.com")
+      expect(store.short_name).to eq("Paint Kit Studio")
+    end
+
+    it "strips the .myshopify.com suffix when name is blank" do
+      store.update!(name: nil, shop_domain: "paint-kit.myshopify.com")
+      expect(store.short_name).to eq("paint-kit")
+    end
+  end
 end
