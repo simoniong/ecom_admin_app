@@ -17,16 +17,9 @@ class AdCampaignsController < AdminController
 
   def index
     view_scope = selected_view_group || current_company
-    base_stores = view_scope.respond_to?(:shopify_stores) ? view_scope.shopify_stores : visible_shopify_stores
     base_ad_accounts = view_scope.respond_to?(:ad_accounts) ? view_scope.ad_accounts : visible_ad_accounts
 
-    @shopify_stores = base_stores.order(:shop_domain)
-    @show_store_selector = @shopify_stores.size > 1
-
-    if params[:shopify_store_id].present?
-      @selected_store = @shopify_stores.find_by(id: params[:shopify_store_id])
-    end
-    @selected_store ||= @shopify_stores.first
+    @selected_store = current_shopify_store
 
     @ad_accounts = if @selected_store
       base_ad_accounts.where(shopify_store: @selected_store).order(:account_name)

@@ -20,7 +20,7 @@ class AdminController < ApplicationController
     "shipping_zone_postal_rules" => "shopify_stores"
   }.freeze
 
-  STORE_SWITCHER_CONTROLLERS = %w[dashboard orders shipments tickets].freeze
+  STORE_SWITCHER_CONTROLLERS = %w[dashboard orders shipments tickets ad_campaigns].freeze
   STORE_ALL_ALLOWED_CONTROLLERS = %w[dashboard shipments].freeze
 
   private
