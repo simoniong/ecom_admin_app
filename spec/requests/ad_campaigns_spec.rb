@@ -28,7 +28,7 @@ RSpec.describe "AdCampaigns", type: :request do
       create(:ad_campaign_daily_metric, ad_campaign: campaign, date: Date.current, impressions: 5000)
 
       sign_in user
-      get ad_campaigns_path, params: { shopify_store_id: store.id }
+      get ad_campaigns_path, params: { store_id: store.id }
       expect(response.body).to include("Summer Sale")
       expect(response.body).to include("5,000")
     end
@@ -50,7 +50,7 @@ RSpec.describe "AdCampaigns", type: :request do
       create(:ad_campaign, ad_account: account2, campaign_name: "Campaign B")
 
       sign_in user
-      get ad_campaigns_path, params: { shopify_store_id: store.id, ad_account_id: account1.id }
+      get ad_campaigns_path, params: { store_id: store.id, ad_account_id: account1.id }
       expect(response.body).to include("Campaign A")
       expect(response.body).not_to include("Campaign B")
     end
@@ -66,19 +66,21 @@ RSpec.describe "AdCampaigns", type: :request do
       expect(response.body).not_to include("9,999")
     end
 
-    it "hides store dropdown when only one store" do
+    it "shows the store name without a dropdown when only one store" do
       create(:ad_campaign, ad_account: ad_account)
       sign_in user
       get ad_campaigns_path
-      expect(response.body).not_to include("<select name=\"shopify_store_id\"")
+      expect(response.body).to include('data-testid="store-switcher"')
+      expect(response.body).not_to include('data-controller="store-switcher"')
     end
 
-    it "shows store dropdown when multiple stores" do
+    it "renders the unified store switcher in the title bar when multiple stores" do
       create(:shopify_store, user: user)
       create(:ad_campaign, ad_account: ad_account)
       sign_in user
       get ad_campaigns_path
-      expect(response.body).to include("<select name=\"shopify_store_id\"")
+      expect(response.body).to include('data-controller="store-switcher"')
+      expect(response.body).not_to include("<select name=\"shopify_store_id\"")
     end
 
     it "shows campaign status badges" do
