@@ -278,6 +278,15 @@ RSpec.describe "Tickets", type: :request do
       expect(json).to be_empty
     end
 
+    it "does not return customers from another store in the same company" do
+      sibling_store = create(:shopify_store, user: user, company: email_account.company)
+      create(:customer, shopify_store: sibling_store, email: "sibling@example.com", first_name: "Sib", last_name: "Ling")
+      ticket = create(:ticket, email_account: email_account)
+      sign_in user
+      get search_customers_ticket_path(id: ticket.id), params: { q: "sibling" }, as: :json
+      expect(response.parsed_body).to be_empty
+    end
+
     it "returns empty array for short queries" do
       ticket = create(:ticket, email_account: email_account)
       sign_in user
@@ -572,6 +581,17 @@ RSpec.describe "Tickets", type: :request do
       sign_in user
       get search_orders_ticket_path(id: ticket.id)
       expect(response.parsed_body).to eq([])
+    end
+
+    it "does not search orders from another store in the same company" do
+      sibling_store = create(:shopify_store, company: email_account.company)
+      sibling_customer = create(:customer, shopify_store: sibling_store)
+      sibling_order = create(:order, customer: sibling_customer, shopify_store: sibling_store, name: "#SIBLING-7777")
+      ticket = create(:ticket, email_account: email_account, customer: nil,
+                      customer_email: "stranger@example.com")
+      sign_in user
+      get search_orders_ticket_path(id: ticket.id), params: { q: "7777" }
+      expect(response.parsed_body.map { |o| o["id"] }).not_to include(sibling_order.id)
     end
   end
 

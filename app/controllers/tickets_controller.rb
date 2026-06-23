@@ -36,7 +36,7 @@ class TicketsController < AdminController
     results = []
 
     if query.length >= 2
-      stores = visible_shopify_stores
+      stores = ticket_store_scope
       customers = Customer.where(shopify_store: stores)
         .left_joins(:orders)
         .where(
@@ -83,7 +83,7 @@ class TicketsController < AdminController
 
   def search_orders
     query = params[:q].to_s.strip
-    stores = visible_shopify_stores
+    stores = ticket_store_scope
 
     orders =
       if query.present?
@@ -107,7 +107,7 @@ class TicketsController < AdminController
 
   def link_customer
     customer_id = params[:customer_id]
-    stores = visible_shopify_stores
+    stores = ticket_store_scope
     customer = Customer.where(shopify_store: stores).find(customer_id)
 
     @ticket.update!(customer: customer, customer_name: customer.full_name, customer_email: customer.email)
@@ -121,7 +121,7 @@ class TicketsController < AdminController
       return redirect_to ticket_path(id: @ticket.id), notice: t("tickets.show.order_unbound")
     end
 
-    order = Order.where(shopify_store: visible_shopify_stores).find(params[:order_id])
+    order = Order.where(shopify_store: ticket_store_scope).find(params[:order_id])
 
     if @ticket.customer_id.present? && order.customer_id != @ticket.customer_id
       return redirect_to ticket_path(id: @ticket.id), alert: t("tickets.show.order_customer_mismatch")
@@ -161,19 +161,23 @@ class TicketsController < AdminController
     email_account = visible_email_accounts.find_by(id: params.dig(:ticket, :email_account_id))
     return redirect_to(tickets_path, alert: t("tickets.create_failed")) if email_account.nil?
 
+    # A ticket belongs to its email account's store, so customer/order lookups
+    # are scoped to that store (not all visible stores).
+    stores = store_scope_for(email_account)
+
     ticket = email_account.tickets.new(new_thread_params)
     ticket.assign_attributes(initiated_by: :agent, status: :draft,
                              draft_reply_at: Time.current, gmail_thread_id: nil)
 
     customer = nil
     if (customer_id = params.dig(:ticket, :customer_id)).present?
-      customer = Customer.where(shopify_store: visible_shopify_stores).find_by(id: customer_id)
+      customer = Customer.where(shopify_store: stores).find_by(id: customer_id)
       return redirect_to(tickets_path, alert: t("tickets.create_failed")) if customer.nil?
     end
 
     order = nil
     if (order_id = params.dig(:ticket, :order_id)).present?
-      order = Order.where(shopify_store: visible_shopify_stores).find_by(id: order_id)
+      order = Order.where(shopify_store: stores).find_by(id: order_id)
       return redirect_to(tickets_path, alert: t("tickets.create_failed")) if order.nil?
     end
 
@@ -267,6 +271,18 @@ class TicketsController < AdminController
 
   def set_ticket
     @ticket = visible_tickets.includes(customer: { orders: :fulfillments }).find(params[:id])
+  end
+
+  # Stores a ticket's customer/order lookups may search: the ticket's own store
+  # only. Falls back to all visible stores when the email account has no store
+  # association (legacy/orphaned accounts), so linking still works there.
+  def ticket_store_scope
+    store_scope_for(@ticket.email_account)
+  end
+
+  def store_scope_for(email_account)
+    store_id = email_account&.shopify_store_id
+    store_id ? ShopifyStore.where(id: store_id) : visible_shopify_stores
   end
 
   def ticket_params
