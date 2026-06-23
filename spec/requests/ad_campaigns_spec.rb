@@ -55,6 +55,20 @@ RSpec.describe "AdCampaigns", type: :request do
       expect(response.body).not_to include("Campaign B")
     end
 
+    it "falls back to all accounts when ad_account_id belongs to another store" do
+      store2 = create(:shopify_store, user: user)
+      other_account = create(:ad_account, user: user, shopify_store: store2, account_name: "Other Store Account")
+      create(:ad_campaign, ad_account: ad_account, campaign_name: "Visible Campaign")
+      create(:ad_campaign, ad_account: other_account, campaign_name: "Other Store Campaign")
+
+      sign_in user
+      # Selecting `store` but carrying an ad_account_id from store2: the stale
+      # account resolves to "all accounts" within the selected store.
+      get ad_campaigns_path, params: { store_id: store.id, ad_account_id: other_account.id }
+      expect(response.body).to include("Visible Campaign")
+      expect(response.body).not_to include("Other Store Campaign")
+    end
+
     it "filters by date range" do
       campaign = create(:ad_campaign, ad_account: ad_account)
       create(:ad_campaign_daily_metric, ad_campaign: campaign, date: 3.days.ago.to_date, impressions: 1000)
