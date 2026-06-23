@@ -79,7 +79,9 @@ class AdminController < ApplicationController
   helper_method :visible_email_accounts
 
   def visible_tickets
-    Ticket.where(email_account_id: visible_email_accounts.select(:id))
+    accounts = visible_email_accounts
+    accounts = accounts.where(shopify_store_id: current_shopify_store.id) if current_shopify_store
+    Ticket.where(email_account_id: accounts.select(:id))
   end
   helper_method :visible_tickets
 
