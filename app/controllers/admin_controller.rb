@@ -80,7 +80,13 @@ class AdminController < ApplicationController
 
   def visible_tickets
     accounts = visible_email_accounts
-    accounts = accounts.where(shopify_store_id: current_shopify_store.id) if current_shopify_store
+    # Filter by the selected store, but always keep accounts not linked to any
+    # store (shopify_store_id IS NULL) — those tickets aren't store-specific and
+    # must stay visible in every store view. Group isolation is already enforced
+    # by visible_email_accounts.
+    if current_shopify_store
+      accounts = accounts.where(shopify_store_id: [ current_shopify_store.id, nil ])
+    end
     Ticket.where(email_account_id: accounts.select(:id))
   end
   helper_method :visible_tickets

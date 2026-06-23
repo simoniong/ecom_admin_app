@@ -717,6 +717,14 @@ RSpec.describe "Tickets", type: :request do
       expect(response.body).to include("Alpha ticket store-A unique-xz9")
       expect(response.body).not_to include("Bravo ticket store-B unique-xz9")
     end
+
+    it "keeps tickets from store-less email accounts visible under any store" do
+      account_none = create(:email_account, company: company, user: owner, shopify_store: nil)
+      create(:ticket, email_account: account_none, subject: "Unlinked ticket no-store unique-xz9")
+
+      get tickets_path, params: { store_id: store_a.id }
+      expect(response.body).to include("Unlinked ticket no-store unique-xz9")
+    end
   end
 
   describe "GET /tickets/:id show with sibling threads" do
