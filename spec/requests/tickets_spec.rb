@@ -231,6 +231,8 @@ RSpec.describe "Tickets", type: :request do
   describe "GET /tickets/:id/search_customers" do
     let(:store) { create(:shopify_store, user: user, company: email_account.company) }
 
+    before { email_account.update!(shopify_store: store) }
+
     it "returns matching customers by email" do
       customer = create(:customer, shopify_store: store, email: "alice@example.com", first_name: "Alice", last_name: "Wong")
       ticket = create(:ticket, email_account: email_account)
@@ -276,6 +278,15 @@ RSpec.describe "Tickets", type: :request do
       expect(json).to be_empty
     end
 
+    it "does not return customers from another store in the same company" do
+      sibling_store = create(:shopify_store, user: user, company: email_account.company)
+      create(:customer, shopify_store: sibling_store, email: "sibling@example.com", first_name: "Sib", last_name: "Ling")
+      ticket = create(:ticket, email_account: email_account)
+      sign_in user
+      get search_customers_ticket_path(id: ticket.id), params: { q: "sibling" }, as: :json
+      expect(response.parsed_body).to be_empty
+    end
+
     it "returns empty array for short queries" do
       ticket = create(:ticket, email_account: email_account)
       sign_in user
@@ -297,6 +308,8 @@ RSpec.describe "Tickets", type: :request do
 
   describe "PATCH /tickets/:id/link_customer" do
     let(:store) { create(:shopify_store, user: user, company: email_account.company) }
+
+    before { email_account.update!(shopify_store: store) }
 
     it "links a customer to the ticket" do
       customer = create(:customer, shopify_store: store, first_name: "Eve", last_name: "Lin", email: "eve@example.com")
@@ -543,6 +556,8 @@ RSpec.describe "Tickets", type: :request do
     let(:store) { create(:shopify_store, company: email_account.company) }
     let(:customer) { create(:customer, shopify_store: store) }
 
+    before { email_account.update!(shopify_store: store) }
+
     it "lists the linked customer's orders when query is blank" do
       ticket = create(:ticket, email_account: email_account, customer: customer)
       order = create(:order, customer: customer, name: "#2001")
@@ -566,6 +581,17 @@ RSpec.describe "Tickets", type: :request do
       sign_in user
       get search_orders_ticket_path(id: ticket.id)
       expect(response.parsed_body).to eq([])
+    end
+
+    it "does not search orders from another store in the same company" do
+      sibling_store = create(:shopify_store, company: email_account.company)
+      sibling_customer = create(:customer, shopify_store: sibling_store)
+      sibling_order = create(:order, customer: sibling_customer, shopify_store: sibling_store, name: "#SIBLING-7777")
+      ticket = create(:ticket, email_account: email_account, customer: nil,
+                      customer_email: "stranger@example.com")
+      sign_in user
+      get search_orders_ticket_path(id: ticket.id), params: { q: "7777" }
+      expect(response.parsed_body.map { |o| o["id"] }).not_to include(sibling_order.id)
     end
   end
 
@@ -694,6 +720,33 @@ RSpec.describe "Tickets", type: :request do
     end
   end
 
+  describe "store scoping" do
+    let(:owner) { create(:user) }
+    let(:company) { owner.companies.first }
+    let!(:store_a) { create(:shopify_store, company: company, user: owner) }
+    let!(:store_b) { create(:shopify_store, company: company, user: owner) }
+    let!(:account_a) { create(:email_account, company: company, user: owner, shopify_store: store_a) }
+    let!(:account_b) { create(:email_account, company: company, user: owner, shopify_store: store_b) }
+    let!(:ticket_a) { create(:ticket, email_account: account_a, subject: "Alpha ticket store-A unique-xz9") }
+    let!(:ticket_b) { create(:ticket, email_account: account_b, subject: "Bravo ticket store-B unique-xz9") }
+
+    before { sign_in owner }
+
+    it "shows only the selected store's tickets" do
+      get tickets_path, params: { store_id: store_a.id }
+      expect(response.body).to include("Alpha ticket store-A unique-xz9")
+      expect(response.body).not_to include("Bravo ticket store-B unique-xz9")
+    end
+
+    it "keeps tickets from store-less email accounts visible under any store" do
+      account_none = create(:email_account, company: company, user: owner, shopify_store: nil)
+      create(:ticket, email_account: account_none, subject: "Unlinked ticket no-store unique-xz9")
+
+      get tickets_path, params: { store_id: store_a.id }
+      expect(response.body).to include("Unlinked ticket no-store unique-xz9")
+    end
+  end
+
   describe "GET /tickets/:id show with sibling threads" do
     it "assigns the customer's sibling threads" do
       create(:ticket, email_account: email_account, customer: nil,
@@ -710,6 +763,8 @@ RSpec.describe "Tickets", type: :request do
   describe "PATCH /tickets/:id/bind_order" do
     let(:store) { create(:shopify_store, company: email_account.company) }
     let(:customer) { create(:customer, shopify_store: store) }
+
+    before { email_account.update!(shopify_store: store) }
 
     it "binds an order to a linked ticket" do
       ticket = create(:ticket, email_account: email_account, customer: customer)

@@ -972,3 +972,7 @@
       sat: "六"
   locale_switcher:
     label: "语言"
+  store_switcher:
+    label: "商店"
+    all_stores: "所有商店"
+    no_stores: "暂无商店"

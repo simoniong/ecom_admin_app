@@ -272,7 +272,10 @@ class ShipmentsController < AdminController
     @destination = params[:destination].presence
     @origin_carrier_filter = params[:origin_carrier].presence
     @destination_carrier_filter = params[:destination_carrier].presence
+    # The unified store switcher shares the store_id param; "all" means no
+    # store filter (store scoping is already handled in build_base_scope).
     @store_filter = params[:store_id].presence
+    @store_filter = nil if @store_filter == "all"
     @event_from = params[:event_from].presence
     @event_to = params[:event_to].presence
     @shipped_from = params[:shipped_from].presence

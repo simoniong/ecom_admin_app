@@ -1,6 +1,9 @@
 <div data-controller="kanban">
   <div class="mb-6">
-    <h1 class="text-2xl font-semibold text-gray-900 mb-4"><%= t("tickets.title") %></h1>
+    <div class="flex items-center gap-3 mb-4">
+      <h1 class="text-2xl font-semibold text-gray-900"><%= t("tickets.title") %></h1>
+      <%= render "shared/store_switcher" %>
+    </div>
 
     <%= form_with url: tickets_path, method: :get, local: true, class: "relative" do |f| %>
       <input type="text" name="q" value="<%= params[:q] %>"

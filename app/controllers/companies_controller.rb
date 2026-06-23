@@ -11,6 +11,7 @@ class CompaniesController < AdminController
   def create
     result = Companies::CreateWithOwner.new(current_user, create_params.to_h).call
     session[:company_id] = result.company.id
+    session.delete(:store_id)
     redirect_to authenticated_root_path, notice: t("companies.created")
   rescue ActiveRecord::RecordInvalid => e
     @company = e.record.is_a?(Company) ? e.record : Company.new(create_params)
