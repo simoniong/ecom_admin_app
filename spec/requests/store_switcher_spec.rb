@@ -45,6 +45,19 @@ RSpec.describe "Store switcher resolution & persistence", type: :request do
       get orders_path, params: { store_id: store_b.id }
       expect(session[:store_id]).to eq(store_b.id)
     end
+
+    it "ignores an explicit store_id=all on Orders (does not persist 'all')" do
+      get orders_path, params: { store_id: "all" }
+      expect(response).to have_http_status(:success)
+      expect(session[:store_id]).to be_nil
+    end
+  end
+
+  describe "stale selections" do
+    it "renders fine when the session holds a no-longer-visible store_id" do
+      get authenticated_root_path, params: { store_id: "00000000-0000-4000-8000-000000000000" }
+      expect(response).to have_http_status(:success)
+    end
   end
 
   describe "Settings pages (no switcher)" do

@@ -138,6 +138,7 @@ class AdminController < ApplicationController
 
   def persist_store_selection
     return unless store_switcher_visible?
+    return if params[:store_id] == "all" && !store_all_allowed?
 
     session[:store_id] = params[:store_id] if params[:store_id].present?
   end
