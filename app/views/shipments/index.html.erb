@@ -1,7 +1,8 @@
 <div class="space-y-4" data-controller="shipment-filter shipment-bulk bulk-tracking-search" data-action="click@window->shipment-filter#closeSortDropdown" data-shipment-bulk-copied-text-value="<%= t("shipments.bulk.copied") %>">
   <%# Header %>
   <div class="flex items-center justify-between">
-    <div class="relative" data-controller="dropdown">
+    <div class="flex items-center gap-3">
+      <div class="relative" data-controller="dropdown">
       <button data-action="click->dropdown#toggle" aria-haspopup="true" aria-expanded="false" data-dropdown-target="button"
               class="flex items-center gap-1 text-2xl font-bold text-gray-900 hover:text-gray-700">
         <%= @archived ? t("shipments.archived_title") : t("shipments.title") %>
@@ -29,6 +30,8 @@
           <% end %>
         <% end %>
       </div>
+      </div>
+      <%= render "shared/store_switcher" %>
     </div>
     <div class="flex items-center gap-2">
       <button type="button" data-shipment-bulk-target="exportButton"

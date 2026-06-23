@@ -8,8 +8,9 @@ class DashboardMetricsService
     "past_30_days" => -> { 29.days.ago.to_date..Date.current }
   }.freeze
 
-  def initialize(scope, range_key: "past_7_days", start_date: nil, end_date: nil)
+  def initialize(scope, range_key: "past_7_days", start_date: nil, end_date: nil, shopify_store: nil)
     @scope = scope
+    @shopify_store = shopify_store
     if start_date.present? && end_date.present?
       @range_key = "custom"
       @date_range = begin
@@ -45,6 +46,14 @@ class DashboardMetricsService
 
     store_scope = @scope.respond_to?(:shopify_stores) ? @scope.shopify_stores : ShopifyStore.none
     ad_scope    = @scope.respond_to?(:ad_accounts)    ? @scope.ad_accounts    : AdAccount.none
+
+    if @shopify_store
+      # Narrow within the existing group/company scope — do NOT replace ad_scope
+      # with @shopify_store.ad_accounts, which would pull in ad accounts assigned
+      # to other groups that happen to be linked to this store.
+      store_scope = store_scope.where(id: @shopify_store.id)
+      ad_scope    = ad_scope.where(shopify_store_id: @shopify_store.id)
+    end
 
     shopify = shopify.where(shopify_store_id: store_scope.select(:id))
     ad = ad.where(ad_account_id: ad_scope.select(:id))

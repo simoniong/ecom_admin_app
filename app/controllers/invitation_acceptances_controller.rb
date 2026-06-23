@@ -69,6 +69,7 @@ class InvitationAcceptancesController < ApplicationController
 
     @invitation.accept!(user)
     session[:company_id] = @invitation.company_id
+    session.delete(:store_id)
     redirect_to authenticated_root_path, notice: t("invitations.accepted", company: @invitation.company.name)
   end
 end

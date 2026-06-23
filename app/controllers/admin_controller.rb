@@ -2,6 +2,7 @@ class AdminController < ApplicationController
   before_action :authenticate_user!
   before_action :set_current_company
   before_action :authorize_page!
+  before_action :persist_store_selection
   layout "admin"
 
   PERMISSION_KEY_MAP = {
@@ -18,6 +19,9 @@ class AdminController < ApplicationController
     "shipping_rate_card_rates"    => "shopify_stores",
     "shipping_zone_postal_rules" => "shopify_stores"
   }.freeze
+
+  STORE_SWITCHER_CONTROLLERS = %w[dashboard orders shipments tickets].freeze
+  STORE_ALL_ALLOWED_CONTROLLERS = %w[dashboard shipments].freeze
 
   private
 
@@ -75,7 +79,15 @@ class AdminController < ApplicationController
   helper_method :visible_email_accounts
 
   def visible_tickets
-    Ticket.where(email_account_id: visible_email_accounts.select(:id))
+    accounts = visible_email_accounts
+    # Filter by the selected store, but always keep accounts not linked to any
+    # store (shopify_store_id IS NULL) — those tickets aren't store-specific and
+    # must stay visible in every store view. Group isolation is already enforced
+    # by visible_email_accounts.
+    if current_shopify_store
+      accounts = accounts.where(shopify_store_id: [ current_shopify_store.id, nil ])
+    end
+    Ticket.where(email_account_id: accounts.select(:id))
   end
   helper_method :visible_tickets
 
@@ -111,21 +123,60 @@ class AdminController < ApplicationController
   end
 
   def current_shopify_store
-    @current_shopify_store ||= begin
-      stores = visible_shopify_stores
-      if params[:store_id].present?
-        stores.find_by(id: params[:store_id])
-      else
-        stores.first if stores.count == 1
-      end
-    end
+    return @current_shopify_store if defined?(@current_shopify_store)
+
+    @current_shopify_store = resolve_current_store
   end
   helper_method :current_shopify_store
+
+  def store_switcher_visible?
+    STORE_SWITCHER_CONTROLLERS.include?(controller_name)
+  end
+  helper_method :store_switcher_visible?
+
+  def store_all_allowed?
+    STORE_ALL_ALLOWED_CONTROLLERS.include?(controller_name)
+  end
+  helper_method :store_all_allowed?
 
   def store_timezone
     @store_timezone ||= current_shopify_store&.active_timezone || ActiveSupport::TimeZone["UTC"]
   end
   helper_method :store_timezone
+
+  def persist_store_selection
+    return unless store_switcher_visible?
+    return if params[:store_id] == "all" && !store_all_allowed?
+
+    session[:store_id] = params[:store_id] if params[:store_id].present?
+  end
+
+  def resolve_current_store
+    stores = visible_shopify_stores
+
+    unless store_switcher_visible?
+      return stores.find_by(id: params[:store_id]) if params[:store_id].present?
+
+      return stores.first if stores.count == 1
+
+      return nil
+    end
+
+    raw = params[:store_id].presence || session[:store_id].presence
+
+    if raw == "all"
+      return nil if store_all_allowed?
+
+      return stores.first
+    end
+
+    if raw.present?
+      found = stores.find_by(id: raw)
+      return found if found
+    end
+
+    store_all_allowed? ? nil : stores.first
+  end
 
   def visible_resource(base, association)
     return base if current_membership&.owner?
