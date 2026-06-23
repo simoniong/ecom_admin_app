@@ -158,6 +158,31 @@ RSpec.describe DashboardMetricsService do
       expect(result[:current][:cpa]).to eq(5.0)
       expect(result[:previous][:cpa]).to eq(20.0)
     end
+
+    context "when scoped to a single store" do
+      let(:store_other) { create(:shopify_store, user: user) }
+
+      it "aggregates only the selected store's shopify metrics" do
+        create(:shopify_daily_metric, shopify_store: store, date: Date.current, revenue: 500, orders_count: 5, sessions: 100)
+        create(:shopify_daily_metric, shopify_store: store_other, date: Date.current, revenue: 999, orders_count: 9, sessions: 200)
+
+        result = described_class.new(user, range_key: "today", shopify_store: store).call
+
+        expect(result[:current][:revenue]).to eq(500)
+        expect(result[:current][:orders]).to eq(5)
+      end
+
+      it "restricts ad spend to the selected store's ad accounts" do
+        store_ad = create(:ad_account, user: user, shopify_store: store)
+        other_ad = create(:ad_account, user: user, shopify_store: store_other)
+        create(:ad_daily_metric, ad_account: store_ad, date: Date.current, spend: 30)
+        create(:ad_daily_metric, ad_account: other_ad, date: Date.current, spend: 70)
+
+        result = described_class.new(user, range_key: "today", shopify_store: store).call
+
+        expect(result[:current][:ad_spend]).to eq(30)
+      end
+    end
   end
 
   describe "shipping cost aggregation" do
