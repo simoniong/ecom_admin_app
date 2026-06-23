@@ -182,6 +182,21 @@ RSpec.describe DashboardMetricsService do
 
         expect(result[:current][:ad_spend]).to eq(30)
       end
+
+      it "does not count ad accounts outside the scope even if linked to the store" do
+        company = user.companies.first
+        group_a = create(:group, company: company)
+        group_b = create(:group, company: company)
+        scoped_store = create(:shopify_store, company: company, user: user, group: group_a)
+        in_group_ad  = create(:ad_account, company: company, user: user, group: group_a, shopify_store: scoped_store)
+        other_group_ad = create(:ad_account, company: company, user: user, group: group_b, shopify_store: scoped_store)
+        create(:ad_daily_metric, ad_account: in_group_ad, date: Date.current, spend: 40)
+        create(:ad_daily_metric, ad_account: other_group_ad, date: Date.current, spend: 60)
+
+        result = described_class.new(group_a, range_key: "today", shopify_store: scoped_store).call
+
+        expect(result[:current][:ad_spend]).to eq(40)
+      end
     end
   end
 

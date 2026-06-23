@@ -25,6 +25,15 @@ RSpec.describe "Shipments", type: :request do
       expect(response.body).to include("TRACK1")
     end
 
+    it "renders all stores when the switcher sends store_id=all" do
+      order = create(:order, customer: customer, shopify_store: store)
+      create(:fulfillment, order: order, tracking_number: "TRACKALL", tracking_status: "InTransit")
+
+      get shipments_path, params: { store_id: "all" }
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include("TRACKALL")
+    end
+
     context "when tracking is disabled" do
       before { user.companies.first.update!(tracking_enabled: false) }
 

@@ -48,8 +48,11 @@ class DashboardMetricsService
     ad_scope    = @scope.respond_to?(:ad_accounts)    ? @scope.ad_accounts    : AdAccount.none
 
     if @shopify_store
+      # Narrow within the existing group/company scope — do NOT replace ad_scope
+      # with @shopify_store.ad_accounts, which would pull in ad accounts assigned
+      # to other groups that happen to be linked to this store.
       store_scope = store_scope.where(id: @shopify_store.id)
-      ad_scope    = @shopify_store.ad_accounts
+      ad_scope    = ad_scope.where(shopify_store_id: @shopify_store.id)
     end
 
     shopify = shopify.where(shopify_store_id: store_scope.select(:id))
