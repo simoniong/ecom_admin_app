@@ -1,17 +1,13 @@
 import { Controller } from "@hotwired/stimulus"
 
 export default class extends Controller {
-  static targets = ["storeSelect", "fromDate", "toDate", "rangeButton", "filterForm", "statusFilter", "sortColumn", "sortDirection", "statusSelect"]
+  static targets = ["fromDate", "toDate", "rangeButton", "filterForm", "statusFilter", "sortColumn", "sortDirection", "statusSelect"]
 
   connect() {
     this.highlightMatchingRange()
   }
 
   submit() {
-    this.filterFormTarget.requestSubmit()
-  }
-
-  storeChanged() {
     this.filterFormTarget.requestSubmit()
   }
 

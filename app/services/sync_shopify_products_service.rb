@@ -22,7 +22,10 @@ class SyncShopifyProductsService
 
   def update_store_currency
     shop = @shopify.fetch_shop
-    @store.update!(currency: shop["currency"]) if shop["currency"].present?
+    attrs = {}
+    attrs[:currency] = shop["currency"] if shop["currency"].present?
+    attrs[:name] = shop["name"] if shop["name"].present?
+    @store.update!(attrs) if attrs.any?
   end
 
   def sync_all_products

@@ -24,4 +24,15 @@ class ShopifyStore < ApplicationRecord
   def active_timezone
     ActiveSupport::TimeZone[timezone] || ActiveSupport::TimeZone["UTC"]
   end
+
+  # Human-friendly label for the store. Falls back to the myshopify domain
+  # for stores bound before the Shopify shop name was captured.
+  def display_name
+    name.presence || shop_domain
+  end
+
+  # Compact label that drops the ".myshopify.com" suffix when no name is set.
+  def short_name
+    name.presence || shop_domain.sub(".myshopify.com", "")
+  end
 end

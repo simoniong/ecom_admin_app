@@ -42,10 +42,10 @@ RSpec.describe "Ad Campaigns", type: :system do
   context "with multiple stores" do
     let!(:store2) { create(:shopify_store, user: user) }
 
-    it "shows store selector dropdown" do
+    it "shows the unified store switcher" do
       sign_in_as(user)
       click_link "Ad Campaigns"
-      expect(page).to have_select("shopify_store_id")
+      expect(page).to have_css("[data-controller='store-switcher']")
     end
   end
 

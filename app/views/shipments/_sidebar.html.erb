@@ -16,7 +16,7 @@
     </div>
     <div class="flex justify-between">
       <dt class="text-gray-500"><%= t("shipments.show.store") %></dt>
-      <dd class="text-right text-gray-900"><%= @store&.shop_domain&.gsub(".myshopify.com", "") || "—" %></dd>
+      <dd class="text-right text-gray-900"><%= @store&.short_name || "—" %></dd>
     </div>
     <div class="flex justify-between">
       <dt class="text-gray-500"><%= t("shipments.show.order_amount") %></dt>
