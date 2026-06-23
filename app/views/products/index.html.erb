@@ -19,7 +19,7 @@
               class="text-sm rounded-md border border-gray-300 bg-white py-1 pl-2 pr-7">
         <% visible_shopify_stores.each do |s| %>
           <option value="<%= s.id %>" <%= "selected" if @shopify_store&.id == s.id %>>
-            <%= s.shop_domain %>
+            <%= s.display_name %>
           </option>
         <% end %>
       </select>

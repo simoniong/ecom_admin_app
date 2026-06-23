@@ -104,7 +104,7 @@ RSpec.describe "ShopifyOauth", type: :request do
       stub_request(:get, %r{test\.myshopify\.com/admin/api/2024-10/shop\.json})
         .to_return(
           status: 200,
-          body: { shop: { iana_timezone: "Asia/Macau" } }.to_json,
+          body: { shop: { name: "Test Store", iana_timezone: "Asia/Macau" } }.to_json,
           headers: { "Content-Type" => "application/json" }
         )
     end
@@ -158,6 +158,8 @@ RSpec.describe "ShopifyOauth", type: :request do
       expect(store.access_token).to eq("shpat_new_token")
       expect(store.client_id).to eq(client_id)
       expect(store.client_secret).to eq(client_secret)
+      expect(store.name).to eq("Test Store")
+      expect(store.timezone).to eq("Asia/Macau")
       expect(response).to redirect_to(shopify_stores_path)
       expect(flash[:notice]).to eq(I18n.t("shopify_stores.bind_success"))
     end

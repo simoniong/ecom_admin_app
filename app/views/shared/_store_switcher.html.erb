@@ -14,13 +14,13 @@
         <% stores.each do |store| %>
           <option value="<%= url_for(request.path_parameters.merge(request.query_parameters.merge(store_id: store.id))) %>"
                   <%= "selected" if current_shopify_store&.id == store.id %>>
-            <%= store.shop_domain %>
+            <%= store.display_name %>
           </option>
         <% end %>
       </select>
     </div>
   <% elsif stores.size == 1 %>
-    <span data-testid="store-switcher" class="inline-flex items-center text-sm text-gray-600"><%= stores.first.shop_domain %></span>
+    <span data-testid="store-switcher" class="inline-flex items-center text-sm text-gray-600"><%= stores.first.display_name %></span>
   <% else %>
     <span data-testid="store-switcher" class="inline-flex items-center text-sm text-gray-400"><%= t("store_switcher.no_stores") %></span>
   <% end %>

@@ -6,7 +6,7 @@
           <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
         </svg>
       <% end %>
-      <h1 class="text-2xl font-semibold text-gray-900"><%= @shopify_store.shop_domain %></h1>
+      <h1 class="text-2xl font-semibold text-gray-900"><%= @shopify_store.display_name %></h1>
     </div>
 
     <%= button_to shopify_store_path(@shopify_store), method: :delete,

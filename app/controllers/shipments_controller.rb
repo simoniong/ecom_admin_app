@@ -196,7 +196,7 @@ class ShipmentsController < AdminController
           f.destination_country,
           f.transit_days,
           f.tags&.join(", "),
-          store&.shop_domain&.gsub(".myshopify.com", ""),
+          store&.short_name,
           f.origin_country,
           f.created_at.in_time_zone(tz).strftime(fmt),
           order.ordered_at&.in_time_zone(tz)&.strftime(fmt),

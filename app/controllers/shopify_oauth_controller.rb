@@ -99,12 +99,14 @@ class ShopifyOauthController < AdminController
     if store.new_record? && (pending_group_id = session.delete(:pending_binding_group_id)).present?
       store.group_id = pending_group_id
     end
+    shop_info = fetch_shop_info(shop, access_token_response["access_token"])
     store.assign_attributes(
       access_token: access_token_response["access_token"],
       client_id: client_id,
       client_secret: client_secret,
       scopes: access_token_response["scope"],
-      timezone: fetch_shop_timezone(shop, access_token_response["access_token"]),
+      name: shop_info["name"].presence || store.name,
+      timezone: shop_info["iana_timezone"].presence || "UTC",
       installed_at: store.installed_at || Time.current
     )
 
@@ -139,16 +141,16 @@ class ShopifyOauthController < AdminController
     ActiveSupport::SecurityUtils.secure_compare(digest, hmac)
   end
 
-  def fetch_shop_timezone(shop, access_token)
+  def fetch_shop_info(shop, access_token)
     response = HTTParty.get(
       "https://#{shop}/admin/api/2024-10/shop.json",
-      query: { fields: "iana_timezone" },
+      query: { fields: "name,iana_timezone" },
       headers: { "X-Shopify-Access-Token" => access_token, "Content-Type" => "application/json" }
     )
-    return "UTC" unless response.success?
-    response.parsed_response.dig("shop", "iana_timezone") || "UTC"
+    return {} unless response.success?
+    response.parsed_response["shop"] || {}
   rescue
-    "UTC"
+    {}
   end
 
   def exchange_code_for_token(shop, code, client_id, client_secret)

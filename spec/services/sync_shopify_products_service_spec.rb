@@ -7,7 +7,7 @@ RSpec.describe SyncShopifyProductsService do
 
   before do
     allow(ShopifyService).to receive(:new).with(store).and_return(shopify_service)
-    allow(shopify_service).to receive(:fetch_shop).and_return({ "currency" => "USD" })
+    allow(shopify_service).to receive(:fetch_shop).and_return({ "currency" => "USD", "name" => "Paint Kit Studio" })
   end
 
   let(:variant_a) do
@@ -57,6 +57,10 @@ RSpec.describe SyncShopifyProductsService do
 
   it "updates store currency from /shop.json" do
     expect { service.call }.to change { store.reload.currency }.to("USD")
+  end
+
+  it "updates store name from /shop.json" do
+    expect { service.call }.to change { store.reload.name }.to("Paint Kit Studio")
   end
 
   it "sets products_synced_at" do
