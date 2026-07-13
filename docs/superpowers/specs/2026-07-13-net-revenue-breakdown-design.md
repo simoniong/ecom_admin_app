@@ -42,7 +42,7 @@ Net Revenue = Gross Revenue − Refunds − Tax(net) − Transaction Fees
 | `gross_revenue` | subtotal（商品小計）+ shipping（運費）+ tax（收到的稅），退款前的總收 |
 | `refunds` | 退款總額 = 退款商品 + 退款運費 + 退款稅 − order adjustments（沿用現有 refund 計算邏輯） |
 | `total_tax`（淨稅） | 收到的稅 − 退掉的稅（= 實際要上繳政府的稅） |
-| `transaction_fees` | Shopify Payments 每筆真實手續費，依 balance transaction 的 `processed_at` 日期歸屬 |
+| `transaction_fees` | Shopify Payments 每筆訂單交易的真實手續費（GraphQL `OrderTransaction.fees`），依**訂單下單日**歸屬 |
 | `net_revenue` | 上述公式結果，公司實際留下的錢 |
 
 ### 數學一致性驗證
@@ -84,29 +84,44 @@ Backfill：既有列的新欄位預設 0；正確歷史值由既有的 `Backfill
 
 ### 2. `ShopifyAnalyticsService`（改寫 `sync_date` 與 GraphQL 抽取）
 
+手續費改由**訂單查詢內嵌**取得（見元件 3），不另做 API。
+
 - 訂單抓取（`fetch_orders_via_graphql`）：目前把 `subtotal + shipping + tax` 合併回傳為單一
-  `gross_revenue`。改為**同時**回傳 `gross_revenue` 與其中的 `tax_charged`（`totalTaxSet` 的加總）。
+  `gross_revenue`。改為**同時**回傳 `gross_revenue`、其中的 `tax_charged`（`totalTaxSet` 的加總），
+  以及 `transaction_fees`（每筆訂單 `transactions.fees.amount` 的加總）。
 - 退款抓取（`fetch_refunds_via_graphql` / `fetch_refunds_for_status`）：目前回傳單一 `refunds_total`。
   改為**同時**回傳 `refunds_total` 與其中的 `tax_refunded`
   （`refundLineItems.totalTaxSet` + `refundShippingLines.taxAmountSet` 的加總）。
-- 新增私有 method `fetch_transaction_fees(date)`：呼叫 Shopify Payments balance transactions
-  （見元件 3），回傳當日手續費總額。
 - `sync_date` 寫入：
   - `revenue`（維持 `gross_revenue − refunds_total`，不變）
   - `gross_revenue = gross_revenue`
   - `refunds = refunds_total`
   - `total_tax = tax_charged − tax_refunded`
-  - `transaction_fees = fetch_transaction_fees(date)`
+  - `transaction_fees = transaction_fees`（來自訂單查詢）
 
-### 3. Shopify Payments 手續費取得
+### 3. Shopify Payments 手續費取得（內嵌於訂單查詢）
 
-- 沿用現有 GraphQL client（`ShopifyAPI::Clients::Graphql::Admin`，與 `ShopifyAnalyticsService`
-  build 方式一致），查詢 `shopifyPaymentsAccount { balanceTransactions(...) }`，取每筆 `fee`（shop money）
-  與 `transactionDate`／`processedAt`，並依日期區間過濾與分頁累加（沿用現有 cursor 分頁樣式）。
-  - 若店家未啟用 Shopify Payments，`shopifyPaymentsAccount` 為 `null` → 手續費視為 0，不報錯。
-- 日期歸屬：以 balance transaction 的處理日期歸入當日 `transaction_fees`（cash-flow 觀點）。
-  此與 gross（依 order created_at）之間存在小幅日期錯位，屬已知近似，於 spec 標註。
-- 手續費為費用（正值扣項）；balance transactions 中 fee 一律以正值累加。
+Shopify Admin GraphQL 的 `OrderTransaction.fees`（`[TransactionFee!]!`，官方註明「僅 Shopify Payments
+交易有」）直接帶每筆交易的手續費，`TransactionFee.amount` 為 `MoneyV2`。因此手續費在現有訂單查詢裡一起抓即可：
+
+```graphql
+node {
+  subtotalPriceSet { shopMoney { amount } }
+  totalShippingPriceSet { shopMoney { amount } }
+  totalTaxSet { shopMoney { amount } }
+  customer { numberOfOrders }
+  transactions(first: 10) {
+    fees { amount { amount } }
+  }
+}
+```
+
+- 每筆訂單手續費 = 該訂單所有 `transactions` 的所有 `fees.amount.amount` 加總；再累加到當日總額。
+- 若訂單非 Shopify Payments 交易，`fees` 為空陣列 → 該訂單手續費 0，不報錯。
+- 日期歸屬：手續費隨訂單走，**依訂單下單日（created_at）歸屬**，與 gross_revenue 完全對齊，無日期錯位。
+- 已知 caveat：太近期／未結算的訂單，`fees` 可能尚未產生（暫為 0）；每日同步與 backfill 重跑會自動補正。
+- 多幣別：`TransactionFee.amount` 為交易/結算幣別（Shopify Payments 通常為店幣別），直接取用；
+  極端多幣別情境的微小誤差列為已知限制。
 
 ### 4. `DashboardMetricsService#aggregate_metrics`
 
@@ -131,9 +146,9 @@ Backfill：既有列的新欄位預設 0；正確歷史值由既有的 `Backfill
 
 ## 錯誤處理
 
-- Shopify Payments 未啟用或 API 回 `shopifyPaymentsAccount: null` → 手續費 0，記 log，不中斷同步
-  （沿用 `sync_date` 既有 `rescue => e` 記錄樣式）。
-- balance transactions 分頁失敗／逾時 → 沿用現有例外處理，該日手續費不寫入（維持既有值或 0），不影響其他欄位。
+- 訂單交易非 Shopify Payments → `transactions.fees` 為空 → 手續費 0，正常流程，不報錯。
+- `transactions` 或 `fees` 缺漏／為 `nil` → 以 `|| []` 與 `.to_d` 保底為 0（沿用現有 `.to_s.to_d` 樣式）。
+- 整體同步失敗 → 沿用 `sync_date` 既有 `rescue => e` 記錄 log，不中斷，不影響其他日期。
 - 新欄位有 DB 預設 0 與 `null: false`，聚合 `sum` 不會遇到 nil。
 
 ## 測試（依 CLAUDE.md：95%+ 覆蓋、無 mock、需 model/request/system spec）
@@ -141,8 +156,8 @@ Backfill：既有列的新欄位預設 0；正確歷史值由既有的 `Backfill
 - `spec/services/shopify_analytics_service_spec.rb`：
   - gross_revenue / refunds / total_tax（淨稅）分別寫入正確；
   - 有退款時淨稅 = 收稅 − 退稅；
-  - Shopify Payments 未啟用時 transaction_fees = 0；
-  - 手續費依日期歸屬正確。
+  - 訂單 `transactions.fees` 加總正確寫入 `transaction_fees`（多筆 transaction／多筆 fee）；
+  - 訂單無 `fees`（非 Shopify Payments）時 transaction_fees = 0。
 - `spec/services/dashboard_metrics_service_spec.rb`：
   - 聚合四欄位與 net_revenue 公式；
   - net_revenue 一致性（用具體數字驗證抵銷）；
