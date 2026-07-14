@@ -136,13 +136,40 @@ end
 
 1. `GET /parcels/import` — 選擇店鋪 + 上傳 xlsx
 2. 解析檔案；驗證所選店鋪已設定 `cost_fx_rate`（未設定則**在此擋下**，提示先去店鋪設定填匯率，不讓 `cost_amount` 為 null 的殘廢資料進 DB）
-3. 比對既有資料，將解析結果存入 **Solid Cache**（key 為隨機 token，TTL 30 分鐘）
+3. 比對既有資料，將解析結果寫入 **`parcel_import_batches` 表**（status `pending`，`rows` 存 jsonb）
 4. 預覽頁顯示摘要：「解析到 482 筆 — 475 筆新建、7 筆覆蓋既有資料、3 筆未配對到訂單。總金額 58,578.98 CNY（≈ $8,136.00 USD @ 7.2）」，並列出將被覆蓋與未配對的明細
-5. 使用者確認 → 從 cache 讀回，在單一 transaction 內寫入 → 觸發 rollup → 清除 cache
+5. 使用者確認 → 讀回該 batch，在單一 transaction 內寫入 parcels → 觸發 rollup → batch 標記為 `completed`
 
-**為什麼用 Solid Cache 而非 ActiveStorage：** ActiveStorage 在本專案**尚未啟用**（`config/storage.yml` 存在，但 schema 中沒有 `active_storage_*` 三張表，migration 從未執行）。為了暫存一個上傳檔而啟用它並新增三張表，代價過高。Solid Cache 已在用（DB-backed），跨 process/容器共享，不像 `tmp/` 檔案在 Kamal 多容器部署下會失效。
+### 4.2.1 暫存為什麼用資料庫而不是 cache
 
-**大小考量：** 482 行序列化後約 200KB。實作時須確認未超過 Solid Cache 的 `max_entry_size`（若超過，改為分塊儲存或只快取檔案路徑 + 重新解析）。
+**Solid Cache 在本專案並未真正安裝。** `solid_cache` gem 在 Gemfile 裡、`database.yml` 也有指向 `db/cache_migrate` 的 cache 資料庫設定 —— 但 `db/cache_migrate` 目錄不存在，schema 中沒有 `solid_cache_entries` 表，`config/cache.yml` 不存在，且 `production.rb:50` 的 `config.cache_store` 是註解掉的。Rails 因此退回 **file store（`tmp/cache`）**。
+
+後果會是致命的：預覽把 482 筆寫進 A 容器的本機磁碟，使用者按確認時請求落到 B 容器就讀不到，顯示「預覽已過期」，整批匯入白做。單一容器也躲不掉 —— 一次部署或 `tmp:clear` 就清空。
+
+更根本的問題是語意：**一個正在進行中的匯入是業務狀態，不是快取。** Cache 的契約就是「隨時可以消失」，拿它承載使用者已經花時間確認過的 482 筆金額資料，本來就是錯的抽象。
+
+因此改用專用表：
+
+```ruby
+create_table :parcel_import_batches, id: :uuid do |t|
+  t.references :shopify_store, type: :uuid, null: false, foreign_key: true
+  t.references :user,          type: :uuid, null: false, foreign_key: true   # 誰匯的
+  t.string   :filename                                                        # 匯了哪個檔
+  t.jsonb    :rows,      null: false, default: []
+  t.integer  :row_count, null: false, default: 0
+  t.decimal  :total_cny, precision: 12, scale: 2
+  t.string   :status,    null: false, default: "pending"                      # pending / completed
+  t.datetime :completed_at
+  t.timestamps
+end
+add_index :parcel_import_batches, [ :shopify_store_id, :status ]
+```
+
+**額外收穫：這張表就是匯入稽核紀錄。** 哪天某個月的運費數字看起來不對，可以回頭查「這批是誰、什麼時候、從哪個檔案匯進來的」。設計文件 §10 提到未來要支援多貨代帳單時，本來就需要「這批來自哪個檔案」這個資訊 —— 這張表正好是那個基礎，不是為了繞過 cache 而生的權宜之計。
+
+**過期語意：** 不設 TTL。同一使用者對同一店鋪重新上傳時，先刪掉自己先前未確認的 `pending` batch（避免累積）。確認時找不到對應的 pending batch，才顯示「預覽已過期」。
+
+**ActiveStorage 也不用**（同樣未啟用：`config/storage.yml` 存在，但 schema 中沒有 `active_storage_*` 三張表）。解析後的 rows 直接進 jsonb，原始檔案不留存 —— 檔名記在 `filename` 欄位供追溯即可。
 
 ### 4.3 新增依賴
 
