@@ -5,6 +5,7 @@ class Order < ApplicationRecord
   has_many :order_line_items, dependent: :destroy
   has_many :email_workflow_runs, dependent: :destroy
   has_many :tickets, dependent: :nullify
+  has_many :parcels, dependent: :nullify
 
   validates :shopify_order_id, presence: true, uniqueness: { scope: :shopify_store_id }
 
@@ -52,5 +53,28 @@ class Order < ApplicationRecord
 
   def shipping_is_actual?
     actual_shipping_cost.present?
+  end
+
+  # actual_shipping_cost is a denormalized rollup of the order's parcels. It must
+  # be nil — not 0 — when there are no parcels, otherwise effective_shipping_cost
+  # would treat 0 as "we know the actual cost" and stop falling back to the estimate.
+  def refresh_actual_shipping_cost!
+    total = parcels.exists? ? parcels.sum(:cost_amount) : nil
+    update_column(:actual_shipping_cost, total)
+  end
+
+  def parcel_count
+    parcels.count
+  end
+
+  def shipping_variance
+    return nil unless actual_shipping_cost && estimated_shipping_cost
+    actual_shipping_cost - estimated_shipping_cost
+  end
+
+  def shipping_variance_pct
+    return nil unless estimated_shipping_cost&.positive?
+    return nil unless shipping_variance
+    (shipping_variance / estimated_shipping_cost * 100).round(2)
   end
 end
