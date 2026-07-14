@@ -3,6 +3,7 @@
 # one imported from a spreadsheet.
 class ParcelUpserter
   class MissingFxRate < StandardError; end
+  class MissingCost < StandardError; end
 
   ATTRIBUTES = %i[
     internal_no tracking_number shipped_at service_channel zone country
@@ -18,6 +19,7 @@ class ParcelUpserter
   def call
     fx = @store.cost_fx_rate
     raise MissingFxRate, "store #{@store.id} has no cost_fx_rate" unless fx&.positive?
+    raise MissingCost, "attrs has no cost_cny" if @attrs[:cost_cny].blank?
 
     parcel = Parcel.find_or_initialize_by(
       shopify_store_id: @store.id,

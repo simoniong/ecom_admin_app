@@ -71,6 +71,23 @@ RSpec.describe ParcelUpserter do
       .to raise_error(ParcelUpserter::MissingFxRate)
   end
 
+  it "raises MissingFxRate when cost_fx_rate is exactly zero" do
+    # update_column bypasses the model's `greater_than: 0` validation — a zero rate
+    # shouldn't be reachable through normal writes, but the upserter guard is
+    # defense-in-depth and must not treat 0 as a truthy, usable rate.
+    store.update_column(:cost_fx_rate, 0)
+
+    expect { described_class.new(store: store, attrs: attrs).call }
+      .to raise_error(ParcelUpserter::MissingFxRate)
+  end
+
+  it "raises MissingCost and persists no parcel when cost_cny is blank" do
+    expect {
+      expect { described_class.new(store: store, attrs: attrs(cost_cny: nil)).call }
+        .to raise_error(ParcelUpserter::MissingCost)
+    }.not_to change(Parcel, :count)
+  end
+
   it "handles a resend parcel (R1 suffix) as a separate parcel on the same order" do
     described_class.new(store: store, attrs: attrs(identifier: "XMBDE2012399")).call
     described_class.new(store: store, attrs: attrs(identifier: "XMBDE2012399R1", cost_cny: BigDecimal("65.76"))).call
