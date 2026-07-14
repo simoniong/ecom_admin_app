@@ -62,6 +62,13 @@ Rails.application.routes.draw do
         end
       end
     end
+    resources :parcels, only: [ :index, :update, :destroy ] do
+      collection do
+        get  :import
+        post :preview
+        post :confirm_import
+      end
+    end
     resources :products, only: [ :index ]
     resources :product_variants, only: [ :update ] do
       collection do
