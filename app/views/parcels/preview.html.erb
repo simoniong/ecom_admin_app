@@ -43,7 +43,7 @@
 
     <div class="flex gap-3 pt-2">
       <%= button_to t("parcels.import.confirm"), confirm_import_parcels_path,
-            method: :post, params: { token: @token },
+            method: :post, params: { batch_id: @batch.id },
             class: "px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800" %>
       <%= link_to t("parcels.import.cancel"), import_parcels_path,
             class: "px-4 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-50" %>

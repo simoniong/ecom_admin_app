@@ -6,14 +6,13 @@ class ParcelsController < AdminController
   # :update and :destroy to this list when it defines those actions.
   before_action :require_owner!, only: [ :import, :preview, :confirm_import ]
 
-  CACHE_TTL = 30.minutes
-
   def import
     @stores = visible_shopify_stores.order(:name)
   end
 
-  # Parse + summarise. Writes nothing — the rows are held in Solid Cache until
-  # the user confirms. Overwriting money silently is exactly what this guards.
+  # Parse + summarise. Writes no Parcel rows — the parsed rows are staged in
+  # a ParcelImportBatch row until the user confirms. Overwriting money
+  # silently is exactly what this guards.
   def preview
     store = visible_shopify_stores.find_by(id: params[:shopify_store_id])
     return redirect_to(import_parcels_path, alert: t("parcels.import.store_required")) unless store
@@ -33,31 +32,38 @@ class ParcelsController < AdminController
     @store = store
     @summary = summarise(store, rows)
 
-    token = SecureRandom.hex(16)
-    Rails.cache.write(cache_key(token), { store_id: store.id, rows: rows }, expires_in: CACHE_TTL)
-    session[:parcel_import_token] = token
-    @token = token
+    # Drop this user's own unconfirmed batches for this store before staging
+    # the new one, so re-uploads don't pile up abandoned pending rows.
+    ParcelImportBatch.pending.where(shopify_store: store, user: current_user).destroy_all
+
+    @batch = ParcelImportBatch.create!(
+      shopify_store: store,
+      user: current_user,
+      filename: file.original_filename,
+      rows: rows,
+      row_count: rows.size,
+      total_cny: @summary[:total_cny]
+    )
 
     render :preview
   end
 
   def confirm_import
-    payload = Rails.cache.read(cache_key(params[:token]))
-    return redirect_to(import_parcels_path, alert: t("parcels.import.expired")) if payload.blank?
+    batch = ParcelImportBatch.pending
+                              .where(shopify_store_id: visible_shopify_stores.select(:id))
+                              .find_by(id: params[:batch_id])
+    return redirect_to(import_parcels_path, alert: t("parcels.import.expired")) if batch.blank?
 
-    store = visible_shopify_stores.find_by(id: payload[:store_id])
-    return redirect_to(import_parcels_path, alert: t("parcels.import.store_required")) unless store
-
+    store = batch.shopify_store
     count = 0
+
     Parcel.transaction do
-      payload[:rows].each do |row|
+      batch.rows.each do |row|
         ParcelUpserter.new(store: store, attrs: row).call
         count += 1
       end
+      batch.update!(status: "completed", completed_at: Time.current)
     end
-
-    Rails.cache.delete(cache_key(params[:token]))
-    session.delete(:parcel_import_token)
 
     redirect_to parcels_path, notice: t("parcels.import.done", count: count)
   rescue ParcelUpserter::MissingFxRate
@@ -72,10 +78,6 @@ class ParcelsController < AdminController
     return if current_membership&.owner?
 
     redirect_to authenticated_root_path, alert: t("companies.no_permission")
-  end
-
-  def cache_key(token)
-    "parcel_import:#{token}"
   end
 
   def summarise(store, rows)

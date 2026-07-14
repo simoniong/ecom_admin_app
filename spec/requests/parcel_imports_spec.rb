@@ -7,22 +7,6 @@ RSpec.describe "Parcel imports", type: :request do
   let(:customer) { create(:customer, shopify_store: store) }
   let!(:order)   { create(:order, customer: customer, shopify_store: store, name: "PKS#3037") }
 
-  # The app's test environment runs with `config.cache_store = :null_store`
-  # (see config/environments/test.rb) to keep low-level caching from leaking
-  # between examples — but this feature's preview/confirm handshake genuinely
-  # depends on Rails.cache persisting the parsed rows between two requests.
-  # Solid Cache isn't actually provisioned in this repo yet (no
-  # solid_cache_entries table, no config/cache.yml), so swap in a real
-  # in-process store for just this file rather than changing global test
-  # config or guessing at production cache wiring.
-  around do |example|
-    previous_cache = Rails.cache
-    Rails.cache = ActiveSupport::Cache::MemoryStore.new
-    example.run
-  ensure
-    Rails.cache = previous_cache
-  end
-
   before { sign_in user }
 
   def upload(path)
@@ -42,6 +26,13 @@ RSpec.describe "Parcel imports", type: :request do
       value = div.at_css("dd")&.text&.strip
       memo[label] = value if label
     end
+  end
+
+  # The preview page carries the staged ParcelImportBatch id via the confirm
+  # button's hidden field rather than a cache token — pull it back out of the
+  # rendered form so specs exercise the same handshake a real browser would.
+  def batch_id_from(body)
+    Nokogiri::HTML::Document.parse(body).at_css('input[name="batch_id"]')["value"]
   end
 
   describe "GET /parcels/import" do
@@ -97,6 +88,36 @@ RSpec.describe "Parcel imports", type: :request do
       expect(summary[I18n.t("parcels.import.unmatched")]).to eq("1")
     end
 
+    it "stages a pending ParcelImportBatch instead of writing parcels" do
+      path = bill([
+        XlsxBuilder.row(seq: 1, identifier: "XMBDE2012381", order_name: "PKS#3037"),
+        XlsxBuilder.row(seq: 2, identifier: "XMBDE2012382", order_name: "PKS#3037")
+      ])
+
+      expect {
+        post preview_parcels_path, params: { shopify_store_id: store.id, file: upload(path) }
+      }.to change(ParcelImportBatch, :count).by(1)
+
+      batch = ParcelImportBatch.last
+      expect(batch).to be_pending
+      expect(batch.shopify_store).to eq(store)
+      expect(batch.user).to eq(user)
+      expect(batch.row_count).to eq(2)
+      expect(batch.filename).to end_with(".xlsx")
+    end
+
+    it "deletes the user's own previous pending batch for the same store on re-upload" do
+      path = bill([ XlsxBuilder.row(seq: 1, identifier: "XMBDE2012381", order_name: "PKS#3037") ])
+
+      post preview_parcels_path, params: { shopify_store_id: store.id, file: upload(path) }
+      first_batch_id = ParcelImportBatch.pending.sole.id
+
+      post preview_parcels_path, params: { shopify_store_id: store.id, file: upload(path) }
+
+      expect(ParcelImportBatch.pending.count).to eq(1)
+      expect(ParcelImportBatch.exists?(first_batch_id)).to be(false)
+    end
+
     it "blocks the import when the store has no cost_fx_rate" do
       store.update!(cost_fx_rate: nil)
       path = bill([ XlsxBuilder.row(seq: 1, identifier: "XMBDE2012381", order_name: "PKS#3037") ])
@@ -129,19 +150,44 @@ RSpec.describe "Parcel imports", type: :request do
   end
 
   describe "POST /parcels/confirm_import" do
-    it "writes the cached rows and rolls up onto the order" do
+    it "writes the staged rows and rolls up onto the order" do
       path = bill([
         XlsxBuilder.row(seq: 1, identifier: "XMBDE2012381", order_name: "PKS#3037", cost: 239.73)
       ])
       post preview_parcels_path, params: { shopify_store_id: store.id, file: upload(path) }
-      token = session[:parcel_import_token]
+      batch_id = batch_id_from(response.body)
 
       expect {
-        post confirm_import_parcels_path, params: { token: token }
+        post confirm_import_parcels_path, params: { batch_id: batch_id }
       }.to change(Parcel, :count).by(1)
 
       expect(order.reload.actual_shipping_cost).to eq(BigDecimal("33.30"))
       expect(response).to redirect_to(parcels_path)
+      expect(ParcelImportBatch.find(batch_id)).to be_completed
+      expect(ParcelImportBatch.find(batch_id).completed_at).to be_present
+    end
+
+    # This is the jsonb round-trip guarantee the design doc calls out (§4.2.1
+    # / task instructions): rows pass through a jsonb column between preview
+    # and confirm, so on read-back every value is a JSON scalar (strings for
+    # money and timestamps, not the original BigDecimal/Time objects). If
+    # that round trip silently lost precision or truncated a timestamp, the
+    # resulting Parcel would carry wrong financial data.
+    it "round-trips row values through jsonb without precision or truncation loss" do
+      shipped_at = Time.utc(2026, 6, 1, 21, 48, 26)
+      path = bill([
+        XlsxBuilder.row(seq: 1, identifier: "XMBDE2012381", order_name: "PKS#3037", cost: 239.73)
+      ])
+      post preview_parcels_path, params: { shopify_store_id: store.id, file: upload(path) }
+      batch_id = batch_id_from(response.body)
+
+      post confirm_import_parcels_path, params: { batch_id: batch_id }
+
+      parcel = Parcel.find_by!(identifier: "XMBDE2012381")
+      expect(parcel.cost_cny).to eq(BigDecimal("239.73"))
+      expect(parcel.cost_amount).to eq(BigDecimal("33.30"))
+      expect(parcel.shipped_at).to be_within(1.second).of(shipped_at)
+      expect(parcel.order_id).to eq(order.id)
     end
 
     it "overwrites an existing parcel rather than duplicating it" do
@@ -149,25 +195,69 @@ RSpec.describe "Parcel imports", type: :request do
 
       path = bill([ XlsxBuilder.row(seq: 1, identifier: "XMBDE2012381", order_name: "PKS#3037", cost: 239.73) ])
       post preview_parcels_path, params: { shopify_store_id: store.id, file: upload(path) }
+      batch_id = batch_id_from(response.body)
 
       expect {
-        post confirm_import_parcels_path, params: { token: session[:parcel_import_token] }
+        post confirm_import_parcels_path, params: { batch_id: batch_id }
       }.not_to change(Parcel, :count)
 
       expect(Parcel.find_by(identifier: "XMBDE2012381").cost_cny).to eq(239.73)
     end
 
-    it "fails cleanly when the cached preview has expired" do
-      post confirm_import_parcels_path, params: { token: "nonexistent" }
+    it "fails cleanly when the batch has expired (never existed)" do
+      post confirm_import_parcels_path, params: { batch_id: "nonexistent" }
 
       expect(response).to redirect_to(import_parcels_path)
       expect(flash[:alert]).to be_present
     end
 
-    it "rejects a non-owner member even with a valid cached token" do
+    it "fails cleanly when the batch was already confirmed (double submit)" do
       path = bill([ XlsxBuilder.row(seq: 1, identifier: "XMBDE2012381", order_name: "PKS#3037") ])
       post preview_parcels_path, params: { shopify_store_id: store.id, file: upload(path) }
-      token = session[:parcel_import_token]
+      batch_id = batch_id_from(response.body)
+      post confirm_import_parcels_path, params: { batch_id: batch_id }
+
+      expect {
+        post confirm_import_parcels_path, params: { batch_id: batch_id }
+      }.not_to change(Parcel, :count)
+      expect(response).to redirect_to(import_parcels_path)
+      expect(flash[:alert]).to be_present
+    end
+
+    # Authorization boundary: a batch belongs to a shopify_store, which
+    # belongs to a company. confirm_import must scope its lookup to the
+    # signed-in user's own visible_shopify_stores — otherwise any owner could
+    # confirm (and thereby write Parcel rows / mutate financial rollups for)
+    # another company's in-flight import just by guessing/observing its id.
+    it "refuses to confirm a batch that belongs to another company's store" do
+      other_user  = create(:user)
+      other_company = other_user.companies.first
+      other_store = create(:shopify_store, user: other_user, company: other_company, cost_fx_rate: 5)
+      other_customer = create(:customer, shopify_store: other_store)
+      create(:order, customer: other_customer, shopify_store: other_store, name: "PKS#9999")
+
+      path = bill([ XlsxBuilder.row(seq: 1, identifier: "OTHERCO0001", order_name: "PKS#9999") ])
+      sign_out user
+      sign_in other_user
+      post preview_parcels_path, params: { shopify_store_id: other_store.id, file: upload(path) }
+      foreign_batch_id = batch_id_from(response.body)
+
+      sign_out other_user
+      sign_in user
+
+      expect {
+        post confirm_import_parcels_path, params: { batch_id: foreign_batch_id }
+      }.not_to change(Parcel, :count)
+
+      expect(response).to redirect_to(import_parcels_path)
+      expect(flash[:alert]).to be_present
+      expect(ParcelImportBatch.find(foreign_batch_id)).to be_pending
+    end
+
+    it "rejects a non-owner member even with a valid pending batch id" do
+      path = bill([ XlsxBuilder.row(seq: 1, identifier: "XMBDE2012381", order_name: "PKS#3037") ])
+      post preview_parcels_path, params: { shopify_store_id: store.id, file: upload(path) }
+      batch_id = batch_id_from(response.body)
 
       member = create(:user)
       create(:membership, user: member, company: company, role: :member, permissions: [ "parcels" ])
@@ -175,7 +265,7 @@ RSpec.describe "Parcel imports", type: :request do
       sign_in member
 
       expect {
-        post confirm_import_parcels_path, params: { token: token }
+        post confirm_import_parcels_path, params: { batch_id: batch_id }
       }.not_to change(Parcel, :count)
       expect(response).to redirect_to(authenticated_root_path)
     end

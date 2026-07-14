@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_14_120001) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_14_130000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -324,6 +324,22 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_14_120001) do
     t.index ["shopify_store_id", "ordered_at"], name: "idx_orders_store_ordered_at"
     t.index ["shopify_store_id", "shopify_order_id"], name: "idx_orders_store_shopify_id", unique: true
     t.index ["shopify_store_id"], name: "index_orders_on_shopify_store_id"
+  end
+
+  create_table "parcel_import_batches", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.datetime "completed_at"
+    t.datetime "created_at", null: false
+    t.string "filename"
+    t.integer "row_count", default: 0, null: false
+    t.jsonb "rows", default: [], null: false
+    t.uuid "shopify_store_id", null: false
+    t.string "status", default: "pending", null: false
+    t.decimal "total_cny", precision: 12, scale: 2
+    t.datetime "updated_at", null: false
+    t.uuid "user_id", null: false
+    t.index ["shopify_store_id", "status"], name: "index_parcel_import_batches_on_shopify_store_id_and_status"
+    t.index ["shopify_store_id"], name: "index_parcel_import_batches_on_shopify_store_id"
+    t.index ["user_id"], name: "index_parcel_import_batches_on_user_id"
   end
 
   create_table "parcels", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -691,6 +707,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_14_120001) do
   add_foreign_key "order_line_items", "product_variants"
   add_foreign_key "orders", "customers"
   add_foreign_key "orders", "shopify_stores"
+  add_foreign_key "parcel_import_batches", "shopify_stores"
+  add_foreign_key "parcel_import_batches", "users"
   add_foreign_key "parcels", "orders"
   add_foreign_key "parcels", "shopify_stores"
   add_foreign_key "product_variants", "products"
