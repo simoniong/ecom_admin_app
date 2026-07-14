@@ -91,6 +91,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_14_130000) do
   end
 
   create_table "companies", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.string "agent_api_key"
     t.datetime "created_at", null: false
     t.string "locale", default: "en", null: false
     t.string "name", null: false
@@ -100,6 +101,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_14_130000) do
     t.string "tracking_mode"
     t.datetime "tracking_starts_at"
     t.datetime "updated_at", null: false
+    t.index ["agent_api_key"], name: "index_companies_on_agent_api_key", unique: true
   end
 
   create_table "customers", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|

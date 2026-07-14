@@ -176,4 +176,27 @@
       <% end %>
     </div>
   <% end %>
+
+  <% if current_membership&.owner? %>
+    <section class="mt-8 bg-white rounded-lg border border-gray-200 p-6">
+      <h2 class="text-lg font-medium text-gray-900"><%= t("companies.agent_api_key.title") %></h2>
+      <p class="mt-1 text-sm text-gray-500"><%= t("companies.agent_api_key.hint") %></p>
+
+      <div class="mt-4 flex items-center gap-3">
+        <code class="px-3 py-2 bg-gray-50 border border-gray-200 rounded text-sm font-mono">
+          <% if flash[:reveal_agent_api_key] && current_company.agent_api_key.present? %>
+            <%= current_company.agent_api_key %>
+          <% elsif current_company.agent_api_key.present? %>
+            ••••••••••••••••
+          <% else %>
+            —
+          <% end %>
+        </code>
+        <%= button_to t("companies.agent_api_key.regenerate"), regenerate_company_agent_api_key_path,
+              method: :post,
+              form: { data: { turbo_confirm: t("companies.agent_api_key.regenerate_confirm") } },
+              class: "px-3 py-2 border border-gray-300 text-sm rounded-md hover:bg-gray-50" %>
+      </div>
+    </section>
+  <% end %>
 </div>

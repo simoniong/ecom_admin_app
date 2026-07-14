@@ -32,6 +32,8 @@ Rails.application.routes.draw do
         post :draft_reply, on: :member
         patch :draft_reply, on: :member
       end
+      resources :parcels, only: [ :index, :show, :create, :update ], param: :identifier
+      get "orders/:name/shipping", to: "orders#shipping", constraints: { name: /[^\/]+/ }
     end
   end
 
@@ -42,6 +44,7 @@ Rails.application.routes.draw do
 
     resource :profile, only: [ :edit, :update ]
     resource :company, only: [ :new, :create, :edit, :update ]
+    post "company/agent_api_key", to: "companies#regenerate_agent_api_key", as: :regenerate_company_agent_api_key
     patch "company/tracking", to: "companies#update_tracking", as: :tracking_company
     patch "switch_company/:id", to: "company_sessions#update", as: :switch_company
     resources :invitations, only: [ :index, :create, :destroy ]

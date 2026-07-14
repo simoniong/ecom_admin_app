@@ -824,6 +824,12 @@ en:
     tracking_disabled_owner: "Please enable shipping tracking in Company Settings first."
     tracking_disabled_member: "Shipping tracking is disabled. Please ask your company owner to enable it first."
     manage_members: "Manage Members & Invitations"
+    agent_api_key:
+      title: "Agent API key"
+      hint: "Lets an AI agent read and write shipping cost data. Shown only once after regeneration — store it somewhere safe."
+      regenerate: "Regenerate"
+      regenerate_confirm: "Regenerating immediately invalidates the old key. Continue?"
+      regenerated: "New Agent API key generated"
   invitations:
     title: "Members & Invitations"
     members: "Members"

@@ -824,6 +824,12 @@
     tracking_disabled_owner: "請先在公司設定中啟用物流追蹤。"
     tracking_disabled_member: "物流追蹤未啟用，請聯繫公司管理員開啟。"
     manage_members: "管理成員與邀請"
+    agent_api_key:
+      title: "Agent API 金鑰"
+      hint: "供 AI agent 讀寫運費資料。只會在重新產生後顯示一次，請妥善保存。"
+      regenerate: "重新產生"
+      regenerate_confirm: "重新產生後，舊金鑰會立即失效。確定要繼續嗎？"
+      regenerated: "已產生新的 Agent API 金鑰"
   invitations:
     title: "成員與邀請"
     members: "成員"
