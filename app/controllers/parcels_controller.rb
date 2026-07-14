@@ -13,6 +13,7 @@ class ParcelsController < AdminController
     "estimated" => "orders.estimated_shipping_cost"
   }.freeze
   PER_PAGE = 25
+  MAX_UPLOAD_BYTES = 20.megabytes
 
   def index
     @tab = params[:tab] == "unmatched" ? "unmatched" : "orders"
@@ -62,7 +63,8 @@ class ParcelsController < AdminController
     return redirect_to(import_parcels_path, alert: t("parcels.import.fx_rate_missing", store: store.name)) unless store.cost_fx_rate&.positive?
 
     file = params[:file]
-    return redirect_to(import_parcels_path, alert: t("parcels.import.file_required")) if file.blank?
+    return redirect_to(import_parcels_path, alert: t("parcels.import.file_required")) if file.blank? || !file.respond_to?(:tempfile)
+    return redirect_to(import_parcels_path, alert: t("parcels.import.file_too_large")) if file.size > MAX_UPLOAD_BYTES
 
     result = ParcelBillParser.new(file.tempfile.path).call
     errors = result[:errors]
@@ -127,8 +129,10 @@ class ParcelsController < AdminController
     redirect_to parcels_path, notice: t("parcels.import.done", count: count)
   rescue ParcelUpserter::MissingFxRate
     redirect_to import_parcels_path, alert: t("parcels.import.fx_rate_missing", store: store&.name)
-  rescue ParcelUpserter::MissingCost
+  rescue ParcelUpserter::MissingCost, ParcelUpserter::MissingIdentifier
     redirect_to import_parcels_path, alert: t("parcels.import.cost_missing")
+  rescue ActiveRecord::RangeError
+    redirect_to import_parcels_path, alert: t("parcels.import.value_out_of_range")
   end
 
   def update
@@ -175,11 +179,13 @@ class ParcelsController < AdminController
   # The order list offered by the unmatched tab's assign dropdown. Shared by
   # index and by update, which has to re-render that same dropdown when an
   # assignment fails to take.
+  # Not capped: with hundreds of named orders in a single month's bill, an
+  # arbitrary limit silently drops valid assignment targets from the dropdown
+  # with no error at all — the operator just can't find the order they need.
   def assignable_orders
     Order.where(shopify_store_id: visible_shopify_stores.select(:id))
          .where.not(name: nil)
          .order(ordered_at: :desc)
-         .limit(200)
   end
 
   # Computes total_count/total_pages, clamps @page, and returns the
@@ -207,8 +213,15 @@ class ParcelsController < AdminController
     end
 
     if attrs[:cost_cny].present?
-      fx = parcel.fx_rate_snapshot.presence || parcel.shopify_store.cost_fx_rate
-      attrs[:cost_amount] = (BigDecimal(attrs[:cost_cny].to_s) / BigDecimal(fx.to_s)).round(2) if fx&.positive?
+      fx  = parcel.fx_rate_snapshot.presence || parcel.shopify_store.cost_fx_rate
+      cny = BigDecimal(attrs[:cost_cny].to_s, exception: false)
+      # A non-numeric cost_cny (e.g. a pasted tracking number) must not 500 —
+      # leave cost_amount untouched and let cost_cny's own presence/numericality
+      # validation reject the write through the normal error branch. A blank
+      # cost_cny is left alone the same way: with cost_amount now NOT NULL, a
+      # parcel can't exist without a cost, so clearing the field is rejected
+      # rather than silently keeping the old cost_amount under a blank ¥ cell.
+      attrs[:cost_amount] = (cny / BigDecimal(fx.to_s)).round(2) if cny && fx&.positive?
     end
 
     attrs
@@ -229,24 +242,40 @@ class ParcelsController < AdminController
   end
 
   def summarise(store, rows)
-    identifiers = rows.map { |r| r[:identifier] }
+    # A duplicate 订单编号 within the same file isn't two parcels — confirm_import
+    # upserts by identifier, so the later row overwrites the earlier one and only
+    # the LAST occurrence actually lands. Counting every occurrence as if it were
+    # its own parcel is exactly how "will create 2, ¥216" turns into one ¥144
+    # parcel after confirm. final_rows keeps one entry per identifier (the last
+    # one, matching upsert order) so every count below matches what will exist
+    # after confirm_import runs.
+    final_rows = rows.reverse.uniq { |r| r[:identifier] }.reverse
+    duplicate_identifiers = rows.map { |r| r[:identifier] }.tally.select { |_, n| n > 1 }.keys
+
+    identifiers = final_rows.map { |r| r[:identifier] }
     existing = Parcel.where(shopify_store_id: store.id, identifier: identifiers).pluck(:identifier).to_set
 
-    order_names = rows.map { |r| r[:order_name] }.compact.uniq
+    order_names = final_rows.map { |r| r[:order_name] }.compact.uniq
     known_names = Order.where(shopify_store_id: store.id, name: order_names).pluck(:name).to_set
 
-    unmatched = rows.reject { |r| r[:order_name].present? && known_names.include?(r[:order_name]) }
-    overwrite = rows.select { |r| existing.include?(r[:identifier]) }
+    unmatched = final_rows.reject { |r| r[:order_name].present? && known_names.include?(r[:order_name]) }
+    overwrite = final_rows.select { |r| existing.include?(r[:identifier]) }
 
     {
       total: rows.size,
+      duplicate_count: duplicate_identifiers.size,
+      duplicate_identifiers: duplicate_identifiers.first(20),
       overwrite_count: overwrite.size,
-      create_count: rows.size - overwrite.size,
+      create_count: final_rows.size - overwrite.size,
       unmatched_count: unmatched.size,
       unmatched_rows: unmatched.first(20),
       overwrite_rows: overwrite.first(20),
       total_cny: rows.sum { |r| r[:cost_cny] || 0 },
-      total_converted: (rows.sum { |r| r[:cost_cny] || 0 } / store.cost_fx_rate).round(2)
+      # Computed exactly the way confirm_import will persist it — round each
+      # parcel's converted cost to 2dp, then sum — not Σcny ÷ fx. Across
+      # hundreds of rows those two arithmetic orders drift apart, and this
+      # total is the number the user approves before any money is written.
+      total_converted: final_rows.sum { |r| ParcelUpserter.convert(r[:cost_cny], store.cost_fx_rate) }
     }
   end
 end

@@ -88,10 +88,20 @@ class ParcelBillParser
     nil
   end
 
+  # decimal(10,2) tops out at 99999999.99 — 8 integer digits — so anything at
+  # or above 10**8 cannot be stored and would otherwise reach the DB as an
+  # unhandled ActiveRecord::RangeError on confirm. A cell that parses to <= 0
+  # (e.g. a stray tracking number pasted into this column) is equally not a
+  # real cost and must be caught here, not after it has poisoned a rollup.
+  MAX_COST_CNY = 10**8
+
   def validate(attrs, line)
     errors = []
     errors << "第 #{line} 列：订单编号 為空" if attrs[:identifier].blank?
     errors << "第 #{line} 列：加单总运费（RMB) 為空或非數字" if attrs[:cost_cny].blank?
+    if attrs[:cost_cny].present? && (attrs[:cost_cny] <= 0 || attrs[:cost_cny] >= MAX_COST_CNY)
+      errors << "第 #{line} 列：加单总运费（RMB) 數值超出範圍"
+    end
     errors
   end
 end

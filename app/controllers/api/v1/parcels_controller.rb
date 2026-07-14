@@ -31,8 +31,12 @@ class Api::V1::ParcelsController < Api::CompanyBaseController
     render json: { error: "Store has no cost_fx_rate configured" }, status: :unprocessable_entity
   rescue ParcelUpserter::MissingCost
     render json: { error: "cost_cny is required" }, status: :unprocessable_entity
+  rescue ParcelUpserter::MissingIdentifier
+    render json: { error: "identifier is required" }, status: :unprocessable_entity
   rescue ActiveRecord::RecordInvalid => e
     render json: { error: "Validation failed", details: e.record.errors.full_messages }, status: :unprocessable_entity
+  rescue ActiveRecord::RangeError
+    render json: { error: "One or more values are out of range" }, status: :unprocessable_entity
   end
 
   def update
@@ -48,6 +52,12 @@ class Api::V1::ParcelsController < Api::CompanyBaseController
     render json: { error: "Store has no cost_fx_rate configured" }, status: :unprocessable_entity
   rescue ParcelUpserter::MissingCost
     render json: { error: "cost_cny is required" }, status: :unprocessable_entity
+  rescue ParcelUpserter::MissingIdentifier
+    render json: { error: "identifier is required" }, status: :unprocessable_entity
+  rescue ActiveRecord::RecordInvalid => e
+    render json: { error: "Validation failed", details: e.record.errors.full_messages }, status: :unprocessable_entity
+  rescue ActiveRecord::RangeError
+    render json: { error: "One or more values are out of range" }, status: :unprocessable_entity
   end
 
   private

@@ -88,6 +88,23 @@ RSpec.describe ParcelUpserter do
     }.not_to change(Parcel, :count)
   end
 
+  # Without this guard, ATTRIBUTES.fetch(:identifier) raises a bare KeyError
+  # for any agent-API request that omits identifier — an easy mistake for an
+  # external caller to make, and it must come back as a handled error, not a
+  # 500 with no explanation.
+  it "raises MissingIdentifier and persists no parcel when identifier is blank" do
+    expect {
+      expect { described_class.new(store: store, attrs: attrs(identifier: nil)).call }
+        .to raise_error(ParcelUpserter::MissingIdentifier)
+    }.not_to change(Parcel, :count)
+  end
+
+  describe ".convert" do
+    it "rounds to 2 decimal places, the same way call converts cost_cny" do
+      expect(described_class.convert(BigDecimal("239.73"), BigDecimal("7.2"))).to eq(BigDecimal("33.30"))
+    end
+  end
+
   it "handles a resend parcel (R1 suffix) as a separate parcel on the same order" do
     described_class.new(store: store, attrs: attrs(identifier: "XMBDE2012399")).call
     described_class.new(store: store, attrs: attrs(identifier: "XMBDE2012399R1", cost_cny: BigDecimal("65.76"))).call

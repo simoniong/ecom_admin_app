@@ -124,6 +124,23 @@ RSpec.describe "Parcels", type: :request do
       expect(response.body).not_to include("PKS#SAVER")
     end
 
+    # A named order beyond the old .limit(200) simply wasn't in the assign
+    # dropdown, with no error — an operator could never assign an unmatched
+    # parcel to it. With 434 orders in a real month's bill this was a real,
+    # not theoretical, ceiling.
+    it "offers an order beyond the old 200-row cap in the unmatched-tab assign dropdown" do
+      create(:parcel, shopify_store: store, order: nil, identifier: "CAPTEST")
+      oldest_order = nil
+      205.times do |i|
+        o = create(:order, customer: customer, shopify_store: store, name: "PKS#CAP#{i}", ordered_at: (i + 1).days.ago)
+        oldest_order = o if i == 204
+      end
+
+      get parcels_path, params: { tab: "unmatched" }
+
+      expect(response.body).to include(oldest_order.name)
+    end
+
     it "renders a page-2 link and makes page 2 reachable on the unmatched tab with more than 25 unmatched parcels" do
       30.times { |i| create(:parcel, shopify_store: store, order: nil, identifier: "ORPHAN#{i}", shipped_at: (i + 1).hours.ago) }
 
@@ -233,6 +250,38 @@ RSpec.describe "Parcels", type: :request do
 
       patch parcel_path(id: blown.parcels.first.id), params: { parcel: { cost_cny: "1" } }
       expect(response).to redirect_to(authenticated_root_path)
+    end
+
+    # cost_amount is NOT NULL: a parcel without a cost cannot exist. Clearing
+    # the ¥ field used to leave cost_cny blank while silently keeping the OLD
+    # cost_amount (and the order's rollup) — the operator would see a blank
+    # cell and think they'd zeroed out a bogus cost, when the stale money was
+    # actually still there. Rejecting the blank makes that impossible: the
+    # operator has to delete the parcel instead.
+    it "rejects clearing cost_cny instead of silently keeping the stale cost_amount" do
+      parcel = blown.parcels.find_by(identifier: "B1")
+
+      patch parcel_path(id: parcel.id), params: { parcel: { cost_cny: "" } }
+
+      expect(response).to redirect_to(parcels_path)
+      expect(flash[:alert]).to be_present
+      expect(parcel.reload.cost_cny).to eq(239.73)  # unchanged — factory default
+      expect(parcel.cost_amount).to eq(20)          # unchanged — the stale value stays stale, but isn't hidden
+      expect(blown.reload.actual_shipping_cost).to eq(40.10)
+    end
+
+    # BigDecimal("abc") raises ArgumentError; the controller must not let that
+    # escape as a 500 — a non-numeric paste needs to land in the same
+    # alert-and-redirect path as any other invalid edit.
+    it "does not 500 on a non-numeric cost_cny" do
+      parcel = blown.parcels.find_by(identifier: "B1")
+
+      patch parcel_path(id: parcel.id), params: { parcel: { cost_cny: "not-a-number" } }
+
+      expect(response).to redirect_to(parcels_path)
+      expect(flash[:alert]).to be_present
+      expect(parcel.reload.cost_cny).to eq(239.73)  # unchanged — factory default
+      expect(parcel.cost_amount).to eq(20)          # unchanged
     end
   end
 

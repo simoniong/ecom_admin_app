@@ -154,6 +154,33 @@ RSpec.describe "Parcel imports", type: :request do
       expect(flash[:alert]).to be_present
     end
 
+    # params[:file] can be an ordinary string (e.g. a malformed multipart
+    # request, or a client that sends the field as plain text) rather than an
+    # ActionDispatch::Http::UploadedFile. file.tempfile.path would raise
+    # NoMethodError on a String; it must fall into the same "choose a file"
+    # alert instead of a 500.
+    it "rejects a non-file value for the file param instead of raising" do
+      post preview_parcels_path, params: { shopify_store_id: store.id, file: "not-a-file" }
+
+      expect(response).to redirect_to(import_parcels_path)
+      expect(flash[:alert]).to eq(I18n.t("parcels.import.file_required"))
+    end
+
+    it "rejects a file over the upload size limit" do
+      path = Rails.root.join("tmp", "huge_#{SecureRandom.hex(4)}.xlsx").to_s
+      File.write(path, "x" * 21.megabytes)
+
+      begin
+        post preview_parcels_path, params: { shopify_store_id: store.id, file: upload(path) }
+
+        expect(response).to redirect_to(import_parcels_path)
+        expect(flash[:alert]).to eq(I18n.t("parcels.import.file_too_large"))
+        expect(ParcelImportBatch.count).to eq(0)
+      ensure
+        File.delete(path) if File.exist?(path)
+      end
+    end
+
     it "rejects a non-owner member" do
       member = create(:user)
       create(:membership, user: member, company: company, role: :member, permissions: [ "parcels" ])
@@ -318,6 +345,79 @@ RSpec.describe "Parcel imports", type: :request do
       }.not_to change(Parcel, :count)
 
       expect(Parcel.find_by(identifier: "XMBDE2012381").cost_cny).to eq(239.73)
+    end
+
+    # The parser bounds cost_cny, but other money columns (e.g. 运费总价 /
+    # freight_cny) are not bounded and still fit into a decimal(10,2) column.
+    # A row that overflows one of those used to raise an unhandled
+    # ActiveRecord::RangeError mid-transaction — a 500 with the whole batch
+    # rolled back and no explanation. It must redirect with an alert instead.
+    it "redirects with an alert instead of raising when a row's value is out of the database's range" do
+      path = bill([
+        XlsxBuilder.row(seq: 1, identifier: "XMBDE2012381", order_name: "PKS#3037",
+                         cost: 10, "运费总价" => 999_999_999)
+      ])
+      batch_id = batch_id_from(preview_upload(path))
+
+      expect {
+        post confirm_import_parcels_path, params: { batch_id: batch_id }
+      }.not_to change(Parcel, :count)
+
+      expect(response).to redirect_to(import_parcels_path)
+      expect(flash[:alert]).to eq(I18n.t("parcels.import.value_out_of_range"))
+    end
+
+    # summarise used to compute Σcny ÷ fx for the preview total, while the
+    # importer rounds each parcel's converted cost to 2dp and sums those.
+    # Across many rows those two arithmetic orders drift apart — and the
+    # preview is the number the user approves before any money is written.
+    it "shows a preview total that equals the post-import SUM(cost_amount), not the naive Σcny÷fx" do
+      store.update!(cost_fx_rate: 7)
+      rows = 7.times.map { |i| XlsxBuilder.row(seq: i + 1, identifier: "DRIFT#{i}", order_name: "PKS#3037", cost: 10) }
+      path = bill(rows)
+
+      body = preview_upload(path)
+      # Naive Σcny÷fx: 70 / 7 = 10.00 exactly. Rounding each row first
+      # (10/7 = 1.428571… → 1.43) and summing gives 10.01 — the number that
+      # actually lands after confirm.
+      expect(summary_values(body)[I18n.t("parcels.import.total_converted")]).to include("10.01")
+
+      batch_id = batch_id_from(body)
+      expect {
+        post confirm_import_parcels_path, params: { batch_id: batch_id }
+      }.to change(Parcel, :count).by(7)
+
+      landed = Parcel.where(identifier: (0..6).map { |i| "DRIFT#{i}" }).sum(:cost_amount)
+      expect(landed).to eq(BigDecimal("10.01"))
+    end
+
+    # confirm_import upserts by identifier, so a duplicate 订单编号 within one
+    # file doesn't create two parcels — the later row overwrites the earlier
+    # one. The preview must count that honestly (one landed parcel, not two)
+    # and call the duplicate out, or "will create 2, ¥216" can approve a file
+    # that actually creates one ¥144 parcel.
+    it "detects a duplicate identifier within the file, counts it honestly, and the last row wins" do
+      path = bill([
+        XlsxBuilder.row(seq: 1, identifier: "DUP1", order_name: "PKS#3037", cost: 100),
+        XlsxBuilder.row(seq: 2, identifier: "DUP1", order_name: "PKS#3037", cost: 44)
+      ])
+
+      body = preview_upload(path)
+      summary = summary_values(body)
+
+      expect(summary[I18n.t("parcels.import.parsed")]).to eq("2")
+      expect(summary[I18n.t("parcels.import.will_create")]).to eq("1")
+      expect(summary[I18n.t("parcels.import.duplicates")]).to eq("1")
+      page_text = Nokogiri::HTML::Document.parse(body).text
+      expect(page_text).to include(I18n.t("parcels.import.duplicate_hint"))
+      expect(page_text).to include("DUP1")
+
+      batch_id = batch_id_from(body)
+      expect {
+        post confirm_import_parcels_path, params: { batch_id: batch_id }
+      }.to change(Parcel, :count).by(1)
+
+      expect(Parcel.find_by(identifier: "DUP1").cost_cny).to eq(44)
     end
 
     it "fails cleanly when the batch has expired (never existed)" do

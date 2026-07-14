@@ -102,6 +102,31 @@ RSpec.describe "Api::V1::Parcels", type: :request do
       expect(response).to have_http_status(:unprocessable_entity)
       expect(JSON.parse(response.body)["error"]).to eq("cost_cny is required")
     end
+
+    # ParcelUpserter#call used to do @attrs.fetch(:identifier), which raises a
+    # bare KeyError — an unhandled 500 — for exactly the kind of malformed
+    # request a real agent will eventually send.
+    it "422s and creates nothing when identifier is omitted" do
+      expect {
+        post "/api/v1/parcels", params: payload.except(:identifier), headers: auth_headers
+      }.not_to change(Parcel, :count)
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(JSON.parse(response.body)["error"]).to eq("identifier is required")
+    end
+
+    # A value that fits BigDecimal parsing but overflows the decimal(10,2)
+    # column (e.g. freight_cny) raises ActiveRecord::RangeError deep inside
+    # save!. The API has no parser-side bound in front of it the way the
+    # Excel import does, so this must be caught here or every such request
+    # 500s.
+    it "422s instead of raising when a value is out of the database's range" do
+      expect {
+        post "/api/v1/parcels", params: payload(freight_cny: "999999999"), headers: auth_headers
+      }.not_to change(Parcel, :count)
+
+      expect(response).to have_http_status(:unprocessable_entity)
+    end
   end
 
   describe "GET /api/v1/parcels" do

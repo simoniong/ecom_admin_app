@@ -13,6 +13,9 @@
       <div><dt class="text-gray-500"><%= t("parcels.import.unmatched") %></dt>
            <dd class="font-medium <%= @summary[:unmatched_count].positive? ? "text-amber-600" : "text-gray-900" %>">
              <%= @summary[:unmatched_count] %></dd></div>
+      <div><dt class="text-gray-500"><%= t("parcels.import.duplicates") %></dt>
+           <dd class="font-medium <%= @summary[:duplicate_count].positive? ? "text-amber-600" : "text-gray-900" %>">
+             <%= @summary[:duplicate_count] %></dd></div>
       <div><dt class="text-gray-500"><%= t("parcels.import.total_cny") %></dt>
            <dd class="font-medium text-gray-900">¥<%= number_with_precision(@summary[:total_cny], precision: 2) %></dd></div>
       <div><dt class="text-gray-500"><%= t("parcels.import.total_converted") %></dt>
@@ -36,6 +39,18 @@
         <ul class="mt-1 text-xs text-amber-700 list-disc list-inside">
           <% @summary[:unmatched_rows].each do |r| %>
             <li><%= r[:identifier] %> — <%= r[:order_name].presence || "—" %></li>
+          <% end %>
+        </ul>
+      </div>
+    <% end %>
+
+    <% if @summary[:duplicate_count].positive? %>
+      <div class="rounded-md bg-amber-50 border border-amber-200 p-3">
+        <p class="text-sm font-medium text-amber-800"><%= t("parcels.import.duplicates") %></p>
+        <p class="text-xs text-amber-700"><%= t("parcels.import.duplicate_hint") %></p>
+        <ul class="mt-1 text-xs text-amber-700 list-disc list-inside">
+          <% @summary[:duplicate_identifiers].each do |identifier| %>
+            <li><%= identifier %></li>
           <% end %>
         </ul>
       </div>

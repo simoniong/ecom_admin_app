@@ -86,6 +86,47 @@ RSpec.describe ParcelBillParser do
     expect(result[:errors].first).to include("加单总运费")
   end
 
+  # A garbage cell (e.g. a tracking number pasted into 加单总运费) can still
+  # parse as a BigDecimal — it just isn't a plausible shipping cost. Left
+  # unchecked, a value like this sails through the parser and 500s later at
+  # confirm time against decimal(10,2), taking the whole import down with no
+  # indication of which row. It must be caught here instead, where the row
+  # number is still known.
+  it "reports a row whose cost is zero or negative" do
+    path = build_file(rows: [
+      XlsxBuilder.row(seq: 1, identifier: "XMBDE2012381", order_name: "PKS#3037", cost: -99_999)
+    ])
+
+    result = described_class.new(path).call
+
+    expect(result[:rows]).to be_empty
+    expect(result[:errors].first).to include("第 2 列") # sheet row 2 — row 1 is the header
+    expect(result[:errors].first).to include("超出範圍")
+  end
+
+  it "reports a row whose cost is too large to fit the decimal(10,2) column" do
+    path = build_file(rows: [
+      XlsxBuilder.row(seq: 1, identifier: "XMBDE2012381", order_name: "PKS#3037", cost: 100_000_000)
+    ])
+
+    result = described_class.new(path).call
+
+    expect(result[:rows]).to be_empty
+    expect(result[:errors].first).to include("超出範圍")
+  end
+
+  it "accepts the largest cost that still fits decimal(10,2)" do
+    path = build_file(rows: [
+      XlsxBuilder.row(seq: 1, identifier: "XMBDE2012381", order_name: "PKS#3037", cost: 99_999_999.99)
+    ])
+
+    result = described_class.new(path).call
+
+    expect(result[:errors]).to be_empty
+    expect(result[:rows].size).to eq(1)
+    expect(result[:rows].first[:cost_cny]).to eq(BigDecimal("99999999.99"))
+  end
+
   it "reports a missing required header instead of silently mis-mapping" do
     path = Rails.root.join("tmp", "bad_#{SecureRandom.hex(4)}.xlsx").to_s
     Axlsx::Package.new do |p|
