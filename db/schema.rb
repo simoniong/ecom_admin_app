@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_23_000001) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_14_000001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -422,11 +422,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_23_000001) do
     t.decimal "conversion_rate", precision: 5, scale: 4, default: "0.0"
     t.datetime "created_at", null: false
     t.date "date", null: false
+    t.decimal "gross_revenue", precision: 12, scale: 2, default: "0.0", null: false
     t.integer "new_customer_orders_count", default: 0, null: false
     t.integer "orders_count", default: 0
+    t.decimal "refunds", precision: 12, scale: 2, default: "0.0", null: false
     t.decimal "revenue", precision: 12, scale: 2, default: "0.0"
     t.integer "sessions", default: 0
     t.uuid "shopify_store_id", null: false
+    t.decimal "total_tax", precision: 12, scale: 2, default: "0.0", null: false
+    t.decimal "transaction_fees", precision: 12, scale: 2, default: "0.0", null: false
     t.datetime "updated_at", null: false
     t.index ["shopify_store_id", "date"], name: "idx_shopify_metrics_store_date", unique: true
     t.index ["shopify_store_id"], name: "index_shopify_daily_metrics_on_shopify_store_id"

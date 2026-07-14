@@ -62,6 +62,11 @@ class DashboardMetricsService
     orders = shopify.sum(:orders_count)
     new_customer_orders = shopify.sum(:new_customer_orders_count)
     revenue = shopify.sum(:revenue)
+    gross_revenue = shopify.sum(:gross_revenue)
+    refunds = shopify.sum(:refunds)
+    total_tax = shopify.sum(:total_tax)
+    transaction_fees = shopify.sum(:transaction_fees)
+    net_revenue = gross_revenue - refunds - total_tax - transaction_fees
     ad_spend = ad.sum(:spend)
 
     cogs, coverage = aggregate_cogs(store_scope, range)
@@ -74,6 +79,11 @@ class DashboardMetricsService
       orders: orders,
       new_customer_orders: new_customer_orders,
       revenue: revenue,
+      gross_revenue: gross_revenue,
+      refunds: refunds,
+      total_tax: total_tax,
+      transaction_fees: transaction_fees,
+      net_revenue: net_revenue,
       avg_order_value: orders > 0 ? (revenue / orders).round(2) : 0,
       conversion_rate: sessions > 0 ? (orders.to_f / sessions * 100).round(2) : 0,
       ad_spend: ad_spend,

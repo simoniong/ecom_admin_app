@@ -11,10 +11,10 @@ class ShopifyAnalyticsService
     max_time = @timezone.parse(date.to_s).end_of_day.utc
 
     client = build_graphql_client
-    orders_count, gross_revenue, new_customer_orders_count =
+    orders_count, gross_revenue, new_customer_orders_count, tax_charged, transaction_fees =
       fetch_orders_via_graphql(client, min_time, max_time)
 
-    refunds_total = fetch_refunds_via_graphql(client, min_time, max_time)
+    refunds_total, tax_refunded = fetch_refunds_via_graphql(client, min_time, max_time)
 
     metric = ShopifyDailyMetric.find_or_initialize_by(
       shopify_store_id: @store_id, date: date
@@ -24,6 +24,10 @@ class ShopifyAnalyticsService
       orders_count: orders_count,
       new_customer_orders_count: new_customer_orders_count,
       revenue: gross_revenue - refunds_total,
+      gross_revenue: gross_revenue,
+      refunds: refunds_total,
+      total_tax: tax_charged - tax_refunded,
+      transaction_fees: transaction_fees,
       conversion_rate: 0
     )
     metric.save!
@@ -42,7 +46,7 @@ class ShopifyAnalyticsService
   end
 
   # Fetch orders created on target date via GraphQL with pagination.
-  # Returns [orders_count, gross_revenue, new_customer_orders_count].
+  # Returns [orders_count, gross_revenue, new_customer_orders_count, tax_charged, transaction_fees].
   # An order is counted as new-customer when customer.numberOfOrders == 1
   # (guest checkouts where customer is nil are not counted).
   def fetch_orders_via_graphql(client, min_time, max_time)
@@ -50,6 +54,8 @@ class ShopifyAnalyticsService
     total_count = 0
     total_revenue = BigDecimal("0")
     total_new_customer_count = 0
+    total_tax = BigDecimal("0")
+    total_fees = BigDecimal("0")
 
     loop do
       after_clause = cursor ? ", after: \"#{cursor}\"" : ""
@@ -62,7 +68,11 @@ class ShopifyAnalyticsService
                 subtotalPriceSet { shopMoney { amount } }
                 totalShippingPriceSet { shopMoney { amount } }
                 totalTaxSet { shopMoney { amount } }
+                taxesIncluded
                 customer { numberOfOrders }
+                transactions(first: 100) {
+                  fees { amount { amount } }
+                }
               }
             }
             pageInfo { hasNextPage }
@@ -80,36 +90,50 @@ class ShopifyAnalyticsService
       edges.each do |edge|
         node = edge["node"]
         total_count += 1
+        tax_amount = node.dig("totalTaxSet", "shopMoney", "amount").to_d
         total_revenue += node.dig("subtotalPriceSet", "shopMoney", "amount").to_d +
-          node.dig("totalShippingPriceSet", "shopMoney", "amount").to_d +
-          node.dig("totalTaxSet", "shopMoney", "amount").to_d
+          node.dig("totalShippingPriceSet", "shopMoney", "amount").to_d
+        # For tax-inclusive orders (Dynamic Tax Display: EU/UK/AU/NZ), subtotal already
+        # contains tax, so adding it again would double-count. Only add when tax-exclusive.
+        total_revenue += tax_amount unless node["taxesIncluded"]
         total_new_customer_count += 1 if node.dig("customer", "numberOfOrders").to_i == 1
+        total_tax += tax_amount
+        (node["transactions"] || []).each do |txn|
+          (txn["fees"] || []).each do |fee|
+            total_fees += fee.dig("amount", "amount").to_d
+          end
+        end
       end
 
       break unless data.dig("pageInfo", "hasNextPage")
       cursor = edges.last["cursor"]
     end
 
-    [ total_count, total_revenue, total_new_customer_count ]
+    [ total_count, total_revenue, total_new_customer_count, total_tax, total_fees ]
   end
 
   # Fetch refunds processed on target date via GraphQL.
   # Queries partially_refunded and refunded orders separately to avoid
   # Shopify query syntax issues with OR + updated_at filters.
-  # Returns = refund_line_items subtotal + shipping refunds - all order adjustments
+  # Returns [refunds_total, tax_refunded] where refunds_total = refund_line_items
+  # subtotal + shipping refunds - all order adjustments.
   def fetch_refunds_via_graphql(client, min_time, max_time)
     total_returns = BigDecimal("0")
+    total_tax_refunded = BigDecimal("0")
 
     %w[partially_refunded refunded].each do |status|
-      total_returns += fetch_refunds_for_status(client, min_time, max_time, status)
+      returns, tax_refunded = fetch_refunds_for_status(client, min_time, max_time, status)
+      total_returns += returns
+      total_tax_refunded += tax_refunded
     end
 
-    total_returns
+    [ total_returns, total_tax_refunded ]
   end
 
   def fetch_refunds_for_status(client, min_time, max_time, status)
     cursor = nil
     total = BigDecimal("0")
+    tax_refunded = BigDecimal("0")
     # Use date-only format; Shopify's query parser can't handle ISO8601 timestamps
     updated_since = min_time.in_time_zone(@timezone).to_date.iso8601
 
@@ -182,7 +206,16 @@ class ShopifyAnalyticsService
           discrepancy = adjustments.sum { |a| a.dig("amountSet", "shopMoney", "amount").to_d }
 
           net = li_total + shipping_total - discrepancy
-          total += net unless net.zero?
+          unless net.zero?
+            total += net
+
+            tax_refunded += (refund.dig("refundLineItems", "edges") || []).sum do |e|
+              e.dig("node", "totalTaxSet", "shopMoney", "amount").to_s.to_d
+            end
+            tax_refunded += (refund.dig("refundShippingLines", "edges") || []).sum do |e|
+              e.dig("node", "taxAmountSet", "shopMoney", "amount").to_s.to_d
+            end
+          end
         end
       end
 
@@ -190,6 +223,6 @@ class ShopifyAnalyticsService
       cursor = edges.last["cursor"]
     end
 
-    total
+    [ total, tax_refunded ]
   end
 end
