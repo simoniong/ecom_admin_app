@@ -416,8 +416,10 @@ RSpec.describe DashboardMetricsService do
       # Store A (UTC): one comparable, multi-parcel order.
       order_for(store_a, customer_a, estimated: 10, parcel_costs: [ 6, 6 ], name: "PKS#A1") # actual 12
 
-      # Store B (Asia/Shanghai): one comparable, multi-parcel order.
+      # Store B (Asia/Shanghai): one comparable, multi-parcel order, plus one
+      # estimate-only order that must NOT count toward "comparable".
       order_for(store_b, customer_b, estimated: 20, parcel_costs: [ 9, 9 ], name: "PKS#B1") # actual 18
+      order_for(store_b, customer_b, estimated: 25, parcel_costs: [], name: "PKS#B2")       # estimate-only
 
       metrics = described_class.new(company, range_key: "past_7_days").call[:current]
 
@@ -427,6 +429,43 @@ RSpec.describe DashboardMetricsService do
       expect(metrics[:shipping_estimated_total]).to eq(30)   # 10 + 20
       expect(metrics[:shipping_actual_total]).to eq(30)      # 12 + 18
       expect(metrics[:multi_parcel_orders_count]).to eq(2)   # 1 + 1
+
+      # 3 orders total (2 comparable + 1 estimate-only). shipping_comparable_pct
+      # must sum count_comparable across BOTH stores (2/3 = 66.7%). Because
+      # `comparable` is scoped per-store inside the loop, a clobbering `=` bug
+      # would leave count_comparable at 1 (a single store's own comparable
+      # count) no matter which store's find_each iteration runs last — giving
+      # 1/3 = 33.3% instead. That distinguishes this from the vacuous case
+      # where clobbering would coincidentally still land on the right answer.
+      expect(metrics[:shipping_comparable_pct]).to eq(66.7)
+    end
+  end
+
+  describe "per-store timezone boundary handling in shipping aggregation" do
+    let(:user) { create(:user) }
+    let(:company) { user.companies.first }
+    let(:store) { create(:shopify_store, user: user, company: company, timezone: "Asia/Shanghai") }
+    let(:customer) { create(:customer, shopify_store: store) }
+
+    it "counts an order using the store's own timezone, not UTC, at a day boundary" do
+      shanghai = ActiveSupport::TimeZone["Asia/Shanghai"]
+
+      # 2026-04-01 02:00 Shanghai local == 2026-03-31 18:00 UTC.
+      # That instant is INSIDE the Shanghai-local range for "2026-04-01".."2026-04-30"
+      # (which starts at 2026-03-31T16:00:00Z), but OUTSIDE a UTC-computed version of
+      # that same range (which would start at 2026-04-01T00:00:00Z). Absolute, fixed
+      # dates — no Date.current / freeze_time needed for determinism.
+      create(:order, customer: customer, shopify_store: store,
+                     ordered_at: shanghai.local(2026, 4, 1, 2, 0, 0),
+                     estimated_shipping_cost: 42, actual_shipping_cost: nil, total_price: 100)
+
+      metrics = described_class.new(company, start_date: "2026-04-01", end_date: "2026-04-30").call[:current]
+
+      # Under a UTC-hardcoded aggregate_shipping, this order falls just before the
+      # (wrongly computed) range start and is dropped entirely: shipping_cost would
+      # be 0 and shipping_coverage_estimated_pct would be nil (no orders at all).
+      expect(metrics[:shipping_cost]).to eq(42)
+      expect(metrics[:shipping_coverage_estimated_pct]).to eq(100.0)
     end
   end
 end
