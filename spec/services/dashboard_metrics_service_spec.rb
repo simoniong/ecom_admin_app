@@ -284,4 +284,38 @@ RSpec.describe DashboardMetricsService do
       expect(result[:current][:cogs_coverage_pct]).to eq(66.7)
     end
   end
+
+  describe "net revenue breakdown" do
+    let(:company) { create(:company) }
+    let(:store) { create(:shopify_store, company: company) }
+
+    def metric(attrs)
+      create(:shopify_daily_metric, { shopify_store: store, date: Date.current }.merge(attrs))
+    end
+
+    it "aggregates the breakdown columns and derives net_revenue" do
+      metric(
+        gross_revenue: 1000, refunds: 100, total_tax: 60, transaction_fees: 40,
+        revenue: 900
+      )
+
+      result = described_class.new(company, range_key: "today").call[:current]
+
+      expect(result[:gross_revenue]).to eq(1000)
+      expect(result[:refunds]).to eq(100)
+      expect(result[:total_tax]).to eq(60)
+      expect(result[:transaction_fees]).to eq(40)
+      expect(result[:net_revenue]).to eq(800) # 1000 - 100 - 60 - 40
+    end
+
+    it "leaves the legacy revenue-derived metrics unchanged" do
+      metric(gross_revenue: 1000, refunds: 100, total_tax: 60, transaction_fees: 40, revenue: 900)
+
+      result = described_class.new(company, range_key: "today").call[:current]
+
+      # revenue keeps its existing definition; net_revenue is strictly separate
+      expect(result[:revenue]).to eq(900)
+      expect(result[:net_revenue]).not_to eq(result[:revenue])
+    end
+  end
 end
