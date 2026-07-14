@@ -58,9 +58,28 @@ class Order < ApplicationRecord
   # actual_shipping_cost is a denormalized rollup of the order's parcels. It must
   # be nil — not 0 — when there are no parcels, otherwise effective_shipping_cost
   # would treat 0 as "we know the actual cost" and stop falling back to the estimate.
+  #
+  # Locked: two transactions writing parcels for the same order concurrently
+  # (e.g. a split shipment imported alongside an agent-API write) must not each
+  # compute SUM(cost_amount) from a snapshot that can't see the other's
+  # uncommitted row. with_lock forces the second caller to wait for the first
+  # to commit, then recompute the sum fresh — so its update reflects both
+  # parcels instead of blindly overwriting with a stale partial total.
+  #
+  # Explicitly FOR NO KEY UPDATE, not the default FOR UPDATE: every INSERT (or
+  # order_id UPDATE) of a parcel takes an implicit FOR KEY SHARE lock on this
+  # row to enforce the foreign key. FOR UPDATE conflicts with FOR KEY SHARE, so
+  # two parcels written concurrently for the same order would each hold a
+  # shared FK lock and then both try to upgrade to FOR UPDATE here at the same
+  # time — a guaranteed deadlock (reproduced with two real connections), not
+  # just a race. FOR NO KEY UPDATE is exclusive enough to serialize this method
+  # against itself, while staying compatible with FOR KEY SHARE, so it never
+  # has to fight the insert that triggered it.
   def refresh_actual_shipping_cost!
-    total = parcels.exists? ? parcels.sum(:cost_amount) : nil
-    update_column(:actual_shipping_cost, total)
+    with_lock("FOR NO KEY UPDATE") do
+      total = parcels.exists? ? parcels.sum(:cost_amount) : nil
+      update_column(:actual_shipping_cost, total)
+    end
   end
 
   def parcel_count
