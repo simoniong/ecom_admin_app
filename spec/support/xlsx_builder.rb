@@ -87,6 +87,27 @@ module XlsxBuilder
     build_with_headers(JULY_HEADERS, rows: rows, totals: totals, sheet_name: "7月")
   end
 
+  # Builds a sheet with a data block, then `blank_count` fully blank rows, then
+  # a second data block — mimicking a bill with a genuine gap (e.g. day-batched
+  # sections separated by blank rows) rather than the footer-residue shape
+  # `.build` covers. Used to exercise ParcelBillParser::MAX_CONSECUTIVE_BLANK_ROWS:
+  # when blank_count exceeds it, `rows_after` sits past where the breaker
+  # trips, so if the breaker didn't record an error, that data would be
+  # silently dropped.
+  def self.build_with_gap(rows_before:, blank_count:, rows_after:, headers: HEADERS, sheet_name: "gap")
+    path = Rails.root.join("tmp", "parcel_bill_#{SecureRandom.hex(6)}.xlsx").to_s
+    Axlsx::Package.new do |p|
+      p.workbook.add_worksheet(name: sheet_name) do |sheet|
+        sheet.add_row headers
+        rows_before.each { |r| sheet.add_row(headers.map { |h| r[h] }) }
+        blank_count.times { sheet.add_row(Array.new(headers.size)) }
+        rows_after.each { |r| sheet.add_row(headers.map { |h| r[h] }) }
+      end
+      p.serialize(path)
+    end
+    path
+  end
+
   def self.build_with_headers(headers, rows:, totals:, sheet_name:)
     path = Rails.root.join("tmp", "parcel_bill_#{SecureRandom.hex(6)}.xlsx").to_s
     Axlsx::Package.new do |p|

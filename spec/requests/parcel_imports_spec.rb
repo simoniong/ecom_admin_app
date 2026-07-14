@@ -546,6 +546,14 @@ RSpec.describe "Parcel imports", type: :request do
       parcel = Parcel.find_by!(identifier: "JUL0001")
       expect(parcel.cost_cny).to eq(BigDecimal("102.00")) # 100 subtotal + ¥2 handling fee
       expect(order.reload.actual_shipping_cost).to eq(ParcelUpserter.convert(BigDecimal("102.00"), store.cost_fx_rate))
+
+      # Pins the derived fee end-to-end through the jsonb round-trip: batch.rows
+      # is jsonb, so ParcelImportBatch#staged_rows reads operation_fee_cny back
+      # as a JSON string ("2.0") before ParcelUpserter assigns it — only
+      # ActiveRecord's decimal-column cast turns that back into money. Nothing
+      # else in this file exercises operation_fee_cny past the parser-unit
+      # level, so a regression in that round-trip would otherwise go uncaught.
+      expect(parcel.operation_fee_cny).to eq(BigDecimal("2.0"))
     end
 
     # The notice is specifically about the derived fee, not a generic import

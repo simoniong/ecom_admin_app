@@ -234,4 +234,37 @@ RSpec.describe ParcelBillParser do
       expect(result[:errors].first).to include("加单总运费（RMB)")
     end
   end
+
+  describe "the MAX_CONSECUTIVE_BLANK_ROWS breaker" do
+    # A bill with a genuine gap (e.g. day-batched sections separated by blank
+    # rows) rather than the footer-residue shape: real data sits on both sides
+    # of a blank run longer than MAX_CONSECUTIVE_BLANK_ROWS. Parsing must stop
+    # at the breaker (dropping the rows after the gap is the whole point of
+    # the guard — see the class comment), but that truncation must never be
+    # silent: money-bearing rows disappearing from an import with a clean
+    # rows=N errors=0 result is exactly the failure mode being guarded
+    # against. If the error-append were removed, `errors` would stay empty
+    # here and this spec would fail.
+    it "stops parsing and reports a non-empty, named error when a blank run exceeds the limit" do
+      rows_before = [
+        XlsxBuilder.row(seq: 1, identifier: "BEFORE0001", order_name: "PKS#3037")
+      ]
+      rows_after = [
+        XlsxBuilder.row(seq: 2, identifier: "AFTER0001", order_name: "PKS#3037")
+      ]
+      path = XlsxBuilder.build_with_gap(
+        rows_before: rows_before,
+        blank_count: ParcelBillParser::MAX_CONSECUTIVE_BLANK_ROWS + 5,
+        rows_after: rows_after
+      )
+
+      result = described_class.new(path).call
+
+      expect(result[:rows].map { |r| r[:identifier] }).to contain_exactly("BEFORE0001")
+      expect(result[:rows].map { |r| r[:identifier] }).not_to include("AFTER0001")
+
+      expect(result[:errors]).not_to be_empty
+      expect(result[:errors].join).to include("連續 #{ParcelBillParser::MAX_CONSECUTIVE_BLANK_ROWS} 列空白")
+    end
+  end
 end

@@ -4,6 +4,8 @@ require "roo"
 # it never touches the database. Rows without a 序号 are skipped, which is how
 # the file's footer SUM rows get excluded (see design doc §2).
 class ParcelBillParser
+  OPERATION_FEE_HEADER = "操作费".freeze
+
   # Header text → row key. Exact strings as they appear in the export, including
   # the full-width parenthesis in 计费重（G) and 加单总运费（RMB).
   COLUMN_MAP = {
@@ -21,7 +23,7 @@ class ParcelBillParser
     "挂号费" => :registration_fee_cny,
     "税金" => :tax_cny,
     "偏远费" => :remote_area_fee_cny,
-    "操作费" => :operation_fee_cny,
+    OPERATION_FEE_HEADER => :operation_fee_cny,
     "加单总运费（RMB)" => :cost_cny
   }.freeze
 
@@ -34,8 +36,6 @@ class ParcelBillParser
   # wild. That subtotal excludes the 2-yuan handling fee that GRAND_TOTAL_HEADER
   # would otherwise have included — see #derive_cost!.
   SUBTOTAL_HEADERS = [ "总运费", "总运费（RMB)" ].freeze
-
-  OPERATION_FEE_HEADER = "操作费".freeze
 
   REQUIRED_HEADERS = [ SEQUENCE_HEADER, IDENTIFIER_HEADER ].freeze
 
@@ -70,7 +70,7 @@ class ParcelBillParser
     rows = []
     errors = []
 
-    each_data_row(sheet, index) do |raw, n|
+    each_data_row(sheet, index, errors) do |raw, n|
       attrs = extract(raw, index)
       row_errors = validate(attrs, n)
       if row_errors.any?
@@ -98,14 +98,25 @@ class ParcelBillParser
   # Footer total rows carry a value only in the last column and have no 序号,
   # which is how they're excluded. See MAX_CONSECUTIVE_BLANK_ROWS above for why
   # this also gives up early on a long run of blanks rather than trusting
-  # sheet.last_row all the way to whatever Excel claims it is.
-  def each_data_row(sheet, index)
+  # sheet.last_row all the way to whatever Excel claims it is. Bailing out
+  # must never be silent — a bill with a genuine gap (e.g. day-batched
+  # sections separated by blank rows) followed by more real data would
+  # otherwise be truncated with a clean-looking rows=N errors=0 result, and
+  # the missing rows are real money never imported. See parcels_controller.rb
+  # for the precedent this guards against: an arbitrary limit that drops data
+  # with no error at all.
+  def each_data_row(sheet, index, errors)
     blank_run = 0
     (2..sheet.last_row).each do |n|
       raw = sheet.row(n)
       if raw[index[SEQUENCE_HEADER]].blank?
         blank_run += 1
-        break if blank_run >= MAX_CONSECUTIVE_BLANK_ROWS
+        if blank_run >= MAX_CONSECUTIVE_BLANK_ROWS
+          last_data_row = n - MAX_CONSECUTIVE_BLANK_ROWS
+          errors << "第 #{last_data_row} 列之後偵測到連續 #{MAX_CONSECUTIVE_BLANK_ROWS} " \
+                    "列空白，解析在此中止；若帳單在此之後仍有資料，請檢查檔案。"
+          break
+        end
         next
       end
       blank_run = 0
