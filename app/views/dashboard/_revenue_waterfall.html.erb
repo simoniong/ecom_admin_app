@@ -26,7 +26,7 @@
 
     <%# Revenue (checkpoint = Gross − Refunds) %>
     <div class="flex-none w-40 bg-gray-50 border border-dashed border-gray-300 rounded-xl p-4">
-      <p class="text-xs font-medium text-gray-500 truncate"><span class="text-gray-400 font-bold mr-1">=</span><%= t("dashboard.revenue") %></p>
+      <p class="text-xs font-medium text-gray-500 truncate"><span class="text-gray-400 font-bold mr-1" aria-hidden="true">=</span><%= t("dashboard.revenue") %></p>
       <div class="mt-1.5 text-[22px] font-semibold text-gray-900 tabular-nums"><%= number_to_currency(cur[:revenue]) %></div>
       <%= render "dashboard/metric_delta", previous: prev[:revenue], current_raw: cur[:revenue], invert_color: false %>
     </div>
