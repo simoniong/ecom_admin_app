@@ -636,7 +636,11 @@ Expected: PASS（6 examples）
 bin/rails runner 'r = ParcelBillParser.new("/Users/simon/Downloads/2026.6月SIMON.xlsx").call; puts "rows=#{r[:rows].size} errors=#{r[:errors].size}"; puts "sum=#{r[:rows].sum { |x| x[:cost_cny] }}"'
 ```
 
-Expected: `rows=482 errors=0`、`sum=58578.98`（±0.01，因逐筆 round(2)）。若 rows 不是 482，代表總計行沒被濾掉或表頭對不上，**必須修到符合為止**。
+Expected: `rows=482 errors=0`、`sum=58579.14`。
+
+**關於 sum**：帳單每筆金額有三位小數（如 `239.732`），而 `cost_cny` 欄位是 `decimal(10,2)`，故逐筆 round 到分再加總，會與「先加總再 round」差約 0.163 元（sum-of-roundings 現象，非 bug）。Excel 底部 SUM 公式的 58,578.977 是**未逐筆 round** 的總和 —— 若把 parser 的 round 拿掉，總和應精確等於 58,578.977，可用此反證表頭映射與總計行過濾無誤。0.163 元在 58,579 元帳單上是 0.0003%，對差異分析無影響，故維持逐筆 round 到分。
+
+**rows 必須是 482**。若是 483 或 484，代表總計行沒被濾掉（這會把一筆 23 萬的假包裹寫進資料庫）；若是 0 或欄位全空，代表表頭對不上。兩者都**必須修到符合為止**。
 
 - [ ] **Step 8: RuboCop 與 commit**
 
