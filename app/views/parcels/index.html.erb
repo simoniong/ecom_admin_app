@@ -15,6 +15,13 @@
   </nav>
 
   <% if @tab == "unmatched" %>
+    <%# Rendered once regardless of how many unmatched rows are on the page —
+        see app/javascript/controllers/lazy_options_controller.js. Each row's
+        <select> clones this template's <option>s in client-side rather than
+        the server writing the full order list into every row's markup. %>
+    <template id="assignable-orders-options">
+      <%= options_from_collection_for_select(@assignable_orders, :id, :name) %>
+    </template>
     <table class="min-w-full divide-y divide-gray-200 bg-white rounded-lg border border-gray-200">
       <thead class="bg-gray-50">
         <tr>
@@ -27,7 +34,7 @@
       </thead>
       <tbody class="divide-y divide-gray-100">
         <% @parcels.each do |parcel| %>
-          <%= render "parcels/unmatched_row", parcel: parcel, assignable_orders: @assignable_orders %>
+          <%= render "parcels/unmatched_row", parcel: parcel %>
         <% end %>
       </tbody>
     </table>

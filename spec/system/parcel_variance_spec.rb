@@ -81,4 +81,30 @@ RSpec.describe "Shipping variance report", type: :system do
     expect(orphan.reload.order_id).to eq(blown.id)
     expect(blown.reload.actual_shipping_cost).to eq(45.10) # 20 + 20.10 + 5
   end
+
+  # The unmatched-tab dropdown is populated client-side by
+  # lazy_options_controller.js cloning a shared <template> (kept off the
+  # per-row markup to avoid rows × orders page weight — see the request spec
+  # in spec/requests/parcels_spec.rb for that measurement). This drives the
+  # real dropdown through headless Chrome to prove an order far beyond the
+  # old 200-row dropdown cap is genuinely selectable and assignable end to
+  # end, not merely present somewhere in the raw HTML.
+  it "assigns an unmatched parcel to an order far beyond the old 200-row dropdown cap" do
+    orphan = create(:parcel, shopify_store: store, order: nil, identifier: "ORPHANFAR", cost_amount: 5)
+    distant = nil
+    205.times do |i|
+      o = create(:order, customer: customer, shopify_store: store, name: "PKS#FAR#{i}", ordered_at: (i + 1).days.ago)
+      distant = o if i == 204
+    end
+
+    visit parcels_path(tab: "unmatched")
+    expect(page).to have_content("ORPHANFAR")
+
+    select distant.name, from: "parcel[order_id]"
+    click_button I18n.t("parcels.assign")
+
+    expect(page).not_to have_content("ORPHANFAR")
+    expect(orphan.reload.order_id).to eq(distant.id)
+    expect(distant.reload.actual_shipping_cost).to eq(5)
+  end
 end

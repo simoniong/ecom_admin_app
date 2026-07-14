@@ -141,6 +141,33 @@ RSpec.describe "Parcels", type: :request do
       expect(response.body).to include(oldest_order.name)
     end
 
+    # The dropdown must stay complete (see the test above) without
+    # re-rendering the full option list into every unmatched row's markup —
+    # that scaled page weight as rows × orders (measured 127 KB for 300
+    # orders × 5 unmatched rows; a real month's 434 orders/25-row page would
+    # run into multiple MB). The full order list should be rendered once
+    # (into the shared <template>), not once per row.
+    it "renders the assignable-orders option list once, not once per unmatched row" do
+      40.times do |i|
+        create(:order, customer: customer, shopify_store: store, name: "PKS#OPT#{i}", ordered_at: (i + 1).days.ago)
+      end
+      row_count = 6
+      row_count.times { |i| create(:parcel, shopify_store: store, order: nil, identifier: "OPTROW#{i}") }
+
+      get parcels_path, params: { tab: "unmatched" }
+
+      named_order_count = Order.where(shopify_store: store).where.not(name: nil).count
+      option_count = response.body.scan(/<option\b/).size
+
+      # Reverting to per-row `options_from_collection_for_select` would emit
+      # (named_order_count + 1 blank) options for EVERY row on the page —
+      # here row_count * (named_order_count + 1). Rendering the list once
+      # (plus one blank placeholder <option> per row's otherwise-empty
+      # <select>) keeps option_count flat regardless of row_count.
+      expect(option_count).to be < (named_order_count + row_count + 5)
+      expect(option_count).to be < (row_count * named_order_count)
+    end
+
     it "renders a page-2 link and makes page 2 reachable on the unmatched tab with more than 25 unmatched parcels" do
       30.times { |i| create(:parcel, shopify_store: store, order: nil, identifier: "ORPHAN#{i}", shipped_at: (i + 1).hours.ago) }
 
@@ -282,6 +309,35 @@ RSpec.describe "Parcels", type: :request do
       expect(flash[:alert]).to be_present
       expect(parcel.reload.cost_cny).to eq(239.73)  # unchanged — factory default
       expect(parcel.cost_amount).to eq(20)          # unchanged
+    end
+
+    # confirm_import and the agent API both rescue ActiveRecord::RangeError,
+    # but the HTML inline edit didn't — a value past decimal(10,2)'s range
+    # reached the database and raised, 500ing instead of landing in the same
+    # alert-and-redirect path as any other invalid edit. The fix bounds
+    # cost_cny/cost_amount in the model (Parcel::MAX_DECIMAL), so this now
+    # fails ordinary validation before ever reaching the database.
+    it "does not 500 on an out-of-range cost_cny via the HTML inline edit" do
+      parcel = blown.parcels.find_by(identifier: "B1")
+
+      patch parcel_path(id: parcel.id), params: { parcel: { cost_cny: "999999999999" } }
+
+      expect(response).to redirect_to(parcels_path)
+      expect(flash[:alert]).to be_present
+      expect(parcel.reload.cost_cny).to eq(239.73)  # unchanged — factory default
+      expect(parcel.cost_amount).to eq(20)          # unchanged
+    end
+
+    # The upper bound must not accidentally reject the largest legal value —
+    # decimal(10,2)'s true maximum is 99999999.99.
+    it "still accepts the decimal(10,2) column's true maximum cost_cny" do
+      parcel = blown.parcels.find_by(identifier: "B1")
+
+      patch parcel_path(id: parcel.id), params: { parcel: { cost_cny: "99999999.99" } }
+
+      expect(response).to redirect_to(parcels_path)
+      expect(flash[:alert]).to be_nil
+      expect(parcel.reload.cost_cny).to eq(BigDecimal("99999999.99"))
     end
   end
 

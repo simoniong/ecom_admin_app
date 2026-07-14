@@ -98,5 +98,28 @@ RSpec.describe Parcel, type: :model do
       expect(build(:parcel, shopify_store: store, cost_cny: 0)).not_to be_valid
       expect(build(:parcel, shopify_store: store, cost_cny: -99_999)).not_to be_valid
     end
+
+    # decimal(10,2) can hold at most 99999999.99. Without an upper bound here,
+    # a write past that reaches the database and raises
+    # ActiveRecord::RangeError instead of failing validation — every write
+    # path rescues that except the HTML inline edit (ParcelsController#update),
+    # which 500s. See spec/requests/parcels_spec.rb for that end-to-end case.
+    it "rejects a cost_cny at or beyond the decimal(10,2) column's true maximum" do
+      expect(build(:parcel, shopify_store: store, cost_cny: 100_000_000)).not_to be_valid
+    end
+
+    it "allows the decimal(10,2) column's true maximum cost_cny" do
+      parcel = build(:parcel, shopify_store: store,
+                              cost_cny: BigDecimal("99999999.99"),
+                              cost_amount: BigDecimal("99999999.99"))
+      expect(parcel).to be_valid
+    end
+
+    # cost_amount is derived from cost_cny / cost_fx_rate: an in-range
+    # cost_cny paired with a very low fx_rate (e.g. 0.01) can still overflow
+    # cost_amount, so it needs its own independent bound.
+    it "rejects a cost_amount at or beyond the decimal(10,2) column's true maximum" do
+      expect(build(:parcel, shopify_store: store, cost_amount: 100_000_000)).not_to be_valid
+    end
   end
 end

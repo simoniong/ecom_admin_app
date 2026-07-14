@@ -270,7 +270,13 @@ class ParcelsController < AdminController
       unmatched_count: unmatched.size,
       unmatched_rows: unmatched.first(20),
       overwrite_rows: overwrite.first(20),
-      total_cny: rows.sum { |r| r[:cost_cny] || 0 },
+      # Summed over final_rows, not rows: a duplicate identifier's earlier
+      # occurrence(s) are overwritten by the last one and never land, so
+      # counting every occurrence here would make this total describe rows
+      # that will never be persisted — and disagree with total_converted
+      # (already final_rows-based) at the approval screen the user reads
+      # right before money is written.
+      total_cny: final_rows.sum { |r| r[:cost_cny] || 0 },
       # Computed exactly the way confirm_import will persist it — round each
       # parcel's converted cost to 2dp, then sum — not Σcny ÷ fx. Across
       # hundreds of rows those two arithmetic orders drift apart, and this

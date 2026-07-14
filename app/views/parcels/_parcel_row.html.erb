@@ -11,6 +11,7 @@
     <% if current_membership&.owner? %>
       <%= form_with url: parcel_path(parcel), method: :patch, class: "inline-flex gap-1 items-center" do %>
         <%= number_field_tag "parcel[cost_cny]", parcel.cost_cny, step: "0.01",
+              max: "99999999.99",
               class: "w-20 rounded border-gray-300 text-xs py-0.5",
               "aria-label": t("parcels.columns.cost_cny") %>
         <%= submit_tag t("parcels.save"), class: "px-2 py-0.5 text-xs border border-gray-300 rounded hover:bg-gray-100 cursor-pointer" %>

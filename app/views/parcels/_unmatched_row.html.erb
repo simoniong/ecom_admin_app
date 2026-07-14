@@ -1,9 +1,18 @@
-<%# locals: (parcel:, assignable_orders:)
+<%# locals: (parcel:, assignable_orders_options: nil)
     The unmatched tab's row. Carries a dom_id so parcels#update's turbo_stream
     response can target it — without one, Turbo's replace/remove silently
     matched nothing and the assign form appeared to do nothing at all. Note the
     hidden `tab` field: it tells the controller which of the two row shapes to
-    stream back. %>
+    stream back.
+
+    assignable_orders_options, when given, is a precomputed options HTML
+    string embedded directly — used by the single-row turbo_stream replace,
+    where rendering the full list once more is free. When omitted (the
+    index page's many-row case), the row instead ships an empty <select>
+    that a Stimulus controller populates from a <template> rendered once by
+    the page — see app/javascript/controllers/lazy_options_controller.js for
+    why: writing the full order list into every row's markup made page
+    weight scale as rows × orders. %>
 <tr id="<%= dom_id(parcel) %>">
   <td class="px-4 py-3 text-sm font-medium text-gray-900"><%= parcel.identifier %></td>
   <td class="px-4 py-3 text-sm text-gray-500"><%= parcel.tracking_number %></td>
@@ -13,10 +22,18 @@
     <% if current_membership&.owner? %>
       <%= form_with url: parcel_path(parcel), method: :patch, class: "flex gap-2" do %>
         <%= hidden_field_tag :tab, "unmatched" %>
-        <%= select_tag "parcel[order_id]",
-              options_from_collection_for_select(assignable_orders, :id, :name),
-              include_blank: true,
-              class: "rounded-md border-gray-300 text-sm" %>
+        <% if assignable_orders_options %>
+          <%= select_tag "parcel[order_id]", assignable_orders_options,
+                include_blank: true,
+                class: "rounded-md border-gray-300 text-sm" %>
+        <% else %>
+          <%= select_tag "parcel[order_id]", "",
+                include_blank: true,
+                class: "rounded-md border-gray-300 text-sm",
+                data: { controller: "lazy-options",
+                        lazy_options_template_value: "assignable-orders-options",
+                        lazy_options_target: "select" } %>
+        <% end %>
         <%= submit_tag t("parcels.assign"),
               class: "px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50 cursor-pointer" %>
       <% end %>

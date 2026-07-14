@@ -420,6 +420,41 @@ RSpec.describe "Parcel imports", type: :request do
       expect(Parcel.find_by(identifier: "DUP1").cost_cny).to eq(44)
     end
 
+    # summarise used to sum total_cny over every parsed row, while
+    # total_converted (and confirm_import itself) only counts the LAST
+    # occurrence of a duplicate identifier — the earlier row(s) are
+    # overwritten and never land. A duplicate therefore used to preview as
+    # two contradictory headline totals ("Bill total ¥144.00" next to
+    # "Converted total $6.11", which at fx 7.2 implies ¥44.09, not ¥144) on
+    # the very screen the user approves before any money is written. Both
+    # totals must now describe exactly what confirm_import persists.
+    it "reconciles the preview's two headline totals for a file with a duplicate identifier" do
+      store.update!(cost_fx_rate: 7.2)
+      path = bill([
+        XlsxBuilder.row(seq: 1, identifier: "DUP1", order_name: "PKS#3037", cost: 100),
+        XlsxBuilder.row(seq: 2, identifier: "DUP1", order_name: "PKS#3037", cost: 44)
+      ])
+
+      body = preview_upload(path)
+      summary = summary_values(body)
+
+      # total_cny must reflect only the row that will actually be persisted
+      # (the last occurrence, ¥44), not the sum of both occurrences (¥144).
+      expect(summary[I18n.t("parcels.import.total_cny")]).to include("44.00")
+      expect(summary[I18n.t("parcels.import.total_cny")]).not_to include("144.00")
+
+      # And it must agree with total_converted: ¥44.00 / 7.2 = $6.11 (rounded
+      # the same way ParcelUpserter.convert does), not the naive ¥216-style
+      # figure a plain-sum bug would produce.
+      expect(summary[I18n.t("parcels.import.total_converted")]).to include("6.11")
+
+      batch_id = batch_id_from(body)
+      post confirm_import_parcels_path, params: { batch_id: batch_id }
+
+      persisted_cny = Parcel.where(identifier: "DUP1").sum(:cost_cny)
+      expect(persisted_cny).to eq(BigDecimal("44.00"))
+    end
+
     it "fails cleanly when the batch has expired (never existed)" do
       post confirm_import_parcels_path, params: { batch_id: "nonexistent" }
 
