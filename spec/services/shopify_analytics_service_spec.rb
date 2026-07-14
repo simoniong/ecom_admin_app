@@ -30,7 +30,8 @@ RSpec.describe ShopifyAnalyticsService do
           "subtotalPriceSet" => { "shopMoney" => { "amount" => o[:subtotal] } },
           "totalShippingPriceSet" => { "shopMoney" => { "amount" => o[:shipping] } },
           "totalTaxSet" => { "shopMoney" => { "amount" => o[:tax] } },
-          "customer" => customer_node
+          "customer" => customer_node,
+          "transactions" => (o[:fees] || []).map { |f| { "fees" => [ { "amount" => { "amount" => f } } ] } }
         }
       }
     end
@@ -143,6 +144,48 @@ RSpec.describe ShopifyAnalyticsService do
         .to_return(status: 500, body: "Internal Server Error")
 
       expect { service.sync_date(Date.current) }.not_to raise_error
+    end
+
+    it "persists the gross / refunds / net-tax / fees breakdown" do
+      stub_graphql([
+        orders_graphql_response([
+          { subtotal: "120.00", shipping: "20.00", tax: "10.00", fees: [ "3.78" ] },
+          { subtotal: "200.00", shipping: "30.00", tax: "20.00", fees: [ "6.10", "0.40" ] }
+        ]),
+        refunds_graphql_response([
+          {
+            refunds: [ {
+              "createdAt" => Time.current.utc.iso8601,
+              "refundLineItems" => { "edges" => [
+                { "node" => {
+                  "subtotalSet" => { "shopMoney" => { "amount" => "50.00" } },
+                  "totalTaxSet" => { "shopMoney" => { "amount" => "5.00" } }
+                } }
+              ] },
+              "orderAdjustments" => { "edges" => [] }
+            } ]
+          }
+        ])
+      ])
+
+      service.sync_date(Date.current)
+      metric = ShopifyDailyMetric.last
+
+      expect(metric.gross_revenue).to eq(400.00)     # 150 + 250
+      expect(metric.refunds).to eq(55.00)            # 50 subtotal + 5 tax
+      expect(metric.total_tax).to eq(25.00)          # (10 + 20) charged - 5 refunded
+      expect(metric.transaction_fees).to eq(10.28)   # 3.78 + 6.10 + 0.40
+      expect(metric.revenue).to eq(345.00)           # 400 gross - 55 refunds (unchanged formula)
+    end
+
+    it "records zero fees when orders have no Shopify Payments transactions" do
+      stub_graphql([
+        orders_graphql_response([ { subtotal: "100.00", shipping: "0", tax: "0" } ]),
+        empty_graphql_response
+      ])
+
+      service.sync_date(Date.current)
+      expect(ShopifyDailyMetric.last.transaction_fees).to eq(0)
     end
   end
 
