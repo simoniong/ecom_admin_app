@@ -1,0 +1,6 @@
+<%# locals: (title:, hint: nil) %>
+<div class="flex items-baseline gap-3 mb-3">
+  <span class="text-[11.5px] font-bold tracking-wider uppercase text-gray-500"><%= title %></span>
+  <% if hint.present? %><span class="text-xs text-gray-400"><%= hint %></span><% end %>
+  <span class="flex-1 h-px bg-gray-200 self-center"></span>
+</div>
