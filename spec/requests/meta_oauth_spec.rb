@@ -1,5 +1,10 @@
 require "rails_helper"
 
+# Mimics Koala's GraphCollection: an Array that also exposes #next_page.
+class PaginatedStub < Array
+  attr_accessor :next_page
+end
+
 RSpec.describe "MetaOauth", type: :request do
   let(:user) { create(:user) }
 
@@ -141,6 +146,19 @@ RSpec.describe "MetaOauth", type: :request do
       restricted_box = doc.at_xpath("//input[@type='checkbox'][@value='222']")
       expect(active_box["checked"]).to eq("checked")
       expect(restricted_box["checked"]).to be_nil
+    end
+
+    it "follows pagination so accounts beyond the first page still appear" do
+      page2 = PaginatedStub.new([ { "account_id" => "222", "name" => "Page Two Acct", "account_status" => 1 } ])
+      page2.next_page = nil
+      page1 = PaginatedStub.new([ { "account_id" => "111", "name" => "Page One Acct", "account_status" => 1 } ])
+      page1.next_page = page2
+
+      state = stub_meta_oauth_flow(page1)
+      get meta_callback_path, params: { code: "test-code", state: state }
+
+      expect(response.body).to include("Page One Acct")
+      expect(response.body).to include("Page Two Acct")
     end
 
     it "lets the user connect a restricted account" do
