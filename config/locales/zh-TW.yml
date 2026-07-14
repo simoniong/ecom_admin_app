@@ -415,6 +415,17 @@
     token_expires_soon: "Token 即將過期 — 建議重新連接"
     token_expired: "Token 已過期 — 請重新連接"
     unnamed_account: "未命名帳戶"
+    inactive_note: "非啟用中的帳號在你到 Meta 解決問題前無法投放廣告，但仍可連接以查看過往數據。"
+    status:
+      active: "啟用中"
+      disabled: "受限制"
+      unsettled: "需付款"
+      pending_risk_review: "審核中"
+      pending_settlement: "待結算"
+      in_grace_period: "寬限期"
+      pending_closure: "待關閉"
+      closed: "已關閉"
+      unknown: "非啟用"
     show:
       platform: "平台"
       account_id: "帳戶 ID"

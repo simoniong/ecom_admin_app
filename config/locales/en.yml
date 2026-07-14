@@ -415,6 +415,17 @@ en:
     token_expires_soon: "Token expires soon — reconnect recommended"
     token_expired: "Token expired — please reconnect"
     unnamed_account: "Unnamed Account"
+    inactive_note: "Accounts that are not active cannot run ads until you fix the issue in Meta, but you can still connect them to view past data."
+    status:
+      active: "Active"
+      disabled: "Restricted"
+      unsettled: "Payment needed"
+      pending_risk_review: "Under review"
+      pending_settlement: "Pending settlement"
+      in_grace_period: "Grace period"
+      pending_closure: "Pending closure"
+      closed: "Closed"
+      unknown: "Inactive"
     show:
       platform: "Platform"
       account_id: "Account ID"

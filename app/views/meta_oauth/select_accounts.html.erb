@@ -2,16 +2,26 @@
   <h1 class="text-2xl font-semibold text-gray-900"><%= t("ad_accounts.select_accounts") %></h1>
   <p class="mt-2 text-sm text-gray-600"><%= t("ad_accounts.select_accounts_description") %></p>
 
+  <% if @ad_accounts.any? { |a| !ad_account_active?(a["account_status"]) } %>
+    <p class="mt-2 text-xs text-amber-700"><%= t("ad_accounts.inactive_note") %></p>
+  <% end %>
+
   <%= form_tag meta_select_accounts_path, method: :post, data: { turbo: false }, class: "mt-6" do %>
     <div class="bg-white shadow-sm rounded-lg border border-gray-200 divide-y divide-gray-200">
       <% @ad_accounts.each do |account| %>
+        <% active = ad_account_active?(account["account_status"]) %>
         <label class="flex items-center gap-4 px-6 py-4 hover:bg-gray-50 cursor-pointer">
-          <%= check_box_tag "account_ids[]", account["account_id"], true, class: "h-4 w-4 rounded border-gray-300 text-gray-900 focus:ring-gray-900" %>
+          <%= check_box_tag "account_ids[]", account["account_id"], active, class: "h-4 w-4 rounded border-gray-300 text-gray-900 focus:ring-gray-900" %>
           <%= hidden_field_tag "account_names[#{account["account_id"]}]", account["name"] %>
           <%= hidden_field_tag "account_timezones[#{account["account_id"]}]", account["timezone_name"] %>
-          <div>
-            <span class="text-sm font-medium text-gray-900"><%= account["name"] || t("ad_accounts.unnamed_account") %></span>
-            <span class="ml-2 text-xs text-gray-500 font-mono">act_<%= account["account_id"] %></span>
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="text-sm font-medium <%= active ? "text-gray-900" : "text-gray-500" %>"><%= account["name"] || t("ad_accounts.unnamed_account") %></span>
+            <span class="text-xs text-gray-500 font-mono">act_<%= account["account_id"] %></span>
+            <% unless active %>
+              <span class="text-[11px] font-medium px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+                <%= t("ad_accounts.status.#{ad_account_status_key(account["account_status"])}") %>
+              </span>
+            <% end %>
           </div>
         </label>
       <% end %>

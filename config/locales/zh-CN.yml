@@ -415,6 +415,17 @@
     token_expires_soon: "Token 即将过期 — 建议重新连接"
     token_expired: "Token 已过期 — 请重新连接"
     unnamed_account: "未命名账户"
+    inactive_note: "非启用中的账号在你到 Meta 解决问题前无法投放广告，但仍可连接以查看过往数据。"
+    status:
+      active: "启用中"
+      disabled: "受限制"
+      unsettled: "需付款"
+      pending_risk_review: "审核中"
+      pending_settlement: "待结算"
+      in_grace_period: "宽限期"
+      pending_closure: "待关闭"
+      closed: "已关闭"
+      unknown: "非启用"
     show:
       platform: "平台"
       account_id: "账户 ID"

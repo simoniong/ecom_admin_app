@@ -1,7 +1,34 @@
 require "rails_helper"
 
+# Mimics Koala's GraphCollection: an Array that also exposes #next_page.
+class PaginatedStub < Array
+  attr_accessor :next_page
+end
+
 RSpec.describe "MetaOauth", type: :request do
   let(:user) { create(:user) }
+
+  # Runs the real /meta/auth (to seed the session state), then stubs the Koala
+  # OAuth + Graph calls the callback makes, with `accounts` as the me/adaccounts
+  # response. Returns the oauth state to pass to /meta/callback.
+  def stub_meta_oauth_flow(accounts)
+    get meta_auth_path
+    state = session[:meta_oauth_state]
+
+    oauth = instance_double(Koala::Facebook::OAuth)
+    allow(Koala::Facebook::OAuth).to receive(:new).and_return(oauth)
+    allow(oauth).to receive(:url_for_oauth_code).and_return("http://facebook.com/auth")
+    allow(oauth).to receive(:get_access_token).and_return("short-token")
+    allow(oauth).to receive(:exchange_access_token_info).and_return(
+      "access_token" => "long-lived-token", "expires_in" => 5_184_000
+    )
+
+    graph = instance_double(Koala::Facebook::API)
+    allow(Koala::Facebook::API).to receive(:new).and_return(graph)
+    allow(graph).to receive(:get_connections).and_return(accounts)
+
+    state
+  end
 
   describe "GET /meta/auth" do
     it "redirects to Facebook OAuth dialog" do
@@ -97,6 +124,57 @@ RSpec.describe "MetaOauth", type: :request do
 
       get meta_callback_path, params: { code: "bad-code", state: state }
       expect(response).to redirect_to(ad_accounts_path)
+    end
+
+    it "lists restricted accounts with a status label instead of hiding them" do
+      state = stub_meta_oauth_flow([
+        { "account_id" => "111", "name" => "Active Acct", "account_status" => 1 },
+        { "account_id" => "222", "name" => "Restricted Acct", "account_status" => 2 }
+      ])
+
+      get meta_callback_path, params: { code: "test-code", state: state }
+
+      # Both accounts appear — the restricted one is no longer filtered out.
+      expect(response.body).to include("Active Acct")
+      expect(response.body).to include("Restricted Acct")
+      expect(response.body).to include(I18n.t("ad_accounts.status.disabled"))
+      expect(response.body).to include(I18n.t("ad_accounts.inactive_note"))
+
+      # Active is pre-checked; restricted is shown but left unchecked.
+      doc = Nokogiri::HTML(response.body)
+      active_box = doc.at_xpath("//input[@type='checkbox'][@value='111']")
+      restricted_box = doc.at_xpath("//input[@type='checkbox'][@value='222']")
+      expect(active_box["checked"]).to eq("checked")
+      expect(restricted_box["checked"]).to be_nil
+    end
+
+    it "follows pagination so accounts beyond the first page still appear" do
+      page2 = PaginatedStub.new([ { "account_id" => "222", "name" => "Page Two Acct", "account_status" => 1 } ])
+      page2.next_page = nil
+      page1 = PaginatedStub.new([ { "account_id" => "111", "name" => "Page One Acct", "account_status" => 1 } ])
+      page1.next_page = page2
+
+      state = stub_meta_oauth_flow(page1)
+      get meta_callback_path, params: { code: "test-code", state: state }
+
+      expect(response.body).to include("Page One Acct")
+      expect(response.body).to include("Page Two Acct")
+    end
+
+    it "lets the user connect a restricted account" do
+      state = stub_meta_oauth_flow([
+        { "account_id" => "222", "name" => "Restricted Acct", "account_status" => 2 }
+      ])
+      get meta_callback_path, params: { code: "test-code", state: state }
+
+      expect {
+        post meta_select_accounts_path, params: {
+          account_ids: [ "222" ],
+          account_names: { "222" => "Restricted Acct" }
+        }
+      }.to change(AdAccount, :count).by(1)
+
+      expect(user.ad_accounts.last.account_id).to eq("act_222")
     end
   end
 
