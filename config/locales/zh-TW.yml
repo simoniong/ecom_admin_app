@@ -32,6 +32,7 @@
     company: "公司"
     settings: "設定"
     shipments: "物流"
+    parcels: "運費差異"
     sign_out: "登出"
     profile: "個人資料"
     shipping_reminders: "物流提醒"
@@ -435,6 +436,7 @@
       no_rows: "檔案中沒有可匯入的資料列。%{errors}"
       cost_missing: "有一列沒有帳單金額，無法匯入。請檢查檔案後重試。"
       value_out_of_range: "有一列的金額過大，無法匯入。請檢查檔案後重試。"
+      derived_operation_fee_notice: "已自動為 %{count} 個包裹加入 ¥%{fee}/票的操作費——該帳單沒有操作費欄位。"
   products:
     title: "產品"
     no_store: "請先連結一個 Shopify Store"

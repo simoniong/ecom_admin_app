@@ -518,4 +518,45 @@ RSpec.describe "Parcel imports", type: :request do
       expect(response).to redirect_to(authenticated_root_path)
     end
   end
+
+  # Covers the July-shaped bill: no 加单总运费（RMB) column, so ParcelBillParser
+  # derives cost_cny from 总运费（RMB) + the default ¥2 handling fee. The user
+  # is approving money on this screen, so the preview must call out that one
+  # component of it was not billed but added automatically.
+  describe "importing a July-shaped bill (no 加单总运费（RMB) column)" do
+    def july_bill(rows)
+      XlsxBuilder.build_july(rows: rows)
+    end
+
+    it "shows the derived-handling-fee notice on the preview page and lands the derived cost on confirm" do
+      path = july_bill([
+        XlsxBuilder.july_row(seq: 1, identifier: "JUL0001", order_name: "PKS#3037", subtotal: 100)
+      ])
+
+      body = preview_upload(path)
+
+      expect(response).to have_http_status(:ok)
+      expect(body).to include(I18n.t("parcels.import.derived_operation_fee_notice", count: 1, fee: "2.00"))
+
+      batch_id = batch_id_from(body)
+      expect {
+        post confirm_import_parcels_path, params: { batch_id: batch_id }
+      }.to change(Parcel, :count).by(1)
+
+      parcel = Parcel.find_by!(identifier: "JUL0001")
+      expect(parcel.cost_cny).to eq(BigDecimal("102.00")) # 100 subtotal + ¥2 handling fee
+      expect(order.reload.actual_shipping_cost).to eq(ParcelUpserter.convert(BigDecimal("102.00"), store.cost_fx_rate))
+    end
+
+    # The notice is specifically about the derived fee, not a generic import
+    # banner — it must not appear on an ordinary June-shaped upload, where
+    # 加单总运费（RMB) already carries the handling fee from the bill itself.
+    it "does not show the derived-handling-fee notice for an ordinary June-shaped bill" do
+      path = bill([ XlsxBuilder.row(seq: 1, identifier: "XMBDE2012381", order_name: "PKS#3037") ])
+
+      body = preview_upload(path)
+
+      expect(body).not_to include(I18n.t("parcels.import.derived_operation_fee_notice", count: 1, fee: "2.00"))
+    end
+  end
 end
