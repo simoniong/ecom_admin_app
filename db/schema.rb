@@ -348,7 +348,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_14_133832) do
   create_table "parcels", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.integer "actual_weight_g"
     t.integer "billed_weight_g"
-    t.decimal "cost_amount", precision: 10, scale: 2
+    t.decimal "cost_amount", precision: 10, scale: 2, null: false
     t.decimal "cost_cny", precision: 10, scale: 2
     t.string "country"
     t.datetime "created_at", null: false

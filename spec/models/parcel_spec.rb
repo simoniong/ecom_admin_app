@@ -66,5 +66,37 @@ RSpec.describe Parcel, type: :model do
     it "requires identifier" do
       expect(build(:parcel, shopify_store: store, identifier: nil)).not_to be_valid
     end
+
+    it "requires cost_amount" do
+      parcel = build(:parcel, shopify_store: store, cost_amount: nil)
+      expect(parcel).not_to be_valid
+      expect(parcel.errors[:cost_amount]).to be_present
+    end
+
+    # The DB-level NOT NULL is the real backstop — SUM(cost_amount) silently
+    # skips nulls, so a null cost_amount would make money vanish from a
+    # rollup while parcels.count still looked right. The model validation
+    # alone isn't enough: anything that writes around it (update_column,
+    # insert_all, a future bug) must still be stopped at the database.
+    it "cannot store a null cost_amount even bypassing the model validation" do
+      parcel = build(:parcel, shopify_store: store, cost_amount: nil)
+      expect { parcel.save(validate: false) }.to raise_error(ActiveRecord::NotNullViolation)
+    end
+
+    it "requires cost_cny" do
+      parcel = build(:parcel, shopify_store: store, cost_cny: nil)
+      expect(parcel).not_to be_valid
+      expect(parcel.errors[:cost_cny]).to be_present
+    end
+
+    it "rejects a zero or negative cost_amount" do
+      expect(build(:parcel, shopify_store: store, cost_amount: 0)).not_to be_valid
+      expect(build(:parcel, shopify_store: store, cost_amount: -13_888.75)).not_to be_valid
+    end
+
+    it "rejects a zero or negative cost_cny" do
+      expect(build(:parcel, shopify_store: store, cost_cny: 0)).not_to be_valid
+      expect(build(:parcel, shopify_store: store, cost_cny: -99_999)).not_to be_valid
+    end
   end
 end

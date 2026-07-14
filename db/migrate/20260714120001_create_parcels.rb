@@ -22,7 +22,11 @@ class CreateParcels < ActiveRecord::Migration[8.1]
       t.decimal :operation_fee_cny,    precision: 10, scale: 2
 
       t.decimal :fx_rate_snapshot, precision: 10, scale: 4
-      t.decimal :cost_amount,      precision: 10, scale: 2
+      # cost_amount feeds orders.actual_shipping_cost via SUM(); SUM silently
+      # skips nulls, so a null cost_amount would make money vanish from the
+      # rollup while parcels.count still looked right. NOT NULL, paired with
+      # the model's presence validation, closes that off at both layers.
+      t.decimal :cost_amount,      precision: 10, scale: 2, null: false
 
       t.timestamps
     end
