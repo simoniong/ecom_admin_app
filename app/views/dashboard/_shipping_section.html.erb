@@ -37,7 +37,7 @@
   <div class="mt-2 flex items-center justify-between">
     <p class="text-xs text-gray-500">
       <%= t("dashboard.shipping_coverage") %>:
-      <%= metrics[:current][:shipping_coverage_actual_pct] || 0 %>%
+      <%= metrics[:current][:shipping_comparable_pct] || 0 %>%
       <span class="text-gray-400"><%= t("dashboard.shipping_coverage_caveat") %></span>
     </p>
 
