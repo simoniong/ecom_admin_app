@@ -65,6 +65,47 @@
           previous: @metrics[:previous][:revenue],
           current_raw: @metrics[:current][:revenue] %>
 
+      <%# Gross Revenue %>
+      <%= render "dashboard/metric_card",
+          title: t("dashboard.gross_revenue"),
+          value: number_to_currency(@metrics[:current][:gross_revenue]),
+          previous: @metrics[:previous][:gross_revenue],
+          current_raw: @metrics[:current][:gross_revenue] %>
+
+      <%# Refunds %>
+      <%= render "dashboard/metric_card",
+          title: t("dashboard.refunds"),
+          value: number_to_currency(@metrics[:current][:refunds]),
+          previous: @metrics[:previous][:refunds],
+          current_raw: @metrics[:current][:refunds],
+          invert_color: true %>
+
+      <%# Tax %>
+      <%= render "dashboard/metric_card",
+          title: t("dashboard.tax"),
+          value: number_to_currency(@metrics[:current][:total_tax]),
+          previous: @metrics[:previous][:total_tax],
+          current_raw: @metrics[:current][:total_tax],
+          invert_color: true %>
+
+      <%# Transaction Fees %>
+      <div>
+        <%= render "dashboard/metric_card",
+            title: t("dashboard.transaction_fees"),
+            value: number_to_currency(@metrics[:current][:transaction_fees]),
+            previous: @metrics[:previous][:transaction_fees],
+            current_raw: @metrics[:current][:transaction_fees],
+            invert_color: true %>
+        <p class="mt-1 text-xs text-gray-400"><%= t("dashboard.transaction_fees_note") %></p>
+      </div>
+
+      <%# Net Revenue %>
+      <%= render "dashboard/metric_card",
+          title: t("dashboard.net_revenue"),
+          value: number_to_currency(@metrics[:current][:net_revenue]),
+          previous: @metrics[:previous][:net_revenue],
+          current_raw: @metrics[:current][:net_revenue] %>
+
       <%# Avg Order Value %>
       <%= render "dashboard/metric_card",
           title: t("dashboard.avg_order_value"),
