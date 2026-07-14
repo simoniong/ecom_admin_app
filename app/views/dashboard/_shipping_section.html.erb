@@ -1,0 +1,49 @@
+<%# locals: (metrics:) %>
+<section class="mb-8">
+  <%= render "dashboard/section_header", title: t("dashboard.section_shipping") %>
+
+  <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+    <%= render "dashboard/metric_card",
+        title: t("dashboard.shipping_estimated"),
+        value: number_to_currency(metrics[:current][:shipping_estimated_total]),
+        previous: metrics[:previous][:shipping_estimated_total],
+        current_raw: metrics[:current][:shipping_estimated_total],
+        invert_color: true %>
+
+    <%= render "dashboard/metric_card",
+        title: t("dashboard.shipping_actual"),
+        value: number_to_currency(metrics[:current][:shipping_actual_total]),
+        previous: metrics[:previous][:shipping_actual_total],
+        current_raw: metrics[:current][:shipping_actual_total],
+        invert_color: true %>
+
+    <%= render "dashboard/metric_card",
+        title: t("dashboard.shipping_variance"),
+        value: metrics[:current][:shipping_variance_pct] ?
+                 "#{number_to_currency(metrics[:current][:shipping_variance])} (#{metrics[:current][:shipping_variance_pct]}%)" :
+                 "—",
+        previous: metrics[:previous][:shipping_variance],
+        current_raw: metrics[:current][:shipping_variance],
+        invert_color: true %>
+
+    <%= render "dashboard/metric_card",
+        title: t("dashboard.multi_parcel_orders"),
+        value: number_with_delimiter(metrics[:current][:multi_parcel_orders_count]),
+        previous: metrics[:previous][:multi_parcel_orders_count],
+        current_raw: metrics[:current][:multi_parcel_orders_count],
+        invert_color: true %>
+  </div>
+
+  <div class="mt-2 flex items-center justify-between">
+    <p class="text-xs text-gray-500">
+      <%= t("dashboard.shipping_coverage") %>:
+      <%= metrics[:current][:shipping_coverage_actual_pct] || 0 %>%
+      <span class="text-gray-400"><%= t("dashboard.shipping_coverage_caveat") %></span>
+    </p>
+
+    <%= link_to t("dashboard.view_variance"),
+          parcels_path(from_date: metrics[:date_range].first, to_date: metrics[:date_range].last,
+                       sort_column: "variance", sort_direction: "desc"),
+          class: "text-sm font-medium text-gray-900 hover:underline" %>
+  </div>
+</section>

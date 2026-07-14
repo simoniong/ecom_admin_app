@@ -113,6 +113,13 @@ en:
     shipping_coverage: "Shipping coverage"
     shipping_coverage_actual: "actual"
     shipping_coverage_estimated: "estimated"
+    section_shipping: "Shipping"
+    shipping_estimated: "Estimated shipping"
+    shipping_actual: "Actual shipping"
+    shipping_variance: "Shipping variance"
+    multi_parcel_orders: "Multi-parcel orders"
+    shipping_coverage_caveat: "(the lower the coverage, the less the variance means)"
+    view_variance: "View variance detail →"
   email_accounts:
     title: "Email Accounts"
     empty: "No email accounts linked yet."

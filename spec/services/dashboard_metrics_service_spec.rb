@@ -328,4 +328,51 @@ RSpec.describe DashboardMetricsService do
       expect(result[:gross_margin_pct]).to eq(100.0)   # gross_profit / revenue * 100
     end
   end
+
+  describe "shipping variance metrics" do
+    let(:user)  { create(:user) }
+    let(:company) { user.companies.first }
+    let(:store) { create(:shopify_store, user: user, company: company, cost_fx_rate: 7.2, timezone: "UTC") }
+    let(:customer) { create(:customer, shopify_store: store) }
+
+    def order_with(estimated:, parcel_costs:, name:)
+      o = create(:order, customer: customer, shopify_store: store, name: name,
+                         estimated_shipping_cost: estimated, ordered_at: 1.day.ago)
+      parcel_costs.each_with_index do |c, i|
+        create(:parcel, shopify_store: store, order: o, identifier: "#{name}-#{i}", cost_amount: c)
+      end
+      o
+    end
+
+    it "compares actual against estimated only on orders that have BOTH" do
+      order_with(estimated: 10, parcel_costs: [ 15 ], name: "PKS#1")          # comparable: +5
+      order_with(estimated: 20, parcel_costs: [ 18 ], name: "PKS#2")          # comparable: -2
+      order_with(estimated: nil, parcel_costs: [ 99 ], name: "PKS#3")         # actual only — excluded from variance
+      create(:order, customer: customer, shopify_store: store, name: "PKS#4",
+                     estimated_shipping_cost: 30, ordered_at: 1.day.ago)      # estimate only — excluded
+
+      metrics = described_class.new(company, range_key: "past_7_days").call[:current]
+
+      expect(metrics[:shipping_estimated_total]).to eq(30)   # 10 + 20
+      expect(metrics[:shipping_actual_total]).to eq(33)      # 15 + 18
+      expect(metrics[:shipping_variance]).to eq(3)
+      expect(metrics[:shipping_variance_pct]).to eq(10.0)
+    end
+
+    it "counts multi-parcel orders" do
+      order_with(estimated: 10, parcel_costs: [ 5, 5, 5 ], name: "PKS#5")
+      order_with(estimated: 10, parcel_costs: [ 9 ], name: "PKS#6")
+
+      metrics = described_class.new(company, range_key: "past_7_days").call[:current]
+
+      expect(metrics[:multi_parcel_orders_count]).to eq(1)
+    end
+
+    it "returns nil variance_pct when there is nothing comparable" do
+      metrics = described_class.new(company, range_key: "past_7_days").call[:current]
+
+      expect(metrics[:shipping_variance_pct]).to be_nil
+      expect(metrics[:multi_parcel_orders_count]).to eq(0)
+    end
+  end
 end

@@ -88,6 +88,9 @@
       </div>
     </section>
 
+    <%# ===== Shipping ===== %>
+    <%= render "dashboard/shipping_section", metrics: @metrics %>
+
     <%# ===== Advertising ===== %>
     <section class="mb-8">
       <%= render "dashboard/section_header", title: t("dashboard.section_advertising") %>

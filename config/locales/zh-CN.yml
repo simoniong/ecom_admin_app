@@ -113,6 +113,13 @@
     shipping_coverage: "运费覆盖率"
     shipping_coverage_actual: "实际"
     shipping_coverage_estimated: "估算"
+    section_shipping: "物流"
+    shipping_estimated: "预估运费"
+    shipping_actual: "实际运费"
+    shipping_variance: "运费差异"
+    multi_parcel_orders: "多包裹订单"
+    shipping_coverage_caveat: "（覆盖率越低，差异数字越不可靠）"
+    view_variance: "查看差异明细 →"
   email_accounts:
     title: "邮箱"
     empty: "尚未绑定任何邮箱。"
