@@ -1,0 +1,124 @@
+<div class="p-6">
+  <div class="flex items-center justify-between mb-6">
+    <h1 class="text-2xl font-semibold text-gray-900"><%= t("parcels.title") %></h1>
+    <% if current_membership&.owner? %>
+      <%= link_to t("parcels.import.title"), import_parcels_path,
+            class: "px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800" %>
+    <% end %>
+  </div>
+
+  <nav class="flex gap-4 border-b border-gray-200 mb-4">
+    <%= link_to t("parcels.tab_orders"), parcels_path,
+          class: "pb-2 text-sm font-medium #{@tab == 'orders' ? 'border-b-2 border-gray-900 text-gray-900' : 'text-gray-500 hover:text-gray-700'}" %>
+    <%= link_to t("parcels.tab_unmatched"), parcels_path(tab: "unmatched"),
+          class: "pb-2 text-sm font-medium #{@tab == 'unmatched' ? 'border-b-2 border-gray-900 text-gray-900' : 'text-gray-500 hover:text-gray-700'}" %>
+  </nav>
+
+  <% if @tab == "unmatched" %>
+    <%# Rendered once regardless of how many unmatched rows are on the page —
+        see app/javascript/controllers/lazy_options_controller.js. Each row's
+        <select> clones this template's <option>s in client-side rather than
+        the server writing the full order list into every row's markup. %>
+    <template id="assignable-orders-options">
+      <%= options_from_collection_for_select(@assignable_orders, :id, :name) %>
+    </template>
+    <table class="min-w-full divide-y divide-gray-200 bg-white rounded-lg border border-gray-200">
+      <thead class="bg-gray-50">
+        <tr>
+          <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase"><%= t("parcels.columns.identifier") %></th>
+          <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase"><%= t("parcels.columns.tracking") %></th>
+          <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase"><%= t("parcels.columns.channel") %></th>
+          <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase"><%= t("parcels.columns.cost") %></th>
+          <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase"><%= t("parcels.columns.assign") %></th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-100">
+        <% @parcels.each do |parcel| %>
+          <%= render "parcels/unmatched_row", parcel: parcel %>
+        <% end %>
+      </tbody>
+    </table>
+    <%= render "parcels/pagination", page: @page, total_pages: @total_pages, total_count: @total_count %>
+  <% else %>
+    <%= form_tag parcels_path, method: :get, class: "bg-white rounded-lg border border-gray-200 p-4 mb-4 flex flex-wrap gap-4 items-end" do %>
+      <div>
+        <label for="from_date" class="block text-xs font-medium text-gray-500 mb-1"><%= t("parcels.from_date") %></label>
+        <%= date_field_tag :from_date, @from_date, class: "rounded-md border-gray-300 text-sm" %>
+      </div>
+      <div>
+        <label for="to_date" class="block text-xs font-medium text-gray-500 mb-1"><%= t("parcels.to_date") %></label>
+        <%= date_field_tag :to_date, @to_date, class: "rounded-md border-gray-300 text-sm" %>
+      </div>
+      <label class="flex items-center gap-2 text-sm text-gray-700">
+        <%= check_box_tag :multi_parcel_only, "1", params[:multi_parcel_only].present?, class: "rounded border-gray-300" %>
+        <%= t("parcels.multi_parcel_only") %>
+      </label>
+      <label class="flex items-center gap-2 text-sm text-gray-700">
+        <%= check_box_tag :over_only, "1", params[:over_only].present?, class: "rounded border-gray-300" %>
+        <%= t("parcels.over_only") %>
+      </label>
+      <%= submit_tag t("parcels.filter"), class: "px-4 py-2 bg-gray-900 text-white text-sm rounded-md cursor-pointer" %>
+    <% end %>
+
+    <table class="min-w-full divide-y divide-gray-200 bg-white rounded-lg border border-gray-200">
+      <thead class="bg-gray-50">
+        <tr>
+          <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase"><%= t("parcels.columns.order") %></th>
+          <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase"><%= t("parcels.columns.estimated") %></th>
+          <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase"><%= t("parcels.columns.actual") %></th>
+          <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
+            <%= link_to t("parcels.columns.variance"),
+                  parcels_path(request.query_parameters.merge(sort_column: "variance",
+                    sort_direction: (@sort_column == "variance" && @sort_direction == "desc") ? "asc" : "desc")),
+                  class: "hover:text-gray-700" %>
+          </th>
+          <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase"><%= t("parcels.columns.variance_pct") %></th>
+          <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase"><%= t("parcels.columns.parcel_count") %></th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-100">
+        <% @orders.each do |order| %>
+          <tr>
+            <td class="px-4 py-3 text-sm font-medium text-gray-900"><%= order.name %></td>
+            <td class="px-4 py-3 text-sm text-right text-gray-500"><%= order.estimated_shipping_cost ? number_to_currency(order.estimated_shipping_cost) : "—" %></td>
+            <td class="px-4 py-3 text-sm text-right text-gray-900"><%= number_to_currency(order.actual_shipping_cost) %></td>
+            <td class="px-4 py-3 text-sm text-right font-medium <%= order.shipping_variance.to_f.positive? ? "text-red-600" : "text-green-600" %>">
+              <%= order.shipping_variance ? number_to_currency(order.shipping_variance) : "—" %>
+            </td>
+            <td class="px-4 py-3 text-sm text-right text-gray-500">
+              <%= order.shipping_variance_pct ? "#{order.shipping_variance_pct}%" : "—" %>
+            </td>
+            <td class="px-4 py-3 text-sm text-right <%= order.parcels.size > 1 ? "text-amber-600 font-medium" : "text-gray-500" %>">
+              <%= order.parcels.size %>
+            </td>
+          </tr>
+          <tr class="bg-gray-50">
+            <td colspan="6" class="px-4 py-2">
+              <table class="min-w-full text-xs">
+                <thead>
+                  <tr class="text-gray-500">
+                    <th class="py-1 text-left"><%= t("parcels.columns.identifier") %></th>
+                    <th class="py-1 text-left"><%= t("parcels.columns.channel") %></th>
+                    <th class="py-1 text-right"><%= t("parcels.columns.billed_weight") %></th>
+                    <th class="py-1 text-right"><%= t("parcels.columns.freight") %></th>
+                    <th class="py-1 text-right"><%= t("parcels.columns.registration") %></th>
+                    <th class="py-1 text-right"><%= t("parcels.columns.operation") %></th>
+                    <th class="py-1 text-right"><%= t("parcels.columns.cost_cny") %></th>
+                    <th class="py-1 text-right"><%= t("parcels.columns.cost") %></th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <% order.parcels.each do |parcel| %>
+                    <%= render "parcels/parcel_row", parcel: parcel %>
+                  <% end %>
+                </tbody>
+              </table>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+    <%= render "parcels/pagination", page: @page, total_pages: @total_pages, total_count: @total_count %>
+  <% end %>
+</div>

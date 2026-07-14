@@ -1,0 +1,29 @@
+<%# Pagination — mirrors the pattern used on orders#index / shipments#index,
+    reusing the shared pagination_range helper (app/helpers/application_helper.rb).
+    Links are built from request.query_parameters so the active tab, date
+    filters, checkboxes and sort are preserved across pages. %>
+<% if total_pages > 1 %>
+  <nav class="flex items-center justify-between mt-4">
+    <p class="text-sm text-gray-600">
+      <%= t("parcels.showing", from: (page - 1) * ParcelsController::PER_PAGE + 1, to: [ page * ParcelsController::PER_PAGE, total_count ].min, total: total_count) %>
+    </p>
+    <div class="flex gap-1">
+      <% if page > 1 %>
+        <%= link_to t("parcels.prev"), parcels_path(request.query_parameters.merge(page: page - 1)),
+              class: "px-3 py-1 text-sm rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50" %>
+      <% end %>
+      <% pagination_range(page, total_pages).each do |p| %>
+        <% if p == :gap %>
+          <span class="px-2 py-1 text-sm text-gray-400">...</span>
+        <% else %>
+          <%= link_to p, parcels_path(request.query_parameters.merge(page: p)),
+                class: "px-3 py-1 text-sm rounded-md border #{p == page ? 'border-blue-500 bg-blue-50 text-blue-700 font-medium' : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'}" %>
+        <% end %>
+      <% end %>
+      <% if page < total_pages %>
+        <%= link_to t("parcels.next"), parcels_path(request.query_parameters.merge(page: page + 1)),
+              class: "px-3 py-1 text-sm rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50" %>
+      <% end %>
+    </div>
+  </nav>
+<% end %>

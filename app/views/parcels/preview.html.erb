@@ -1,0 +1,67 @@
+<div class="max-w-3xl mx-auto py-8">
+  <h1 class="text-2xl font-semibold text-gray-900 mb-6"><%= t("parcels.import.preview_title") %></h1>
+
+  <div class="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
+    <dl class="grid grid-cols-2 gap-4 text-sm">
+      <div><dt class="text-gray-500"><%= t("parcels.import.parsed") %></dt>
+           <dd class="font-medium text-gray-900"><%= @summary[:total] %></dd></div>
+      <div><dt class="text-gray-500"><%= t("parcels.import.will_create") %></dt>
+           <dd class="font-medium text-gray-900"><%= @summary[:create_count] %></dd></div>
+      <div><dt class="text-gray-500"><%= t("parcels.import.will_overwrite") %></dt>
+           <dd class="font-medium <%= @summary[:overwrite_count].positive? ? "text-amber-600" : "text-gray-900" %>">
+             <%= @summary[:overwrite_count] %></dd></div>
+      <div><dt class="text-gray-500"><%= t("parcels.import.unmatched") %></dt>
+           <dd class="font-medium <%= @summary[:unmatched_count].positive? ? "text-amber-600" : "text-gray-900" %>">
+             <%= @summary[:unmatched_count] %></dd></div>
+      <div><dt class="text-gray-500"><%= t("parcels.import.duplicates") %></dt>
+           <dd class="font-medium <%= @summary[:duplicate_count].positive? ? "text-amber-600" : "text-gray-900" %>">
+             <%= @summary[:duplicate_count] %></dd></div>
+      <div><dt class="text-gray-500"><%= t("parcels.import.total_cny") %></dt>
+           <dd class="font-medium text-gray-900">¥<%= number_with_precision(@summary[:total_cny], precision: 2) %></dd></div>
+      <div><dt class="text-gray-500"><%= t("parcels.import.total_converted") %></dt>
+           <dd class="font-medium text-gray-900">
+             <%= number_to_currency(@summary[:total_converted]) %>
+             <span class="text-xs text-gray-500">@ <%= @store.cost_fx_rate %></span></dd></div>
+    </dl>
+
+    <% if @errors.any? %>
+      <div class="rounded-md bg-red-50 border border-red-200 p-3">
+        <p class="text-sm font-medium text-red-800"><%= t("parcels.import.row_errors", count: @errors.size) %></p>
+        <ul class="mt-1 text-xs text-red-700 list-disc list-inside">
+          <% @errors.first(10).each do |e| %><li><%= e %></li><% end %>
+        </ul>
+      </div>
+    <% end %>
+
+    <% if @summary[:unmatched_count].positive? %>
+      <div class="rounded-md bg-amber-50 border border-amber-200 p-3">
+        <p class="text-sm font-medium text-amber-800"><%= t("parcels.import.unmatched_hint") %></p>
+        <ul class="mt-1 text-xs text-amber-700 list-disc list-inside">
+          <% @summary[:unmatched_rows].each do |r| %>
+            <li><%= r[:identifier] %> — <%= r[:order_name].presence || "—" %></li>
+          <% end %>
+        </ul>
+      </div>
+    <% end %>
+
+    <% if @summary[:duplicate_count].positive? %>
+      <div class="rounded-md bg-amber-50 border border-amber-200 p-3">
+        <p class="text-sm font-medium text-amber-800"><%= t("parcels.import.duplicates") %></p>
+        <p class="text-xs text-amber-700"><%= t("parcels.import.duplicate_hint") %></p>
+        <ul class="mt-1 text-xs text-amber-700 list-disc list-inside">
+          <% @summary[:duplicate_identifiers].each do |identifier| %>
+            <li><%= identifier %></li>
+          <% end %>
+        </ul>
+      </div>
+    <% end %>
+
+    <div class="flex gap-3 pt-2">
+      <%= button_to t("parcels.import.confirm"), confirm_import_parcels_path,
+            method: :post, params: { batch_id: @batch.id },
+            class: "px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800" %>
+      <%= link_to t("parcels.import.cancel"), import_parcels_path,
+            class: "px-4 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-50" %>
+    </div>
+  </div>
+</div>

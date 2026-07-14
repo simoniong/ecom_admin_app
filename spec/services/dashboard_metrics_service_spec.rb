@@ -328,4 +328,144 @@ RSpec.describe DashboardMetricsService do
       expect(result[:gross_margin_pct]).to eq(100.0)   # gross_profit / revenue * 100
     end
   end
+
+  describe "shipping variance metrics" do
+    let(:user)  { create(:user) }
+    let(:company) { user.companies.first }
+    let(:store) { create(:shopify_store, user: user, company: company, cost_fx_rate: 7.2, timezone: "UTC") }
+    let(:customer) { create(:customer, shopify_store: store) }
+
+    def order_with(estimated:, parcel_costs:, name:)
+      o = create(:order, customer: customer, shopify_store: store, name: name,
+                         estimated_shipping_cost: estimated, ordered_at: 1.day.ago)
+      parcel_costs.each_with_index do |c, i|
+        create(:parcel, shopify_store: store, order: o, identifier: "#{name}-#{i}", cost_amount: c)
+      end
+      o
+    end
+
+    it "compares actual against estimated only on orders that have BOTH" do
+      order_with(estimated: 10, parcel_costs: [ 15 ], name: "PKS#1")          # comparable: +5
+      order_with(estimated: 20, parcel_costs: [ 18 ], name: "PKS#2")          # comparable: -2
+      order_with(estimated: nil, parcel_costs: [ 99 ], name: "PKS#3")         # actual only — excluded from variance
+      create(:order, customer: customer, shopify_store: store, name: "PKS#4",
+                     estimated_shipping_cost: 30, ordered_at: 1.day.ago)      # estimate only — excluded
+
+      metrics = described_class.new(company, range_key: "past_7_days").call[:current]
+
+      expect(metrics[:shipping_estimated_total]).to eq(30)   # 10 + 20
+      expect(metrics[:shipping_actual_total]).to eq(33)      # 15 + 18
+      expect(metrics[:shipping_variance]).to eq(3)
+      expect(metrics[:shipping_variance_pct]).to eq(10.0)
+    end
+
+    it "counts multi-parcel orders" do
+      order_with(estimated: 10, parcel_costs: [ 5, 5, 5 ], name: "PKS#5")
+      order_with(estimated: 10, parcel_costs: [ 9 ], name: "PKS#6")
+
+      metrics = described_class.new(company, range_key: "past_7_days").call[:current]
+
+      expect(metrics[:multi_parcel_orders_count]).to eq(1)
+    end
+
+    it "returns nil variance_pct when there is nothing comparable" do
+      metrics = described_class.new(company, range_key: "past_7_days").call[:current]
+
+      expect(metrics[:shipping_variance_pct]).to be_nil
+      expect(metrics[:multi_parcel_orders_count]).to eq(0)
+    end
+
+    it "computes shipping_comparable_pct against the comparable set, distinct from shipping_coverage_actual_pct" do
+      order_with(estimated: 10, parcel_costs: [ 15 ], name: "PKS#1")  # comparable
+      order_with(estimated: 20, parcel_costs: [ 18 ], name: "PKS#2")  # comparable
+      order_with(estimated: nil, parcel_costs: [ 99 ], name: "PKS#3") # actual-only: counts toward
+      #                                                                 shipping_coverage_actual_pct
+      #                                                                 but is NOT comparable (no estimate)
+      create(:order, customer: customer, shopify_store: store, name: "PKS#4",
+                     estimated_shipping_cost: 30, ordered_at: 1.day.ago) # estimated-only
+
+      metrics = described_class.new(company, range_key: "past_7_days").call[:current]
+
+      # 4 orders total. Comparable (has BOTH figures): PKS#1, PKS#2 → 2/4 = 50%.
+      # Has an actual figure at all: PKS#1, PKS#2, PKS#3 → 3/4 = 75%.
+      # These must differ — that's the whole point of exposing a distinct key.
+      expect(metrics[:shipping_comparable_pct]).to eq(50.0)
+      expect(metrics[:shipping_coverage_actual_pct]).to eq(75.0)
+      expect(metrics[:shipping_comparable_pct]).not_to eq(metrics[:shipping_coverage_actual_pct])
+    end
+  end
+
+  describe "shipping variance across multiple stores" do
+    let(:user)    { create(:user) }
+    let(:company) { user.companies.first }
+    let(:store_a) { create(:shopify_store, user: user, company: company, timezone: "UTC") }
+    let(:store_b) { create(:shopify_store, user: user, company: company, timezone: "Asia/Shanghai") }
+    let(:customer_a) { create(:customer, shopify_store: store_a) }
+    let(:customer_b) { create(:customer, shopify_store: store_b) }
+
+    def order_for(store, customer, estimated:, parcel_costs:, name:)
+      o = create(:order, customer: customer, shopify_store: store, name: name,
+                         estimated_shipping_cost: estimated, ordered_at: 1.day.ago)
+      parcel_costs.each_with_index do |c, i|
+        create(:parcel, shopify_store: store, order: o, identifier: "#{name}-#{i}", cost_amount: c)
+      end
+      o
+    end
+
+    it "sums comparable totals and multi-parcel counts across stores instead of overwriting" do
+      # Store A (UTC): one comparable, multi-parcel order.
+      order_for(store_a, customer_a, estimated: 10, parcel_costs: [ 6, 6 ], name: "PKS#A1") # actual 12
+
+      # Store B (Asia/Shanghai): one comparable, multi-parcel order, plus one
+      # estimate-only order that must NOT count toward "comparable".
+      order_for(store_b, customer_b, estimated: 20, parcel_costs: [ 9, 9 ], name: "PKS#B1") # actual 18
+      order_for(store_b, customer_b, estimated: 25, parcel_costs: [], name: "PKS#B2")       # estimate-only
+
+      metrics = described_class.new(company, range_key: "past_7_days").call[:current]
+
+      # If the accumulators were `=` instead of `+=`, whichever store is processed
+      # last would clobber the other's contribution. Neither store's numbers alone
+      # (10/12/1 or 20/18/1) match the true sum below, so this fails under that bug.
+      expect(metrics[:shipping_estimated_total]).to eq(30)   # 10 + 20
+      expect(metrics[:shipping_actual_total]).to eq(30)      # 12 + 18
+      expect(metrics[:multi_parcel_orders_count]).to eq(2)   # 1 + 1
+
+      # 3 orders total (2 comparable + 1 estimate-only). shipping_comparable_pct
+      # must sum count_comparable across BOTH stores (2/3 = 66.7%). Because
+      # `comparable` is scoped per-store inside the loop, a clobbering `=` bug
+      # would leave count_comparable at 1 (a single store's own comparable
+      # count) no matter which store's find_each iteration runs last — giving
+      # 1/3 = 33.3% instead. That distinguishes this from the vacuous case
+      # where clobbering would coincidentally still land on the right answer.
+      expect(metrics[:shipping_comparable_pct]).to eq(66.7)
+    end
+  end
+
+  describe "per-store timezone boundary handling in shipping aggregation" do
+    let(:user) { create(:user) }
+    let(:company) { user.companies.first }
+    let(:store) { create(:shopify_store, user: user, company: company, timezone: "Asia/Shanghai") }
+    let(:customer) { create(:customer, shopify_store: store) }
+
+    it "counts an order using the store's own timezone, not UTC, at a day boundary" do
+      shanghai = ActiveSupport::TimeZone["Asia/Shanghai"]
+
+      # 2026-04-01 02:00 Shanghai local == 2026-03-31 18:00 UTC.
+      # That instant is INSIDE the Shanghai-local range for "2026-04-01".."2026-04-30"
+      # (which starts at 2026-03-31T16:00:00Z), but OUTSIDE a UTC-computed version of
+      # that same range (which would start at 2026-04-01T00:00:00Z). Absolute, fixed
+      # dates — no Date.current / freeze_time needed for determinism.
+      create(:order, customer: customer, shopify_store: store,
+                     ordered_at: shanghai.local(2026, 4, 1, 2, 0, 0),
+                     estimated_shipping_cost: 42, actual_shipping_cost: nil, total_price: 100)
+
+      metrics = described_class.new(company, start_date: "2026-04-01", end_date: "2026-04-30").call[:current]
+
+      # Under a UTC-hardcoded aggregate_shipping, this order falls just before the
+      # (wrongly computed) range start and is dropped entirely: shipping_cost would
+      # be 0 and shipping_coverage_estimated_pct would be nil (no orders at all).
+      expect(metrics[:shipping_cost]).to eq(42)
+      expect(metrics[:shipping_coverage_estimated_pct]).to eq(100.0)
+    end
+  end
 end

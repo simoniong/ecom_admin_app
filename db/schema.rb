@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_14_000001) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_14_133832) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -91,6 +91,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_14_000001) do
   end
 
   create_table "companies", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.string "agent_api_key"
     t.datetime "created_at", null: false
     t.string "locale", default: "en", null: false
     t.string "name", null: false
@@ -100,6 +101,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_14_000001) do
     t.string "tracking_mode"
     t.datetime "tracking_starts_at"
     t.datetime "updated_at", null: false
+    t.index ["agent_api_key"], name: "index_companies_on_agent_api_key", unique: true
   end
 
   create_table "customers", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -324,6 +326,51 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_14_000001) do
     t.index ["shopify_store_id", "ordered_at"], name: "idx_orders_store_ordered_at"
     t.index ["shopify_store_id", "shopify_order_id"], name: "idx_orders_store_shopify_id", unique: true
     t.index ["shopify_store_id"], name: "index_orders_on_shopify_store_id"
+  end
+
+  create_table "parcel_import_batches", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.datetime "completed_at"
+    t.datetime "created_at", null: false
+    t.string "filename"
+    t.jsonb "parse_errors", default: [], null: false
+    t.integer "row_count", default: 0, null: false
+    t.jsonb "rows", default: [], null: false
+    t.uuid "shopify_store_id", null: false
+    t.string "status", default: "pending", null: false
+    t.decimal "total_cny", precision: 12, scale: 2
+    t.datetime "updated_at", null: false
+    t.uuid "user_id", null: false
+    t.index ["shopify_store_id", "status"], name: "index_parcel_import_batches_on_shopify_store_id_and_status"
+    t.index ["shopify_store_id"], name: "index_parcel_import_batches_on_shopify_store_id"
+    t.index ["user_id"], name: "index_parcel_import_batches_on_user_id"
+  end
+
+  create_table "parcels", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.integer "actual_weight_g"
+    t.integer "billed_weight_g"
+    t.decimal "cost_amount", precision: 10, scale: 2, null: false
+    t.decimal "cost_cny", precision: 10, scale: 2
+    t.string "country"
+    t.datetime "created_at", null: false
+    t.decimal "freight_cny", precision: 10, scale: 2
+    t.decimal "fx_rate_snapshot", precision: 10, scale: 4
+    t.string "identifier", null: false
+    t.string "internal_no"
+    t.decimal "operation_fee_cny", precision: 10, scale: 2
+    t.uuid "order_id"
+    t.decimal "registration_fee_cny", precision: 10, scale: 2
+    t.decimal "remote_area_fee_cny", precision: 10, scale: 2
+    t.string "service_channel"
+    t.datetime "shipped_at"
+    t.uuid "shopify_store_id", null: false
+    t.decimal "tax_cny", precision: 10, scale: 2
+    t.string "tracking_number"
+    t.datetime "updated_at", null: false
+    t.string "zone"
+    t.index ["order_id"], name: "index_parcels_on_order_id"
+    t.index ["shopify_store_id", "identifier"], name: "index_parcels_on_shopify_store_id_and_identifier", unique: true
+    t.index ["shopify_store_id"], name: "index_parcels_on_shopify_store_id"
+    t.index ["tracking_number"], name: "index_parcels_on_tracking_number"
   end
 
   create_table "product_variants", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -663,6 +710,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_14_000001) do
   add_foreign_key "order_line_items", "product_variants"
   add_foreign_key "orders", "customers"
   add_foreign_key "orders", "shopify_stores"
+  add_foreign_key "parcel_import_batches", "shopify_stores"
+  add_foreign_key "parcel_import_batches", "users"
+  add_foreign_key "parcels", "orders"
+  add_foreign_key "parcels", "shopify_stores"
   add_foreign_key "product_variants", "products"
   add_foreign_key "products", "shopify_stores"
   add_foreign_key "shipping_rate_card_rates", "shipping_rate_card_versions", column: "version_id"

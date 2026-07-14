@@ -242,4 +242,23 @@ RSpec.describe Company, type: :model do
       expect { company.destroy }.to change(ShippingRateCardVersion, :count).by(-1)
     end
   end
+
+  describe "#regenerate_agent_api_key!" do
+    it "generates a key and can be found by it" do
+      company = create(:company)
+      company.regenerate_agent_api_key!
+
+      expect(company.agent_api_key).to be_present
+      expect(Company.find_by(agent_api_key: company.agent_api_key)).to eq(company)
+    end
+
+    it "replaces the previous key" do
+      company = create(:company)
+      company.regenerate_agent_api_key!
+      first = company.agent_api_key
+      company.regenerate_agent_api_key!
+
+      expect(company.agent_api_key).not_to eq(first)
+    end
+  end
 end

@@ -19,6 +19,8 @@ class Company < ApplicationRecord
   TRACKING_API_KEY_FORMAT = /\A[A-Za-z0-9]{32}\z/
 
   encrypts :tracking_api_key, deterministic: false
+  # Deterministic so that find_by(agent_api_key:) works for API authentication.
+  encrypts :agent_api_key, deterministic: true
 
   scope :tracking_active, -> { where(tracking_enabled: true) }
 
@@ -31,9 +33,14 @@ class Company < ApplicationRecord
   validates :tracking_backfill_days,
             numericality: { only_integer: true, greater_than: 0 },
             allow_nil: true
+  validates :agent_api_key, uniqueness: true, allow_nil: true
   validate :tracking_api_key_required_when_enabled
   validate :tracking_mode_matches_api_key_presence
   validate :tracking_backfill_days_only_with_backfill_mode
+
+  def regenerate_agent_api_key!
+    update!(agent_api_key: SecureRandom.urlsafe_base64(32))
+  end
 
   def tracking_api_key_configured?
     tracking_api_key.present?
