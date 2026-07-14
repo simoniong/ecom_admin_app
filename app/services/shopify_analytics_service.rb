@@ -69,7 +69,7 @@ class ShopifyAnalyticsService
                 totalShippingPriceSet { shopMoney { amount } }
                 totalTaxSet { shopMoney { amount } }
                 customer { numberOfOrders }
-                transactions(first: 10) {
+                transactions(first: 100) {
                   fees { amount { amount } }
                 }
               }
