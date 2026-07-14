@@ -27,7 +27,25 @@ RSpec.describe ParcelBillParser do
     expect(row[:cost_cny]).to eq(BigDecimal("239.73"))
     expect(row[:registration_fee_cny]).to eq(BigDecimal("15"))
     expect(row[:operation_fee_cny]).to eq(BigDecimal("2"))
-    expect(row[:shipped_at]).to be_present
+    expect(row[:shipped_at]).to eq(Time.utc(2026, 6, 1, 21, 48, 26))
+  end
+
+  it "skips a row whose 序号 is blank even though it would otherwise parse and validate cleanly" do
+    # This isolates the SEQUENCE_HEADER guard from the "订单编号 blank" validation
+    # path: 订单编号 and cost are both populated here, so if the guard were ever
+    # deleted this row would sail through validation and land in result[:rows].
+    path = build_file(
+      rows: [
+        XlsxBuilder.row(seq: nil, identifier: "SHOULD-NOT-APPEAR", order_name: "PKS#9999")
+      ],
+      totals: []
+    )
+
+    result = described_class.new(path).call
+
+    expect(result[:rows]).to be_empty
+    expect(result[:errors]).to be_empty
+    expect(result[:rows].map { |r| r[:identifier] }).not_to include("SHOULD-NOT-APPEAR")
   end
 
   it "excludes the footer total rows (they have no 序号)" do
@@ -79,5 +97,15 @@ RSpec.describe ParcelBillParser do
 
     expect(result[:rows]).to be_empty
     expect(result[:errors].first).to include("加单总运费（RMB)")
+  end
+
+  it "returns an errors array instead of raising when the file is not a readable xlsx" do
+    path = Rails.root.join("tmp", "corrupt_#{SecureRandom.hex(4)}.xlsx").to_s
+    File.write(path, "this is not a zip/xlsx file at all")
+
+    result = described_class.new(path).call
+
+    expect(result[:rows]).to eq([])
+    expect(result[:errors].first).to include("無法讀取檔案")
   end
 end

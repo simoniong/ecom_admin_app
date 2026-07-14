@@ -45,9 +45,19 @@ module XlsxBuilder
   def self.build(rows:, totals: [ 58_578.977 ])
     path = Rails.root.join("tmp", "parcel_bill_#{SecureRandom.hex(6)}.xlsx").to_s
     Axlsx::Package.new do |p|
+      # Axlsx applies a date-only number format to Time values by default,
+      # which truncates the time-of-day on the xlsx->Roo round trip. Use an
+      # explicit datetime format so 发货时间 keeps its hh:mm:ss.
+      datetime_style = p.workbook.styles.add_style(format_code: "yyyy-mm-dd hh:mm:ss")
+      shipped_at_index = HEADERS.index("发货时间")
+
       p.workbook.add_worksheet(name: "6月") do |sheet|
         sheet.add_row HEADERS
-        rows.each { |r| sheet.add_row HEADERS.map { |h| r[h] } }
+        rows.each do |r|
+          styles = Array.new(HEADERS.size)
+          styles[shipped_at_index] = datetime_style
+          sheet.add_row(HEADERS.map { |h| r[h] }, style: styles)
+        end
         totals.each do |t|
           blanks = Array.new(HEADERS.size - 1)
           sheet.add_row(blanks + [ t ])
