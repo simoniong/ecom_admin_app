@@ -109,5 +109,17 @@ RSpec.describe "Dashboard", type: :request do
       expect(response.body).to include(I18n.t("dashboard.transaction_fees_note"))
       expect(response.body).to include(I18n.t("dashboard.net_revenue"))
     end
+
+    it "groups metrics under section headers" do
+      sign_in user
+      get authenticated_root_path
+
+      expect(response.body).to include(I18n.t("dashboard.section_revenue"))
+      expect(response.body).to include(I18n.t("dashboard.section_orders"))
+      expect(response.body).to include(I18n.t("dashboard.section_advertising"))
+      expect(response.body).to include(I18n.t("dashboard.section_profit"))
+      expect(response.body).to include(I18n.t("dashboard.net_revenue_badge"))
+      expect(response.body).to include(I18n.t("dashboard.new_customer_orders"))
+    end
   end
 end
