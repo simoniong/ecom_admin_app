@@ -202,13 +202,15 @@ class ShopifyAnalyticsService
           discrepancy = adjustments.sum { |a| a.dig("amountSet", "shopMoney", "amount").to_d }
 
           net = li_total + shipping_total - discrepancy
-          total += net unless net.zero?
+          unless net.zero?
+            total += net
 
-          tax_refunded += (refund.dig("refundLineItems", "edges") || []).sum do |e|
-            e.dig("node", "totalTaxSet", "shopMoney", "amount").to_s.to_d
-          end
-          tax_refunded += (refund.dig("refundShippingLines", "edges") || []).sum do |e|
-            e.dig("node", "taxAmountSet", "shopMoney", "amount").to_s.to_d
+            tax_refunded += (refund.dig("refundLineItems", "edges") || []).sum do |e|
+              e.dig("node", "totalTaxSet", "shopMoney", "amount").to_s.to_d
+            end
+            tax_refunded += (refund.dig("refundShippingLines", "edges") || []).sum do |e|
+              e.dig("node", "taxAmountSet", "shopMoney", "amount").to_s.to_d
+            end
           end
         end
       end

@@ -178,6 +178,38 @@ RSpec.describe ShopifyAnalyticsService do
       expect(metric.revenue).to eq(345.00)           # 400 gross - 55 refunds (unchanged formula)
     end
 
+    it "excludes a zero-net refund's tax from total_tax (settled pending refund)" do
+      stub_graphql([
+        orders_graphql_response([
+          { subtotal: "90.00", shipping: "10.00", tax: "10.00" }
+        ]),
+        refunds_graphql_response([
+          {
+            refunds: [ {
+              "createdAt" => Time.current.utc.iso8601,
+              "refundLineItems" => { "edges" => [
+                { "node" => {
+                  "subtotalSet" => { "shopMoney" => { "amount" => "40.00" } },
+                  "totalTaxSet" => { "shopMoney" => { "amount" => "4.00" } }
+                } }
+              ] },
+              "orderAdjustments" => { "edges" => [
+                { "node" => { "reason" => "REFUND_DISCREPANCY", "amountSet" => { "shopMoney" => { "amount" => "44.00" } } } }
+              ] }
+            } ]
+          }
+        ])
+      ])
+
+      service.sync_date(Date.current)
+      metric = ShopifyDailyMetric.last
+
+      # li_total (40 subtotal + 4 tax) + shipping (0) - discrepancy (44) = 0 net refund,
+      # so it must contribute nothing to either refunds or total_tax.
+      expect(metric.refunds).to eq(0)
+      expect(metric.total_tax).to eq(10.00) # full tax_charged, no tax leaked from the zero-net refund
+    end
+
     it "records zero fees when orders have no Shopify Payments transactions" do
       stub_graphql([
         orders_graphql_response([ { subtotal: "100.00", shipping: "0", tax: "0" } ]),
