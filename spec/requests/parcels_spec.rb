@@ -1,0 +1,156 @@
+require "rails_helper"
+
+RSpec.describe "Parcels", type: :request do
+  let(:user)    { create(:user) }
+  let(:company) { user.companies.first }
+  let(:store)   { create(:shopify_store, user: user, company: company, cost_fx_rate: 7.2) }
+  let(:customer) { create(:customer, shopify_store: store) }
+
+  let!(:cheap) do
+    o = create(:order, customer: customer, shopify_store: store, name: "PKS#3001",
+                       estimated_shipping_cost: 10, ordered_at: 2.days.ago)
+    create(:parcel, shopify_store: store, order: o, identifier: "A1", cost_amount: 11)
+    o
+  end
+
+  let!(:blown) do
+    o = create(:order, customer: customer, shopify_store: store, name: "PKS#3052",
+                       estimated_shipping_cost: 18.20, ordered_at: 1.day.ago)
+    create(:parcel, shopify_store: store, order: o, identifier: "B1", cost_amount: 20)
+    create(:parcel, shopify_store: store, order: o, identifier: "B2", cost_amount: 20.10)
+    o
+  end
+
+  before { sign_in user }
+
+  describe "GET /parcels" do
+    it "lists orders with their estimated, actual and variance" do
+      get parcels_path
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include("PKS#3052")
+      expect(response.body).to include("PKS#3001")
+    end
+
+    it "sorts by variance descending by default (worst overrun first)" do
+      get parcels_path
+      expect(response.body.index("PKS#3052")).to be < response.body.index("PKS#3001")
+    end
+
+    it "filters to multi-parcel orders only" do
+      get parcels_path, params: { multi_parcel_only: "1" }
+      expect(response.body).to include("PKS#3052")
+      expect(response.body).not_to include("PKS#3001")
+    end
+
+    it "filters to overrun orders only" do
+      saver = create(:order, customer: customer, shopify_store: store, name: "PKS#3009",
+                             estimated_shipping_cost: 50, ordered_at: 1.day.ago)
+      create(:parcel, shopify_store: store, order: saver, identifier: "C1", cost_amount: 10)
+
+      get parcels_path, params: { over_only: "1" }
+      expect(response.body).not_to include("PKS#3009")
+      expect(response.body).to include("PKS#3052")
+    end
+
+    it "shows unmatched parcels on the unmatched tab" do
+      create(:parcel, shopify_store: store, order: nil, identifier: "ORPHAN1")
+
+      get parcels_path, params: { tab: "unmatched" }
+      expect(response.body).to include("ORPHAN1")
+    end
+
+    it "denies a member without the parcels permission" do
+      member = create(:user)
+      create(:membership, user: member, company: company, role: :member, permissions: [])
+      sign_out user
+      sign_in member
+
+      get parcels_path
+      expect(response).to redirect_to(authenticated_root_path)
+    end
+
+    it "allows a member who has the parcels permission" do
+      member = create(:user)
+      create(:membership, user: member, company: company, role: :member, permissions: [ "parcels" ])
+      sign_out user
+      sign_in member
+
+      get parcels_path
+      expect(response).to have_http_status(:ok)
+    end
+  end
+
+  describe "PATCH /parcels/:id" do
+    it "updates the cost and re-rolls up the order" do
+      parcel = blown.parcels.find_by(identifier: "B1")
+
+      patch parcel_path(id: parcel.id), params: { parcel: { cost_cny: "72.00" } }
+
+      expect(parcel.reload.cost_cny).to eq(72)
+      expect(parcel.cost_amount).to eq(10)             # 72 / 7.2, recomputed on write
+      expect(blown.reload.actual_shipping_cost).to eq(30.10)
+    end
+
+    it "assigns an unmatched parcel to an order and rolls up" do
+      orphan = create(:parcel, shopify_store: store, order: nil, identifier: "ORPHAN1", cost_amount: 5)
+
+      patch parcel_path(id: orphan.id), params: { parcel: { order_id: cheap.id } }
+
+      expect(orphan.reload.order_id).to eq(cheap.id)
+      expect(cheap.reload.actual_shipping_cost).to eq(16)   # 11 + 5
+    end
+
+    # Cross-company scoping: recomputed_attrs must re-look-up the order_id
+    # through visible_shopify_stores. Without that re-lookup, a user could
+    # attach a parcel to any order id they can guess, including one that
+    # belongs to a completely different company.
+    it "refuses to assign a parcel to another company's order" do
+      other_user = create(:user)
+      other_company = other_user.companies.first
+      other_store = create(:shopify_store, user: other_user, company: other_company, cost_fx_rate: 6)
+      other_customer = create(:customer, shopify_store: other_store)
+      other_order = create(:order, customer: other_customer, shopify_store: other_store, name: "OTHER#1")
+
+      orphan = create(:parcel, shopify_store: store, order: nil, identifier: "ORPHAN2", cost_amount: 5)
+
+      patch parcel_path(id: orphan.id), params: { parcel: { order_id: other_order.id } }
+
+      expect(orphan.reload.order_id).to be_nil
+      expect(other_order.reload.actual_shipping_cost).to be_nil
+    end
+
+    it "rejects a non-owner member" do
+      member = create(:user)
+      create(:membership, user: member, company: company, role: :member, permissions: [ "parcels" ])
+      sign_out user
+      sign_in member
+
+      patch parcel_path(id: blown.parcels.first.id), params: { parcel: { cost_cny: "1" } }
+      expect(response).to redirect_to(authenticated_root_path)
+    end
+  end
+
+  describe "DELETE /parcels/:id" do
+    it "destroys the parcel and re-rolls up" do
+      parcel = cheap.parcels.first
+
+      delete parcel_path(id: parcel.id)
+
+      expect(cheap.reload.actual_shipping_cost).to be_nil
+    end
+
+    it "rejects a non-owner member" do
+      member = create(:user)
+      create(:membership, user: member, company: company, role: :member, permissions: [ "parcels" ])
+      sign_out user
+      sign_in member
+
+      parcel = cheap.parcels.first
+
+      expect {
+        delete parcel_path(id: parcel.id)
+      }.not_to change(Parcel, :count)
+      expect(response).to redirect_to(authenticated_root_path)
+    end
+  end
+end
