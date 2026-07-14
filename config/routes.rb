@@ -68,7 +68,12 @@ Rails.application.routes.draw do
     resources :parcels, only: [ :index, :update, :destroy ] do
       collection do
         get  :import
+        # Post/Redirect/Get: POST parses + stages the batch, then redirects to
+        # the GET, which renders it. Turbo Drive rejects a non-GET form response
+        # that isn't a redirect or a turbo_stream, so a plain render here would
+        # break the upload flow in every real browser.
         post :preview
+        get  "preview/:batch_id", action: :show_preview, as: :show_preview
         post :confirm_import
       end
     end

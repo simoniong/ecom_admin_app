@@ -1,0 +1,25 @@
+<%# locals: (parcel:, assignable_orders:)
+    The unmatched tab's row. Carries a dom_id so parcels#update's turbo_stream
+    response can target it — without one, Turbo's replace/remove silently
+    matched nothing and the assign form appeared to do nothing at all. Note the
+    hidden `tab` field: it tells the controller which of the two row shapes to
+    stream back. %>
+<tr id="<%= dom_id(parcel) %>">
+  <td class="px-4 py-3 text-sm font-medium text-gray-900"><%= parcel.identifier %></td>
+  <td class="px-4 py-3 text-sm text-gray-500"><%= parcel.tracking_number %></td>
+  <td class="px-4 py-3 text-sm text-gray-500"><%= parcel.service_channel %></td>
+  <td class="px-4 py-3 text-sm text-right text-gray-900"><%= number_to_currency(parcel.cost_amount) %></td>
+  <td class="px-4 py-3">
+    <% if current_membership&.owner? %>
+      <%= form_with url: parcel_path(parcel), method: :patch, class: "flex gap-2" do %>
+        <%= hidden_field_tag :tab, "unmatched" %>
+        <%= select_tag "parcel[order_id]",
+              options_from_collection_for_select(assignable_orders, :id, :name),
+              include_blank: true,
+              class: "rounded-md border-gray-300 text-sm" %>
+        <%= submit_tag t("parcels.assign"),
+              class: "px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50 cursor-pointer" %>
+      <% end %>
+    <% end %>
+  </td>
+</tr>

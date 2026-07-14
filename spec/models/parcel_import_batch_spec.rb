@@ -75,4 +75,37 @@ RSpec.describe ParcelImportBatch, type: :model do
       expect(Time.zone.parse(reloaded_row["shipped_at"])).to be_within(1.second).of(shipped_at)
     end
   end
+
+  # staged_rows is what makes the jsonb round trip above safe to compute on:
+  # the preview totals and the confirm-time upsert both read money back out of
+  # this column, and summing JSON strings would either raise or concatenate.
+  describe "#staged_rows" do
+    let(:batch) do
+      create(:parcel_import_batch, shopify_store: store, user: user, rows: [
+        { identifier: "XMBDE2012381", order_name: "PKS#3037", cost_cny: BigDecimal("239.73") },
+        { identifier: "XMBDE2012382", order_name: "PKS#3038", cost_cny: BigDecimal("65.57") }
+      ])
+    end
+
+    it "symbolizes keys and rehydrates money into BigDecimal, never Float" do
+      rows = ParcelImportBatch.find(batch.id).staged_rows
+
+      expect(rows.first[:identifier]).to eq("XMBDE2012381")
+      expect(rows.first[:cost_cny]).to be_a(BigDecimal)
+      expect(rows.first[:cost_cny]).to eq(BigDecimal("239.73"))
+    end
+
+    it "produces rows that can be summed exactly" do
+      total = ParcelImportBatch.find(batch.id).staged_rows.sum { |r| r[:cost_cny] }
+
+      expect(total).to eq(BigDecimal("305.30"))
+    end
+
+    it "leaves a row with no cost_cny alone rather than coercing it to zero" do
+      batch = create(:parcel_import_batch, shopify_store: store, user: user,
+                     rows: [ { identifier: "XMBDE2012381", cost_cny: nil } ])
+
+      expect(ParcelImportBatch.find(batch.id).staged_rows.first[:cost_cny]).to be_nil
+    end
+  end
 end

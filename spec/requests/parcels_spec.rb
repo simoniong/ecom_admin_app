@@ -179,6 +179,52 @@ RSpec.describe "Parcels", type: :request do
       expect(other_order.reload.actual_shipping_cost).to be_nil
     end
 
+    # The two tabs render a parcel with different markup (unmatched: 5 columns
+    # + assign form; orders: 8 columns + cost field), so the turbo_stream reply
+    # has to match the tab the edit came from. Streaming _parcel_row into the
+    # unmatched table would corrupt it.
+    describe "turbo_stream response" do
+      let(:turbo) { { "ACCEPT" => "text/vnd.turbo-stream.html" } }
+
+      it "replaces the row with the orders-tab markup on a cost edit" do
+        parcel = blown.parcels.find_by(identifier: "B1")
+
+        patch parcel_path(id: parcel.id), params: { parcel: { cost_cny: "72.00" } }, headers: turbo
+
+        expect(response.media_type).to eq("text/vnd.turbo-stream.html")
+        expect(response.body).to include(%(action="replace"))
+        expect(response.body).to include(%(target="#{ActionView::RecordIdentifier.dom_id(parcel)}"))
+        expect(response.body).to include("$10.00")   # recomputed cost_amount, 72 / 7.2
+      end
+
+      # A parcel that just got assigned is no longer unmatched, so its row must
+      # leave that tab. Replacing it there would leave a stale, now-wrong row.
+      it "removes the row when an unmatched parcel is assigned from the unmatched tab" do
+        orphan = create(:parcel, shopify_store: store, order: nil, identifier: "ORPHAN3", cost_amount: 5)
+
+        patch parcel_path(id: orphan.id),
+              params: { tab: "unmatched", parcel: { order_id: cheap.id } }, headers: turbo
+
+        expect(response.body).to include(%(action="remove"))
+        expect(response.body).to include(%(target="#{ActionView::RecordIdentifier.dom_id(orphan)}"))
+        expect(orphan.reload.order_id).to eq(cheap.id)
+      end
+
+      # Blank order_id: the parcel stays unmatched, so it stays on the tab and
+      # must be re-rendered with the unmatched markup, not the orders markup.
+      it "re-renders the unmatched row when the assignment is left blank" do
+        orphan = create(:parcel, shopify_store: store, order: nil, identifier: "ORPHAN4", cost_amount: 5)
+
+        patch parcel_path(id: orphan.id),
+              params: { tab: "unmatched", parcel: { order_id: "" } }, headers: turbo
+
+        expect(response.body).to include(%(action="replace"))
+        expect(response.body).to include(I18n.t("parcels.assign"))
+        expect(response.body).not_to include(I18n.t("parcels.save"))
+        expect(orphan.reload.order_id).to be_nil
+      end
+    end
+
     it "rejects a non-owner member" do
       member = create(:user)
       create(:membership, user: member, company: company, role: :member, permissions: [ "parcels" ])

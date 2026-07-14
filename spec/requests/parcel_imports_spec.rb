@@ -35,6 +35,15 @@ RSpec.describe "Parcel imports", type: :request do
     Nokogiri::HTML::Document.parse(body).at_css('input[name="batch_id"]')["value"]
   end
 
+  # POST /parcels/preview is Post/Redirect/Get: it stages the batch and
+  # redirects to the GET that renders it. Follow the redirect the way a browser
+  # would, and hand back the rendered preview body.
+  def preview_upload(path, shopify_store_id: store.id)
+    post preview_parcels_path, params: { shopify_store_id: shopify_store_id, file: upload(path) }
+    follow_redirect! if response.redirect? && response.location.include?("/parcels/preview/")
+    response.body
+  end
+
   describe "GET /parcels/import" do
     it "renders the upload form for an owner" do
       get import_parcels_path
@@ -75,17 +84,30 @@ RSpec.describe "Parcel imports", type: :request do
         XlsxBuilder.row(seq: 3, identifier: "XMBDE2012383", order_name: "PKS#3037")
       ])
 
-      expect {
-        post preview_parcels_path, params: { shopify_store_id: store.id, file: upload(path) }
-      }.not_to change(Parcel, :count)
+      body = nil
+      expect { body = preview_upload(path) }.not_to change(Parcel, :count)
 
       expect(response).to have_http_status(:ok)
 
-      summary = summary_values(response.body)
+      summary = summary_values(body)
       expect(summary[I18n.t("parcels.import.parsed")]).to eq("3")
       expect(summary[I18n.t("parcels.import.will_create")]).to eq("2")
       expect(summary[I18n.t("parcels.import.will_overwrite")]).to eq("1")
       expect(summary[I18n.t("parcels.import.unmatched")]).to eq("1")
+    end
+
+    # Turbo Drive refuses any response to a non-GET form submission that is not
+    # a redirect or a turbo_stream ("Form responses must redirect to another
+    # location"). Rendering the preview inline left the browser stuck on the
+    # upload form with no feedback at all, which is how this shipped unnoticed:
+    # every request spec was happy with the 200.
+    it "redirects to the staged batch's own GET url rather than rendering inline" do
+      path = bill([ XlsxBuilder.row(seq: 1, identifier: "XMBDE2012381", order_name: "PKS#3037") ])
+
+      post preview_parcels_path, params: { shopify_store_id: store.id, file: upload(path) }
+
+      batch = ParcelImportBatch.pending.sole
+      expect(response).to redirect_to(show_preview_parcels_path(batch_id: batch.id))
     end
 
     it "stages a pending ParcelImportBatch instead of writing parcels" do
@@ -94,9 +116,7 @@ RSpec.describe "Parcel imports", type: :request do
         XlsxBuilder.row(seq: 2, identifier: "XMBDE2012382", order_name: "PKS#3037")
       ])
 
-      expect {
-        post preview_parcels_path, params: { shopify_store_id: store.id, file: upload(path) }
-      }.to change(ParcelImportBatch, :count).by(1)
+      expect { preview_upload(path) }.to change(ParcelImportBatch, :count).by(1)
 
       batch = ParcelImportBatch.last
       expect(batch).to be_pending
@@ -149,13 +169,111 @@ RSpec.describe "Parcel imports", type: :request do
     end
   end
 
+  describe "GET /parcels/preview/:batch_id" do
+    def stage_batch(rows, as_store: store)
+      preview_upload(bill(rows), shopify_store_id: as_store.id)
+      ParcelImportBatch.pending.order(:created_at).last
+    end
+
+    it "renders the staged batch, still without writing any parcels" do
+      batch = stage_batch([
+        XlsxBuilder.row(seq: 1, identifier: "XMBDE2012381", order_name: "PKS#3037"),
+        XlsxBuilder.row(seq: 2, identifier: "XMBDE2012382", order_name: "PKS#3038")
+      ])
+
+      expect { get show_preview_parcels_path(batch_id: batch.id) }.not_to change(Parcel, :count)
+
+      expect(response).to have_http_status(:ok)
+      summary = summary_values(response.body)
+      expect(summary[I18n.t("parcels.import.parsed")]).to eq("2")
+      expect(summary[I18n.t("parcels.import.unmatched")]).to eq("1")
+    end
+
+    # The money figures on this page are read back out of a jsonb column, where
+    # a BigDecimal round-trips as a JSON string. Summing those raw would raise
+    # or concatenate, so the totals are the thing that proves the rehydration.
+    it "rehydrates jsonb money back into BigDecimal for the totals" do
+      batch = stage_batch([
+        XlsxBuilder.row(seq: 1, identifier: "XMBDE2012381", order_name: "PKS#3037", cost: 239.73),
+        XlsxBuilder.row(seq: 2, identifier: "XMBDE2012382", order_name: "PKS#3037", cost: 65.57)
+      ])
+
+      get show_preview_parcels_path(batch_id: batch.id)
+
+      expect(batch.staged_rows.sum { |r| r[:cost_cny] }).to eq(BigDecimal("305.30"))
+      expect(summary_values(response.body)[I18n.t("parcels.import.total_cny")]).to include("305.30")
+    end
+
+    it "is reloadable — a second GET renders the same staged batch" do
+      batch = stage_batch([ XlsxBuilder.row(seq: 1, identifier: "XMBDE2012381", order_name: "PKS#3037") ])
+
+      2.times { get show_preview_parcels_path(batch_id: batch.id) }
+
+      expect(response).to have_http_status(:ok)
+      expect(summary_values(response.body)[I18n.t("parcels.import.parsed")]).to eq("1")
+      expect(Parcel.count).to eq(0)
+    end
+
+    it "refuses a batch belonging to another company's store" do
+      other_user  = create(:user)
+      other_store = create(:shopify_store, user: other_user, company: other_user.companies.first, cost_fx_rate: 5)
+      other_customer = create(:customer, shopify_store: other_store)
+      create(:order, customer: other_customer, shopify_store: other_store, name: "PKS#9999")
+
+      sign_out user
+      sign_in other_user
+      foreign_batch = stage_batch([ XlsxBuilder.row(seq: 1, identifier: "OTHERCO0001", order_name: "PKS#9999") ],
+                                  as_store: other_store)
+
+      sign_out other_user
+      sign_in user
+
+      get show_preview_parcels_path(batch_id: foreign_batch.id)
+
+      expect(response).to redirect_to(import_parcels_path)
+      expect(flash[:alert]).to be_present
+      expect(response.body).not_to include("OTHERCO0001")
+    end
+
+    it "fails cleanly for an unknown batch id" do
+      get show_preview_parcels_path(batch_id: SecureRandom.uuid)
+
+      expect(response).to redirect_to(import_parcels_path)
+      expect(flash[:alert]).to eq(I18n.t("parcels.import.expired"))
+    end
+
+    # An already-confirmed batch must not render as if it were still pending —
+    # otherwise the confirm button would invite a double import.
+    it "fails cleanly for an already-confirmed batch" do
+      batch = stage_batch([ XlsxBuilder.row(seq: 1, identifier: "XMBDE2012381", order_name: "PKS#3037") ])
+      post confirm_import_parcels_path, params: { batch_id: batch.id }
+
+      get show_preview_parcels_path(batch_id: batch.id)
+
+      expect(response).to redirect_to(import_parcels_path)
+      expect(flash[:alert]).to eq(I18n.t("parcels.import.expired"))
+    end
+
+    it "rejects a non-owner member" do
+      batch = stage_batch([ XlsxBuilder.row(seq: 1, identifier: "XMBDE2012381", order_name: "PKS#3037") ])
+
+      member = create(:user)
+      create(:membership, user: member, company: company, role: :member, permissions: [ "parcels" ])
+      sign_out user
+      sign_in member
+
+      get show_preview_parcels_path(batch_id: batch.id)
+
+      expect(response).to redirect_to(authenticated_root_path)
+    end
+  end
+
   describe "POST /parcels/confirm_import" do
     it "writes the staged rows and rolls up onto the order" do
       path = bill([
         XlsxBuilder.row(seq: 1, identifier: "XMBDE2012381", order_name: "PKS#3037", cost: 239.73)
       ])
-      post preview_parcels_path, params: { shopify_store_id: store.id, file: upload(path) }
-      batch_id = batch_id_from(response.body)
+      batch_id = batch_id_from(preview_upload(path))
 
       expect {
         post confirm_import_parcels_path, params: { batch_id: batch_id }
@@ -178,8 +296,7 @@ RSpec.describe "Parcel imports", type: :request do
       path = bill([
         XlsxBuilder.row(seq: 1, identifier: "XMBDE2012381", order_name: "PKS#3037", cost: 239.73)
       ])
-      post preview_parcels_path, params: { shopify_store_id: store.id, file: upload(path) }
-      batch_id = batch_id_from(response.body)
+      batch_id = batch_id_from(preview_upload(path))
 
       post confirm_import_parcels_path, params: { batch_id: batch_id }
 
@@ -194,8 +311,7 @@ RSpec.describe "Parcel imports", type: :request do
       create(:parcel, shopify_store: store, order: order, identifier: "XMBDE2012381", cost_cny: 1, cost_amount: 1)
 
       path = bill([ XlsxBuilder.row(seq: 1, identifier: "XMBDE2012381", order_name: "PKS#3037", cost: 239.73) ])
-      post preview_parcels_path, params: { shopify_store_id: store.id, file: upload(path) }
-      batch_id = batch_id_from(response.body)
+      batch_id = batch_id_from(preview_upload(path))
 
       expect {
         post confirm_import_parcels_path, params: { batch_id: batch_id }
@@ -213,8 +329,7 @@ RSpec.describe "Parcel imports", type: :request do
 
     it "fails cleanly when the batch was already confirmed (double submit)" do
       path = bill([ XlsxBuilder.row(seq: 1, identifier: "XMBDE2012381", order_name: "PKS#3037") ])
-      post preview_parcels_path, params: { shopify_store_id: store.id, file: upload(path) }
-      batch_id = batch_id_from(response.body)
+      batch_id = batch_id_from(preview_upload(path))
       post confirm_import_parcels_path, params: { batch_id: batch_id }
 
       expect {
@@ -239,8 +354,7 @@ RSpec.describe "Parcel imports", type: :request do
       path = bill([ XlsxBuilder.row(seq: 1, identifier: "OTHERCO0001", order_name: "PKS#9999") ])
       sign_out user
       sign_in other_user
-      post preview_parcels_path, params: { shopify_store_id: other_store.id, file: upload(path) }
-      foreign_batch_id = batch_id_from(response.body)
+      foreign_batch_id = batch_id_from(preview_upload(path, shopify_store_id: other_store.id))
 
       sign_out other_user
       sign_in user
@@ -256,8 +370,7 @@ RSpec.describe "Parcel imports", type: :request do
 
     it "rejects a non-owner member even with a valid pending batch id" do
       path = bill([ XlsxBuilder.row(seq: 1, identifier: "XMBDE2012381", order_name: "PKS#3037") ])
-      post preview_parcels_path, params: { shopify_store_id: store.id, file: upload(path) }
-      batch_id = batch_id_from(response.body)
+      batch_id = batch_id_from(preview_upload(path))
 
       member = create(:user)
       create(:membership, user: member, company: company, role: :member, permissions: [ "parcels" ])

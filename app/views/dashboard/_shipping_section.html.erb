@@ -41,9 +41,14 @@
       <span class="text-gray-400"><%= t("dashboard.shipping_coverage_caveat") %></span>
     </p>
 
+    <%# This section is rendered inside the "dashboard_metrics" turbo-frame,
+        which has no target: "_top". Without breaking out of the frame, Turbo
+        would try to load the whole /parcels page into it, find no matching
+        frame, and render "Content missing" — the link went nowhere. %>
     <%= link_to t("dashboard.view_variance"),
           parcels_path(from_date: metrics[:date_range].first, to_date: metrics[:date_range].last,
                        sort_column: "variance", sort_direction: "desc"),
+          data: { turbo_frame: "_top" },
           class: "text-sm font-medium text-gray-900 hover:underline" %>
   </div>
 </section>

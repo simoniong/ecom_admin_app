@@ -1,3 +1,18 @@
-<%= turbo_stream.replace dom_id(@parcel) do %>
-  <%= render "parcels/parcel_row", parcel: @parcel %>
+<%# The orders tab and the unmatched tab render a parcel with different markup,
+    so the response has to match the tab the edit came from. Streaming the
+    8-column _parcel_row into the unmatched tab's 5-column table would corrupt
+    it. A parcel that just got assigned no longer belongs on the unmatched tab
+    at all, so its row is removed rather than replaced. %>
+<% if @from_unmatched %>
+  <% if @parcel.order_id.present? %>
+    <%= turbo_stream.remove dom_id(@parcel) %>
+  <% else %>
+    <%= turbo_stream.replace dom_id(@parcel) do %>
+      <%= render "parcels/unmatched_row", parcel: @parcel, assignable_orders: @assignable_orders %>
+    <% end %>
+  <% end %>
+<% else %>
+  <%= turbo_stream.replace dom_id(@parcel) do %>
+    <%= render "parcels/parcel_row", parcel: @parcel %>
+  <% end %>
 <% end %>

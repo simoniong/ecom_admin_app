@@ -1,10 +1,10 @@
 class ParcelsController < AdminController
   # Viewing the report (index) is permission-based — see AdminController#authorize_page!,
   # gated on Membership::AVAILABLE_PERMISSIONS including "parcels". Every write
-  # (update/destroy/import/preview/confirm_import) is owner-only: a member
+  # (update/destroy/import/preview/show_preview/confirm_import) is owner-only: a member
   # granted the "parcels" permission can look but must not be able to edit
   # money figures or delete rows.
-  before_action :require_owner!, only: [ :import, :preview, :confirm_import, :update, :destroy ]
+  before_action :require_owner!, only: [ :import, :preview, :show_preview, :confirm_import, :update, :destroy ]
 
   SORTABLE = {
     "variance"  => "(orders.actual_shipping_cost - orders.estimated_shipping_cost)",
@@ -24,10 +24,7 @@ class ParcelsController < AdminController
     if @tab == "unmatched"
       base = Parcel.unmatched.where(shopify_store_id: store_ids).order(shipped_at: :desc)
       @parcels = paginate(base)
-      @assignable_orders = Order.where(shopify_store_id: store_ids)
-                                .where.not(name: nil)
-                                .order(ordered_at: :desc)
-                                .limit(200)
+      @assignable_orders = assignable_orders
       return
     end
 
@@ -50,9 +47,15 @@ class ParcelsController < AdminController
     @stores = visible_shopify_stores.order(:name)
   end
 
-  # Parse + summarise. Writes no Parcel rows — the parsed rows are staged in
-  # a ParcelImportBatch row until the user confirms. Overwriting money
-  # silently is exactly what this guards.
+  # Parse + stage. Writes no Parcel rows — the parsed rows are staged in a
+  # ParcelImportBatch row until the user confirms. Overwriting money silently
+  # is exactly what this guards.
+  #
+  # Responds with a redirect, never a render: this is a non-GET form submission,
+  # and Turbo Drive rejects any response to one that is not a redirect or a
+  # turbo_stream ("Form responses must redirect to another location"). Rendering
+  # the preview inline here left the browser sitting on the upload form with no
+  # feedback at all. Post/Redirect/Get also makes the preview reloadable.
   def preview
     store = visible_shopify_stores.find_by(id: params[:shopify_store_id])
     return redirect_to(import_parcels_path, alert: t("parcels.import.store_required")) unless store
@@ -62,28 +65,44 @@ class ParcelsController < AdminController
     return redirect_to(import_parcels_path, alert: t("parcels.import.file_required")) if file.blank?
 
     result = ParcelBillParser.new(file.tempfile.path).call
-    @errors = result[:errors]
+    errors = result[:errors]
     rows = result[:rows]
 
     if rows.empty?
-      return redirect_to(import_parcels_path, alert: t("parcels.import.no_rows", errors: @errors.first(3).join("; ")))
+      return redirect_to(import_parcels_path, alert: t("parcels.import.no_rows", errors: errors.first(3).join("; ")))
     end
-
-    @store = store
-    @summary = summarise(store, rows)
 
     # Drop this user's own unconfirmed batches for this store before staging
     # the new one, so re-uploads don't pile up abandoned pending rows.
     ParcelImportBatch.pending.where(shopify_store: store, user: current_user).destroy_all
 
-    @batch = ParcelImportBatch.create!(
+    batch = ParcelImportBatch.create!(
       shopify_store: store,
       user: current_user,
       filename: file.original_filename,
       rows: rows,
+      parse_errors: errors,
       row_count: rows.size,
-      total_cny: @summary[:total_cny]
+      total_cny: rows.sum { |r| r[:cost_cny] || 0 }
     )
+
+    redirect_to show_preview_parcels_path(batch_id: batch.id)
+  end
+
+  # Renders a staged batch for confirmation. Scoped to visible_shopify_stores
+  # exactly as confirm_import is: without that, an owner could read another
+  # company's in-flight bill — its parcel ids and money figures — by guessing
+  # a batch id. A completed or absent batch must not render as if it were
+  # still pending.
+  def show_preview
+    @batch = ParcelImportBatch.pending
+                              .where(shopify_store_id: visible_shopify_stores.select(:id))
+                              .find_by(id: params[:batch_id])
+    return redirect_to(import_parcels_path, alert: t("parcels.import.expired")) if @batch.blank?
+
+    @store = @batch.shopify_store
+    @errors = @batch.parse_errors
+    @summary = summarise(@store, @batch.staged_rows)
 
     render :preview
   end
@@ -98,7 +117,7 @@ class ParcelsController < AdminController
     count = 0
 
     Parcel.transaction do
-      batch.rows.each do |row|
+      batch.staged_rows.each do |row|
         ParcelUpserter.new(store: store, attrs: row).call
         count += 1
       end
@@ -117,7 +136,16 @@ class ParcelsController < AdminController
 
     if parcel.update(recomputed_attrs(parcel))
       respond_to do |format|
-        format.turbo_stream { @parcel = parcel.reload }
+        format.turbo_stream do
+          @parcel = parcel.reload
+          # The two tabs render a parcel with different markup (the unmatched
+          # tab's row has 5 columns and an assign form; the orders tab's has 8
+          # and a cost field), so the stream must know which one it is replying
+          # to. A parcel that just got assigned leaves the unmatched tab
+          # entirely and is removed rather than replaced.
+          @from_unmatched = params[:tab] == "unmatched"
+          @assignable_orders = assignable_orders if @from_unmatched
+        end
         format.html { redirect_to parcels_path, notice: t("parcels.updated") }
       end
     else
@@ -142,6 +170,16 @@ class ParcelsController < AdminController
 
   def scoped_parcels
     Parcel.where(shopify_store_id: visible_shopify_stores.select(:id))
+  end
+
+  # The order list offered by the unmatched tab's assign dropdown. Shared by
+  # index and by update, which has to re-render that same dropdown when an
+  # assignment fails to take.
+  def assignable_orders
+    Order.where(shopify_store_id: visible_shopify_stores.select(:id))
+         .where.not(name: nil)
+         .order(ordered_at: :desc)
+         .limit(200)
   end
 
   # Computes total_count/total_pages, clamps @page, and returns the

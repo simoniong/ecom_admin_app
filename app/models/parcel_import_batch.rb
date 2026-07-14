@@ -14,6 +14,18 @@ class ParcelImportBatch < ApplicationRecord
 
   scope :pending, -> { where(status: "pending") }
 
+  # `rows` is jsonb, so on read-back every key is a String and every BigDecimal
+  # has become a JSON string ("239.73"). Rehydrate before anything does money
+  # arithmetic on them — summing the raw strings would either raise or, worse,
+  # concatenate. Money stays BigDecimal, never Float.
+  def staged_rows
+    rows.map do |row|
+      attrs = row.symbolize_keys
+      attrs[:cost_cny] = BigDecimal(attrs[:cost_cny].to_s) if attrs[:cost_cny].present?
+      attrs
+    end
+  end
+
   def pending?
     status == "pending"
   end
