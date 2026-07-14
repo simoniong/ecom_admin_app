@@ -68,6 +68,7 @@ class ShopifyAnalyticsService
                 subtotalPriceSet { shopMoney { amount } }
                 totalShippingPriceSet { shopMoney { amount } }
                 totalTaxSet { shopMoney { amount } }
+                taxesIncluded
                 customer { numberOfOrders }
                 transactions(first: 100) {
                   fees { amount { amount } }
@@ -89,11 +90,14 @@ class ShopifyAnalyticsService
       edges.each do |edge|
         node = edge["node"]
         total_count += 1
+        tax_amount = node.dig("totalTaxSet", "shopMoney", "amount").to_d
         total_revenue += node.dig("subtotalPriceSet", "shopMoney", "amount").to_d +
-          node.dig("totalShippingPriceSet", "shopMoney", "amount").to_d +
-          node.dig("totalTaxSet", "shopMoney", "amount").to_d
+          node.dig("totalShippingPriceSet", "shopMoney", "amount").to_d
+        # For tax-inclusive orders (Dynamic Tax Display: EU/UK/AU/NZ), subtotal already
+        # contains tax, so adding it again would double-count. Only add when tax-exclusive.
+        total_revenue += tax_amount unless node["taxesIncluded"]
         total_new_customer_count += 1 if node.dig("customer", "numberOfOrders").to_i == 1
-        total_tax += node.dig("totalTaxSet", "shopMoney", "amount").to_d
+        total_tax += tax_amount
         (node["transactions"] || []).each do |txn|
           (txn["fees"] || []).each do |fee|
             total_fees += fee.dig("amount", "amount").to_d

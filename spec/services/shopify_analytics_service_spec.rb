@@ -30,6 +30,7 @@ RSpec.describe ShopifyAnalyticsService do
           "subtotalPriceSet" => { "shopMoney" => { "amount" => o[:subtotal] } },
           "totalShippingPriceSet" => { "shopMoney" => { "amount" => o[:shipping] } },
           "totalTaxSet" => { "shopMoney" => { "amount" => o[:tax] } },
+          "taxesIncluded" => o.fetch(:taxes_included, false),
           "customer" => customer_node,
           "transactions" => (o[:fees] || []).map { |f| { "fees" => [ { "amount" => { "amount" => f } } ] } }
         }
@@ -208,6 +209,40 @@ RSpec.describe ShopifyAnalyticsService do
       # so it must contribute nothing to either refunds or total_tax.
       expect(metric.refunds).to eq(0)
       expect(metric.total_tax).to eq(10.00) # full tax_charged, no tax leaked from the zero-net refund
+    end
+
+    it "does not double-count tax for tax-inclusive orders (subtotal already includes tax)" do
+      # Dynamic Tax Display: EU/UK/AU/NZ orders arrive with taxesIncluded=true,
+      # so subtotalPriceSet (110) already contains the 10 tax. Gross must be
+      # subtotal + shipping only (130), NOT subtotal + shipping + tax (140).
+      stub_graphql([
+        orders_graphql_response([
+          { subtotal: "110.00", shipping: "20.00", tax: "10.00", taxes_included: true }
+        ]),
+        empty_graphql_response
+      ])
+
+      service.sync_date(Date.current)
+      metric = ShopifyDailyMetric.last
+
+      expect(metric.gross_revenue).to eq(130.00) # 110 + 20, tax NOT re-added
+      expect(metric.total_tax).to eq(10.00)      # charged tax still tracked
+      expect(metric.revenue).to eq(130.00)       # gross - 0 refunds
+    end
+
+    it "still adds tax to gross for tax-exclusive orders (US/Canada)" do
+      stub_graphql([
+        orders_graphql_response([
+          { subtotal: "100.00", shipping: "20.00", tax: "10.00", taxes_included: false }
+        ]),
+        empty_graphql_response
+      ])
+
+      service.sync_date(Date.current)
+      metric = ShopifyDailyMetric.last
+
+      expect(metric.gross_revenue).to eq(130.00) # 100 + 20 + 10 (tax added)
+      expect(metric.total_tax).to eq(10.00)
     end
 
     it "records zero fees when orders have no Shopify Payments transactions" do

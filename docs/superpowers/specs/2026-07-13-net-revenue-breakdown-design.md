@@ -45,6 +45,26 @@ Net Revenue = Gross Revenue − Refunds − Tax(net) − Transaction Fees
 | `transaction_fees` | Shopify Payments 每筆訂單交易的真實手續費（GraphQL `OrderTransaction.fees`），依**訂單下單日**歸屬 |
 | `net_revenue` | 上述公式結果，公司實際留下的錢 |
 
+### Tax-inclusive 訂單處理（Dynamic Tax Display）
+
+店家啟用 Shopify「Dynamic Tax Display / 依國家含或不含稅」時,不同 market 的訂單 `taxesIncluded`
+不同(US/Canada 稅外加 → false;EU/UK/AU/NZ 稅內含 → true)。當 `taxesIncluded == true` 時,
+Shopify 的 `subtotalPriceSet` **已包含稅**。因此 gross 只在 `taxesIncluded == false` 時才 `+ 稅`:
+
+```
+tax_amount = totalTaxSet.shopMoney.amount
+gross_per_order = subtotal + shipping + (taxesIncluded ? 0 : tax_amount)
+total_tax       += tax_amount   # 一律累加(pass-through 稅,用於淨稅扣項)
+```
+
+兩種情況下 `net_revenue` 都收斂正確:tax-exclusive 時 gross 含一份稅、扣 total_tax 抵銷;
+tax-inclusive 時 gross 因 subtotal 已含稅而自帶一份稅、扣 total_tax 同樣抵銷。此修正同時修好
+**既有 `revenue`**(= gross − refunds)對 tax-inclusive 訂單原本的高估。
+
+**待驗證(follow-up)**:退款端 `RefundLineItem.subtotalSet` 對 tax-inclusive 訂單是否含稅,
+Shopify 文件未明確;若含稅則退款會重複算稅。需用一筆真實 tax-inclusive 退款驗證後再決定是否比照處理,
+不在本次臆測修改(避免引入反向誤差)。
+
 ### 數學一致性驗證
 
 令 `sub_c`/`ship_c`/`tax_c` 為收到的商品/運費/稅，`ref_sub`/`ref_ship`/`ref_tax` 為退掉的部分，
