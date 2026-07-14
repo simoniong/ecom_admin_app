@@ -49,89 +49,109 @@
       <%= l(@metrics[:date_range].first) %> — <%= l(@metrics[:date_range].last) %>
     </p>
 
-    <%# Metric cards grid %>
-    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
-      <%# Orders %>
-      <%= render "dashboard/metric_card",
-          title: t("dashboard.orders"),
-          value: number_with_delimiter(@metrics[:current][:orders]),
-          previous: @metrics[:previous][:orders],
-          current_raw: @metrics[:current][:orders] %>
+    <%# ===== Revenue breakdown (waterfall) ===== %>
+    <section class="mb-8">
+      <%= render "dashboard/section_header",
+          title: t("dashboard.section_revenue"),
+          hint: t("dashboard.section_revenue_hint") %>
+      <%= render "dashboard/revenue_waterfall", metrics: @metrics %>
+    </section>
 
-      <%# Revenue %>
-      <%= render "dashboard/metric_card",
-          title: t("dashboard.revenue"),
-          value: number_to_currency(@metrics[:current][:revenue]),
-          previous: @metrics[:previous][:revenue],
-          current_raw: @metrics[:current][:revenue] %>
+    <%# ===== Orders ===== %>
+    <section class="mb-8">
+      <%= render "dashboard/section_header", title: t("dashboard.section_orders") %>
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <%= render "dashboard/metric_card",
+            title: t("dashboard.orders"),
+            value: number_with_delimiter(@metrics[:current][:orders]),
+            previous: @metrics[:previous][:orders],
+            current_raw: @metrics[:current][:orders] %>
 
-      <%# Avg Order Value %>
-      <%= render "dashboard/metric_card",
-          title: t("dashboard.avg_order_value"),
-          value: number_to_currency(@metrics[:current][:avg_order_value]),
-          previous: @metrics[:previous][:avg_order_value],
-          current_raw: @metrics[:current][:avg_order_value] %>
+        <%= render "dashboard/metric_card",
+            title: t("dashboard.avg_order_value"),
+            value: number_to_currency(@metrics[:current][:avg_order_value]),
+            previous: @metrics[:previous][:avg_order_value],
+            current_raw: @metrics[:current][:avg_order_value] %>
 
-      <%# Ad Spend %>
-      <%= render "dashboard/metric_card",
-          title: t("dashboard.ad_spend"),
-          value: number_to_currency(@metrics[:current][:ad_spend]),
-          previous: @metrics[:previous][:ad_spend],
-          current_raw: @metrics[:current][:ad_spend],
-          invert_color: true %>
+        <%= render "dashboard/metric_card",
+            title: t("dashboard.new_customer_orders"),
+            value: number_with_delimiter(@metrics[:current][:new_customer_orders]),
+            previous: @metrics[:previous][:new_customer_orders],
+            current_raw: @metrics[:current][:new_customer_orders] %>
 
-      <%# ROAS %>
-      <%= render "dashboard/metric_card",
-          title: t("dashboard.roas"),
-          value: "#{@metrics[:current][:roas]}x",
-          previous: @metrics[:previous][:roas],
-          current_raw: @metrics[:current][:roas] %>
+        <%= render "dashboard/metric_card",
+            title: t("dashboard.shipping_cost"),
+            value: number_to_currency(@metrics[:current][:shipping_cost]),
+            previous: @metrics[:previous][:shipping_cost],
+            current_raw: @metrics[:current][:shipping_cost],
+            invert_color: true %>
+      </div>
+    </section>
 
-      <%# CPA %>
-      <%= render "dashboard/metric_card",
-          title: t("dashboard.cpa"),
-          value: @metrics[:current][:cpa] ? number_to_currency(@metrics[:current][:cpa]) : "—",
-          previous: @metrics[:previous][:cpa],
-          current_raw: @metrics[:current][:cpa],
-          invert_color: true %>
+    <%# ===== Advertising ===== %>
+    <section class="mb-8">
+      <%= render "dashboard/section_header", title: t("dashboard.section_advertising") %>
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <%= render "dashboard/metric_card",
+            title: t("dashboard.ad_spend"),
+            value: number_to_currency(@metrics[:current][:ad_spend]),
+            previous: @metrics[:previous][:ad_spend],
+            current_raw: @metrics[:current][:ad_spend],
+            invert_color: true %>
 
-      <%# New Customer CPA %>
-      <%= render "dashboard/metric_card",
-          title: t("dashboard.new_customer_cpa"),
-          value: @metrics[:current][:new_customer_cpa] ? number_to_currency(@metrics[:current][:new_customer_cpa]) : "—",
-          previous: @metrics[:previous][:new_customer_cpa],
-          current_raw: @metrics[:current][:new_customer_cpa],
-          invert_color: true %>
+        <%= render "dashboard/metric_card",
+            title: t("dashboard.roas"),
+            value: "#{@metrics[:current][:roas]}x",
+            previous: @metrics[:previous][:roas],
+            current_raw: @metrics[:current][:roas] %>
 
-      <%# Gross Profit %>
-      <%= render "dashboard/metric_card",
-          title: t("dashboard.gross_profit"),
-          value: number_to_currency(@metrics[:current][:gross_profit]),
-          previous: @metrics[:previous][:gross_profit],
-          current_raw: @metrics[:current][:gross_profit] %>
+        <%= render "dashboard/metric_card",
+            title: t("dashboard.cpa"),
+            value: @metrics[:current][:cpa] ? number_to_currency(@metrics[:current][:cpa]) : "—",
+            previous: @metrics[:previous][:cpa],
+            current_raw: @metrics[:current][:cpa],
+            invert_color: true %>
 
-      <%# Gross Margin %>
-      <%= render "dashboard/metric_card",
-          title: t("dashboard.gross_margin"),
-          value: @metrics[:current][:gross_margin_pct] ? "#{@metrics[:current][:gross_margin_pct]}%" : "—",
-          previous: @metrics[:previous][:gross_margin_pct],
-          current_raw: @metrics[:current][:gross_margin_pct] %>
+        <%= render "dashboard/metric_card",
+            title: t("dashboard.new_customer_cpa"),
+            value: @metrics[:current][:new_customer_cpa] ? number_to_currency(@metrics[:current][:new_customer_cpa]) : "—",
+            previous: @metrics[:previous][:new_customer_cpa],
+            current_raw: @metrics[:current][:new_customer_cpa],
+            invert_color: true %>
+      </div>
+    </section>
 
-      <%# Net Profit %>
-      <%= render "dashboard/metric_card",
-          title: t("dashboard.net_profit"),
-          value: number_to_currency(@metrics[:current][:net_profit]),
-          previous: @metrics[:previous][:net_profit],
-          current_raw: @metrics[:current][:net_profit] %>
+    <%# ===== Profit ===== %>
+    <section class="mb-2">
+      <%= render "dashboard/section_header",
+          title: t("dashboard.section_profit"),
+          hint: t("dashboard.section_profit_hint") %>
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <%= render "dashboard/metric_card",
+            title: t("dashboard.gross_profit"),
+            value: number_to_currency(@metrics[:current][:gross_profit]),
+            previous: @metrics[:previous][:gross_profit],
+            current_raw: @metrics[:current][:gross_profit] %>
 
-      <%# Shipping Cost %>
-      <%= render "dashboard/metric_card",
-          title: t("dashboard.shipping_cost"),
-          value: number_to_currency(@metrics[:current][:shipping_cost]),
-          previous: @metrics[:previous][:shipping_cost],
-          current_raw: @metrics[:current][:shipping_cost],
-          invert_color: true %>
-    </div>
+        <%= render "dashboard/metric_card",
+            title: t("dashboard.gross_margin"),
+            value: @metrics[:current][:gross_margin_pct] ? "#{@metrics[:current][:gross_margin_pct]}%" : "—",
+            previous: @metrics[:previous][:gross_margin_pct],
+            current_raw: @metrics[:current][:gross_margin_pct] %>
+
+        <%= render "dashboard/metric_card",
+            title: t("dashboard.net_profit"),
+            value: number_to_currency(@metrics[:current][:net_profit]),
+            previous: @metrics[:previous][:net_profit],
+            current_raw: @metrics[:current][:net_profit] %>
+
+        <%= render "dashboard/metric_card",
+            title: t("dashboard.net_margin"),
+            value: @metrics[:current][:net_margin_pct] ? "#{@metrics[:current][:net_margin_pct]}%" : "—",
+            previous: @metrics[:previous][:net_margin_pct],
+            current_raw: @metrics[:current][:net_margin_pct] %>
+      </div>
+    </section>
 
     <% if @metrics[:current][:cogs_coverage_pct] && @metrics[:current][:cogs_coverage_pct] < 100 %>
       <p class="mt-2 text-xs text-gray-500">

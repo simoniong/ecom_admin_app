@@ -284,4 +284,48 @@ RSpec.describe DashboardMetricsService do
       expect(result[:current][:cogs_coverage_pct]).to eq(66.7)
     end
   end
+
+  describe "net revenue breakdown" do
+    let(:company) { create(:company) }
+    let(:store) { create(:shopify_store, company: company) }
+
+    def metric(attrs)
+      create(:shopify_daily_metric, { shopify_store: store, date: Date.current }.merge(attrs))
+    end
+
+    it "aggregates the breakdown columns and derives net_revenue" do
+      metric(
+        gross_revenue: 1000, refunds: 100, total_tax: 60, transaction_fees: 40,
+        revenue: 900
+      )
+
+      result = described_class.new(company, range_key: "today").call[:current]
+
+      expect(result[:gross_revenue]).to eq(1000)
+      expect(result[:refunds]).to eq(100)
+      expect(result[:total_tax]).to eq(60)
+      expect(result[:transaction_fees]).to eq(40)
+      expect(result[:net_revenue]).to eq(800) # 1000 - 100 - 60 - 40
+    end
+
+    it "leaves the legacy revenue-derived metrics unchanged" do
+      # orders_count comes from the factory default (20); no line items / orders /
+      # ad accounts exist, so cogs, shipping, and ad_spend are all 0.
+      metric(gross_revenue: 1000, refunds: 100, total_tax: 60, transaction_fees: 40, revenue: 900)
+
+      result = described_class.new(company, range_key: "today").call[:current]
+
+      # revenue keeps its existing definition; net_revenue (800) is strictly separate.
+      expect(result[:revenue]).to eq(900)
+      expect(result[:net_revenue]).to eq(800)
+      expect(result[:net_revenue]).not_to eq(result[:revenue])
+
+      # Every legacy revenue-derived metric must still key off revenue (900),
+      # not net_revenue (800). These values would all differ if net_revenue leaked in.
+      expect(result[:avg_order_value]).to eq(45.0)     # 900 / 20 orders (net would give 40.0)
+      expect(result[:gross_profit]).to eq(900)         # revenue - cogs(0) (net would give 800)
+      expect(result[:net_profit]).to eq(900)           # gross_profit - shipping(0) - ad_spend(0)
+      expect(result[:gross_margin_pct]).to eq(100.0)   # gross_profit / revenue * 100
+    end
+  end
 end

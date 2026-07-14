@@ -38,6 +38,17 @@ RSpec.describe ShopifyDailyMetric, type: :model do
     expect(metric).to be_valid
   end
 
+  describe "revenue breakdown columns" do
+    it "defaults the four breakdown columns to zero" do
+      metric = ShopifyDailyMetric.create!(shopify_store: store, date: Date.current)
+
+      expect(metric.gross_revenue).to eq(0)
+      expect(metric.refunds).to eq(0)
+      expect(metric.total_tax).to eq(0)
+      expect(metric.transaction_fees).to eq(0)
+    end
+  end
+
   describe ".for_date_range" do
     it "returns metrics within the range" do
       create(:shopify_daily_metric, shopify_store: store, date: 2.days.ago)

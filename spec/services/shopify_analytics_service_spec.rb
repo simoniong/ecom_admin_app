@@ -30,7 +30,9 @@ RSpec.describe ShopifyAnalyticsService do
           "subtotalPriceSet" => { "shopMoney" => { "amount" => o[:subtotal] } },
           "totalShippingPriceSet" => { "shopMoney" => { "amount" => o[:shipping] } },
           "totalTaxSet" => { "shopMoney" => { "amount" => o[:tax] } },
-          "customer" => customer_node
+          "taxesIncluded" => o.fetch(:taxes_included, false),
+          "customer" => customer_node,
+          "transactions" => (o[:fees] || []).map { |f| { "fees" => [ { "amount" => { "amount" => f } } ] } }
         }
       }
     end
@@ -143,6 +145,114 @@ RSpec.describe ShopifyAnalyticsService do
         .to_return(status: 500, body: "Internal Server Error")
 
       expect { service.sync_date(Date.current) }.not_to raise_error
+    end
+
+    it "persists the gross / refunds / net-tax / fees breakdown" do
+      stub_graphql([
+        orders_graphql_response([
+          { subtotal: "120.00", shipping: "20.00", tax: "10.00", fees: [ "3.78" ] },
+          { subtotal: "200.00", shipping: "30.00", tax: "20.00", fees: [ "6.10", "0.40" ] }
+        ]),
+        refunds_graphql_response([
+          {
+            refunds: [ {
+              "createdAt" => Time.current.utc.iso8601,
+              "refundLineItems" => { "edges" => [
+                { "node" => {
+                  "subtotalSet" => { "shopMoney" => { "amount" => "50.00" } },
+                  "totalTaxSet" => { "shopMoney" => { "amount" => "5.00" } }
+                } }
+              ] },
+              "orderAdjustments" => { "edges" => [] }
+            } ]
+          }
+        ])
+      ])
+
+      service.sync_date(Date.current)
+      metric = ShopifyDailyMetric.last
+
+      expect(metric.gross_revenue).to eq(400.00)     # 150 + 250
+      expect(metric.refunds).to eq(55.00)            # 50 subtotal + 5 tax
+      expect(metric.total_tax).to eq(25.00)          # (10 + 20) charged - 5 refunded
+      expect(metric.transaction_fees).to eq(10.28)   # 3.78 + 6.10 + 0.40
+      expect(metric.revenue).to eq(345.00)           # 400 gross - 55 refunds (unchanged formula)
+    end
+
+    it "excludes a zero-net refund's tax from total_tax (settled pending refund)" do
+      stub_graphql([
+        orders_graphql_response([
+          { subtotal: "90.00", shipping: "10.00", tax: "10.00" }
+        ]),
+        refunds_graphql_response([
+          {
+            refunds: [ {
+              "createdAt" => Time.current.utc.iso8601,
+              "refundLineItems" => { "edges" => [
+                { "node" => {
+                  "subtotalSet" => { "shopMoney" => { "amount" => "40.00" } },
+                  "totalTaxSet" => { "shopMoney" => { "amount" => "4.00" } }
+                } }
+              ] },
+              "orderAdjustments" => { "edges" => [
+                { "node" => { "reason" => "REFUND_DISCREPANCY", "amountSet" => { "shopMoney" => { "amount" => "44.00" } } } }
+              ] }
+            } ]
+          }
+        ])
+      ])
+
+      service.sync_date(Date.current)
+      metric = ShopifyDailyMetric.last
+
+      # li_total (40 subtotal + 4 tax) + shipping (0) - discrepancy (44) = 0 net refund,
+      # so it must contribute nothing to either refunds or total_tax.
+      expect(metric.refunds).to eq(0)
+      expect(metric.total_tax).to eq(10.00) # full tax_charged, no tax leaked from the zero-net refund
+    end
+
+    it "does not double-count tax for tax-inclusive orders (subtotal already includes tax)" do
+      # Dynamic Tax Display: EU/UK/AU/NZ orders arrive with taxesIncluded=true,
+      # so subtotalPriceSet (110) already contains the 10 tax. Gross must be
+      # subtotal + shipping only (130), NOT subtotal + shipping + tax (140).
+      stub_graphql([
+        orders_graphql_response([
+          { subtotal: "110.00", shipping: "20.00", tax: "10.00", taxes_included: true }
+        ]),
+        empty_graphql_response
+      ])
+
+      service.sync_date(Date.current)
+      metric = ShopifyDailyMetric.last
+
+      expect(metric.gross_revenue).to eq(130.00) # 110 + 20, tax NOT re-added
+      expect(metric.total_tax).to eq(10.00)      # charged tax still tracked
+      expect(metric.revenue).to eq(130.00)       # gross - 0 refunds
+    end
+
+    it "still adds tax to gross for tax-exclusive orders (US/Canada)" do
+      stub_graphql([
+        orders_graphql_response([
+          { subtotal: "100.00", shipping: "20.00", tax: "10.00", taxes_included: false }
+        ]),
+        empty_graphql_response
+      ])
+
+      service.sync_date(Date.current)
+      metric = ShopifyDailyMetric.last
+
+      expect(metric.gross_revenue).to eq(130.00) # 100 + 20 + 10 (tax added)
+      expect(metric.total_tax).to eq(10.00)
+    end
+
+    it "records zero fees when orders have no Shopify Payments transactions" do
+      stub_graphql([
+        orders_graphql_response([ { subtotal: "100.00", shipping: "0", tax: "0" } ]),
+        empty_graphql_response
+      ])
+
+      service.sync_date(Date.current)
+      expect(ShopifyDailyMetric.last.transaction_fees).to eq(0)
     end
   end
 

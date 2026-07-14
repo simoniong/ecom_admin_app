@@ -39,12 +39,15 @@ class MetaOauthController < AdminController
     expires_in = long_token_info["expires_in"]&.to_i
 
     graph = Koala::Facebook::API.new(long_token)
-    ad_accounts_data = graph.get_connections("me", "adaccounts", fields: "account_id,name,account_status,timezone_name")
+    ad_accounts_data = fetch_all_ad_accounts(graph)
 
     session[:meta_long_token] = long_token
     session[:meta_token_expires_at] = (expires_in ? (Time.current + expires_in.seconds).iso8601 : nil)
 
-    @ad_accounts = ad_accounts_data.select { |a| a["account_status"] == 1 }
+    # Show every ad account (including restricted/disabled ones) so nothing is
+    # silently hidden; the picker labels non-active ones and the user chooses.
+    # Active accounts sort first.
+    @ad_accounts = ad_accounts_data.sort_by { |a| helpers.ad_account_active?(a["account_status"]) ? 0 : 1 }
     render :select_accounts
   rescue Koala::Facebook::OAuthTokenRequestError, Koala::Facebook::ClientError, Koala::KoalaError => e
     Rails.logger.warn("Meta OAuth callback error: #{e.class}: #{e.message}")
@@ -84,6 +87,20 @@ class MetaOauthController < AdminController
   end
 
   private
+
+  # Meta paginates me/adaccounts (~25 per page). Follow every page so accounts
+  # beyond the first page aren't dropped.
+  def fetch_all_ad_accounts(graph)
+    page = graph.get_connections("me", "adaccounts", fields: "account_id,name,account_status,timezone_name")
+    results = page.to_a
+    if page.respond_to?(:next_page)
+      while (next_page = page.next_page)
+        results.concat(next_page)
+        page = next_page
+      end
+    end
+    results
+  end
 
   def meta_app_id
     ENV["META_APP_ID"] || Rails.application.credentials.dig(:meta, :app_id)
