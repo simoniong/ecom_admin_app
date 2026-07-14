@@ -379,6 +379,9 @@ en:
     delete_confirm: "Delete this parcel? The order's actual shipping cost will be recalculated."
     updated: "Parcel updated"
     destroyed: "Parcel deleted"
+    showing: "Showing %{from}-%{to} of %{total}"
+    prev: "Prev"
+    next: "Next"
     columns:
       order: "Order"
       estimated: "Estimated"

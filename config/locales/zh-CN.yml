@@ -379,6 +379,9 @@
     delete_confirm: "确定要删除这个包裹吗？该订单的实际运费会重新计算。"
     updated: "包裹已更新"
     destroyed: "包裹已删除"
+    showing: "显示 %{from}-%{to}，共 %{total} 条"
+    prev: "上一页"
+    next: "下一页"
     columns:
       order: "订单"
       estimated: "预估运费"

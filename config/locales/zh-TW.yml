@@ -379,6 +379,9 @@
     delete_confirm: "確定要刪除這個包裹嗎？該訂單的實際運費會重新計算。"
     updated: "包裹已更新"
     destroyed: "包裹已刪除"
+    showing: "顯示 %{from}-%{to}，共 %{total} 筆"
+    prev: "上一頁"
+    next: "下一頁"
     columns:
       order: "訂單"
       estimated: "預估運費"

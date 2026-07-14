@@ -48,6 +48,7 @@
         <% end %>
       </tbody>
     </table>
+    <%= render "parcels/pagination", page: @page, total_pages: @total_pages, total_count: @total_count %>
   <% else %>
     <%= form_tag parcels_path, method: :get, class: "bg-white rounded-lg border border-gray-200 p-4 mb-4 flex flex-wrap gap-4 items-end" do %>
       <div>
@@ -128,5 +129,6 @@
         <% end %>
       </tbody>
     </table>
+    <%= render "parcels/pagination", page: @page, total_pages: @total_pages, total_count: @total_count %>
   <% end %>
 </div>

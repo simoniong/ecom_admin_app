@@ -78,6 +78,66 @@ RSpec.describe "Parcels", type: :request do
       get parcels_path
       expect(response).to have_http_status(:ok)
     end
+
+    it "renders a page-2 link and makes page 2 reachable with different orders than page 1" do
+      30.times do |i|
+        o = create(:order, customer: customer, shopify_store: store, name: "PKS#OVER#{i}",
+                           estimated_shipping_cost: 10, ordered_at: (3 + (i % 26)).days.ago)
+        create(:parcel, shopify_store: store, order: o, identifier: "OVER#{i}", cost_amount: 12 + (i * 0.01))
+      end
+
+      get parcels_path
+      expect(response.body).to match(/href="[^"]*page=2[^"]*"/)
+      page1_names = response.body.scan(/PKS#OVER\d+/).uniq
+
+      get parcels_path, params: { page: 2 }
+      page2_names = response.body.scan(/PKS#OVER\d+/).uniq
+
+      expect(page1_names).not_to be_empty
+      expect(page2_names).not_to be_empty
+      expect(page1_names & page2_names).to be_empty
+    end
+
+    # The controller has always accepted a `page` param — that alone proves
+    # nothing about the view. This test only passes if the rendered page-2
+    # link (a) exists and (b) still carries over_only=1, since the "saver"
+    # order is constructed to sort dead last and would only surface on the
+    # followed link if the filter were dropped.
+    it "preserves the over_only filter through the rendered page-2 pagination link" do
+      30.times do |i|
+        o = create(:order, customer: customer, shopify_store: store, name: "PKS#OVER#{i}",
+                           estimated_shipping_cost: 10, ordered_at: (3 + (i % 26)).days.ago)
+        create(:parcel, shopify_store: store, order: o, identifier: "OVER#{i}", cost_amount: 12 + (i * 0.01))
+      end
+      saver = create(:order, customer: customer, shopify_store: store, name: "PKS#SAVER",
+                             estimated_shipping_cost: 100, ordered_at: 4.days.ago)
+      create(:parcel, shopify_store: store, order: saver, identifier: "SAVER1", cost_amount: 10)
+
+      get parcels_path, params: { over_only: "1" }
+      expect(response.body).not_to include("PKS#SAVER")
+
+      href = response.body[/href="([^"]*page=2[^"]*)"/, 1]
+      expect(href).to be_present
+
+      get href.gsub("&amp;", "&")
+
+      expect(response.body).not_to include("PKS#SAVER")
+    end
+
+    it "renders a page-2 link and makes page 2 reachable on the unmatched tab with more than 25 unmatched parcels" do
+      30.times { |i| create(:parcel, shopify_store: store, order: nil, identifier: "ORPHAN#{i}", shipped_at: (i + 1).hours.ago) }
+
+      get parcels_path, params: { tab: "unmatched" }
+      expect(response.body).to match(/href="[^"]*page=2[^"]*"/)
+      page1_ids = response.body.scan(/ORPHAN\d+/).uniq
+
+      get parcels_path, params: { tab: "unmatched", page: 2 }
+      page2_ids = response.body.scan(/ORPHAN\d+/).uniq
+
+      expect(page1_ids).not_to be_empty
+      expect(page2_ids).not_to be_empty
+      expect(page1_ids & page2_ids).to be_empty
+    end
   end
 
   describe "PATCH /parcels/:id" do

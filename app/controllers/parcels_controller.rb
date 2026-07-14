@@ -23,10 +23,7 @@ class ParcelsController < AdminController
 
     if @tab == "unmatched"
       base = Parcel.unmatched.where(shopify_store_id: store_ids).order(shipped_at: :desc)
-      @total_count = base.count
-      @total_pages = (@total_count.to_f / PER_PAGE).ceil
-      @page = [ @page, @total_pages ].min if @total_pages.positive?
-      @parcels = base.offset((@page - 1) * PER_PAGE).limit(PER_PAGE)
+      @parcels = paginate(base)
       @assignable_orders = Order.where(shopify_store_id: store_ids)
                                 .where.not(name: nil)
                                 .order(ordered_at: :desc)
@@ -44,15 +41,9 @@ class ParcelsController < AdminController
     base = base.where(id: Parcel.group(:order_id).having("COUNT(*) > 1").select(:order_id)) if params[:multi_parcel_only].present?
     base = base.where("orders.actual_shipping_cost > orders.estimated_shipping_cost") if params[:over_only].present?
 
-    @total_count = base.count
-    @total_pages = (@total_count.to_f / PER_PAGE).ceil
-    @page = [ @page, @total_pages ].min if @total_pages.positive?
-
-    @orders = base
+    @orders = paginate(base)
       .includes(:parcels)
       .reorder(Arel.sql("#{SORTABLE.fetch(@sort_column)} #{@sort_direction} NULLS LAST"))
-      .offset((@page - 1) * PER_PAGE)
-      .limit(PER_PAGE)
   end
 
   def import
@@ -153,8 +144,17 @@ class ParcelsController < AdminController
     Parcel.where(shopify_store_id: visible_shopify_stores.select(:id))
   end
 
+  # Computes total_count/total_pages, clamps @page, and returns the
+  # offset/limit-applied relation. Shared by both index tabs.
+  def paginate(scope)
+    @total_count = scope.count
+    @total_pages = (@total_count.to_f / PER_PAGE).ceil
+    @page = [ @page, @total_pages ].min if @total_pages.positive?
+    scope.offset((@page - 1) * PER_PAGE).limit(PER_PAGE)
+  end
+
   def parcel_params
-    params.require(:parcel).permit(:cost_cny, :order_id, :service_channel, :billed_weight_g)
+    params.require(:parcel).permit(:cost_cny, :order_id)
   end
 
   # cost_amount is derived, never user-supplied: if the operator corrects the CNY
