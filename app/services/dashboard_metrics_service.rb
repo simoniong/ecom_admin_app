@@ -71,10 +71,10 @@ class DashboardMetricsService
 
     cogs, coverage = aggregate_cogs(store_scope, range)
     shipping_total, shipping_breakdown = aggregate_shipping(store_scope, range)
-    gross_profit = revenue - cogs
-    # Net Profit is based on Net Revenue (actual money received: gross - refunds
-    # - tax - fees), NOT on revenue, so tax and transaction fees are reflected.
-    # Gross Profit stays revenue-based on purpose.
+    # Both Gross and Net Profit are based on Net Revenue (actual money received:
+    # gross - refunds - tax - fees), so tax and transaction fees are reflected in
+    # both. Sales metrics (avg_order_value, roas) stay revenue-based on purpose.
+    gross_profit = net_revenue - cogs
     net_profit = net_revenue - cogs - shipping_total - ad_spend
 
     {
@@ -95,7 +95,7 @@ class DashboardMetricsService
       new_customer_cpa: (new_customer_orders > 0 && ad_spend > 0) ? (ad_spend / new_customer_orders).round(2) : nil,
       cogs: cogs,
       gross_profit: gross_profit,
-      gross_margin_pct: revenue > 0 ? (gross_profit / revenue * 100).round(2) : nil,
+      gross_margin_pct: net_revenue > 0 ? (gross_profit / net_revenue * 100).round(2) : nil,
       net_profit: net_profit,
       net_margin_pct: net_revenue > 0 ? (net_profit / net_revenue * 100).round(2) : nil,
       cogs_coverage_pct: coverage,
@@ -147,6 +147,12 @@ class DashboardMetricsService
     comparable_estimated = BigDecimal("0")
     comparable_actual    = BigDecimal("0")
     count_comparable      = 0
+
+    # Display totals over ALL orders (not just the comparable set), so the
+    # "Estimated shipping" / "Actual shipping" cards show real exposure even at
+    # 0% coverage. The variance below still uses the comparable set only.
+    estimated_all = BigDecimal("0")
+    actual_all    = BigDecimal("0")
     multi_parcel_orders  = 0
 
     store_scope.find_each do |store|
@@ -166,6 +172,9 @@ class DashboardMetricsService
       comparable_actual    += comparable.sum(:actual_shipping_cost)
       count_comparable     += comparable.count
 
+      estimated_all += orders.where.not(estimated_shipping_cost: nil).sum(:estimated_shipping_cost)
+      actual_all    += orders.where.not(actual_shipping_cost: nil).sum(:actual_shipping_cost)
+
       multi_parcel_orders += Parcel.where(order_id: orders.select(:id))
                                    .group(:order_id)
                                    .having("COUNT(*) > 1")
@@ -184,8 +193,8 @@ class DashboardMetricsService
         actual:         pct.call(count_actual),
         estimated_only: pct.call(count_estimated_only),
         comparable:     pct.call(count_comparable),
-        estimated_total: comparable_estimated,
-        actual_total:    comparable_actual,
+        estimated_total: estimated_all,
+        actual_total:    actual_all,
         variance:        variance,
         variance_pct:    variance_pct,
         multi_parcel_orders: multi_parcel_orders
