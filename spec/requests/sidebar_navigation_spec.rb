@@ -51,4 +51,97 @@ RSpec.describe "Sidebar navigation", type: :request do
     expect(response).to have_http_status(:ok)
     expect(response.body).not_to include(I18n.t("nav.parcels"))
   end
+
+  # The "Shipping" nav group (data-controller="nav-group") replaces the old
+  # top-level Shipments entry and gathers Tracking, Shipping Variance,
+  # Shipping Rate Cards, Postal Zones and Shipping Reminders under one
+  # collapsible header — mirroring how Settings groups its own children.
+  describe "Shipping group" do
+    def enable_tracking!(company)
+      company.update!(
+        tracking_enabled: true,
+        tracking_api_key: "A" * 32,
+        tracking_mode: "new_only",
+        tracking_starts_at: Time.current
+      )
+    end
+
+    it "shows all five children, in order, to the owner" do
+      sign_in user
+      enable_tracking!(company)
+
+      get authenticated_root_path
+
+      expect(response).to have_http_status(:ok)
+      doc = Nokogiri::HTML(response.body)
+      menu = doc.at_css("#shipping-menu")
+      expect(menu).to be_present
+
+      hrefs = menu.css("a").map { |a| a["href"] }
+      expect(hrefs).to eq([
+        shipments_path,
+        parcels_path,
+        shipping_rate_card_versions_path,
+        shipping_zone_postal_rules_path,
+        shipping_reminder_rules_path
+      ])
+
+      expect(menu.text).to include(I18n.t("nav.tracking"))
+      expect(menu.text).to include(I18n.t("nav.parcels"))
+      expect(menu.text).to include(I18n.t("nav.shipping_rate_cards"))
+      expect(menu.text).to include(I18n.t("nav.shipping_zone_postal_rules"))
+      expect(menu.text).to include(I18n.t("nav.shipping_reminders"))
+    end
+
+    it "shows the Shipping-Variance child but not Rate Cards / Postal Zones for a member with parcels but not shopify_stores" do
+      member = create(:user)
+      create(:membership, user: member, company: company, role: :member, permissions: [ "parcels" ])
+      sign_in member
+      patch switch_company_path(id: company.id)
+
+      get authenticated_root_path
+
+      expect(response).to have_http_status(:ok)
+      doc = Nokogiri::HTML(response.body)
+      menu = doc.at_css("#shipping-menu")
+      expect(menu).to be_present
+
+      expect(menu.text).to include(I18n.t("nav.parcels"))
+      expect(menu.text).not_to include(I18n.t("nav.shipping_rate_cards"))
+      expect(menu.text).not_to include(I18n.t("nav.shipping_zone_postal_rules"))
+    end
+
+    # Mutation-test target: force the group header to always render (e.g.
+    # `<% if true %>` instead of `<% if has_shipping_items %>`) and this spec
+    # must fail, since this member is granted none of the five permissions
+    # that back the group's children.
+    it "hides the Shipping group entirely from a member with none of the shipping permissions" do
+      member = create(:user)
+      create(:membership, user: member, company: company, role: :member, permissions: [])
+      sign_in member
+      patch switch_company_path(id: company.id)
+
+      get authenticated_root_path
+
+      expect(response).to have_http_status(:ok)
+      doc = Nokogiri::HTML(response.body)
+      expect(doc.at_css("#shipping-menu")).to be_nil
+    end
+
+    it "no longer lists Rate Cards, Postal Zones or Reminders under Settings" do
+      sign_in user
+      enable_tracking!(company)
+
+      get authenticated_root_path
+
+      expect(response).to have_http_status(:ok)
+      doc = Nokogiri::HTML(response.body)
+      settings_menu = doc.at_css("#settings-menu")
+      expect(settings_menu).to be_present
+
+      expect(settings_menu.text).not_to include(I18n.t("nav.shipping_rate_cards"))
+      expect(settings_menu.text).not_to include(I18n.t("nav.shipping_zone_postal_rules"))
+      expect(settings_menu.text).not_to include(I18n.t("nav.shipping_reminders"))
+    end
+  end
 end

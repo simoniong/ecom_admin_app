@@ -31,6 +31,10 @@ class ParcelsController < AdminController
 
     @sort_column    = SORTABLE.key?(params[:sort_column]) ? params[:sort_column] : "variance"
     @sort_direction = params[:sort_direction] == "asc" ? "asc" : "desc"
+    # Repopulated verbatim, even when invalid, so the operator sees exactly
+    # what they typed (and can correct it) rather than having it silently
+    # vanish when it fails to parse.
+    @min_over_pct = params[:min_over_pct]
 
     base = Order.where(shopify_store_id: store_ids)
                 .where.not(actual_shipping_cost: nil)
@@ -38,6 +42,18 @@ class ParcelsController < AdminController
 
     base = base.where(id: Parcel.group(:order_id).having("COUNT(*) > 1").select(:order_id)) if params[:multi_parcel_only].present?
     base = base.where("orders.actual_shipping_cost > orders.estimated_shipping_cost") if params[:over_only].present?
+
+    if (pct = parse_pct(params[:min_over_pct]))
+      # estimated_shipping_cost can be NULL or 0 for orders that never got an
+      # estimate. Those can't have a percentage computed against them at all —
+      # dividing by zero or NULL, or reporting a meaningless "infinite" overrun —
+      # so they're excluded outright rather than included under a nonsense value.
+      base = base.where(
+        "orders.estimated_shipping_cost > 0 AND " \
+        "(orders.actual_shipping_cost - orders.estimated_shipping_cost) / orders.estimated_shipping_cost * 100 >= ?",
+        pct
+      )
+    end
 
     @orders = paginate(base)
       .includes(:parcels)
@@ -225,6 +241,20 @@ class ParcelsController < AdminController
     end
 
     attrs
+  end
+
+  # Rejects blank, non-numeric and negative input by returning nil, so a
+  # garbage value simply leaves the filter unapplied rather than 500ing the
+  # page or being coerced into a nonsense threshold. Zero is a valid,
+  # non-blank threshold ("≥0% overrun" = every overrun) and must not be
+  # treated the same as blank.
+  def parse_pct(value)
+    return nil if value.blank?
+
+    pct = BigDecimal(value.to_s, exception: false)
+    return nil if pct.nil? || pct.negative?
+
+    pct
   end
 
   def parse_dates

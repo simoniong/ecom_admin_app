@@ -57,6 +57,10 @@
         <%= check_box_tag :over_only, "1", params[:over_only].present?, class: "rounded border-gray-300" %>
         <%= t("parcels.over_only") %>
       </label>
+      <div>
+        <label for="min_over_pct" class="block text-xs font-medium text-gray-500 mb-1"><%= t("parcels.min_over_pct") %> %</label>
+        <%= number_field_tag :min_over_pct, @min_over_pct, min: 0, step: "any", class: "w-24 rounded-md border-gray-300 text-sm" %>
+      </div>
       <%= submit_tag t("parcels.filter"), class: "px-4 py-2 bg-gray-900 text-white text-sm rounded-md cursor-pointer" %>
     <% end %>
 

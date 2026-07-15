@@ -52,6 +52,104 @@ RSpec.describe "Parcels", type: :request do
       expect(response.body).to include("PKS#3052")
     end
 
+    describe "min_over_pct filter" do
+      it "includes an order exactly at the threshold and excludes one just below it" do
+        at_threshold = create(:order, customer: customer, shopify_store: store, name: "PKS#PCT10",
+                               estimated_shipping_cost: 100, ordered_at: 1.day.ago)
+        create(:parcel, shopify_store: store, order: at_threshold, identifier: "PCT10A", cost_amount: 110)
+
+        below_threshold = create(:order, customer: customer, shopify_store: store, name: "PKS#PCT9",
+                                  estimated_shipping_cost: 100, ordered_at: 1.day.ago)
+        create(:parcel, shopify_store: store, order: below_threshold, identifier: "PCT9A", cost_amount: 109.99)
+
+        get parcels_path, params: { min_over_pct: "10" }
+
+        expect(response).to have_http_status(:ok)
+        expect(response.body).to include("PKS#PCT10")
+        expect(response.body).not_to include("PKS#PCT9")
+      end
+
+      # This is the mutation-test target for parse_pct's zero handling: if
+      # "0" were ever treated as blank (no filter), the under-estimate order
+      # below would leak into a request that asked for "≥0% overrun".
+      it "treats a threshold of exactly 0 as a real filter, not as blank" do
+        over = create(:order, customer: customer, shopify_store: store, name: "PKS#PCTZOVER",
+                      estimated_shipping_cost: 100, ordered_at: 1.day.ago)
+        create(:parcel, shopify_store: store, order: over, identifier: "PCTZOVER1", cost_amount: 105)
+
+        under = create(:order, customer: customer, shopify_store: store, name: "PKS#PCTZUNDER",
+                       estimated_shipping_cost: 100, ordered_at: 1.day.ago)
+        create(:parcel, shopify_store: store, order: under, identifier: "PCTZUNDER1", cost_amount: 95)
+
+        get parcels_path, params: { min_over_pct: "0" }
+
+        expect(response).to have_http_status(:ok)
+        expect(response.body).to include("PKS#PCTZOVER")
+        expect(response.body).not_to include("PKS#PCTZUNDER")
+      end
+
+      # This is the mutation-test target for the divide-by-zero guard: drop
+      # the "orders.estimated_shipping_cost > 0" clause from the SQL and
+      # either of these orders (a 0 estimate and a NULL estimate, each with a
+      # large actual cost) starts wrongly matching >= any positive threshold.
+      it "excludes an order with a zero or nil estimated_shipping_cost even with a large actual cost" do
+        zero_estimate = create(:order, customer: customer, shopify_store: store, name: "PKS#ZEROEST",
+                                estimated_shipping_cost: 0, ordered_at: 1.day.ago)
+        create(:parcel, shopify_store: store, order: zero_estimate, identifier: "ZEROEST1", cost_amount: 500)
+
+        nil_estimate = create(:order, customer: customer, shopify_store: store, name: "PKS#NILEST",
+                               estimated_shipping_cost: nil, ordered_at: 1.day.ago)
+        create(:parcel, shopify_store: store, order: nil_estimate, identifier: "NILEST1", cost_amount: 500)
+
+        get parcels_path, params: { min_over_pct: "1" }
+
+        expect(response).to have_http_status(:ok)
+        expect(response.body).not_to include("PKS#ZEROEST")
+        expect(response.body).not_to include("PKS#NILEST")
+      end
+
+      it "applies no filter and does not error on a blank, non-numeric, or negative threshold" do
+        saver = create(:order, customer: customer, shopify_store: store, name: "PKS#PCTSAVER",
+                       estimated_shipping_cost: 100, ordered_at: 1.day.ago)
+        create(:parcel, shopify_store: store, order: saver, identifier: "PCTSAVER1", cost_amount: 50)
+
+        [ "", "abc", "-5" ].each do |bad_value|
+          get parcels_path, params: { min_over_pct: bad_value }
+          expect(response).to have_http_status(:ok)
+          expect(response.body).to include("PKS#PCTSAVER")
+        end
+      end
+
+      it "repopulates the submitted threshold value in the input" do
+        get parcels_path, params: { min_over_pct: "12.5" }
+
+        expect(response.body).to include('value="12.5"')
+      end
+
+      it "preserves the min_over_pct filter through the rendered page-2 pagination link" do
+        30.times do |i|
+          o = create(:order, customer: customer, shopify_store: store, name: "PKS#PCTOVER#{i}",
+                             estimated_shipping_cost: 10, ordered_at: (3 + (i % 26)).days.ago)
+          create(:parcel, shopify_store: store, order: o, identifier: "PCTOVER#{i}", cost_amount: 12 + (i * 0.01))
+        end
+        saver = create(:order, customer: customer, shopify_store: store, name: "PKS#PCTSAVER2",
+                       estimated_shipping_cost: 100, ordered_at: 4.days.ago)
+        create(:parcel, shopify_store: store, order: saver, identifier: "PCTSAVER2A", cost_amount: 50)
+
+        get parcels_path, params: { min_over_pct: "5" }
+        expect(response.body).not_to include("PKS#PCTSAVER2")
+
+        href = response.body[/href="([^"]*page=2[^"]*)"/, 1]
+        expect(href).to be_present
+        expect(href).to include("min_over_pct")
+
+        get href.gsub("&amp;", "&")
+
+        expect(response).to have_http_status(:ok)
+        expect(response.body).not_to include("PKS#PCTSAVER2")
+      end
+    end
+
     it "shows unmatched parcels on the unmatched tab" do
       create(:parcel, shopify_store: store, order: nil, identifier: "ORPHAN1")
 
