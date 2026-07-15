@@ -8,9 +8,9 @@ module SystemHelpers
     expect(page).to have_selector("aside", wait: 15)
   end
 
-  def navigate_to_settings_item(label)
+  def navigate_to_settings_item(label, group: "Settings")
     within("aside") do
-      click_button "Settings" unless page.has_link?(label, visible: true)
+      click_button group unless page.has_link?(label, visible: true)
       click_link label
     end
   end

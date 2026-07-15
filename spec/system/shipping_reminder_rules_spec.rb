@@ -16,7 +16,7 @@ RSpec.describe "Shipping Reminder Rules", type: :system do
 
   it "shows the reminder rules page" do
     sign_in_as(user)
-    navigate_to_settings_item "Shipping Reminders"
+    navigate_to_settings_item "Shipping Reminders", group: "Shipping"
     expect(page).to have_text("Reminder Rules")
     expect(page).to have_text("Not delivered for over X days")
     expect(page).to have_text("Without updates for over X days")
@@ -27,7 +27,7 @@ RSpec.describe "Shipping Reminder Rules", type: :system do
 
   it "expands an accordion and adds a country/days item" do
     sign_in_as(user)
-    navigate_to_settings_item "Shipping Reminders"
+    navigate_to_settings_item "Shipping Reminders", group: "Shipping"
 
     click_button "Rule: Not delivered for over X days"
 
@@ -37,7 +37,7 @@ RSpec.describe "Shipping Reminder Rules", type: :system do
 
   it "saves a reminder rule with country thresholds" do
     sign_in_as(user)
-    navigate_to_settings_item "Shipping Reminders"
+    navigate_to_settings_item "Shipping Reminders", group: "Shipping"
 
     click_button "Rule: Not delivered for over X days"
     first("[data-action='click->threshold-items#add']").click
@@ -53,7 +53,7 @@ RSpec.describe "Shipping Reminder Rules", type: :system do
 
   it "toggles email reminder on via switch" do
     sign_in_as(user)
-    navigate_to_settings_item "Shipping Reminders"
+    navigate_to_settings_item "Shipping Reminders", group: "Shipping"
 
     expect(page).to have_text("Off")
     find("form[action*='toggle'] button[type='submit']").click
@@ -63,7 +63,7 @@ RSpec.describe "Shipping Reminder Rules", type: :system do
 
   it "edits recipients inline" do
     sign_in_as(user)
-    navigate_to_settings_item "Shipping Reminders"
+    navigate_to_settings_item "Shipping Reminders", group: "Shipping"
 
     find("[data-action='click->inline-edit#edit']").click
 
@@ -78,7 +78,7 @@ RSpec.describe "Shipping Reminder Rules", type: :system do
 
   it "configures email schedule settings" do
     sign_in_as(user)
-    navigate_to_settings_item "Shipping Reminders"
+    navigate_to_settings_item "Shipping Reminders", group: "Shipping"
 
     click_button "Save Settings"
     expect(page).to have_text("Email reminder settings updated successfully.")
@@ -86,7 +86,7 @@ RSpec.describe "Shipping Reminder Rules", type: :system do
 
   it "shows day-of-week selector only when weekly is selected" do
     sign_in_as(user)
-    navigate_to_settings_item "Shipping Reminders"
+    navigate_to_settings_item "Shipping Reminders", group: "Shipping"
 
     # Day selector not visible by default (daily)
     expect(page).to have_no_select("shipping_reminder_setting[send_day_of_week]", visible: :visible)

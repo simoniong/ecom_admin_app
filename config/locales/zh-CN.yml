@@ -32,6 +32,8 @@
     company: "公司"
     settings: "设置"
     shipments: "物流"
+    shipping: "物流"
+    tracking: "物流追踪"
     parcels: "运费差异"
     sign_out: "登出"
     profile: "个人资料"
@@ -618,7 +620,7 @@
       unfulfilled: "未发货"
       partial: "部分发货"
   shipments:
-    title: "物流"
+    title: "物流追踪"
     archived_title: "已归档物流"
     sync_orders: "同步订单"
     sync_enqueued: "订单同步任务已加入队列，物流数据稍后更新。"

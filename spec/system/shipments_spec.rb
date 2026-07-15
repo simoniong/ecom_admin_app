@@ -23,7 +23,7 @@ RSpec.describe "Shipments", type: :system do
 
   describe "column toggle" do
     before do
-      click_link "Shipments"
+      navigate_to_settings_item "Tracking", group: "Shipping"
       expect(page).to have_text("TEST123")
     end
 
@@ -168,7 +168,7 @@ RSpec.describe "Shipments", type: :system do
 
   describe "bulk select" do
     before do
-      click_link "Shipments"
+      navigate_to_settings_item "Tracking", group: "Shipping"
       expect(page).to have_text("TEST123")
     end
 
@@ -221,7 +221,7 @@ RSpec.describe "Shipments", type: :system do
     end
 
     it "navigates from index to show page" do
-      click_link "Shipments"
+      navigate_to_settings_item "Tracking", group: "Shipping"
       click_link "DETAIL123"
 
       expect(page).to have_current_path(shipment_path(id: detailed_shipment.id))

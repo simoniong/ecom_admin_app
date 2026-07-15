@@ -28,6 +28,8 @@ en:
     tickets: "Tickets"
     orders: "Orders"
     shipments: "Shipments"
+    shipping: "Shipping"
+    tracking: "Tracking"
     parcels: "Shipping Variance"
     ad_accounts: "Ad Accounts"
     ad_campaigns: "Ad Campaigns"
@@ -620,7 +622,7 @@ en:
       unfulfilled: "Unfulfilled"
       partial: "Partial"
   shipments:
-    title: "Shipments"
+    title: "Tracking"
     archived_title: "Archived Shipments"
     sync_orders: "Sync orders"
     sync_enqueued: "Order sync has been queued. Shipping data will update shortly."
