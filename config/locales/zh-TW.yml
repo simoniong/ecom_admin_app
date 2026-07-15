@@ -382,6 +382,7 @@
     to_date: "結束日期"
     multi_parcel_only: "只看多包裹訂單"
     over_only: "只看超支"
+    min_over_pct: "超支 ≥"
     filter: "篩選"
     assign: "指派"
     save: "儲存"

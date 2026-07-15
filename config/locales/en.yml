@@ -382,6 +382,7 @@ en:
     to_date: "To"
     multi_parcel_only: "Multi-parcel orders only"
     over_only: "Overruns only"
+    min_over_pct: "Overrun ≥"
     filter: "Filter"
     assign: "Assign"
     save: "Save"
