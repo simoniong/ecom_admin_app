@@ -98,7 +98,7 @@
     section_orders: "訂單 Orders"
     section_advertising: "廣告 Advertising"
     section_profit: "獲利 Profit"
-    section_profit_hint: "扣掉商品成本、運費、廣告後"
+    section_profit_hint: "扣掉稅金、手續費、商品成本、運費、廣告後"
     net_revenue_badge: "實收"
     revenue_waterfall_caption_html: "<b>營收</b> = 總營收 − 退款（原本的 Revenue 卡）。<b>實收金額</b> = 營收 − 稅 − 手續費，才是真正進公司口袋的錢。紅色為扣項（越低越好）。"
     cogs: "成本"

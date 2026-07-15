@@ -98,7 +98,7 @@
     section_orders: "订单 Orders"
     section_advertising: "广告 Advertising"
     section_profit: "获利 Profit"
-    section_profit_hint: "扣掉商品成本、运费、广告后"
+    section_profit_hint: "扣掉税金、手续费、商品成本、运费、广告后"
     net_revenue_badge: "实收"
     revenue_waterfall_caption_html: "<b>营收</b> = 总营收 − 退款（原本的 Revenue 卡）。<b>实收金额</b> = 营收 − 税 − 手续费，才是真正进公司口袋的钱。红色为扣项（越低越好）。"
     cogs: "成本"

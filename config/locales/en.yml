@@ -98,7 +98,7 @@ en:
     section_orders: "Orders"
     section_advertising: "Advertising"
     section_profit: "Profit"
-    section_profit_hint: "After product cost, shipping, and ads"
+    section_profit_hint: "After tax, fees, product cost, shipping, and ads"
     net_revenue_badge: "NET"
     revenue_waterfall_caption_html: "<b>Revenue</b> = Gross − Refunds (your original Revenue card). <b>Net Revenue</b> = Revenue − Tax − Fees — the money you actually keep. Red cards are deductions (lower is better)."
     cogs: "COGS"

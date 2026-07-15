@@ -272,10 +272,10 @@ RSpec.describe DashboardMetricsService do
 
     it "computes gross_profit and net_profit" do
       create(:shopify_daily_metric, shopify_store: store, date: Date.current,
-                                    revenue: 100, orders_count: 1)
+                                    gross_revenue: 100, revenue: 100, orders_count: 1)
       result = described_class.new(company, range_key: "today").call
-      expect(result[:current][:gross_profit]).to eq(75)   # 100 - 25
-      expect(result[:current][:net_profit]).to eq(75)     # no ad spend
+      expect(result[:current][:gross_profit]).to eq(75)   # revenue 100 - cogs 25
+      expect(result[:current][:net_profit]).to eq(75)     # net_revenue 100 - cogs 25 (no tax/fees/ad)
     end
 
     it "reports cogs_coverage_pct" do
@@ -323,9 +323,59 @@ RSpec.describe DashboardMetricsService do
       # Every legacy revenue-derived metric must still key off revenue (900),
       # not net_revenue (800). These values would all differ if net_revenue leaked in.
       expect(result[:avg_order_value]).to eq(45.0)     # 900 / 20 orders (net would give 40.0)
-      expect(result[:gross_profit]).to eq(900)         # revenue - cogs(0) (net would give 800)
-      expect(result[:net_profit]).to eq(900)           # gross_profit - shipping(0) - ad_spend(0)
+      expect(result[:gross_profit]).to eq(900)         # revenue - cogs(0), stays revenue-based
       expect(result[:gross_margin_pct]).to eq(100.0)   # gross_profit / revenue * 100
+
+      # net_profit / net_margin now key off net_revenue (800), not revenue (900).
+      expect(result[:net_profit]).to eq(800)           # net_revenue 800 - cogs 0 - shipping 0 - ad 0
+      expect(result[:net_margin_pct]).to eq(100.0)     # net_profit 800 / net_revenue 800
+    end
+  end
+
+  describe "net profit basis (option B: net_revenue)" do
+    let(:profit_user) { create(:user) }
+    let(:company) { profit_user.companies.first }
+    let!(:store) { create(:shopify_store, user: profit_user, company: company, timezone: "UTC") }
+    let!(:customer) { create(:customer, shopify_store: store) }
+    let!(:order) do
+      create(:order, customer: customer, shopify_store: store,
+                     total_price: 1000, ordered_at: Date.current.beginning_of_day)
+    end
+
+    before do
+      create(:order_line_item, order: order, quantity: 2, unit_cost_snapshot: 100) # cogs 200
+    end
+
+    it "bases net_profit on net_revenue, deducting tax and fees" do
+      create(:shopify_daily_metric, shopify_store: store, date: Date.current,
+             gross_revenue: 1000, refunds: 0, total_tax: 60, transaction_fees: 40,
+             revenue: 1000, orders_count: 1)
+
+      m = described_class.new(company, range_key: "today").call[:current]
+
+      expect(m[:revenue]).to eq(1000)
+      expect(m[:net_revenue]).to eq(900)      # 1000 - 60 - 40
+      expect(m[:cogs]).to eq(200)
+      expect(m[:gross_profit]).to eq(800)     # unchanged: revenue 1000 - cogs 200
+
+      # Net Profit is net_revenue-based: 900 - 200 - shipping(0) - ad(0) = 700.
+      # Old revenue-based formula would give 800; omitting tax/fees would too.
+      expect(m[:net_profit]).to eq(700)
+
+      # Net Margin denominator is net_revenue (900), not revenue (1000):
+      # 700 / 900 = 77.78%. Against revenue it would be 70.0%.
+      expect(m[:net_margin_pct]).to eq(77.78)
+    end
+
+    it "returns nil net_margin_pct when net_revenue is not positive" do
+      create(:shopify_daily_metric, shopify_store: store, date: Date.current,
+             gross_revenue: 1000, refunds: 1000, total_tax: 0, transaction_fees: 0,
+             revenue: 0, orders_count: 1)
+
+      m = described_class.new(company, range_key: "today").call[:current]
+
+      expect(m[:net_revenue]).to eq(0)        # 1000 - 1000
+      expect(m[:net_margin_pct]).to be_nil
     end
   end
 
