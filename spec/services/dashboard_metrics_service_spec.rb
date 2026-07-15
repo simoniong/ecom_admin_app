@@ -371,15 +371,21 @@ RSpec.describe DashboardMetricsService do
       expect(m[:net_margin_pct]).to eq(72.22)
     end
 
-    it "returns nil net_margin_pct when net_revenue is not positive (negative)" do
+    it "returns nil for BOTH margins when net_revenue is not positive (negative)" do
+      # revenue stays POSITIVE (1000) while net_revenue goes NEGATIVE (tax+fees > it).
+      # This distinguishes the correct `net_revenue > 0` guard from a `revenue > 0`
+      # one: under a revenue-based guard the margins would compute instead of nil.
       create(:shopify_daily_metric, shopify_store: store, date: Date.current,
-             gross_revenue: 1000, refunds: 1200, total_tax: 0, transaction_fees: 0,
-             revenue: 0, orders_count: 1)
+             gross_revenue: 1000, refunds: 0, total_tax: 600, transaction_fees: 600,
+             revenue: 1000, orders_count: 1)
 
       m = described_class.new(company, range_key: "today").call[:current]
 
-      expect(m[:net_revenue]).to eq(-200)     # 1000 - 1200 → negative, exercises the guard's negative branch
+      expect(m[:revenue]).to eq(1000)         # revenue itself is positive
+      expect(m[:net_revenue]).to eq(-200)     # 1000 - 600 - 600 → negative
+      # Both margins share the net_revenue > 0 guard, so both must be nil.
       expect(m[:net_margin_pct]).to be_nil
+      expect(m[:gross_margin_pct]).to be_nil
     end
   end
 
