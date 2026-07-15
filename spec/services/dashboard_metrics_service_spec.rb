@@ -235,8 +235,9 @@ RSpec.describe DashboardMetricsService do
 
     it "subtracts shipping from net_profit" do
       order_on(5, estimated: 10, actual: nil)
-      # No daily metrics → revenue/cogs/ad_spend are 0, so net_profit = -shipping.
-      expect(metrics[:net_profit]).to eq(metrics[:gross_profit] - metrics[:shipping_cost] - metrics[:ad_spend])
+      # No daily metrics → net_revenue/cogs/ad_spend are 0, so net_profit = -shipping.
+      # Assert the current (net_revenue-based) identity, not the old revenue-based one.
+      expect(metrics[:net_profit]).to eq(metrics[:net_revenue] - metrics[:cogs] - metrics[:shipping_cost] - metrics[:ad_spend])
     end
   end
 
@@ -367,14 +368,14 @@ RSpec.describe DashboardMetricsService do
       expect(m[:net_margin_pct]).to eq(77.78)
     end
 
-    it "returns nil net_margin_pct when net_revenue is not positive" do
+    it "returns nil net_margin_pct when net_revenue is not positive (negative)" do
       create(:shopify_daily_metric, shopify_store: store, date: Date.current,
-             gross_revenue: 1000, refunds: 1000, total_tax: 0, transaction_fees: 0,
+             gross_revenue: 1000, refunds: 1200, total_tax: 0, transaction_fees: 0,
              revenue: 0, orders_count: 1)
 
       m = described_class.new(company, range_key: "today").call[:current]
 
-      expect(m[:net_revenue]).to eq(0)        # 1000 - 1000
+      expect(m[:net_revenue]).to eq(-200)     # 1000 - 1200 → negative, exercises the guard's negative branch
       expect(m[:net_margin_pct]).to be_nil
     end
   end
