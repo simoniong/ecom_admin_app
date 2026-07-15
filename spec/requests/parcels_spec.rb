@@ -69,6 +69,25 @@ RSpec.describe "Parcels", type: :request do
         expect(response.body).not_to include("PKS#PCT9")
       end
 
+      # This is the mutation-test target for parse_pct's zero handling: if
+      # "0" were ever treated as blank (no filter), the under-estimate order
+      # below would leak into a request that asked for "≥0% overrun".
+      it "treats a threshold of exactly 0 as a real filter, not as blank" do
+        over = create(:order, customer: customer, shopify_store: store, name: "PKS#PCTZOVER",
+                      estimated_shipping_cost: 100, ordered_at: 1.day.ago)
+        create(:parcel, shopify_store: store, order: over, identifier: "PCTZOVER1", cost_amount: 105)
+
+        under = create(:order, customer: customer, shopify_store: store, name: "PKS#PCTZUNDER",
+                       estimated_shipping_cost: 100, ordered_at: 1.day.ago)
+        create(:parcel, shopify_store: store, order: under, identifier: "PCTZUNDER1", cost_amount: 95)
+
+        get parcels_path, params: { min_over_pct: "0" }
+
+        expect(response).to have_http_status(:ok)
+        expect(response.body).to include("PKS#PCTZOVER")
+        expect(response.body).not_to include("PKS#PCTZUNDER")
+      end
+
       # This is the mutation-test target for the divide-by-zero guard: drop
       # the "orders.estimated_shipping_cost > 0" clause from the SQL and
       # either of these orders (a 0 estimate and a NULL estimate, each with a
