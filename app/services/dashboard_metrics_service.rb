@@ -72,7 +72,10 @@ class DashboardMetricsService
     cogs, coverage = aggregate_cogs(store_scope, range)
     shipping_total, shipping_breakdown = aggregate_shipping(store_scope, range)
     gross_profit = revenue - cogs
-    net_profit = gross_profit - shipping_total - ad_spend
+    # Net Profit is based on Net Revenue (actual money received: gross - refunds
+    # - tax - fees), NOT on revenue, so tax and transaction fees are reflected.
+    # Gross Profit stays revenue-based on purpose.
+    net_profit = net_revenue - cogs - shipping_total - ad_spend
 
     {
       sessions: sessions,
@@ -94,7 +97,7 @@ class DashboardMetricsService
       gross_profit: gross_profit,
       gross_margin_pct: revenue > 0 ? (gross_profit / revenue * 100).round(2) : nil,
       net_profit: net_profit,
-      net_margin_pct: revenue > 0 ? (net_profit / revenue * 100).round(2) : nil,
+      net_margin_pct: net_revenue > 0 ? (net_profit / net_revenue * 100).round(2) : nil,
       cogs_coverage_pct: coverage,
       shipping_cost: shipping_total,
       shipping_coverage_pct: shipping_breakdown[:coverage],
