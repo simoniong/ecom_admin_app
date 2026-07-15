@@ -28,6 +28,7 @@ en:
     tickets: "Tickets"
     orders: "Orders"
     shipments: "Shipments"
+    parcels: "Shipping Variance"
     ad_accounts: "Ad Accounts"
     ad_campaigns: "Ad Campaigns"
     company: "Company"
@@ -435,6 +436,9 @@ en:
       no_rows: "The file has no importable data rows. %{errors}"
       cost_missing: "One of the rows has no billed amount and could not be imported. Please check the file and try again."
       value_out_of_range: "One of the rows has a value that is too large to import. Please check the file and try again."
+      derived_operation_fee_notice:
+        one: "A ¥%{fee}/parcel handling fee was added automatically for %{count} parcel — this bill has no 操作费 column."
+        other: "A ¥%{fee}/parcel handling fee was added automatically for %{count} parcels — this bill has no 操作费 column."
   products:
     title: "Products"
     no_store: "Connect a Shopify store first"

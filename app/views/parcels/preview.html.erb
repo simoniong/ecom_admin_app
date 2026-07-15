@@ -24,6 +24,16 @@
              <span class="text-xs text-gray-500">@ <%= @store.cost_fx_rate %></span></dd></div>
     </dl>
 
+    <% if @summary[:derived_operation_fee_count].to_i.positive? %>
+      <div class="rounded-md bg-blue-50 border border-blue-200 p-3">
+        <p class="text-sm font-medium text-blue-800">
+          <%= t("parcels.import.derived_operation_fee_notice",
+                count: @summary[:derived_operation_fee_count],
+                fee: number_with_precision(ParcelBillParser::DEFAULT_OPERATION_FEE_CNY, precision: 2)) %>
+        </p>
+      </div>
+    <% end %>
+
     <% if @errors.any? %>
       <div class="rounded-md bg-red-50 border border-red-200 p-3">
         <p class="text-sm font-medium text-red-800"><%= t("parcels.import.row_errors", count: @errors.size) %></p>

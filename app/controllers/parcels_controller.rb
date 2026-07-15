@@ -281,7 +281,11 @@ class ParcelsController < AdminController
       # parcel's converted cost to 2dp, then sum — not Σcny ÷ fx. Across
       # hundreds of rows those two arithmetic orders drift apart, and this
       # total is the number the user approves before any money is written.
-      total_converted: final_rows.sum { |r| ParcelUpserter.convert(r[:cost_cny], store.cost_fx_rate) }
+      total_converted: final_rows.sum { |r| ParcelUpserter.convert(r[:cost_cny], store.cost_fx_rate) },
+      # Set only when ParcelBillParser had to derive cost_cny itself (the bill
+      # had no 加单总运费（RMB) column) — the user is approving money on this
+      # screen, and this component of it did not come from the bill.
+      derived_operation_fee_count: final_rows.count { |r| r[:derived_operation_fee] }
     }
   end
 end

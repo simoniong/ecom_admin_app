@@ -32,6 +32,7 @@
     company: "公司"
     settings: "设置"
     shipments: "物流"
+    parcels: "运费差异"
     sign_out: "登出"
     profile: "个人资料"
     shipping_reminders: "物流提醒"
@@ -435,6 +436,7 @@
       no_rows: "文件中没有可导入的数据行。%{errors}"
       cost_missing: "有一行没有账单金额，无法导入。请检查文件后重试。"
       value_out_of_range: "有一行的金额过大，无法导入。请检查文件后重试。"
+      derived_operation_fee_notice: "已自动为 %{count} 个包裹加入 ¥%{fee}/票的操作费——该账单没有操作费栏位。"
   products:
     title: "产品"
     no_store: "请先连接一个 Shopify Store"

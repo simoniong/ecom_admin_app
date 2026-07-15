@@ -149,4 +149,122 @@ RSpec.describe ParcelBillParser do
     expect(result[:rows]).to eq([])
     expect(result[:errors].first).to include("無法讀取檔案")
   end
+
+  describe "deriving cost_cny when 加单总运费（RMB) is absent (the July bill shape)" do
+    # Mutation-test (b): if the derivation branch were removed entirely, this
+    # July-shaped row (no 加单总运费（RMB) column at all) would have a blank
+    # cost_cny, fail validation, and land in result[:errors] instead of
+    # result[:rows] — the assertions below would fail.
+    it "derives cost_cny as 总运费（RMB) + the default handling fee and flags the row as derived" do
+      path = XlsxBuilder.build_july(rows: [
+        XlsxBuilder.july_row(seq: 1, identifier: "JUL0001", order_name: "PKS#4001", subtotal: 122.732)
+      ])
+
+      result = described_class.new(path).call
+
+      expect(result[:errors]).to be_empty
+      row = result[:rows].first
+      # 122.732 rounds to 122.73 before the fee is added, then +2.
+      expect(row[:cost_cny]).to eq(BigDecimal("124.73"))
+      expect(row[:operation_fee_cny]).to eq(ParcelBillParser::DEFAULT_OPERATION_FEE_CNY)
+      expect(row[:derived_operation_fee]).to be(true)
+    end
+
+    # Mutation-test (c): the expected total is hardcoded to ¥2/parcel, not
+    # computed from the constant — if DEFAULT_OPERATION_FEE_CNY were changed
+    # to 0, the parser would sum to 160.51 instead of 166.51 and this fails.
+    it "sums several derived rows to exactly Σsubtotal + (count × ¥2)" do
+      rows = [
+        XlsxBuilder.july_row(seq: 1, identifier: "JUL0001", order_name: "PKS#4001", subtotal: 100),
+        XlsxBuilder.july_row(seq: 2, identifier: "JUL0002", order_name: "PKS#4001", subtotal: 50.50),
+        XlsxBuilder.july_row(seq: 3, identifier: "JUL0003", order_name: "PKS#4001", subtotal: 10.01)
+      ]
+      path = XlsxBuilder.build_july(rows: rows)
+
+      result = described_class.new(path).call
+
+      expect(result[:errors]).to be_empty
+      expect(result[:rows].sum { |r| r[:cost_cny] }).to eq(BigDecimal("166.51"))
+      expect(result[:rows].size).to eq(3)
+    end
+
+    # Accepts the bare "总运费" spelling too (not just "总运费（RMB)"), since both
+    # have been seen in the wild — built directly (not via .build_july, which
+    # always uses the RMB-suffixed spelling) to isolate this header variant.
+    it "also accepts the bare 总运费 header spelling when 加单总运费（RMB) and 总运费（RMB) are both absent" do
+      headers = XlsxBuilder::JULY_HEADERS.map { |h| h == "总运费（RMB)" ? "总运费" : h }
+      row = XlsxBuilder.july_row(seq: 1, identifier: "JUL0001", order_name: "PKS#4001", subtotal: 40)
+                       .transform_keys { |k| k == "总运费（RMB)" ? "总运费" : k }
+      path = XlsxBuilder.build_with_headers(headers, rows: [ row ], totals: [], sheet_name: "7月")
+
+      result = described_class.new(path).call
+
+      expect(result[:errors]).to be_empty
+      expect(result[:rows].first[:cost_cny]).to eq(BigDecimal("42.00"))
+      expect(result[:rows].first[:derived_operation_fee]).to be(true)
+    end
+
+    # Mutation-test (a): if the "use 加单总运费（RMB) as-is, don't derive"
+    # branch were removed (i.e. derivation always ran), this June-shaped row
+    # would recompute cost_cny from 总运费 + 操作费 (237.732 + 2 = 239.73)
+    # instead of reading the deliberately different billed grand total (300),
+    # silently overwriting a correctly billed figure.
+    it "reads 加单总运费（RMB) as-is and does not derive, even when 总运费/操作费 are also present and disagree with it" do
+      path = build_file(rows: [
+        XlsxBuilder.row(seq: 1, identifier: "XMBDE9000001", order_name: "PKS#3037",
+                        cost: 300, "总运费" => 237.732, "操作费" => 2)
+      ])
+
+      result = described_class.new(path).call
+
+      expect(result[:errors]).to be_empty
+      row = result[:rows].first
+      expect(row[:cost_cny]).to eq(BigDecimal("300.00"))
+      expect(row[:derived_operation_fee]).to be_nil
+    end
+
+    it "reports a missing required header when neither 加单总运费（RMB) nor any 总运费 subtotal column is present" do
+      headers = XlsxBuilder::JULY_HEADERS - [ "总运费（RMB)" ]
+      row = XlsxBuilder.july_row(seq: 1, identifier: "JUL0001", order_name: "PKS#4001").except("总运费（RMB)")
+      path = XlsxBuilder.build_with_headers(headers, rows: [ row ], totals: [], sheet_name: "7月")
+
+      result = described_class.new(path).call
+
+      expect(result[:rows]).to be_empty
+      expect(result[:errors].first).to include("加单总运费（RMB)")
+    end
+  end
+
+  describe "the MAX_CONSECUTIVE_BLANK_ROWS breaker" do
+    # A bill with a genuine gap (e.g. day-batched sections separated by blank
+    # rows) rather than the footer-residue shape: real data sits on both sides
+    # of a blank run longer than MAX_CONSECUTIVE_BLANK_ROWS. Parsing must stop
+    # at the breaker (dropping the rows after the gap is the whole point of
+    # the guard — see the class comment), but that truncation must never be
+    # silent: money-bearing rows disappearing from an import with a clean
+    # rows=N errors=0 result is exactly the failure mode being guarded
+    # against. If the error-append were removed, `errors` would stay empty
+    # here and this spec would fail.
+    it "stops parsing and reports a non-empty, named error when a blank run exceeds the limit" do
+      rows_before = [
+        XlsxBuilder.row(seq: 1, identifier: "BEFORE0001", order_name: "PKS#3037")
+      ]
+      rows_after = [
+        XlsxBuilder.row(seq: 2, identifier: "AFTER0001", order_name: "PKS#3037")
+      ]
+      path = XlsxBuilder.build_with_gap(
+        rows_before: rows_before,
+        blank_count: ParcelBillParser::MAX_CONSECUTIVE_BLANK_ROWS + 5,
+        rows_after: rows_after
+      )
+
+      result = described_class.new(path).call
+
+      expect(result[:rows].map { |r| r[:identifier] }).to contain_exactly("BEFORE0001")
+      expect(result[:rows].map { |r| r[:identifier] }).not_to include("AFTER0001")
+
+      expect(result[:errors]).not_to be_empty
+      expect(result[:errors].join).to include("連續 #{ParcelBillParser::MAX_CONSECUTIVE_BLANK_ROWS} 列空白")
+    end
+  end
 end
