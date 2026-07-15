@@ -40,6 +40,14 @@ class CompaniesController < AdminController
     end
   end
 
+  def regenerate_agent_api_key
+    return redirect_to(edit_company_path, alert: t("companies.no_permission")) unless current_membership&.owner?
+
+    current_company.regenerate_agent_api_key!
+    flash[:reveal_agent_api_key] = true
+    redirect_to edit_company_path, notice: t("companies.agent_api_key.regenerated")
+  end
+
   private
 
   def require_owner!

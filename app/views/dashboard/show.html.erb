@@ -88,6 +88,9 @@
       </div>
     </section>
 
+    <%# ===== Shipping ===== %>
+    <%= render "dashboard/shipping_section", metrics: @metrics %>
+
     <%# ===== Advertising ===== %>
     <section class="mb-8">
       <%= render "dashboard/section_header", title: t("dashboard.section_advertising") %>
@@ -127,6 +130,13 @@
           title: t("dashboard.section_profit"),
           hint: t("dashboard.section_profit_hint") %>
       <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <%= render "dashboard/metric_card",
+            title: t("dashboard.product_cost"),
+            value: number_to_currency(@metrics[:current][:cogs]),
+            previous: @metrics[:previous][:cogs],
+            current_raw: @metrics[:current][:cogs],
+            invert_color: true %>
+
         <%= render "dashboard/metric_card",
             title: t("dashboard.gross_profit"),
             value: number_to_currency(@metrics[:current][:gross_profit]),

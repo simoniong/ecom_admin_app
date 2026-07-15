@@ -1,0 +1,24 @@
+<tr id="<%= dom_id(parcel) %>">
+  <td class="py-1 text-gray-900"><%= parcel.identifier %></td>
+  <td class="py-1 text-gray-500"><%= parcel.service_channel %></td>
+  <td class="py-1 text-right text-gray-500"><%= parcel.billed_weight_g %>g</td>
+  <td class="py-1 text-right text-gray-500">¥<%= parcel.freight_cny %></td>
+  <td class="py-1 text-right text-gray-500">¥<%= parcel.registration_fee_cny %></td>
+  <td class="py-1 text-right text-gray-500">¥<%= parcel.operation_fee_cny %></td>
+  <td class="py-1 text-right text-gray-900">¥<%= parcel.cost_cny %></td>
+  <td class="py-1 text-right font-medium text-gray-900"><%= number_to_currency(parcel.cost_amount) %></td>
+  <td class="py-1 text-right">
+    <% if current_membership&.owner? %>
+      <%= form_with url: parcel_path(parcel), method: :patch, class: "inline-flex gap-1 items-center" do %>
+        <%= number_field_tag "parcel[cost_cny]", parcel.cost_cny, step: "0.01",
+              max: "99999999.99",
+              class: "w-20 rounded border-gray-300 text-xs py-0.5",
+              "aria-label": t("parcels.columns.cost_cny") %>
+        <%= submit_tag t("parcels.save"), class: "px-2 py-0.5 text-xs border border-gray-300 rounded hover:bg-gray-100 cursor-pointer" %>
+      <% end %>
+      <%= button_to t("parcels.delete"), parcel_path(parcel), method: :delete,
+            form: { data: { turbo_confirm: t("parcels.delete_confirm") } },
+            class: "px-2 py-0.5 text-xs text-red-600 hover:underline" %>
+    <% end %>
+  </td>
+</tr>

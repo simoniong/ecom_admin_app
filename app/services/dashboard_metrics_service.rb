@@ -71,8 +71,11 @@ class DashboardMetricsService
 
     cogs, coverage = aggregate_cogs(store_scope, range)
     shipping_total, shipping_breakdown = aggregate_shipping(store_scope, range)
-    gross_profit = revenue - cogs
-    net_profit = gross_profit - shipping_total - ad_spend
+    # Both Gross and Net Profit are based on Net Revenue (actual money received:
+    # gross - refunds - tax - fees), so tax and transaction fees are reflected in
+    # both. Sales metrics (avg_order_value, roas) stay revenue-based on purpose.
+    gross_profit = net_revenue - cogs
+    net_profit = net_revenue - cogs - shipping_total - ad_spend
 
     {
       sessions: sessions,
@@ -92,14 +95,20 @@ class DashboardMetricsService
       new_customer_cpa: (new_customer_orders > 0 && ad_spend > 0) ? (ad_spend / new_customer_orders).round(2) : nil,
       cogs: cogs,
       gross_profit: gross_profit,
-      gross_margin_pct: revenue > 0 ? (gross_profit / revenue * 100).round(2) : nil,
+      gross_margin_pct: net_revenue > 0 ? (gross_profit / net_revenue * 100).round(2) : nil,
       net_profit: net_profit,
-      net_margin_pct: revenue > 0 ? (net_profit / revenue * 100).round(2) : nil,
+      net_margin_pct: net_revenue > 0 ? (net_profit / net_revenue * 100).round(2) : nil,
       cogs_coverage_pct: coverage,
       shipping_cost: shipping_total,
       shipping_coverage_pct: shipping_breakdown[:coverage],
       shipping_coverage_actual_pct: shipping_breakdown[:actual],
-      shipping_coverage_estimated_pct: shipping_breakdown[:estimated_only]
+      shipping_coverage_estimated_pct: shipping_breakdown[:estimated_only],
+      shipping_estimated_total: shipping_breakdown[:estimated_total],
+      shipping_actual_total: shipping_breakdown[:actual_total],
+      shipping_variance: shipping_breakdown[:variance],
+      shipping_variance_pct: shipping_breakdown[:variance_pct],
+      shipping_comparable_pct: shipping_breakdown[:comparable],
+      multi_parcel_orders_count: shipping_breakdown[:multi_parcel_orders]
     }
   end
 
@@ -132,6 +141,20 @@ class DashboardMetricsService
     count_actual = 0
     count_estimated_only = 0
 
+    # Variance is only meaningful on orders that have BOTH figures. Summing all
+    # estimates against all actuals would compare two different order sets and
+    # produce a number that means nothing.
+    comparable_estimated = BigDecimal("0")
+    comparable_actual    = BigDecimal("0")
+    count_comparable      = 0
+
+    # Display totals over ALL orders (not just the comparable set), so the
+    # "Estimated shipping" / "Actual shipping" cards show real exposure even at
+    # 0% coverage. The variance below still uses the comparable set only.
+    estimated_all = BigDecimal("0")
+    actual_all    = BigDecimal("0")
+    multi_parcel_orders  = 0
+
     store_scope.find_each do |store|
       tz = store.active_timezone
       start_utc = tz.local(range.first.year, range.first.month, range.first.day).utc
@@ -143,7 +166,24 @@ class DashboardMetricsService
       count_total          += orders.count
       count_actual         += orders.where.not(actual_shipping_cost: nil).count
       count_estimated_only += orders.where(actual_shipping_cost: nil).where.not(estimated_shipping_cost: nil).count
+
+      comparable = orders.where.not(actual_shipping_cost: nil).where.not(estimated_shipping_cost: nil)
+      comparable_estimated += comparable.sum(:estimated_shipping_cost)
+      comparable_actual    += comparable.sum(:actual_shipping_cost)
+      count_comparable     += comparable.count
+
+      estimated_all += orders.where.not(estimated_shipping_cost: nil).sum(:estimated_shipping_cost)
+      actual_all    += orders.where.not(actual_shipping_cost: nil).sum(:actual_shipping_cost)
+
+      multi_parcel_orders += Parcel.where(order_id: orders.select(:id))
+                                   .group(:order_id)
+                                   .having("COUNT(*) > 1")
+                                   .count
+                                   .size
     end
+
+    variance = comparable_actual - comparable_estimated
+    variance_pct = comparable_estimated.positive? ? (variance / comparable_estimated * 100).round(2) : nil
 
     pct = ->(n) { count_total > 0 ? (n.to_f / count_total * 100).round(1) : nil }
     [
@@ -151,7 +191,13 @@ class DashboardMetricsService
       {
         coverage:       pct.call(count_actual + count_estimated_only),
         actual:         pct.call(count_actual),
-        estimated_only: pct.call(count_estimated_only)
+        estimated_only: pct.call(count_estimated_only),
+        comparable:     pct.call(count_comparable),
+        estimated_total: estimated_all,
+        actual_total:    actual_all,
+        variance:        variance,
+        variance_pct:    variance_pct,
+        multi_parcel_orders: multi_parcel_orders
       }
     ]
   end

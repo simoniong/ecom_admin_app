@@ -1,0 +1,29 @@
+<div class="max-w-2xl mx-auto py-8">
+  <h1 class="text-2xl font-semibold text-gray-900 mb-6"><%= t("parcels.import.title") %></h1>
+
+  <%= form_with url: preview_parcels_path, method: :post, multipart: true,
+                class: "bg-white rounded-lg border border-gray-200 p-6 space-y-6" do |f| %>
+    <div>
+      <label for="shopify_store_id" class="block text-sm font-medium text-gray-700 mb-1">
+        <%= t("parcels.import.store") %>
+      </label>
+      <%= select_tag :shopify_store_id,
+            options_from_collection_for_select(@stores, :id, :name),
+            class: "w-full rounded-md border-gray-300 text-sm",
+            id: "shopify_store_id" %>
+      <p class="mt-1 text-xs text-gray-500"><%= t("parcels.import.store_hint") %></p>
+    </div>
+
+    <div>
+      <label for="file" class="block text-sm font-medium text-gray-700 mb-1">
+        <%= t("parcels.import.file") %>
+      </label>
+      <%= file_field_tag :file, accept: ".xlsx", id: "file",
+            class: "w-full text-sm text-gray-700" %>
+      <p class="mt-1 text-xs text-gray-500"><%= t("parcels.import.file_hint") %></p>
+    </div>
+
+    <%= f.submit t("parcels.import.parse"),
+          class: "px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800 cursor-pointer" %>
+  <% end %>
+</div>

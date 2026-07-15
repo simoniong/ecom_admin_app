@@ -32,6 +32,8 @@ Rails.application.routes.draw do
         post :draft_reply, on: :member
         patch :draft_reply, on: :member
       end
+      resources :parcels, only: [ :index, :show, :create, :update ], param: :identifier
+      get "orders/:name/shipping", to: "orders#shipping", constraints: { name: /[^\/]+/ }
     end
   end
 
@@ -42,6 +44,7 @@ Rails.application.routes.draw do
 
     resource :profile, only: [ :edit, :update ]
     resource :company, only: [ :new, :create, :edit, :update ]
+    post "company/agent_api_key", to: "companies#regenerate_agent_api_key", as: :regenerate_company_agent_api_key
     patch "company/tracking", to: "companies#update_tracking", as: :tracking_company
     patch "switch_company/:id", to: "company_sessions#update", as: :switch_company
     resources :invitations, only: [ :index, :create, :destroy ]
@@ -60,6 +63,18 @@ Rails.application.routes.draw do
         resources :email_workflow_steps, only: [ :create, :update, :destroy ] do
           post :move, on: :member
         end
+      end
+    end
+    resources :parcels, only: [ :index, :update, :destroy ] do
+      collection do
+        get  :import
+        # Post/Redirect/Get: POST parses + stages the batch, then redirects to
+        # the GET, which renders it. Turbo Drive rejects a non-GET form response
+        # that isn't a redirect or a turbo_stream, so a plain render here would
+        # break the upload flow in every real browser.
+        post :preview
+        get  "preview/:batch_id", action: :show_preview, as: :show_preview
+        post :confirm_import
       end
     end
     resources :products, only: [ :index ]

@@ -58,14 +58,79 @@
       <% end %>
     <% end %>
 
-    <% if current_membership&.has_permission?("shipments") && current_company.tracking_enabled? %>
-      <%= link_to shipments_path, data: { action: "click->sidebar#close" },
-          class: "flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md #{current_page?(shipments_path) ? 'bg-gray-100 text-gray-900' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'}" do %>
-        <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 18.75a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 0 1-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 0 0-3.213-9.193 2.056 2.056 0 0 0-1.58-.86H14.25M16.5 18.75h-2.25m0-11.177v-.958c0-.568-.422-1.048-.987-1.106a48.554 48.554 0 0 0-10.026 0 1.106 1.106 0 0 0-.987 1.106v7.635m12-6.677v6.677m0 4.5v-4.5m0 0h-12" />
-        </svg>
-        <%= t("nav.shipments") %>
-      <% end %>
+    <%# Shipping group — visible if the user can see at least one child %>
+    <% has_shipping_items = (current_membership&.has_permission?("shipments") && current_company.tracking_enabled?) ||
+         current_membership&.has_permission?("parcels") ||
+         current_membership&.has_permission?("shopify_stores") ||
+         (current_membership&.has_permission?("shipping_reminder_rules") && current_company.tracking_enabled?) %>
+    <% if has_shipping_items %>
+      <% shipping_active = %w[shipments parcels shipping_rate_card_versions shipping_zone_postal_rules shipping_reminder_rules].include?(controller_name) %>
+      <div data-controller="nav-group" data-nav-group-open-value="<%= shipping_active %>">
+        <button type="button" data-action="click->nav-group#toggle"
+                aria-expanded="<%= shipping_active %>" aria-controls="shipping-menu"
+                class="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md <%= shipping_active ? 'text-gray-900' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900' %>">
+          <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 18.75a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 0 1-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 0 0-3.213-9.193 2.056 2.056 0 0 0-1.58-.86H14.25M16.5 18.75h-2.25m0-11.177v-.958c0-.568-.422-1.048-.987-1.106a48.554 48.554 0 0 0-10.026 0 1.106 1.106 0 0 0-.987 1.106v7.635m12-6.677v6.677m0 4.5v-4.5m0 0h-12" />
+          </svg>
+          <%= t("nav.shipping") %>
+          <svg data-nav-group-target="arrow" class="w-4 h-4 ml-auto transition-transform duration-200 <%= shipping_active ? 'rotate-90' : '' %>" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+          </svg>
+        </button>
+
+        <div id="shipping-menu" data-nav-group-target="menu" class="ml-4 mt-1 space-y-1 <%= shipping_active ? '' : 'hidden' %>">
+          <% if current_membership&.has_permission?("shipments") && current_company.tracking_enabled? %>
+            <%= link_to shipments_path, data: { action: "click->sidebar#close" },
+                class: "flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md #{current_page?(shipments_path) ? 'bg-gray-100 text-gray-900' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'}" do %>
+              <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 18.75a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 0 1-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 0 0-3.213-9.193 2.056 2.056 0 0 0-1.58-.86H14.25M16.5 18.75h-2.25m0-11.177v-.958c0-.568-.422-1.048-.987-1.106a48.554 48.554 0 0 0-10.026 0 1.106 1.106 0 0 0-.987 1.106v7.635m12-6.677v6.677m0 4.5v-4.5m0 0h-12" />
+              </svg>
+              <%= t("nav.tracking") %>
+            <% end %>
+          <% end %>
+
+          <% if current_membership&.has_permission?("parcels") %>
+            <%= link_to parcels_path, data: { action: "click->sidebar#close" },
+                class: "flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md #{current_page?(parcels_path) ? 'bg-gray-100 text-gray-900' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'}" do %>
+              <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m-3-2.818.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182.553-.44 1.278-.659 2.003-.659.725 0 1.45.22 2.003.659l.797.643" />
+              </svg>
+              <%= t("nav.parcels") %>
+            <% end %>
+          <% end %>
+
+          <% if current_membership&.has_permission?("shopify_stores") %>
+            <%= link_to shipping_rate_card_versions_path, data: { action: "click->sidebar#close" },
+                class: "flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md #{current_page?(shipping_rate_card_versions_path) ? 'bg-gray-100 text-gray-900' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'}" do %>
+              <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 9.75h16.5m-16.5 0v7.5a2.25 2.25 0 0 0 2.25 2.25h12a2.25 2.25 0 0 0 2.25-2.25v-7.5m-16.5 0L5.25 5.25A2.25 2.25 0 0 1 7.5 3.75h9a2.25 2.25 0 0 1 2.25 1.5l1.5 4.5" />
+              </svg>
+              <%= t("nav.shipping_rate_cards") %>
+            <% end %>
+          <% end %>
+
+          <% if current_membership&.has_permission?("shopify_stores") %>
+            <%= link_to shipping_zone_postal_rules_path, data: { action: "click->sidebar#close" },
+                class: "flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md #{current_page?(shipping_zone_postal_rules_path) ? 'bg-gray-100 text-gray-900' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'}" do %>
+              <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" />
+              </svg>
+              <%= t("nav.shipping_zone_postal_rules") %>
+            <% end %>
+          <% end %>
+
+          <% if current_membership&.has_permission?("shipping_reminder_rules") && current_company.tracking_enabled? %>
+            <%= link_to shipping_reminder_rules_path, data: { action: "click->sidebar#close" },
+                class: "flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md #{controller_name == 'shipping_reminder_rules' ? 'bg-gray-100 text-gray-900' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'}" do %>
+              <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" />
+              </svg>
+              <%= t("nav.shipping_reminders") %>
+            <% end %>
+          <% end %>
+        </div>
+      </div>
     <% end %>
 
     <% if current_membership&.has_permission?("tickets") %>
@@ -96,7 +161,7 @@
          current_membership&.has_permission?("email_accounts") ||
          (current_membership&.has_permission?("shipping_reminder_rules") && current_company.tracking_enabled?) %>
     <% if has_settings_items %>
-      <% settings_active = %w[shopify_stores ad_accounts email_accounts companies invitations groups shipping_reminder_rules email_workflows email_workflow_steps].include?(controller_name) %>
+      <% settings_active = %w[shopify_stores ad_accounts email_accounts companies invitations groups email_workflows email_workflow_steps].include?(controller_name) %>
       <div data-controller="nav-group" data-nav-group-open-value="<%= settings_active %>">
         <button type="button" data-action="click->nav-group#toggle"
                 aria-expanded="<%= settings_active %>" aria-controls="settings-menu"
@@ -140,27 +205,6 @@
             <% end %>
           <% end %>
 
-          <% if current_membership&.has_permission?("shopify_stores") %>
-            <%= link_to shipping_rate_card_versions_path, data: { action: "click->sidebar#close" },
-                class: "flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md #{current_page?(shipping_rate_card_versions_path) ? 'bg-gray-100 text-gray-900' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'}" do %>
-              <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 9.75h16.5m-16.5 0v7.5a2.25 2.25 0 0 0 2.25 2.25h12a2.25 2.25 0 0 0 2.25-2.25v-7.5m-16.5 0L5.25 5.25A2.25 2.25 0 0 1 7.5 3.75h9a2.25 2.25 0 0 1 2.25 1.5l1.5 4.5" />
-              </svg>
-              <%= t("nav.shipping_rate_cards") %>
-            <% end %>
-          <% end %>
-
-          <% if current_membership&.has_permission?("shopify_stores") %>
-            <%= link_to shipping_zone_postal_rules_path, data: { action: "click->sidebar#close" },
-                class: "flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md #{current_page?(shipping_zone_postal_rules_path) ? 'bg-gray-100 text-gray-900' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'}" do %>
-              <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
-                <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" />
-              </svg>
-              <%= t("nav.shipping_zone_postal_rules") %>
-            <% end %>
-          <% end %>
-
           <% if current_membership&.has_permission?("ad_accounts") %>
             <%= link_to ad_accounts_path, data: { action: "click->sidebar#close" },
                 class: "flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md #{current_page?(ad_accounts_path) ? 'bg-gray-100 text-gray-900' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'}" do %>
@@ -178,16 +222,6 @@
                 <path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75" />
               </svg>
               <%= t("nav.email_accounts") %>
-            <% end %>
-          <% end %>
-
-          <% if current_membership&.has_permission?("shipping_reminder_rules") && current_company.tracking_enabled? %>
-            <%= link_to shipping_reminder_rules_path, data: { action: "click->sidebar#close" },
-                class: "flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md #{controller_name == 'shipping_reminder_rules' ? 'bg-gray-100 text-gray-900' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'}" do %>
-              <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" />
-              </svg>
-              <%= t("nav.shipping_reminders") %>
             <% end %>
           <% end %>
 

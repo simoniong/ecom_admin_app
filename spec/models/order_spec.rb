@@ -201,4 +201,34 @@ RSpec.describe Order, type: :model do
       expect(build(:order, estimated_shipping_cost: nil, actual_shipping_cost: nil)).not_to be_shipping_complete
     end
   end
+
+  describe "shipping variance" do
+    let(:user)  { create(:user) }
+    let(:store) { create(:shopify_store, user: user, company: user.companies.first) }
+    let(:customer) { create(:customer, shopify_store: store) }
+
+    it "returns actual minus estimated" do
+      order = create(:order, customer: customer, shopify_store: store, estimated_shipping_cost: 10)
+      create(:parcel, shopify_store: store, order: order, cost_amount: 15.5)
+
+      expect(order.reload.shipping_variance).to eq(5.5)
+      expect(order.shipping_variance_pct).to eq(55.0)
+      expect(order.parcel_count).to eq(1)
+    end
+
+    it "is nil when either side is missing" do
+      order = create(:order, customer: customer, shopify_store: store, estimated_shipping_cost: nil)
+      create(:parcel, shopify_store: store, order: order, cost_amount: 15.5)
+
+      expect(order.reload.shipping_variance).to be_nil
+      expect(order.shipping_variance_pct).to be_nil
+    end
+
+    it "returns nil variance_pct when estimated is zero" do
+      order = create(:order, customer: customer, shopify_store: store, estimated_shipping_cost: 0)
+      create(:parcel, shopify_store: store, order: order, cost_amount: 15.5)
+
+      expect(order.reload.shipping_variance_pct).to be_nil
+    end
+  end
 end
