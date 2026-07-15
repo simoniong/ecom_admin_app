@@ -82,6 +82,7 @@ en:
     roas: "ROAS"
     cpa: "CPA"
     new_customer_cpa: "New Customer CPA"
+    product_cost: "Product Cost"
     gross_profit: "Gross Profit"
     gross_margin: "Gross Margin"
     net_profit: "Net Profit"

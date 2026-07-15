@@ -275,8 +275,8 @@ RSpec.describe DashboardMetricsService do
       create(:shopify_daily_metric, shopify_store: store, date: Date.current,
                                     gross_revenue: 100, revenue: 100, orders_count: 1)
       result = described_class.new(company, range_key: "today").call
-      expect(result[:current][:gross_profit]).to eq(75)   # revenue 100 - cogs 25
-      expect(result[:current][:net_profit]).to eq(75)     # net_revenue 100 - cogs 25 (no tax/fees/ad)
+      expect(result[:current][:gross_profit]).to eq(75)   # net_revenue 100 - cogs 25
+      expect(result[:current][:net_profit]).to eq(75)     # net_revenue 100 - cogs 25 (no tax/fees/shipping/ad)
     end
 
     it "reports cogs_coverage_pct" do
@@ -309,7 +309,7 @@ RSpec.describe DashboardMetricsService do
       expect(result[:net_revenue]).to eq(800) # 1000 - 100 - 60 - 40
     end
 
-    it "leaves the legacy revenue-derived metrics unchanged" do
+    it "keeps sales metrics revenue-based and profit metrics net_revenue-based" do
       # orders_count comes from the factory default (20); no line items / orders /
       # ad accounts exist, so cogs, shipping, and ad_spend are all 0.
       metric(gross_revenue: 1000, refunds: 100, total_tax: 60, transaction_fees: 40, revenue: 900)
@@ -321,33 +321,34 @@ RSpec.describe DashboardMetricsService do
       expect(result[:net_revenue]).to eq(800)
       expect(result[:net_revenue]).not_to eq(result[:revenue])
 
-      # Every legacy revenue-derived metric must still key off revenue (900),
-      # not net_revenue (800). These values would all differ if net_revenue leaked in.
+      # avg_order_value is a SALES metric — still keyed off revenue (900), not net_revenue.
       expect(result[:avg_order_value]).to eq(45.0)     # 900 / 20 orders (net would give 40.0)
-      expect(result[:gross_profit]).to eq(900)         # revenue - cogs(0), stays revenue-based
-      expect(result[:gross_margin_pct]).to eq(100.0)   # gross_profit / revenue * 100
 
-      # net_profit / net_margin now key off net_revenue (800), not revenue (900).
+      # All PROFIT metrics key off net_revenue (800), not revenue (900). With
+      # cogs/shipping/ad all 0, gross_profit == net_profit == net_revenue.
+      expect(result[:gross_profit]).to eq(800)         # net_revenue 800 - cogs 0 (revenue-based would give 900)
+      expect(result[:gross_margin_pct]).to eq(100.0)   # gross_profit 800 / net_revenue 800
       expect(result[:net_profit]).to eq(800)           # net_revenue 800 - cogs 0 - shipping 0 - ad 0
       expect(result[:net_margin_pct]).to eq(100.0)     # net_profit 800 / net_revenue 800
     end
   end
 
-  describe "net profit basis (option B: net_revenue)" do
+  describe "profit basis (net_revenue for both gross and net)" do
     let(:profit_user) { create(:user) }
     let(:company) { profit_user.companies.first }
     let!(:store) { create(:shopify_store, user: profit_user, company: company, timezone: "UTC") }
     let!(:customer) { create(:customer, shopify_store: store) }
     let!(:order) do
       create(:order, customer: customer, shopify_store: store,
-                     total_price: 1000, ordered_at: Date.current.beginning_of_day)
+                     total_price: 1000, estimated_shipping_cost: 50,
+                     ordered_at: Date.current.beginning_of_day)
     end
 
     before do
       create(:order_line_item, order: order, quantity: 2, unit_cost_snapshot: 100) # cogs 200
     end
 
-    it "bases net_profit on net_revenue, deducting tax and fees" do
+    it "bases both gross and net profit on net_revenue, with net_revenue margins" do
       create(:shopify_daily_metric, shopify_store: store, date: Date.current,
              gross_revenue: 1000, refunds: 0, total_tax: 60, transaction_fees: 40,
              revenue: 1000, orders_count: 1)
@@ -357,15 +358,17 @@ RSpec.describe DashboardMetricsService do
       expect(m[:revenue]).to eq(1000)
       expect(m[:net_revenue]).to eq(900)      # 1000 - 60 - 40
       expect(m[:cogs]).to eq(200)
-      expect(m[:gross_profit]).to eq(800)     # unchanged: revenue 1000 - cogs 200
+      expect(m[:shipping_cost]).to eq(50)     # estimated (no actual imported)
 
-      # Net Profit is net_revenue-based: 900 - 200 - shipping(0) - ad(0) = 700.
-      # Old revenue-based formula would give 800; omitting tax/fees would too.
-      expect(m[:net_profit]).to eq(700)
+      # Gross Profit is net_revenue-based: 900 - 200 = 700 (revenue-based would give 800).
+      expect(m[:gross_profit]).to eq(700)
+      # Gross Margin denominator is net_revenue (900): 700/900 = 77.78% (revenue → 70.0%).
+      expect(m[:gross_margin_pct]).to eq(77.78)
 
-      # Net Margin denominator is net_revenue (900), not revenue (1000):
-      # 700 / 900 = 77.78%. Against revenue it would be 70.0%.
-      expect(m[:net_margin_pct]).to eq(77.78)
+      # Net Profit: 900 - 200 - shipping 50 - ad 0 = 650 (revenue-based would give 750).
+      expect(m[:net_profit]).to eq(650)
+      # Net Margin denominator is net_revenue (900): 650/900 = 72.22% (revenue → 65.0%).
+      expect(m[:net_margin_pct]).to eq(72.22)
     end
 
     it "returns nil net_margin_pct when net_revenue is not positive (negative)" do
@@ -404,9 +407,11 @@ RSpec.describe DashboardMetricsService do
 
       metrics = described_class.new(company, range_key: "past_7_days").call[:current]
 
-      expect(metrics[:shipping_estimated_total]).to eq(30)   # 10 + 20
-      expect(metrics[:shipping_actual_total]).to eq(33)      # 15 + 18
-      expect(metrics[:shipping_variance]).to eq(3)
+      # Display totals cover ALL orders that carry that figure (not just comparable):
+      expect(metrics[:shipping_estimated_total]).to eq(60)   # 10 + 20 + 30 (PKS#1,2,4)
+      expect(metrics[:shipping_actual_total]).to eq(132)     # 15 + 18 + 99 (PKS#1,2,3)
+      # Variance stays comparable-only (orders with BOTH figures): PKS#1,2.
+      expect(metrics[:shipping_variance]).to eq(3)           # (15+18) - (10+20)
       expect(metrics[:shipping_variance_pct]).to eq(10.0)
     end
 
@@ -477,8 +482,8 @@ RSpec.describe DashboardMetricsService do
       # If the accumulators were `=` instead of `+=`, whichever store is processed
       # last would clobber the other's contribution. Neither store's numbers alone
       # (10/12/1 or 20/18/1) match the true sum below, so this fails under that bug.
-      expect(metrics[:shipping_estimated_total]).to eq(30)   # 10 + 20
-      expect(metrics[:shipping_actual_total]).to eq(30)      # 12 + 18
+      expect(metrics[:shipping_estimated_total]).to eq(55)   # 10 + 20 + 25 (all estimated, both stores)
+      expect(metrics[:shipping_actual_total]).to eq(30)      # 12 + 18 (all actual; B2 has none)
       expect(metrics[:multi_parcel_orders_count]).to eq(2)   # 1 + 1
 
       # 3 orders total (2 comparable + 1 estimate-only). shipping_comparable_pct

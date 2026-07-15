@@ -82,6 +82,7 @@
     roas: "ROAS"
     cpa: "獲客成本"
     new_customer_cpa: "新客獲客成本"
+    product_cost: "商品成本"
     gross_profit: "毛利"
     gross_margin: "毛利率"
     net_profit: "淨利"
