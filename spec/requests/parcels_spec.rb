@@ -117,6 +117,20 @@ RSpec.describe "Parcels", type: :request do
         expect(response.body).not_to include("PKS#USCTRY")
       end
 
+      it "treats a whitespace-only shipping country_code as blank and resolves to billing, matching the row" do
+        # Mirrors Ruby String#present?: "   " is blank, so both the row display
+        # and the filter must fall through to the billing country, not resolve
+        # to a bogus "   " code.
+        ws = create(:order, customer: customer, shopify_store: store, name: "PKS#AUWS",
+                    estimated_shipping_cost: 30, ordered_at: 1.day.ago,
+                    shopify_data: { "shipping_address" => { "country_code" => "   " },
+                                    "billing_address" => { "country_code" => "AU", "zip" => "3000" } })
+        create(:parcel, shopify_store: store, order: ws, identifier: "AUWS1", cost_amount: 40)
+
+        get parcels_path, params: { country: "AU" }
+        expect(response.body).to include("PKS#AUWS")
+      end
+
       it "offers each destination country present in the window as a filter option" do
         get parcels_path
         expect(response.body).to include('value="AU"')

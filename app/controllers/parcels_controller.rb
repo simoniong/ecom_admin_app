@@ -22,14 +22,19 @@ class ParcelsController < AdminController
 
   # An order's DESTINATION country code, resolved from shopify_data exactly the
   # way ParcelsHelper#parcel_order_destination_address (and the service's zone
-  # resolution) does: the shipping address's country_code when it has one, else
-  # the billing address's. Used both to build the country-filter dropdown and
+  # resolution) does: the shipping address's country_code when it is "present"
+  # (Ruby's String#present? — non-blank after stripping whitespace), else the
+  # billing address's. The TRIM/NULLIF mirrors #present? (so a whitespace-only
+  # "   " shipping code falls through to billing just as it does on the row),
+  # and the CASE returns the RAW code of the chosen address so the value equals
+  # what the row displays. Used both to build the country-filter dropdown and
   # to filter by it, so the filter matches the country shown on each order row.
   # It's a frozen constant, never interpolated with user input — the filter
   # value is always passed as a bound parameter.
   DEST_COUNTRY_SQL =
-    "COALESCE(NULLIF(orders.shopify_data #>> '{shipping_address,country_code}', ''), " \
-    "orders.shopify_data #>> '{billing_address,country_code}')"
+    "CASE WHEN NULLIF(TRIM(orders.shopify_data #>> '{shipping_address,country_code}'), '') IS NOT NULL " \
+    "THEN orders.shopify_data #>> '{shipping_address,country_code}' " \
+    "ELSE orders.shopify_data #>> '{billing_address,country_code}' END"
 
   def index
     @tab = params[:tab] == "unmatched" ? "unmatched" : "orders"
