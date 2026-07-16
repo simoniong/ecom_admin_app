@@ -20,6 +20,17 @@ class ParcelsController < AdminController
   PER_PAGE = 25
   MAX_UPLOAD_BYTES = 20.megabytes
 
+  # An order's DESTINATION country code, resolved from shopify_data exactly the
+  # way ParcelsHelper#parcel_order_destination_address (and the service's zone
+  # resolution) does: the shipping address's country_code when it has one, else
+  # the billing address's. Used both to build the country-filter dropdown and
+  # to filter by it, so the filter matches the country shown on each order row.
+  # It's a frozen constant, never interpolated with user input — the filter
+  # value is always passed as a bound parameter.
+  DEST_COUNTRY_SQL =
+    "COALESCE(NULLIF(orders.shopify_data #>> '{shipping_address,country_code}', ''), " \
+    "orders.shopify_data #>> '{billing_address,country_code}')"
+
   def index
     @tab = params[:tab] == "unmatched" ? "unmatched" : "orders"
     @page = [ params[:page].to_i, 1 ].max
@@ -40,6 +51,21 @@ class ParcelsController < AdminController
     # what they typed (and can correct it) rather than having it silently
     # vanish when it fails to parse.
     @min_over_pct = params[:min_over_pct]
+    @country = params[:country].presence
+
+    # Destination countries present in the current store + date window, for the
+    # filter dropdown. Built from the date-scoped set only (not the other
+    # filters) so the option list stays stable as the operator narrows by
+    # country/overrun — picking a country must never make the other options
+    # vanish. DISTINCT on the same resolved-country expression the filter uses.
+    store_ids = visible_shopify_stores.pluck(:id)
+    @countries = Order.where(shopify_store_id: store_ids)
+                      .where.not(actual_shipping_cost: nil)
+                      .ordered_between(@from_time, @to_time)
+                      .distinct
+                      .pluck(Arel.sql(DEST_COUNTRY_SQL))
+                      .compact_blank
+                      .sort
 
     @orders = paginate(filtered_orders_base)
       .includes(:parcels, order_line_items: :product_variant)
@@ -346,6 +372,7 @@ class ParcelsController < AdminController
 
     base = base.where(id: Parcel.group(:order_id).having("COUNT(*) > 1").select(:order_id)) if params[:multi_parcel_only].present?
     base = base.where("orders.actual_shipping_cost > orders.estimated_shipping_cost") if params[:over_only].present?
+    base = base.where("#{DEST_COUNTRY_SQL} = ?", params[:country]) if params[:country].present?
 
     if (pct = parse_pct(params[:min_over_pct]))
       # estimated_shipping_cost can be NULL or 0 for orders that never got an

@@ -49,6 +49,18 @@
         <label for="to_date" class="block text-xs font-medium text-gray-500 mb-1"><%= t("parcels.to_date") %></label>
         <%= date_field_tag :to_date, @to_date, class: "rounded-md border-gray-300 text-sm" %>
       </div>
+      <% country_codes = (@countries + [ @country ]).compact_blank.uniq.sort %>
+      <% if country_codes.any? %>
+        <div>
+          <label for="country" class="block text-xs font-medium text-gray-500 mb-1"><%= t("parcels.country_filter") %></label>
+          <%= select_tag :country,
+                options_for_select(
+                  [ [ t("parcels.all_countries"), "" ] ] +
+                    country_codes.map { |c| [ "#{parcel_country_flag(c)} #{parcel_country_name(c)}", c ] },
+                  @country),
+                class: "rounded-md border-gray-300 text-sm" %>
+        </div>
+      <% end %>
       <label class="flex items-center gap-2 text-sm text-gray-700">
         <%= check_box_tag :multi_parcel_only, "1", params[:multi_parcel_only].present?, class: "rounded border-gray-300" %>
         <%= t("parcels.multi_parcel_only") %>

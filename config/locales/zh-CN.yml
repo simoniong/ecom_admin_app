@@ -384,6 +384,8 @@
     multi_parcel_only: "只看多包裹订单"
     over_only: "只看超支"
     min_over_pct: "超支 ≥"
+    country_filter: "国家"
+    all_countries: "全部国家"
     filter: "筛选"
     assign: "指派"
     save: "保存"

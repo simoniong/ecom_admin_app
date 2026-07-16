@@ -384,6 +384,8 @@ en:
     multi_parcel_only: "Multi-parcel orders only"
     over_only: "Overruns only"
     min_over_pct: "Overrun ≥"
+    country_filter: "Country"
+    all_countries: "All countries"
     filter: "Filter"
     assign: "Assign"
     save: "Save"
