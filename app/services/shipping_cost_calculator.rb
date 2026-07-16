@@ -58,8 +58,17 @@ class ShippingCostCalculator
     new(order).call
   end
 
-  def self.basis(order)
-    new(order).basis
+  # `cache` is an optional Hash the CALLER owns and reuses across multiple
+  # orders in the same request (e.g. the /parcels index, which resolves a
+  # Basis for up to 25 orders per page). Left at its default `{}`, a fresh
+  # cache is created per call and behaves exactly as before — every existing
+  # caller that doesn't know about this parameter is unaffected. Memoizes the
+  # two DB round trips that are otherwise repeated once per order despite
+  # frequently sharing the same key: the rate-card-version lookup (keyed on
+  # company/country/service_type/date) and the postal-zone resolution (keyed
+  # on company/country[/postal key]).
+  def self.basis(order, cache: {})
+    new(order, cache: cache).basis
   end
 
   # Cost in CNY for a weight against a set of bands. If the weight exceeds the
@@ -103,9 +112,10 @@ class ShippingCostCalculator
     (weight_kg * band.per_kg_rate_cny) + band.flat_fee_cny
   end
 
-  def initialize(order)
+  def initialize(order, cache: {})
     @order = order
     @store = order.shopify_store
+    @cache = cache
   end
 
   def call
@@ -128,12 +138,7 @@ class ShippingCostCalculator
     weight_kg = total_weight_kg
     return nil unless weight_kg && weight_kg.positive?
 
-    version = ShippingRateCardVersion.lookup(
-      company:      @store.company,
-      country:      country,
-      service_type: @store.default_service_type,
-      on_date:      @order.ordered_at.to_date
-    )
+    version = fetch_version(country, @order.ordered_at.to_date)
     return nil unless version
 
     zone = resolve_zone(country)   # nil = unzoned country, String = matched zone, :unmatched = give up
@@ -150,11 +155,50 @@ class ShippingCostCalculator
 
   private
 
+  # Memoized per (company, country, service_type, date) in @cache — repeated
+  # for every order on the same store/country/date range, which is the common
+  # case on the /parcels report.
+  def fetch_version(country, on_date)
+    key = [ @store.company_id, country, @store.default_service_type, on_date ]
+    cache_slot(:version).fetch(key) do
+      cache_slot(:version)[key] = ShippingRateCardVersion.lookup(
+        company:      @store.company,
+        country:      country,
+        service_type: @store.default_service_type,
+        on_date:      on_date
+      )
+    end
+  end
+
   def resolve_zone(country)
-    return nil unless ShippingZonePostalRule.country_zoned?(company: @store.company, country: country)
+    return nil unless zoned_country?(country)
     key = PostalNormalizer.normalize(country, postal_from_order)
     return :unmatched unless key
-    ShippingZonePostalRule.zone_for(company: @store.company, country: country, key: key) || :unmatched
+    fetch_zone_for(country, key) || :unmatched
+  end
+
+  # Memoized per (company, country) — every order for the same zoned country
+  # asks this identical yes/no question.
+  def zoned_country?(country)
+    key = [ @store.company_id, country ]
+    cache_slot(:zoned).fetch(key) do
+      cache_slot(:zoned)[key] = ShippingZonePostalRule.country_zoned?(company: @store.company, country: country)
+    end
+  end
+
+  # Memoized per (company, country, postal key) — distinct orders frequently
+  # share a postal code (or at least a company/country pair), so this still
+  # collapses a meaningful share of repeat lookups even though the key is
+  # more granular than the version/zoned caches above.
+  def fetch_zone_for(country, key)
+    cache_key = [ @store.company_id, country, key ]
+    cache_slot(:zone_for).fetch(cache_key) do
+      cache_slot(:zone_for)[cache_key] = ShippingZonePostalRule.zone_for(company: @store.company, country: country, key: key)
+    end
+  end
+
+  def cache_slot(name)
+    @cache[name] ||= {}
   end
 
   def postal_from_order
@@ -176,8 +220,15 @@ class ShippingCostCalculator
     data["billing_address"]
   end
 
+  # When the caller has already preloaded order_line_items (and their
+  # product_variant) — e.g. via `.includes(order_line_items: :product_variant)`
+  # on the /parcels index — reuse that loaded association rather than
+  # re-scoping it. Calling `.includes` on an already-loaded CollectionProxy
+  # builds a brand-new AR::Relation and ignores the preload, silently
+  # re-querying per order; checking `loaded?` first avoids that.
   def total_weight_kg
-    items = @order.order_line_items.includes(:product_variant).to_a
+    association = @order.order_line_items
+    items = (association.loaded? ? association : association.includes(:product_variant)).to_a
     return nil if items.empty?
     # If any line lacks a usable (positive) weight, refuse to estimate rather
     # than silently treating it as 0 (which would underestimate the cost).

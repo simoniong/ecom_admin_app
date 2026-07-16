@@ -56,8 +56,24 @@ class ParcelsController < AdminController
     end
 
     @orders = paginate(base)
-      .includes(:parcels)
+      .includes(:parcels, order_line_items: :product_variant)
       .reorder(Arel.sql("#{SORTABLE.fetch(@sort_column)} #{@sort_direction} NULLS LAST"))
+
+    # Per-parcel estimate comparison (basis + zone/variance decomposition) for
+    # every order on the page. `@estimate_cache` is a single Hash shared by
+    # every ParcelEstimateComparator call below — see
+    # ShippingCostCalculator::basis's `cache:` param — so the rate-card-
+    # version lookup and postal-zone resolution each run at most once per
+    # distinct (company, country[, date/postal]) combination for the whole
+    # page, not once per order. Without it this loop turns into O(orders)
+    # rate-card lookups on a page that already renders up to 25 of them.
+    # `.each_with_object` forces `@orders` to load (and cache) its records
+    # once here; the view's later `@orders.each` reuses that same loaded set
+    # rather than re-querying.
+    @estimate_cache = {}
+    @comparisons = @orders.each_with_object({}) do |order, memo|
+      memo[order.id] = ParcelEstimateComparator.new(order, cache: @estimate_cache).call
+    end
   end
 
   def import
@@ -165,6 +181,18 @@ class ParcelsController < AdminController
           # entirely and is removed rather than replaced.
           @from_unmatched = params[:tab] == "unmatched"
           @assignable_orders = assignable_orders if @from_unmatched
+
+          # The orders-tab row now renders per-parcel estimate/variance/zone
+          # figures alongside the raw billed numbers, so a post-edit replace
+          # needs the same ParcelEstimateComparator line the index view uses
+          # — otherwise the row would revert to showing no estimate at all
+          # right after a save. Only one order's worth of work here (never a
+          # loop), so no cache/N+1 concern like the index action has.
+          if !@from_unmatched && @parcel.order
+            comparison = ParcelEstimateComparator.new(@parcel.order).call
+            @estimated_zone = comparison.estimated_zone
+            @line = comparison.parcel_lines.find { |l| l.parcel.id == @parcel.id }
+          end
         end
         format.html { redirect_to parcels_path, notice: t("parcels.updated") }
       end

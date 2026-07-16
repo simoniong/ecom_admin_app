@@ -38,12 +38,17 @@ class ParcelEstimateComparator
     keyword_init: true
   )
 
-  def initialize(order)
+  # `cache` is an optional Hash forwarded to ShippingCostCalculator.basis so
+  # callers pricing many orders in one request (the /parcels index) can share
+  # a single rate-card-version / postal-zone lookup cache across them. Left at
+  # its default `{}`, behavior is unchanged from before this parameter existed.
+  def initialize(order, cache: {})
     @order = order
+    @cache = cache
   end
 
   def call
-    basis = ShippingCostCalculator.basis(@order)
+    basis = ShippingCostCalculator.basis(@order, cache: @cache)
     parcels = @order.parcels.to_a
 
     lines = parcels.map { |parcel| build_line(basis, parcel) }

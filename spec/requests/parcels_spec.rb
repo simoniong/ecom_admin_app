@@ -462,4 +462,143 @@ RSpec.describe "Parcels", type: :request do
       expect(response).to redirect_to(authenticated_root_path)
     end
   end
+
+  # Per-parcel estimate comparison (Task 2 of the estimate-comparison-and-export
+  # feature): rate card + postal-zone fixtures shared by every example below.
+  describe "GET /parcels — per-parcel estimate comparison (orders tab)" do
+    let(:est_store) do
+      create(:shopify_store, user: user, company: company, currency: "USD",
+             cost_fx_rate: 7.0, default_service_type: "with_battery")
+    end
+    let(:est_customer) { create(:customer, shopify_store: est_store) }
+
+    before do
+      create(:shipping_zone_postal_rule, company: company, country_code: "AU", zone: "1", postal_start: "2000", postal_end: "2079")
+      create(:shipping_zone_postal_rule, company: company, country_code: "AU", zone: "2", postal_start: "2080", postal_end: "2084")
+      version = create(:shipping_rate_card_version, company: company, country_code: "AU",
+                        service_type: "with_battery", effective_from: Date.new(2020, 1, 1))
+      create(:shipping_rate_card_rate, version: version, zone: "1", weight_min_kg: 0, weight_max_kg: 5, per_kg_rate_cny: 30, flat_fee_cny: 25)
+      create(:shipping_rate_card_rate, version: version, zone: "2", weight_min_kg: 0, weight_max_kg: 5, per_kg_rate_cny: 40, flat_fee_cny: 35)
+    end
+
+    # An order the comparator can price: AU, zoned postal code, one line item
+    # with a real weight so ShippingCostCalculator::Basis resolves.
+    def priced_order(name:, zip:, weight_grams:)
+      o = create(:order, customer: est_customer, shopify_store: est_store, name: name,
+                 ordered_at: 1.day.ago,
+                 shopify_data: { "shipping_address" => { "country_code" => "AU", "zip" => zip } })
+      product = create(:product, shopify_store: est_store)
+      variant = create(:product_variant, product: product, weight_grams: weight_grams)
+      create(:order_line_item, order: o, product_variant: variant, quantity: 1)
+      o
+    end
+
+    # This is the mutation-test target for the zone-mismatch badge condition:
+    # the badge markup only ever renders from two places (the order-row badge
+    # and the per-parcel zone2 cell's inline warning), both gated on
+    # `zone_mismatch`/`any_zone_mismatch`. Asserting the exact total count
+    # across the whole page — not just "is present somewhere" — fails both if
+    # the gate is dropped (badge leaks onto the zone-matching order too, count
+    # goes to 4) and if it's hardcoded off (count goes to 0).
+    it "renders the zone-mismatch badge and a red zone cell only for the order whose billed zone differs from its estimated zone" do
+      mismatched = priced_order(name: "PKS#ZMIS", zip: "2075", weight_grams: 1250) # estimated zone "1"
+      create(:parcel, shopify_store: est_store, order: mismatched, identifier: "ZM1", zone: "2",
+             billed_weight_g: 1250, cost_cny: 106.25, fx_rate_snapshot: 7.0, cost_amount: 15.18)
+
+      matched = priced_order(name: "PKS#ZOK", zip: "2075", weight_grams: 1250) # estimated zone "1"
+      create(:parcel, shopify_store: est_store, order: matched, identifier: "ZOK1", zone: "1",
+             billed_weight_g: 1250, cost_cny: 62.50, fx_rate_snapshot: 7.0, cost_amount: 8.93)
+
+      get parcels_path
+
+      expect(response).to have_http_status(:ok)
+      badge = I18n.t("parcels.zone_mismatch_badge")
+      expect(response.body.scan(badge).size).to eq(2) # order-row badge + per-parcel zone2 badge, mismatched order only
+      expect(response.body).to include("text-red-600")
+    end
+
+    # Per-parcel estimate/actual/variance, each in CNY (primary) and USD
+    # (secondary) — the report's core new data, not present on the report at
+    # all before this feature.
+    it "renders per-parcel estimate, actual and variance in both CNY and USD" do
+      order = priced_order(name: "PKS#PLINE", zip: "2075", weight_grams: 1500) # billed weight matches order weight: no split
+      create(:parcel, shopify_store: est_store, order: order, identifier: "PLINE1", zone: "1",
+             billed_weight_g: 1500, cost_cny: 80, fx_rate_snapshot: 7.2, cost_amount: 11.11)
+
+      get parcels_path
+
+      # estimate: 1.5kg * 30 + 25 = 70 CNY -> 70 / 7.0 = 10.00 USD
+      expect(response.body).to include("¥70.00")
+      expect(response.body).to include("$10.00")
+      # actual: straight from the parcel's own billed/converted figures
+      expect(response.body).to include("¥80.00")
+      expect(response.body).to include("$11.11")
+      # variance: 80 - 70 = 10 CNY; USD variance is actual($11.11) - estimate($10.00) = +$1.11
+      # (NOT cny-variance/fx_rate — actual/estimate each convert independently,
+      # via the parcel's own stored cost_amount and the basis fx_rate respectively).
+      # pct = variance_cny / estimate_cny * 100 = 10/70*100 = 14.29%
+      expect(response.body).to include("+¥10.00")
+      expect(response.body).to include("+$1.11")
+      expect(response.body).to include("+14.29%")
+    end
+
+    # The two-term decomposition (折包代價 + 物流商可能超收) only ever renders
+    # when EVERY parcel on the order has a usable estimate — this is the
+    # money-correctness guard from ParcelEstimateComparator#decomposable, and
+    # the view must respect it (hide the section, not show a partially-wrong
+    # split) rather than re-deriving its own looser condition.
+    it "renders the split-cost/overcharge decomposition for a decomposable order and a fallback message when one parcel is missing billed weight" do
+      decomposable = priced_order(name: "PKS#DECOMP", zip: "2075", weight_grams: 2500) # order estimate 100 CNY
+      create(:parcel, shopify_store: est_store, order: decomposable, identifier: "D1", zone: "1",
+             billed_weight_g: 1500, cost_cny: 80, fx_rate_snapshot: 7.0, cost_amount: 11.43)
+      create(:parcel, shopify_store: est_store, order: decomposable, identifier: "D2", zone: "1",
+             billed_weight_g: 1000, cost_cny: 50, fx_rate_snapshot: 7.0, cost_amount: 7.14)
+
+      incomplete = priced_order(name: "PKS#NODECOMP", zip: "2075", weight_grams: 2500)
+      create(:parcel, shopify_store: est_store, order: incomplete, identifier: "N1", zone: "1",
+             billed_weight_g: 1000, cost_cny: 55, fx_rate_snapshot: 7.0, cost_amount: 7.86)
+      create(:parcel, shopify_store: est_store, order: incomplete, identifier: "N2", zone: "1",
+             billed_weight_g: nil, cost_cny: 50, fx_rate_snapshot: 7.0, cost_amount: 7.14)
+
+      get parcels_path
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include(I18n.t("parcels.recon.split_label"))
+      expect(response.body).to include(I18n.t("parcels.recon.overcharge_label"))
+      expect(response.body).to include(I18n.t("parcels.recon.unavailable"))
+    end
+
+    # N+1 guard: Step 1's review flagged that ShippingCostCalculator.basis
+    # does a ShippingRateCardVersion lookup (+ postal-zone resolution) PER
+    # ORDER. Without ParcelsController#index sharing one cache across all
+    # orders on the page (@estimate_cache), a 25-order page does 25 separate
+    # rate-card-version lookups. Every order here shares the exact same
+    # (company, country, service_type, date) key, so a working cache collapses
+    # them to a small constant; a broken one scales 1:1 with order count.
+    it "looks up the rate card version a small constant number of times, not once per order on the page" do
+      10.times do |i|
+        order = priced_order(name: "PKS#NPLUS1#{i}", zip: "2075", weight_grams: 1000 + i)
+        create(:parcel, shopify_store: est_store, order: order, identifier: "NPLUS1#{i}",
+               zone: "1", billed_weight_g: 1000 + i, cost_cny: 50 + i, fx_rate_snapshot: 7.0, cost_amount: (50 + i) / 7.0)
+      end
+
+      version_lookup_count = 0
+      subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |*, payload|
+        version_lookup_count += 1 if payload[:sql]&.include?("shipping_rate_card_versions")
+      end
+
+      begin
+        get parcels_path
+      ensure
+        ActiveSupport::Notifications.unsubscribe(subscriber)
+      end
+
+      expect(response).to have_http_status(:ok)
+      # 10 orders, all the same (company, country, service_type, date) key —
+      # a shared per-request cache does this lookup once (or a small constant
+      # number of times), never anywhere close to once per order.
+      expect(version_lookup_count).to be > 0
+      expect(version_lookup_count).to be < 5
+    end
+  end
 end
