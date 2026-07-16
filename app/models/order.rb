@@ -20,6 +20,18 @@ class Order < ApplicationRecord
   scope :by_financial_status, ->(status) { where(financial_status: status) }
   scope :by_fulfillment_status, ->(status) { where(fulfillment_status: status) }
 
+  # An order's destination country code resolved from shopify_data the same
+  # shipping-then-billing way ShippingCostCalculator resolves the country it
+  # prices against: the shipping address's country_code when it is present
+  # (non-blank after trimming), else the billing address's, returning the raw
+  # code of whichever address is chosen. TRIM/NULLIF mirrors Ruby's #present?.
+  DESTINATION_COUNTRY_SQL =
+    "CASE WHEN NULLIF(TRIM(orders.shopify_data #>> '{shipping_address,country_code}'), '') IS NOT NULL " \
+    "THEN orders.shopify_data #>> '{shipping_address,country_code}' " \
+    "ELSE orders.shopify_data #>> '{billing_address,country_code}' END"
+
+  scope :with_destination_country, ->(code) { where("#{DESTINATION_COUNTRY_SQL} = ?", code) }
+
   def cogs_total
     order_line_items.sum("quantity * COALESCE(unit_cost_snapshot, 0)")
   end

@@ -112,6 +112,41 @@ RSpec.describe Order, type: :model do
     end
   end
 
+  describe ".with_destination_country" do
+    it "matches on the shipping address country_code when present" do
+      customer = create(:customer)
+      matching = create(:order, customer: customer, shopify_data: { "shipping_address" => { "country_code" => "AU" } })
+      other = create(:order, customer: customer, shopify_data: { "shipping_address" => { "country_code" => "US" } })
+
+      expect(Order.with_destination_country("AU")).to eq([ matching ])
+      expect(Order.with_destination_country("AU")).not_to include(other)
+    end
+
+    it "falls back to the billing address country_code when shipping has none" do
+      customer = create(:customer)
+      billing_only = create(:order, customer: customer, shopify_data: { "billing_address" => { "country_code" => "AU" } })
+
+      expect(Order.with_destination_country("AU")).to eq([ billing_only ])
+    end
+
+    it "falls back to billing when the shipping country_code is blank (whitespace-only)" do
+      customer = create(:customer)
+      blank_shipping = create(:order, customer: customer, shopify_data: {
+        "shipping_address" => { "country_code" => "  " },
+        "billing_address" => { "country_code" => "AU" }
+      })
+
+      expect(Order.with_destination_country("AU")).to eq([ blank_shipping ])
+    end
+
+    it "does not match when neither address carries the given country_code" do
+      customer = create(:customer)
+      create(:order, customer: customer, shopify_data: {})
+
+      expect(Order.with_destination_country("AU")).to be_empty
+    end
+  end
+
   describe "profit methods" do
     let(:order) { create(:order, total_price: 100) }
 
