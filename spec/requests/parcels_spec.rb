@@ -568,6 +568,47 @@ RSpec.describe "Parcels", type: :request do
       expect(response.body).to include(I18n.t("parcels.recon.unavailable"))
     end
 
+    # Fix-brief item 1: the recon block's three USD figures (total / split /
+    # overcharge) must all derive from the same basis (CNY ÷ basis.fx_rate)
+    # so "total == split + overcharge" holds on screen, exactly like the CNY
+    # figures already do. Before the fix, the "total" USD used the order-row
+    # rollup (order.actual_shipping_cost - order_estimate) instead, which is
+    # free to drift from split_usd + overcharge_usd whenever a parcel's own
+    # cost_amount wasn't converted at the same fx rate as the basis — as it
+    # deliberately isn't here, to force that drift.
+    it "renders a recon total USD that equals split USD + overcharge USD, even when the order-row rollup would disagree" do
+      order = priced_order(name: "PKS#RECONUSD", zip: "2075", weight_grams: 2500) # order estimate 100 CNY
+      # D1/D2 estimates: 70 + 55 = 125 CNY -> split_cost_cny = 125 - 100 = 25
+      # actual: 80 + 50 = 130 CNY -> overcharge_cny = 130 - 125 = 5
+      # basis.fx_rate is 7.0 (est_store.cost_fx_rate), so:
+      #   split_usd      = (25 / 7.0).round(2) = 3.57
+      #   overcharge_usd = (5  / 7.0).round(2) = 0.71
+      #   recon total    = 3.57 + 0.71         = 4.28
+      # cost_amount below is set independently of cost_cny / basis.fx_rate
+      # (as a real parcel's own fx_rate_snapshot conversion would be), so the
+      # order-row rollup (actual_shipping_cost 17.81 - order_estimate 14.29
+      # = 3.52) intentionally disagrees with 4.28 — proving the recon block
+      # no longer reads that rollup for its "total" line.
+      create(:parcel, shopify_store: est_store, order: order, identifier: "RU1", zone: "1",
+             billed_weight_g: 1500, cost_cny: 80, fx_rate_snapshot: 7.5, cost_amount: 10.67)
+      create(:parcel, shopify_store: est_store, order: order, identifier: "RU2", zone: "1",
+             billed_weight_g: 1000, cost_cny: 50, fx_rate_snapshot: 7.0, cost_amount: 7.14)
+
+      get parcels_path
+
+      expect(response).to have_http_status(:ok)
+      # Note: the order-row widget legitimately shows the rollup figure
+      # (+$3.52) elsewhere on the page — that's the OTHER widget the fix
+      # brief says must stay untouched. So these assertions are scoped to
+      # just the recon block (".bg-purple-50"), not the whole response body,
+      # to actually pin down which figure the recon section itself renders.
+      recon = Nokogiri::HTML(response.body).at_css(".bg-purple-50").text
+      expect(recon).to include("+$3.57") # split USD
+      expect(recon).to include("+$0.71") # overcharge USD
+      expect(recon).to include("+$4.28") # recon total USD == 3.57 + 0.71
+      expect(recon).not_to include("+$3.52") # the stale order-row-rollup figure must not leak in here
+    end
+
     # N+1 guard: Step 1's review flagged that ShippingCostCalculator.basis
     # does a ShippingRateCardVersion lookup (+ postal-zone resolution) PER
     # ORDER. Without ParcelsController#index sharing one cache across all
@@ -575,7 +616,7 @@ RSpec.describe "Parcels", type: :request do
     # rate-card-version lookups. Every order here shares the exact same
     # (company, country, service_type, date) key, so a working cache collapses
     # them to a small constant; a broken one scales 1:1 with order count.
-    it "looks up the rate card version a small constant number of times, not once per order on the page" do
+    it "looks up the rate card version and the postal zone a small constant number of times, not once per order on the page" do
       10.times do |i|
         order = priced_order(name: "PKS#NPLUS1#{i}", zip: "2075", weight_grams: 1000 + i)
         create(:parcel, shopify_store: est_store, order: order, identifier: "NPLUS1#{i}",
@@ -583,8 +624,16 @@ RSpec.describe "Parcels", type: :request do
       end
 
       version_lookup_count = 0
+      # Companion N+1 guard to the rate-card-version one below: basis
+      # resolution also does a ShippingZonePostalRule.zone_for lookup per
+      # order (see ShippingCostCalculator#fetch_zone_for's cache_slot(:zone_for)
+      # cache). All 10 orders here share the same (company, country, key)
+      # cache key, so a working per-request cache collapses this to a small
+      # constant too — a broken/dropped cache scales 1:1 with order count.
+      postal_zone_lookup_count = 0
       subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |*, payload|
         version_lookup_count += 1 if payload[:sql]&.include?("shipping_rate_card_versions")
+        postal_zone_lookup_count += 1 if payload[:sql]&.include?("shipping_zone_postal_rules")
       end
 
       begin
@@ -599,6 +648,9 @@ RSpec.describe "Parcels", type: :request do
       # number of times), never anywhere close to once per order.
       expect(version_lookup_count).to be > 0
       expect(version_lookup_count).to be < 5
+      # Same story for the postal-zone lookup: constant, not one-per-order.
+      expect(postal_zone_lookup_count).to be > 0
+      expect(postal_zone_lookup_count).to be < 5
     end
   end
 end

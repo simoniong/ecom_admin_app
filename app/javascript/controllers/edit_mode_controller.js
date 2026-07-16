@@ -10,7 +10,7 @@ import { Controller } from "@hotwired/stimulus"
 // edit controls need to already be in the right state with no JS re-applying
 // anything to them. So the only thing this controller does is toggle one
 // class on its own root element; actual visibility is driven by a plain CSS
-// descendant selector (see app/assets/tailwind/application.css:
+// descendant selector (see app/assets/stylesheets/application.css:
 // ".parcels-editing .parcels-edit-col") that applies to any matching
 // descendant automatically, including ones that don't exist yet.
 export default class extends Controller {

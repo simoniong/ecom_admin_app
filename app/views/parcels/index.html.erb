@@ -144,8 +144,7 @@
                         </span>
                       <% end %>
                       <span class="ml-auto font-semibold text-gray-900 text-sm whitespace-nowrap">
-                        = <%= cny(result.order_estimate_cny) %>
-                        <span class="text-gray-400 font-normal text-xs">(<%= number_to_currency(result.order_estimate) %>)</span>
+                        = <%= dual_currency(result.order_estimate_cny, result.order_estimate) %>
                       </span>
                     </div>
                   <% end %>
@@ -216,25 +215,36 @@
                   </div>
 
                   <% if result.decomposable && result.order_estimate_cny %>
+                    <%# Both USD terms below are derived from the same basis
+                        (CNY ÷ result.basis.fx_rate) that the split/overcharge
+                        CNY figures already use, and the displayed "total" USD
+                        is their sum — never the order-row rollup
+                        (order_variance_usd) — so this section can never show
+                        a total that doesn't equal split + overcharge on
+                        screen, even though per-parcel USD rounding means it
+                        can drift from the rollup used elsewhere on the page. %>
+                    <% split_usd = (result.split_cost_cny / result.basis.fx_rate).round(2) %>
+                    <% overcharge_usd = (result.overcharge_cny / result.basis.fx_rate).round(2) %>
+                    <% recon_total_usd = split_usd + overcharge_usd %>
                     <div class="mt-3 bg-purple-50 border border-gray-200 rounded-lg px-3.5 py-3 text-xs text-gray-700">
                       <div class="font-semibold mb-2 <%= "text-red-600" if result.any_zone_mismatch %>">
                         <% if result.any_zone_mismatch %>
                           <%= t("parcels.recon.question_mismatch") %>
                         <% else %>
-                          <%= t("parcels.recon.question", cny: signed_cny(order_variance_cny), usd: signed_usd(order_variance_usd)) %>
+                          <%= t("parcels.recon.question", cny: signed_cny(order_variance_cny), usd: signed_usd(recon_total_usd)) %>
                         <% end %>
                       </div>
                       <div class="flex flex-wrap items-center gap-2 text-sm">
                         <span class="flex flex-col">
                           <span class="font-semibold text-red-600"><%= signed_cny(order_variance_cny) %></span>
-                          <span class="text-[10px] text-gray-400"><%= t("parcels.recon.total_label") %> &middot; <%= signed_usd(order_variance_usd) %></span>
+                          <span class="text-[10px] text-gray-400"><%= t("parcels.recon.total_label") %> &middot; <%= signed_usd(recon_total_usd) %></span>
                         </span>
                         <span class="text-gray-300">=</span>
                         <span class="flex flex-col">
                           <span class="font-semibold text-purple-600"><%= signed_cny(result.split_cost_cny) %></span>
                           <span class="text-[10px] text-gray-400">
                             <%= result.parcel_lines.size > 1 ? t("parcels.recon.split_label") : t("parcels.recon.split_label_single") %>
-                            &middot; <%= signed_usd(result.split_cost_cny && result.basis && (result.split_cost_cny / result.basis.fx_rate).round(2)) %>
+                            &middot; <%= signed_usd(split_usd) %>
                           </span>
                         </span>
                         <span class="text-gray-300">+</span>
@@ -242,7 +252,7 @@
                           <span class="font-semibold text-red-600"><%= signed_cny(result.overcharge_cny) %></span>
                           <span class="text-[10px] text-gray-400">
                             <%= t("parcels.recon.overcharge_label") %>
-                            &middot; <%= signed_usd(result.overcharge_cny && result.basis && (result.overcharge_cny / result.basis.fx_rate).round(2)) %>
+                            &middot; <%= signed_usd(overcharge_usd) %>
                           </span>
                         </span>
                       </div>
