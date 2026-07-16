@@ -156,7 +156,13 @@
                       <span class="text-[10px] font-semibold tracking-wide text-gray-400 uppercase"><%= t("parcels.basis.label") %></span>
                       <span class="px-2 py-1 rounded bg-gray-50 border border-gray-200 text-[11px]"><%= parcel_country_flag(code) %> <%= parcel_country_name(code) %></span>
                       <span class="px-2 py-1 rounded font-mono text-[11px] <%= result.zoned ? "bg-amber-50 text-amber-700" : "bg-gray-50 border border-gray-200" %>">
-                        <%= result.zoned ? t("parcels.basis.zone", zone: result.estimated_zone) : t("parcels.basis.unzoned") %>
+                        <% if result.zoned %>
+                          <%= t("parcels.basis.zone", zone: result.estimated_zone) %>
+                          <% zip = parcel_order_zip(order) %>
+                          <% if zip.present? %>&middot; <%= t("parcels.basis.postal", zip: zip) %><% end %>
+                        <% else %>
+                          <%= t("parcels.basis.unzoned") %>
+                        <% end %>
                       </span>
                       <span class="text-gray-300">&middot;</span>
                       <span class="px-2 py-1 rounded bg-gray-50 border border-gray-200 font-mono text-[11px]">
@@ -174,6 +180,62 @@
                       <span class="ml-auto font-semibold text-gray-900 text-sm whitespace-nowrap">
                         = <%= dual_currency(result.order_estimate_cny, result.order_estimate) %>
                       </span>
+                    </div>
+                  <% end %>
+
+                  <% line_items = order.order_line_items.to_a %>
+                  <% if line_items.any? %>
+                    <% any_missing = line_items.any? { |li| !li.product_variant&.weight_grams&.positive? } %>
+                    <% total_g = line_items.sum { |li| li.product_variant&.weight_grams&.positive? ? li.product_variant.weight_grams * li.quantity : 0 } %>
+                    <div class="bg-white border border-gray-200 rounded-lg mb-3 overflow-hidden">
+                      <div class="flex items-center gap-2 px-3 py-2 border-b border-gray-100">
+                        <span class="text-[11px] font-semibold text-gray-700"><%= t("parcels.contents.title") %></span>
+                        <span class="text-[10px] text-gray-400"><%= t("parcels.contents.subtitle", count: line_items.sum(&:quantity)) %></span>
+                      </div>
+                      <div class="overflow-x-auto">
+                        <table class="min-w-full text-xs">
+                          <thead>
+                            <tr class="text-gray-400">
+                              <th class="px-3 py-1.5 text-left font-medium"><%= t("parcels.contents.sku") %></th>
+                              <th class="px-3 py-1.5 text-left font-medium"><%= t("parcels.contents.name") %></th>
+                              <th class="px-3 py-1.5 text-right font-medium"><%= t("parcels.contents.qty") %></th>
+                              <th class="px-3 py-1.5 text-right font-medium"><%= t("parcels.contents.unit_weight") %></th>
+                              <th class="px-3 py-1.5 text-right font-medium"><%= t("parcels.contents.line_weight") %></th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <% line_items.each do |li| %>
+                              <% w = li.product_variant&.weight_grams %>
+                              <% has_w = w&.positive? %>
+                              <tr class="border-t border-gray-50">
+                                <td class="px-3 py-1.5 font-mono text-[11px] text-gray-700"><%= li.sku_at_sale.presence || "—" %></td>
+                                <td class="px-3 py-1.5 text-gray-500"><%= li.title_at_sale %></td>
+                                <td class="px-3 py-1.5 text-right text-gray-700">×<%= li.quantity %></td>
+                                <td class="px-3 py-1.5 text-right <%= has_w ? "text-gray-700" : "text-gray-400" %>">
+                                  <%= has_w ? "#{number_with_precision(w, precision: 3, strip_insignificant_zeros: true)} g" : "—" %>
+                                </td>
+                                <td class="px-3 py-1.5 text-right <%= has_w ? "text-gray-900 font-medium" : "text-gray-400" %>">
+                                  <%= has_w ? "#{number_with_precision(w * li.quantity, precision: 3, strip_insignificant_zeros: true)} g" : "—" %>
+                                </td>
+                              </tr>
+                            <% end %>
+                          </tbody>
+                          <tfoot>
+                            <tr class="border-t-2 border-gray-200 font-semibold text-gray-900">
+                              <td class="px-3 py-1.5 text-left text-gray-500 font-medium" colspan="3"><%= t("parcels.contents.total") %></td>
+                              <td class="px-3 py-1.5"></td>
+                              <td class="px-3 py-1.5 text-right">
+                                <%= number_with_precision(total_g / 1000.0, precision: 2) %> kg
+                                <% if any_missing %>
+                                  <div class="text-[10px] font-normal text-amber-600"><%= t("parcels.contents.missing_note") %></div>
+                                <% elsif result.order_weight_kg %>
+                                  <div class="text-[10px] font-normal text-gray-400"><%= t("parcels.contents.matches") %></div>
+                                <% end %>
+                              </td>
+                            </tr>
+                          </tfoot>
+                        </table>
+                      </div>
                     </div>
                   <% end %>
 
