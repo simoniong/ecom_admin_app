@@ -131,6 +131,37 @@ RSpec.describe "Parcels export", type: :request do
     expect(data["variance_pct"]).to eq(2.14)
   end
 
+  # Identifier/code columns are forced to :string cells in the controller
+  # (types: column_types). Without that, Axlsx auto-detects a purely-numeric
+  # String as a NUMBER cell — a zip like "02075" or an all-digit parcel
+  # identifier "001234" would come back as the Integer 2075 / 1234 with the
+  # leading zero silently gone, corrupting the value the operator reconciles
+  # against the carrier's bill. This pins the string-preservation behavior
+  # that the other examples (which happen to use leading-zero-free values)
+  # don't exercise.
+  #
+  # Mutation-test target: dropping `types: column_types` (or the :string
+  # entries for these columns) makes roo read these cells back as 2075 /
+  # 1234 / 987654, failing every eq assertion below.
+  it "preserves leading zeros in zip / identifier / tracking-number columns instead of coercing them to numbers" do
+    order = priced_order(name: "PKS#ZEROS", zip: "02075", weight_grams: 1000)
+    create(:parcel, shopify_store: store, order: order, identifier: "001234",
+           tracking_number: "000987654", zone: "1",
+           billed_weight_g: 1000, cost_cny: 55, fx_rate_snapshot: 7.0, cost_amount: 7.86)
+
+    get export_parcels_path
+
+    row = parsed_rows.find { |r| r[1] == "001234" }
+    expect(row).to be_present, "expected a row whose identifier cell is the string \"001234\", not the number 1234"
+    data = HEADER.zip(row).to_h
+
+    expect(data["identifier"]).to eq("001234")
+    expect(data["identifier"]).to be_a(String)
+    expect(data["tracking_number"]).to eq("000987654")
+    expect(data["customer_zip"]).to eq("02075")
+    expect(data["customer_zip"]).to be_a(String)
+  end
+
   describe "zone match (Y/N)" do
     it "marks Y when billed zone matches the estimated zone, and N for a mismatch" do
       matched = priced_order(name: "PKS#ZOK", zip: "2075", weight_grams: 1000) # estimated zone "1"
