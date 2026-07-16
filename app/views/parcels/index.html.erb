@@ -110,6 +110,10 @@
                     <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
                   </svg>
                   <%= order.name %>
+                  <% order_country = parcel_order_country_code(order) %>
+                  <% if order_country.present? %>
+                    <span class="ml-2 text-xs font-normal text-gray-500"><%= parcel_country_flag(order_country) %> <%= parcel_country_name(order_country) %></span>
+                  <% end %>
                   <% if result.any_zone_mismatch %>
                     <span class="ml-1 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-red-50 text-red-600"><%= t("parcels.zone_mismatch_badge") %></span>
                   <% end %>

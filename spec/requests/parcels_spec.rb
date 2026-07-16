@@ -66,6 +66,22 @@ RSpec.describe "Parcels", type: :request do
       end
     end
 
+    it "shows the destination country flag next to the order number on the order row" do
+      # No rate card for this order, so the comparator resolves no Basis and the
+      # expanded "estimate basis" line (the other place a country flag renders)
+      # never appears — the 🇦🇺 flag can therefore only come from the order row
+      # itself, which is exactly what this pins.
+      au = create(:order, customer: customer, shopify_store: store, name: "PKS#AUFLAG",
+                          estimated_shipping_cost: 30, ordered_at: 1.day.ago,
+                          shopify_data: { "shipping_address" => { "country_code" => "AU", "zip" => "2000" } })
+      create(:parcel, shopify_store: store, order: au, identifier: "AUF1", cost_amount: 40)
+
+      get parcels_path
+
+      expect(response.body).to include("PKS#AUFLAG")
+      expect(response.body).to include("🇦🇺")
+    end
+
     it "filters to multi-parcel orders only" do
       get parcels_path, params: { multi_parcel_only: "1" }
       expect(response.body).to include("PKS#3052")
