@@ -13,6 +13,13 @@ class ReestimateShippingCostsService
   # country: nil = all countries (matched via Order.with_destination_country,
   #   the same shipping-then-billing resolution ShippingCostCalculator uses).
   # from: nil = all dates; otherwise a Date/Time filtering on ordered_at >= from.
+  #   Deliberately a plain UTC ordered_at comparison, NOT a store-local window:
+  #   the estimate this service recomputes selects its rate-card version by
+  #   `order.ordered_at.to_date` (UTC, since the app runs in the default UTC
+  #   zone), and a rate card's effective_from is compared against that same UTC
+  #   date. So a UTC `from` matches exactly which orders a rate change actually
+  #   affects; a store-local window would scan orders whose UTC ordered_at date
+  #   still falls under the old version, recomputing them to an unchanged value.
   # store_ids: nil = all stores.
   def initialize(country: nil, from: nil, store_ids: nil)
     @country = country
