@@ -651,6 +651,40 @@ RSpec.describe "Parcels", type: :request do
       expect(response.body).to include(I18n.t("parcels.basis.postal", zip: "2075"))
     end
 
+    it "lists the order's SKUs, quantities and per-SKU estimated weight (qty x unit)" do
+      order = create(:order, customer: est_customer, shopify_store: est_store, name: "PKS#SKULIST",
+                     ordered_at: 1.day.ago,
+                     shopify_data: { "shipping_address" => { "country_code" => "AU", "zip" => "2075" } })
+      v1 = create(:product_variant, product: create(:product, shopify_store: est_store), weight_grams: 650)
+      create(:order_line_item, order: order, product_variant: v1, sku_at_sale: "CANVAS-16x20", title_at_sale: "Canvas", quantity: 1)
+      v2 = create(:product_variant, product: create(:product, shopify_store: est_store), weight_grams: 225)
+      create(:order_line_item, order: order, product_variant: v2, sku_at_sale: "BRUSH-12", title_at_sale: "Brush set", quantity: 2)
+      create(:parcel, shopify_store: est_store, order: order, identifier: "SK1", zone: "1",
+             billed_weight_g: 1100, cost_cny: 80, fx_rate_snapshot: 7.2, cost_amount: 11.11)
+
+      get parcels_path
+
+      expect(response.body).to include("CANVAS-16x20")
+      expect(response.body).to include("BRUSH-12")
+      expect(response.body).to include("650 g")   # v1 unit/line weight
+      expect(response.body).to include("450 g")   # v2 line weight = 225 x 2
+    end
+
+    it "shows a dash and a can't-estimate note when a line item's SKU has no weight" do
+      order = create(:order, customer: est_customer, shopify_store: est_store, name: "PKS#NOWT",
+                     ordered_at: 1.day.ago,
+                     shopify_data: { "shipping_address" => { "country_code" => "AU", "zip" => "2075" } })
+      v = create(:product_variant, product: create(:product, shopify_store: est_store), weight_grams: nil)
+      create(:order_line_item, order: order, product_variant: v, sku_at_sale: "NOWEIGHT", title_at_sale: "x", quantity: 1)
+      create(:parcel, shopify_store: est_store, order: order, identifier: "NW1", zone: "1",
+             billed_weight_g: 500, cost_cny: 50, fx_rate_snapshot: 7.2, cost_amount: 6.94)
+
+      get parcels_path
+
+      expect(response.body).to include("NOWEIGHT")
+      expect(response.body).to include(I18n.t("parcels.contents.missing_note"))
+    end
+
     # Per-parcel estimate/actual/variance, each in CNY (primary) and USD
     # (secondary) — the report's core new data, not present on the report at
     # all before this feature.
