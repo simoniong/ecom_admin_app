@@ -17,18 +17,33 @@ module ParcelsHelper
     t("shipping_rate_cards.countries.#{code}", default: code)
   end
 
-  # The destination country code a Basis was resolved against, purely for
-  # display (the "預估依據" line's flag/name chip). Duplicates
-  # ShippingCostCalculator's private country-resolution rule (shipping
-  # address preferred, billing as fallback) rather than reaching into that
-  # service, since this is decorative and must not couple view rendering to
-  # a private method on a service we're told not to modify.
-  def parcel_order_country_code(order)
+  # The destination address a Basis is resolved against: shipping when it
+  # carries a country_code, else billing. Mirrors
+  # ShippingCostCalculator#destination_address exactly (that method is
+  # private and belongs to a service we're told not to modify), so the
+  # country, postal and estimated zone shown/exported for an order all come
+  # from the SAME resolved address — a billing-only order must never end up
+  # with a zone computed from billing but a blank/shipping zip beside it.
+  def parcel_order_destination_address(order)
     data = order.shopify_data
     return nil unless data
     shipping = data["shipping_address"]
-    return shipping["country_code"] if shipping && shipping["country_code"].present?
-    data.dig("billing_address", "country_code")
+    return shipping if shipping && shipping["country_code"].present?
+    data["billing_address"]
+  end
+
+  # The destination country code a Basis was resolved against, purely for
+  # display (the "預估依據" line's flag/name chip).
+  def parcel_order_country_code(order)
+    parcel_order_destination_address(order)&.dig("country_code")
+  end
+
+  # The destination postal code from the same resolved address the country
+  # and estimated zone come from — used by the reconciliation export's
+  # "客戶郵編" column so that evidence is internally consistent with the
+  # estimated zone in the adjacent column.
+  def parcel_order_zip(order)
+    parcel_order_destination_address(order)&.dig("zip")
   end
 
   # A CNY figure formatted to 2dp with a ¥ prefix. nil renders as an em dash

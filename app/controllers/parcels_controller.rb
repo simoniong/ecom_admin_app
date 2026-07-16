@@ -128,7 +128,7 @@ class ParcelsController < AdminController
 
       orders.each do |order|
         comparison = ParcelEstimateComparator.new(order, cache: estimate_cache).call
-        zip = order.shopify_data&.dig("shipping_address", "zip")
+        zip = helpers.parcel_order_zip(order)
         estimated_zone = comparison.estimated_zone
 
         comparison.parcel_lines.each do |line|

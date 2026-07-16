@@ -217,6 +217,44 @@ RSpec.describe "Parcels export", type: :request do
     end
   end
 
+  # The estimated zone (and country) are resolved from shipping_address when
+  # it carries a country_code, else billing_address — see
+  # ShippingCostCalculator#destination_address. The export's customer-zip
+  # column must resolve from the SAME address, otherwise a billing-only
+  # order computes a real zone but exports a blank zip beside it —
+  # self-contradictory reconciliation evidence.
+  describe "billing-address fallback" do
+    it "takes the customer zip from the billing address (matching where the estimated zone came from) when there is no shipping address" do
+      order = create(:order, customer: customer, shopify_store: store, name: "PKS#BILLONLY",
+                     ordered_at: 1.day.ago,
+                     shopify_data: { "billing_address" => { "country_code" => "AU", "zip" => "2075" } })
+      product = create(:product, shopify_store: store)
+      variant = create(:product_variant, product: product, weight_grams: 1000)
+      create(:order_line_item, order: order, product_variant: variant, quantity: 1)
+      create(:parcel, shopify_store: store, order: order, identifier: "BILLONLY1", zone: "1",
+             billed_weight_g: 1000, cost_cny: 55, fx_rate_snapshot: 7.0, cost_amount: 7.86)
+
+      # Sanity-check against a shipping-address order priced identically, so
+      # the assertions below prove the billing-only row lands on the SAME
+      # zone/zip, not merely on "some value".
+      shipping = priced_order(name: "PKS#SHIPONLY", zip: "2075", weight_grams: 1000)
+      create(:parcel, shopify_store: store, order: shipping, identifier: "SHIPONLY1", zone: "1",
+             billed_weight_g: 1000, cost_cny: 55, fx_rate_snapshot: 7.0, cost_amount: 7.86)
+
+      get export_parcels_path
+
+      billing_row = HEADER.zip(parsed_rows.find { |r| r[1] == "BILLONLY1" }).to_h
+      shipping_row = HEADER.zip(parsed_rows.find { |r| r[1] == "SHIPONLY1" }).to_h
+
+      expect(billing_row["customer_zip"]).to eq("2075")
+      expect(billing_row["estimated_zone"]).to eq("1")
+      expect(billing_row["zone_match"]).to eq("Y")
+      # Consistent with the shipping-address case: same resolved zip + zone.
+      expect(billing_row["customer_zip"]).to eq(shipping_row["customer_zip"])
+      expect(billing_row["estimated_zone"]).to eq(shipping_row["estimated_zone"])
+    end
+  end
+
   describe "follows the current filter" do
     it "excludes an order the over_only filter would exclude from the screen" do
       over = priced_order(name: "PKS#OVEREXP", zip: "2075", weight_grams: 1000)
