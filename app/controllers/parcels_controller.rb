@@ -8,6 +8,11 @@ class ParcelsController < AdminController
 
   SORTABLE = {
     "variance"  => "(orders.actual_shipping_cost - orders.estimated_shipping_cost)",
+    # NULLIF guards the divide: an order with a NULL or zero estimate has no
+    # meaningful overrun percentage, so the expression evaluates to NULL and
+    # the "NULLS LAST" in the reorder pushes those rows to the end in both
+    # directions rather than sorting them as if they were 0%.
+    "variance_pct" => "(orders.actual_shipping_cost - orders.estimated_shipping_cost) / NULLIF(orders.estimated_shipping_cost, 0)",
     "ordered_at" => "orders.ordered_at",
     "actual"    => "orders.actual_shipping_cost",
     "estimated" => "orders.estimated_shipping_cost"

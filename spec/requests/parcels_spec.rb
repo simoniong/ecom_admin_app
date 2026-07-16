@@ -36,6 +36,36 @@ RSpec.describe "Parcels", type: :request do
       expect(response.body.index("PKS#3052")).to be < response.body.index("PKS#3001")
     end
 
+    describe "sorting by variance %" do
+      # Small absolute overrun (+10) but a HIGH percentage (100%).
+      let!(:high_pct) do
+        o = create(:order, customer: customer, shopify_store: store, name: "PKS#HIPCT",
+                           estimated_shipping_cost: 10, ordered_at: 1.day.ago)
+        create(:parcel, shopify_store: store, order: o, identifier: "HP1", cost_amount: 20)
+        o
+      end
+
+      # Large absolute overrun (+100) but a LOW percentage (10%). This is the
+      # pair that distinguishes a percentage sort from the absolute-variance
+      # sort: by absolute variance low_pct wins, by percentage high_pct wins.
+      let!(:low_pct) do
+        o = create(:order, customer: customer, shopify_store: store, name: "PKS#LOPCT",
+                           estimated_shipping_cost: 1000, ordered_at: 1.day.ago)
+        create(:parcel, shopify_store: store, order: o, identifier: "LP1", cost_amount: 1100)
+        o
+      end
+
+      it "orders the higher-percentage overrun first on desc, even when its absolute variance is smaller" do
+        get parcels_path, params: { sort_column: "variance_pct", sort_direction: "desc" }
+        expect(response.body.index("PKS#HIPCT")).to be < response.body.index("PKS#LOPCT")
+      end
+
+      it "reverses the order on asc" do
+        get parcels_path, params: { sort_column: "variance_pct", sort_direction: "asc" }
+        expect(response.body.index("PKS#LOPCT")).to be < response.body.index("PKS#HIPCT")
+      end
+    end
+
     it "filters to multi-parcel orders only" do
       get parcels_path, params: { multi_parcel_only: "1" }
       expect(response.body).to include("PKS#3052")
