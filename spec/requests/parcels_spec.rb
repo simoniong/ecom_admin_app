@@ -641,6 +641,16 @@ RSpec.describe "Parcels", type: :request do
       expect(response.body).to include("text-red-600")
     end
 
+    it "shows, in the estimate-basis line, the postal code that resolved the zone" do
+      order = priced_order(name: "PKS#ZIPBASIS", zip: "2075", weight_grams: 1500) # zip 2075 -> zone 1
+      create(:parcel, shopify_store: est_store, order: order, identifier: "ZB1", zone: "1",
+             billed_weight_g: 1500, cost_cny: 80, fx_rate_snapshot: 7.2, cost_amount: 11.11)
+
+      get parcels_path
+
+      expect(response.body).to include(I18n.t("parcels.basis.postal", zip: "2075"))
+    end
+
     # Per-parcel estimate/actual/variance, each in CNY (primary) and USD
     # (secondary) — the report's core new data, not present on the report at
     # all before this feature.

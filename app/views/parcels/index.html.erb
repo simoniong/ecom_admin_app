@@ -156,7 +156,13 @@
                       <span class="text-[10px] font-semibold tracking-wide text-gray-400 uppercase"><%= t("parcels.basis.label") %></span>
                       <span class="px-2 py-1 rounded bg-gray-50 border border-gray-200 text-[11px]"><%= parcel_country_flag(code) %> <%= parcel_country_name(code) %></span>
                       <span class="px-2 py-1 rounded font-mono text-[11px] <%= result.zoned ? "bg-amber-50 text-amber-700" : "bg-gray-50 border border-gray-200" %>">
-                        <%= result.zoned ? t("parcels.basis.zone", zone: result.estimated_zone) : t("parcels.basis.unzoned") %>
+                        <% if result.zoned %>
+                          <%= t("parcels.basis.zone", zone: result.estimated_zone) %>
+                          <% zip = parcel_order_zip(order) %>
+                          <% if zip.present? %>&middot; <%= t("parcels.basis.postal", zip: zip) %><% end %>
+                        <% else %>
+                          <%= t("parcels.basis.unzoned") %>
+                        <% end %>
                       </span>
                       <span class="text-gray-300">&middot;</span>
                       <span class="px-2 py-1 rounded bg-gray-50 border border-gray-200 font-mono text-[11px]">

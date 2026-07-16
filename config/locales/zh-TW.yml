@@ -407,6 +407,7 @@
       unavailable: "該訂單無法估算預估運費"
       unzoned: "不分區"
       zone: "分區 %{zone}"
+      postal: "郵編 %{zip}"
       weight: "商品總重 %{weight} kg"
       band: "重量帶 %{min}–%{max} kg"
       formula: "%{rate}/kg × %{weight} + %{flat} 掛號"

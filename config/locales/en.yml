@@ -407,6 +407,7 @@ en:
       unavailable: "Unable to estimate this order"
       unzoned: "Unzoned"
       zone: "Zone %{zone}"
+      postal: "Postal %{zip}"
       weight: "Item weight %{weight} kg"
       band: "Weight band %{min}–%{max} kg"
       formula: "%{rate}/kg × %{weight} + %{flat} registration"

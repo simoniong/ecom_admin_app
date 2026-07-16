@@ -407,6 +407,7 @@
       unavailable: "该订单无法估算预估运费"
       unzoned: "不分区"
       zone: "分区 %{zone}"
+      postal: "邮编 %{zip}"
       weight: "商品总重 %{weight} kg"
       band: "重量带 %{min}–%{max} kg"
       formula: "%{rate}/kg × %{weight} + %{flat} 挂号"
