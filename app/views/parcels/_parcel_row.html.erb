@@ -1,13 +1,25 @@
+<%# `line` is the ParcelEstimateComparator::ParcelLine for this parcel (nil-safe
+    throughout: an order the comparator couldn't price at all still renders
+    every raw/billed column, just with "—" in the estimate/variance columns).
+    `estimated_zone` is the ORDER's estimated zone (shared by every parcel on
+    the order), passed in separately since ParcelLine only carries the
+    per-parcel billed zone. %>
 <tr id="<%= dom_id(parcel) %>">
-  <td class="py-1 text-gray-900"><%= parcel.identifier %></td>
+  <td class="py-1 text-gray-900"><span class="font-mono text-[11px]"><%= parcel.identifier %></span></td>
   <td class="py-1 text-gray-500"><%= parcel.service_channel %></td>
+  <td class="py-1 text-right"><%= dual_zone(estimated_zone, line&.billed_zone, mismatch: line&.zone_mismatch || false) %></td>
   <td class="py-1 text-right text-gray-500"><%= parcel.billed_weight_g %>g</td>
-  <td class="py-1 text-right text-gray-500">¥<%= parcel.freight_cny %></td>
-  <td class="py-1 text-right text-gray-500">¥<%= parcel.registration_fee_cny %></td>
-  <td class="py-1 text-right text-gray-500">¥<%= parcel.operation_fee_cny %></td>
-  <td class="py-1 text-right text-gray-900">¥<%= parcel.cost_cny %></td>
-  <td class="py-1 text-right font-medium text-gray-900"><%= number_to_currency(parcel.cost_amount) %></td>
-  <td class="py-1 text-right">
+  <td class="py-1 text-right"><%= dual_currency(line&.estimate_cny, line&.estimate) %></td>
+  <td class="py-1 text-right"><%= dual_currency(line&.actual_cny, line&.actual) %></td>
+  <td class="py-1 text-right"><%= dual_currency(line&.variance_cny, line&.variance, over: line&.variance_cny.to_f.positive?, sign: true) %></td>
+  <td class="py-1 text-right text-gray-500">
+    <% if line&.variance_pct %>
+      <span class="<%= "text-red-600 font-medium" if line.variance_pct.positive? %>"><%= line.variance_pct.positive? ? "+" : "" %><%= line.variance_pct %>%</span>
+    <% else %>
+      —
+    <% end %>
+  </td>
+  <td class="parcels-edit-col py-1 text-right">
     <% if current_membership&.owner? %>
       <%= form_with url: parcel_path(parcel), method: :patch, class: "inline-flex gap-1 items-center" do %>
         <%= number_field_tag "parcel[cost_cny]", parcel.cost_cny, step: "0.01",

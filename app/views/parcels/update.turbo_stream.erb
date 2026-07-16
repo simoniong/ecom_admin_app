@@ -16,8 +16,9 @@
             assignable_orders_options: options_from_collection_for_select(@assignable_orders, :id, :name) %>
     <% end %>
   <% end %>
+
 <% else %>
   <%= turbo_stream.replace dom_id(@parcel) do %>
-    <%= render "parcels/parcel_row", parcel: @parcel %>
+    <%= render "parcels/parcel_row", parcel: @parcel, line: @line, estimated_zone: @estimated_zone %>
   <% end %>
 <% end %>

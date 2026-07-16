@@ -251,4 +251,77 @@ RSpec.describe ShippingCostCalculator do
       expect(ShippingCostCalculator.estimate(order)).to eq(30.21)
     end
   end
+
+  describe ".basis" do
+    it "exposes the resolved version/zone/weight/fx-rate and prices arbitrary weights in that zone" do
+      build_version_with_band
+      order = build_order(weight_grams: 300)
+
+      basis = ShippingCostCalculator.basis(order)
+
+      expect(basis.zone).to be_nil
+      expect(basis.zoned).to be false
+      expect(basis.order_weight_kg).to eq(0.3)
+      expect(basis.fx_rate).to eq(7.0)
+      expect(basis.order_estimate_cny).to eq(50.6)   # 0.3 * 92 + 23
+      expect(basis.order_estimate).to eq(7.23)
+      expect(basis.order_estimate).to eq(ShippingCostCalculator.estimate(order))
+
+      # An arbitrary (parcel) weight in the same band, same zone/version.
+      expect(basis.estimate_cny_for(0.25)).to eq((0.25 * 92.0) + 23.0)
+      # A weight outside every band returns nil rather than a wrong number.
+      expect(basis.estimate_cny_for(10)).to be_nil
+      expect(basis.estimate_cny_for(nil)).to be_nil
+      expect(basis.estimate_cny_for(0)).to be_nil
+    end
+
+    it "exposes the zone and per-zone rates for a zoned country" do
+      create(:shipping_zone_postal_rule, company: company, country_code: "AU", zone: "1", postal_start: "2000", postal_end: "2079")
+      version = create(:shipping_rate_card_version, company: company, country_code: "AU",
+                       service_type: "with_battery", effective_from: Date.new(2026, 1, 1))
+      create(:shipping_rate_card_rate, version: version, zone: "1", weight_min_kg: 0.201, weight_max_kg: 0.45, per_kg_rate_cny: 92.0, flat_fee_cny: 23.0)
+
+      order = create(:order, customer: customer, shopify_store: store,
+                     ordered_at: store.active_timezone.local(2026, 4, 15, 12),
+                     shopify_data: { "shipping_address" => { "country_code" => "AU", "zip" => "2075" } })
+      product = create(:product, shopify_store: store)
+      variant = create(:product_variant, product: product, weight_grams: 300)
+      create(:order_line_item, order: order, product_variant: variant, quantity: 1)
+
+      basis = ShippingCostCalculator.basis(order)
+      expect(basis.zone).to eq("1")
+      expect(basis.zoned).to be true
+      expect(basis.rates.to_a).to eq(version.rates.where(zone: "1").to_a)
+    end
+
+    it "returns nil under the same guards as .estimate" do
+      build_version_with_band
+      order = build_order(weight_grams: nil)
+      expect(ShippingCostCalculator.basis(order)).to be_nil
+    end
+
+    describe "#display_band" do
+      it "returns the band that priced the order weight" do
+        build_version_with_band(min: 0.201, max: 0.45, per_kg: 92.0, flat: 23.0)
+        order = build_order(weight_grams: 300)
+        band = ShippingCostCalculator.basis(order).display_band
+        expect(band.per_kg_rate_cny).to eq(92.0)
+        expect(band.flat_fee_cny).to eq(23.0)
+        expect(band.weight_min_kg).to eq(0.201)
+        expect(band.weight_max_kg).to eq(0.45)
+      end
+
+      it "returns the max band for an over-max (split) order weight" do
+        version = create(:shipping_rate_card_version, company: company, country_code: "US",
+                         service_type: "with_battery", effective_from: Date.new(2026, 1, 1))
+        create(:shipping_rate_card_rate, version: version, zone: nil, weight_min_kg: 0, weight_max_kg: 1, per_kg_rate_cny: 27, flat_fee_cny: 23)
+        create(:shipping_rate_card_rate, version: version, zone: nil, weight_min_kg: 1, weight_max_kg: 5, per_kg_rate_cny: 30, flat_fee_cny: 25)
+        order = build_order(weight_grams: 5500)
+
+        band = ShippingCostCalculator.basis(order).display_band
+        expect(band.weight_min_kg).to eq(1)
+        expect(band.weight_max_kg).to eq(5)
+      end
+    end
+  end
 end
