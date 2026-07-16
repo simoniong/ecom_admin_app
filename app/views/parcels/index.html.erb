@@ -62,6 +62,8 @@
         <%= number_field_tag :min_over_pct, @min_over_pct, min: 0, step: "any", class: "w-24 rounded-md border-gray-300 text-sm" %>
       </div>
       <%= submit_tag t("parcels.filter"), class: "px-4 py-2 bg-gray-900 text-white text-sm rounded-md cursor-pointer" %>
+      <%= link_to t("parcels.export.button"), export_parcels_path(request.query_parameters),
+            class: "px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-50" %>
     <% end %>
 
     <div data-controller="edit-mode" data-edit-mode-editing-class="parcels-editing" class="bg-white rounded-lg border border-gray-200 overflow-hidden">

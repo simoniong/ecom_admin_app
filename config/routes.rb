@@ -75,6 +75,7 @@ Rails.application.routes.draw do
         post :preview
         get  "preview/:batch_id", action: :show_preview, as: :show_preview
         post :confirm_import
+        get  :export
       end
     end
     resources :products, only: [ :index ]
