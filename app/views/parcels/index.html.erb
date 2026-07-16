@@ -42,6 +42,11 @@
   <% else %>
     <%= form_tag parcels_path, method: :get, class: "bg-white rounded-lg border border-gray-200 p-4 mb-4 flex flex-wrap gap-4 items-end" do %>
       <div>
+        <label for="q" class="block text-xs font-medium text-gray-500 mb-1"><%= t("parcels.search_order") %></label>
+        <%= text_field_tag :q, params[:q], placeholder: t("parcels.search_order_placeholder"),
+              class: "w-40 rounded-md border-gray-300 text-sm" %>
+      </div>
+      <div>
         <label for="from_date" class="block text-xs font-medium text-gray-500 mb-1"><%= t("parcels.from_date") %></label>
         <%= date_field_tag :from_date, @from_date, class: "rounded-md border-gray-300 text-sm" %>
       </div>

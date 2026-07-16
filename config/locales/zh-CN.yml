@@ -386,6 +386,8 @@
     min_over_pct: "超支 ≥"
     country_filter: "国家"
     all_countries: "全部国家"
+    search_order: "订单编号"
+    search_order_placeholder: "如 PKS#1234"
     filter: "筛选"
     assign: "指派"
     save: "保存"

@@ -138,6 +138,28 @@ RSpec.describe "Parcels", type: :request do
       end
     end
 
+    describe "order ID search" do
+      it "keeps only orders whose number matches, on a partial query" do
+        get parcels_path, params: { q: "3052" }
+        expect(response.body).to include("PKS#3052")
+        expect(response.body).not_to include("PKS#3001")
+      end
+
+      it "matches the full order number too" do
+        get parcels_path, params: { q: "PKS#3001" }
+        expect(response.body).to include("PKS#3001")
+        expect(response.body).not_to include("PKS#3052")
+      end
+
+      it "treats a wildcard character literally, not as a match-all" do
+        # sanitize_sql_like escapes %, so "%" matches only names that literally
+        # contain a percent sign — none here — rather than every order.
+        get parcels_path, params: { q: "%" }
+        expect(response.body).not_to include("PKS#3052")
+        expect(response.body).not_to include("PKS#3001")
+      end
+    end
+
     it "filters to multi-parcel orders only" do
       get parcels_path, params: { multi_parcel_only: "1" }
       expect(response.body).to include("PKS#3052")

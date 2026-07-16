@@ -375,6 +375,7 @@ class ParcelsController < AdminController
                 .where.not(actual_shipping_cost: nil)
                 .ordered_between(@from_time, @to_time)
 
+    base = base.name_matching(params[:q]) if params[:q].present?
     base = base.where(id: Parcel.group(:order_id).having("COUNT(*) > 1").select(:order_id)) if params[:multi_parcel_only].present?
     base = base.where("orders.actual_shipping_cost > orders.estimated_shipping_cost") if params[:over_only].present?
     base = base.where("#{DEST_COUNTRY_SQL} = ?", params[:country]) if params[:country].present?
