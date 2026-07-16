@@ -17,6 +17,10 @@ class Order < ApplicationRecord
       q: "%#{sanitize_sql_like(query)}%"
     )
   }
+  # Case-insensitive partial match on the order number (name), e.g. "3052" or
+  # "PKS#3052". sanitize_sql_like escapes % and _ so a pasted value with those
+  # characters matches literally instead of acting as a wildcard.
+  scope :name_matching, ->(query) { where("orders.name ILIKE ?", "%#{sanitize_sql_like(query)}%") }
   scope :by_financial_status, ->(status) { where(financial_status: status) }
   scope :by_fulfillment_status, ->(status) { where(fulfillment_status: status) }
 

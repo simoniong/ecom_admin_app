@@ -82,6 +82,84 @@ RSpec.describe "Parcels", type: :request do
       expect(response.body).to include("🇦🇺")
     end
 
+    describe "country filter" do
+      let!(:au_order) do
+        o = create(:order, customer: customer, shopify_store: store, name: "PKS#AUCTRY",
+                           estimated_shipping_cost: 30, ordered_at: 1.day.ago,
+                           shopify_data: { "shipping_address" => { "country_code" => "AU", "zip" => "2000" } })
+        create(:parcel, shopify_store: store, order: o, identifier: "AUC1", cost_amount: 40)
+        o
+      end
+
+      let!(:us_order) do
+        o = create(:order, customer: customer, shopify_store: store, name: "PKS#USCTRY",
+                           estimated_shipping_cost: 30, ordered_at: 1.day.ago,
+                           shopify_data: { "shipping_address" => { "country_code" => "US", "zip" => "10001" } })
+        create(:parcel, shopify_store: store, order: o, identifier: "USC1", cost_amount: 40)
+        o
+      end
+
+      it "keeps only orders whose destination country matches" do
+        get parcels_path, params: { country: "AU" }
+        expect(response.body).to include("PKS#AUCTRY")
+        expect(response.body).not_to include("PKS#USCTRY")
+      end
+
+      it "resolves the country from billing when the shipping address has none, matching the row's country" do
+        billing_only = create(:order, customer: customer, shopify_store: store, name: "PKS#AUBILL",
+                              estimated_shipping_cost: 30, ordered_at: 1.day.ago,
+                              shopify_data: { "billing_address" => { "country_code" => "AU", "zip" => "3000" } })
+        create(:parcel, shopify_store: store, order: billing_only, identifier: "AUB1", cost_amount: 40)
+
+        get parcels_path, params: { country: "AU" }
+        expect(response.body).to include("PKS#AUBILL")
+        expect(response.body).to include("PKS#AUCTRY")
+        expect(response.body).not_to include("PKS#USCTRY")
+      end
+
+      it "treats a whitespace-only shipping country_code as blank and resolves to billing, matching the row" do
+        # Mirrors Ruby String#present?: "   " is blank, so both the row display
+        # and the filter must fall through to the billing country, not resolve
+        # to a bogus "   " code.
+        ws = create(:order, customer: customer, shopify_store: store, name: "PKS#AUWS",
+                    estimated_shipping_cost: 30, ordered_at: 1.day.ago,
+                    shopify_data: { "shipping_address" => { "country_code" => "   " },
+                                    "billing_address" => { "country_code" => "AU", "zip" => "3000" } })
+        create(:parcel, shopify_store: store, order: ws, identifier: "AUWS1", cost_amount: 40)
+
+        get parcels_path, params: { country: "AU" }
+        expect(response.body).to include("PKS#AUWS")
+      end
+
+      it "offers each destination country present in the window as a filter option" do
+        get parcels_path
+        expect(response.body).to include('value="AU"')
+        expect(response.body).to include('value="US"')
+      end
+    end
+
+    describe "order ID search" do
+      it "keeps only orders whose number matches, on a partial query" do
+        get parcels_path, params: { q: "3052" }
+        expect(response.body).to include("PKS#3052")
+        expect(response.body).not_to include("PKS#3001")
+      end
+
+      it "matches the full order number too" do
+        get parcels_path, params: { q: "PKS#3001" }
+        expect(response.body).to include("PKS#3001")
+        expect(response.body).not_to include("PKS#3052")
+      end
+
+      it "treats a wildcard character literally, not as a match-all" do
+        # sanitize_sql_like escapes %, so "%" matches only names that literally
+        # contain a percent sign — none here — rather than every order.
+        get parcels_path, params: { q: "%" }
+        expect(response.body).not_to include("PKS#3052")
+        expect(response.body).not_to include("PKS#3001")
+      end
+    end
+
     it "filters to multi-parcel orders only" do
       get parcels_path, params: { multi_parcel_only: "1" }
       expect(response.body).to include("PKS#3052")
