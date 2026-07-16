@@ -18,11 +18,11 @@ class ParcelsController < AdminController
   def index
     @tab = params[:tab] == "unmatched" ? "unmatched" : "orders"
     @page = [ params[:page].to_i, 1 ].max
-    store_ids = visible_shopify_stores.pluck(:id)
 
     parse_dates
 
     if @tab == "unmatched"
+      store_ids = visible_shopify_stores.pluck(:id)
       base = Parcel.unmatched.where(shopify_store_id: store_ids).order(shipped_at: :desc)
       @parcels = paginate(base)
       @assignable_orders = assignable_orders
@@ -36,28 +36,137 @@ class ParcelsController < AdminController
     # vanish when it fails to parse.
     @min_over_pct = params[:min_over_pct]
 
-    base = Order.where(shopify_store_id: store_ids)
-                .where.not(actual_shipping_cost: nil)
-                .ordered_between(@from_time, @to_time)
+    @orders = paginate(filtered_orders_base)
+      .includes(:parcels, order_line_items: :product_variant)
+      .reorder(Arel.sql("#{SORTABLE.fetch(@sort_column)} #{@sort_direction} NULLS LAST"))
 
-    base = base.where(id: Parcel.group(:order_id).having("COUNT(*) > 1").select(:order_id)) if params[:multi_parcel_only].present?
-    base = base.where("orders.actual_shipping_cost > orders.estimated_shipping_cost") if params[:over_only].present?
+    # Per-parcel estimate comparison (basis + zone/variance decomposition) for
+    # every order on the page. `@estimate_cache` is a single Hash shared by
+    # every ParcelEstimateComparator call below — see
+    # ShippingCostCalculator::basis's `cache:` param — so the rate-card-
+    # version lookup and postal-zone resolution each run at most once per
+    # distinct (company, country[, date/postal]) combination for the whole
+    # page, not once per order. Without it this loop turns into O(orders)
+    # rate-card lookups on a page that already renders up to 25 of them.
+    # `.each_with_object` forces `@orders` to load (and cache) its records
+    # once here; the view's later `@orders.each` reuses that same loaded set
+    # rather than re-querying.
+    @estimate_cache = {}
+    @comparisons = @orders.each_with_object({}) do |order, memo|
+      memo[order.id] = ParcelEstimateComparator.new(order, cache: @estimate_cache).call
+    end
+  end
 
-    if (pct = parse_pct(params[:min_over_pct]))
-      # estimated_shipping_cost can be NULL or 0 for orders that never got an
-      # estimate. Those can't have a percentage computed against them at all —
-      # dividing by zero or NULL, or reporting a meaningless "infinite" overrun —
-      # so they're excluded outright rather than included under a nonsense value.
-      base = base.where(
-        "orders.estimated_shipping_cost > 0 AND " \
-        "(orders.actual_shipping_cost - orders.estimated_shipping_cost) / orders.estimated_shipping_cost * 100 >= ?",
-        pct
-      )
+  # Reconciliation export for the orders tab — one row per PARCEL (not per
+  # order), so a multi-parcel order produces multiple rows. This is a read
+  # (like index), not a write, so it's deliberately NOT behind require_owner!:
+  # anyone who can see the report (owner or a member with the "parcels"
+  # permission, per authorize_page!) can export it. It follows whatever
+  # filter the caller passed (same query params as index) but is never
+  # paginated — the whole filtered result goes into the file, since the
+  # point is a complete reconciliation document, not a page's worth of it.
+  def export
+    parse_dates
+
+    orders = filtered_orders_base
+      .includes(:parcels, order_line_items: :product_variant)
+      .order(ordered_at: :desc)
+
+    # Shared across every ParcelEstimateComparator call below for the same
+    # N+1-avoidance reason @estimate_cache exists on index — see the comment
+    # there.
+    estimate_cache = {}
+    tz = ActiveSupport::TimeZone["Asia/Shanghai"]
+    fmt = "%-d %b, %Y %H:%M"
+
+    package = Axlsx::Package.new
+    package.workbook.add_worksheet(name: "Parcels") do |sheet|
+      header_style = sheet.styles.add_style(b: true, bg_color: "F2F2F2")
+
+      sheet.add_row [
+        t("parcels.export.order_name"),
+        t("parcels.export.identifier"),
+        t("parcels.export.internal_no"),
+        t("parcels.export.tracking_number"),
+        t("parcels.export.shipped_at"),
+        t("parcels.export.country"),
+        t("parcels.export.customer_zip"),
+        t("parcels.export.estimated_zone"),
+        t("parcels.export.billed_zone"),
+        t("parcels.export.zone_match"),
+        t("parcels.export.actual_weight_g"),
+        t("parcels.export.billed_weight_g"),
+        t("parcels.export.service_channel"),
+        t("parcels.export.freight_cny"),
+        t("parcels.export.registration_fee_cny"),
+        t("parcels.export.tax_cny"),
+        t("parcels.export.remote_area_fee_cny"),
+        t("parcels.export.operation_fee_cny"),
+        t("parcels.export.cost_cny"),
+        t("parcels.export.estimate_cny"),
+        t("parcels.export.variance_cny"),
+        t("parcels.export.variance_pct")
+      ], style: header_style
+
+      # Axlsx auto-detects a plain numeric-looking String as a number cell
+      # (e.g. a zip "2075" or a purely-numeric tracking/identifier value
+      # would silently become the Integer 2075, and any leading zero in a
+      # postal code would be lost the same way). Every non-money/non-weight
+      # column here is an identifier or code, never a quantity to do
+      # arithmetic on, so it's forced to :string; the money/weight columns
+      # are left at nil (auto-detect numeric) since those genuinely are
+      # numbers. `nil` forced-string values still write as a true blank
+      # cell (verified: roo reads them back as nil, not "").
+      column_types = [
+        :string, :string, :string, :string, :string, # order_name..shipped_at
+        :string, :string, :string, :string, :string,  # country..zone_match
+        nil, nil,                                      # actual_weight_g, billed_weight_g
+        :string,                                        # service_channel
+        nil, nil, nil, nil, nil, nil,                   # freight_cny..cost_cny
+        nil, nil, nil                                   # estimate_cny, variance_cny, variance_pct
+      ]
+
+      orders.each do |order|
+        comparison = ParcelEstimateComparator.new(order, cache: estimate_cache).call
+        zip = helpers.parcel_order_zip(order)
+        estimated_zone = comparison.estimated_zone
+
+        comparison.parcel_lines.each do |line|
+          parcel = line.parcel
+
+          sheet.add_row [
+            order.name,
+            parcel.identifier,
+            parcel.internal_no,
+            parcel.tracking_number,
+            parcel.shipped_at&.in_time_zone(tz)&.strftime(fmt),
+            parcel.country.presence || helpers.parcel_order_country_code(order),
+            zip,
+            estimated_zone,
+            parcel.zone,
+            zone_match_cell(estimated_zone, parcel.zone, line.zone_mismatch),
+            parcel.actual_weight_g,
+            parcel.billed_weight_g,
+            parcel.service_channel,
+            parcel.freight_cny,
+            parcel.registration_fee_cny,
+            parcel.tax_cny,
+            parcel.remote_area_fee_cny,
+            parcel.operation_fee_cny,
+            parcel.cost_cny,
+            line.estimate_cny,
+            line.variance_cny,
+            line.variance_pct
+          ], types: column_types
+        end
+      end
     end
 
-    @orders = paginate(base)
-      .includes(:parcels)
-      .reorder(Arel.sql("#{SORTABLE.fetch(@sort_column)} #{@sort_direction} NULLS LAST"))
+    filename = "parcels_reconciliation_#{Time.current.strftime('%Y%m%d_%H%M%S')}.xlsx"
+    send_data package.to_stream.read,
+              filename: filename,
+              type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+              disposition: "attachment"
   end
 
   def import
@@ -165,6 +274,18 @@ class ParcelsController < AdminController
           # entirely and is removed rather than replaced.
           @from_unmatched = params[:tab] == "unmatched"
           @assignable_orders = assignable_orders if @from_unmatched
+
+          # The orders-tab row now renders per-parcel estimate/variance/zone
+          # figures alongside the raw billed numbers, so a post-edit replace
+          # needs the same ParcelEstimateComparator line the index view uses
+          # — otherwise the row would revert to showing no estimate at all
+          # right after a save. Only one order's worth of work here (never a
+          # loop), so no cache/N+1 concern like the index action has.
+          if !@from_unmatched && @parcel.order
+            comparison = ParcelEstimateComparator.new(@parcel.order).call
+            @estimated_zone = comparison.estimated_zone
+            @line = comparison.parcel_lines.find { |l| l.parcel.id == @parcel.id }
+          end
         end
         format.html { redirect_to parcels_path, notice: t("parcels.updated") }
       end
@@ -202,6 +323,50 @@ class ParcelsController < AdminController
     Order.where(shopify_store_id: visible_shopify_stores.select(:id))
          .where.not(name: nil)
          .order(ordered_at: :desc)
+  end
+
+  # The orders-tab filter set (date range / multi_parcel_only / over_only /
+  # min_over_pct), extracted so index and export apply the EXACT same scope —
+  # export exists to reconcile "what's on screen right now" with a carrier
+  # bill, so it must never silently include or exclude an order the operator
+  # can't also see on the page they filtered. Requires @from_time/@to_time
+  # (parse_dates) to already be set. Unlike index, the caller decides whether
+  # to paginate the result — export deliberately doesn't.
+  def filtered_orders_base
+    store_ids = visible_shopify_stores.pluck(:id)
+
+    base = Order.where(shopify_store_id: store_ids)
+                .where.not(actual_shipping_cost: nil)
+                .ordered_between(@from_time, @to_time)
+
+    base = base.where(id: Parcel.group(:order_id).having("COUNT(*) > 1").select(:order_id)) if params[:multi_parcel_only].present?
+    base = base.where("orders.actual_shipping_cost > orders.estimated_shipping_cost") if params[:over_only].present?
+
+    if (pct = parse_pct(params[:min_over_pct]))
+      # estimated_shipping_cost can be NULL or 0 for orders that never got an
+      # estimate. Those can't have a percentage computed against them at all —
+      # dividing by zero or NULL, or reporting a meaningless "infinite" overrun —
+      # so they're excluded outright rather than included under a nonsense value.
+      base = base.where(
+        "orders.estimated_shipping_cost > 0 AND " \
+        "(orders.actual_shipping_cost - orders.estimated_shipping_cost) / orders.estimated_shipping_cost * 100 >= ?",
+        pct
+      )
+    end
+
+    base
+  end
+
+  # Y/N only when both sides of the comparison actually exist — an unzoned
+  # country (no estimated_zone) or a bill row missing its billed zone can't
+  # be judged "matching" or "mismatched" at all, so the cell is left blank
+  # (nil) rather than defaulting to either letter. When both are present,
+  # this mirrors ParcelEstimateComparator::zone_mismatch exactly: mismatch
+  # -> "N", otherwise -> "Y".
+  def zone_match_cell(estimated_zone, billed_zone, zone_mismatch)
+    return nil if estimated_zone.blank? || billed_zone.blank?
+
+    zone_mismatch ? "N" : "Y"
   end
 
   # Computes total_count/total_pages, clamps @page, and returns the

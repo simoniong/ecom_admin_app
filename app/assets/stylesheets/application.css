@@ -8,3 +8,23 @@
  *
  * Consider organizing styles into separate files for maintainability.
  */
+
+/* /parcels orders tab: inline edit controls (cost input + save + delete) are
+   hidden by default and only shown once the page's "編輯模式" checkbox is
+   on. Driven by a plain CSS descendant selector — not JS toggling individual
+   elements — so a parcel row that gets replaced by a Turbo Stream after a
+   save renders correctly hidden/shown with no re-application step. See
+   app/javascript/controllers/edit_mode_controller.js.
+
+   Deliberately kept here (Propshaft-served as-is) rather than in
+   app/assets/tailwind/application.css: that file only takes effect after
+   `bin/rails tailwindcss:build` regenerates app/assets/builds/tailwind.css,
+   a step this app's CI does not run before the system-spec job, so a rule
+   placed there would silently not exist when spec/system exercises this
+   toggle. */
+.parcels-edit-col {
+  display: none;
+}
+.parcels-editing .parcels-edit-col {
+  display: table-cell;
+}

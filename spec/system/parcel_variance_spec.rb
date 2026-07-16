@@ -29,19 +29,27 @@ RSpec.describe "Shipping variance report", type: :system do
 
     expect(page).to have_content(I18n.t("parcels.title"))
     expect(page).to have_content("PKS#3052")
-    expect(page).to have_content("B1")
-    expect(page).to have_content("B2")
     expect(page).to have_content("PKS#4001")
 
     # blown has the bigger variance (21.90 vs 1.00) and must sort first under
     # the desc-by-variance ordering the dashboard link requests.
     expect(page.text.index("PKS#3052")).to be < page.text.index("PKS#4001")
+
+    # The per-parcel detail (identifiers, per-parcel estimate/variance) is
+    # collapsed by default — only visible once the order row is expanded.
+    find("tr", text: "PKS#3052").click
+    expect(page).to have_content("B1")
+    expect(page).to have_content("B2")
   end
 
   it "edits a parcel cost inline via Turbo Stream and re-rolls up the order" do
     parcel = Parcel.find_by!(shopify_store: store, identifier: "B1")
 
     visit parcels_path
+    find("tr", text: "PKS#3052").click
+    # Inline edit controls are hidden by default and gated behind the
+    # page-level "編輯模式" checkbox — see edit_mode_controller.js.
+    check I18n.t("parcels.edit_mode")
 
     within("##{ActionView::RecordIdentifier.dom_id(parcel)}") do
       find("input[aria-label='#{I18n.t('parcels.columns.cost_cny')}']").set("72.00")
@@ -60,6 +68,36 @@ RSpec.describe "Shipping variance report", type: :system do
     expect(page).not_to have_content(I18n.t("parcels.updated"))
 
     expect(blown.reload.actual_shipping_cost).to eq(30.10) # 10.00 + 20.10
+  end
+
+  # The inline edit controls (cost input + save + delete) must stay hidden
+  # until the operator opts in via "編輯模式" — accidentally deleting or
+  # overwriting a billed cost from a report that's mostly read-only is the
+  # failure mode this gate exists to prevent. The controls must still exist
+  # in the DOM (not be gone entirely) once toggled on.
+  it "hides the inline edit controls by default and reveals them once edit mode is switched on" do
+    parcel = Parcel.find_by!(shopify_store: store, identifier: "B1")
+
+    visit parcels_path
+    find("tr", text: "PKS#3052").click
+
+    within("##{ActionView::RecordIdentifier.dom_id(parcel)}") do
+      expect(page).to have_css(".parcels-edit-col", visible: :hidden)
+      expect(page).not_to have_css(".parcels-edit-col", visible: :visible)
+    end
+
+    check I18n.t("parcels.edit_mode")
+
+    within("##{ActionView::RecordIdentifier.dom_id(parcel)}") do
+      expect(page).to have_css(".parcels-edit-col", visible: :visible)
+      expect(page).to have_button(I18n.t("parcels.save"))
+    end
+
+    uncheck I18n.t("parcels.edit_mode")
+
+    within("##{ActionView::RecordIdentifier.dom_id(parcel)}") do
+      expect(page).not_to have_css(".parcels-edit-col", visible: :visible)
+    end
   end
 
   it "assigns an unmatched parcel to an order and the rollup follows" do
