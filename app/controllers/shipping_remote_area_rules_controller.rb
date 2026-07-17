@@ -3,7 +3,19 @@ class ShippingRemoteAreaRulesController < AdminController
   before_action :set_version
 
   def create
-    rule = @version.rules.new(rule_params)
+    # A manually-added rule must be normalized the same way the batch importer
+    # does (PostalNormalizer.range_for), so that its postal_start/postal_end
+    # match the normalized keys that ShippingRemoteAreaVersion#surcharge_for
+    # looks up at estimate time. Storing the raw token would never match a real
+    # order's normalized postcode.
+    attrs = rule_params
+    range = PostalNormalizer.range_for(@version.country_code, params.dig(:shipping_remote_area_rule, :postcode))
+    if range.nil?
+      redirect_to shipping_remote_area_versions_path, alert: t("remote_areas.bad_postcode")
+      return
+    end
+
+    rule = @version.rules.new(attrs.merge(postal_start: range[0], postal_end: range[1]))
     if rule.save
       redirect_to shipping_remote_area_versions_path, notice: t("remote_areas.rule_created")
     else
@@ -33,7 +45,7 @@ class ShippingRemoteAreaRulesController < AdminController
   end
 
   def rule_params
-    params.require(:shipping_remote_area_rule).permit(:postal_start, :postal_end, :surcharge_cny, :area_label)
+    params.require(:shipping_remote_area_rule).permit(:surcharge_cny, :area_label)
   end
 
   def require_owner!

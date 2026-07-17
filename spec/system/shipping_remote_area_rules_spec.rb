@@ -32,13 +32,16 @@ RSpec.describe "Remote area rules", type: :system do
     version = ShippingRemoteAreaVersion.last
 
     within("##{ActionView::RecordIdentifier.dom_id(version)}") do
-      fill_in "shipping_remote_area_rule[postal_start]", with: "AB35"
-      fill_in "shipping_remote_area_rule[postal_end]", with: "AB35"
+      fill_in "shipping_remote_area_rule[postcode]", with: "IV"
       fill_in "shipping_remote_area_rule[area_label]", with: "area 3"
       fill_in "shipping_remote_area_rule[surcharge_cny]", with: "10"
       click_button I18n.t("remote_areas.add_rule")
     end
 
     expect(page).to have_content("area 3")
+    # The token "IV" must be stored normalized (IV00..IV99), matching lookup keys.
+    rule = version.reload.rules.sole
+    expect(rule.postal_start).to eq("IV00")
+    expect(rule.postal_end).to eq("IV99")
   end
 end

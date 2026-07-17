@@ -105,19 +105,49 @@ RSpec.describe "ShippingRemoteAreaVersions", type: :request do
   describe "rules" do
     let!(:version) { create(:shipping_remote_area_version, company: company, country_code: "GB") }
 
-    it "creates a rule directly" do
+    it "creates a rule directly from a postcode token, normalizing it so lookup hits" do
       expect {
         post shipping_remote_area_version_rules_path(shipping_remote_area_version_id: version.id), params: {
-          shipping_remote_area_rule: { postal_start: "AB35", postal_end: "AB35", surcharge_cny: 10, area_label: "area 3" }
+          shipping_remote_area_rule: { postcode: "IV", surcharge_cny: 17, area_label: "area 2" }
         }
       }.to change(version.rules, :count).by(1)
       expect(response).to redirect_to(shipping_remote_area_versions_path)
+
+      # The manually-added rule must be stored with normalized keys (IV -> IV00..IV99),
+      # so an order's normalized postcode (IV1 -> "IV01") falls inside its range and
+      # #surcharge_for hits it — proving manual-add and estimate-time lookup agree.
+      rule = version.reload.rules.sole
+      expect(rule.postal_start).to eq("IV00")
+      expect(rule.postal_end).to eq("IV99")
+      expect(version.surcharge_for(PostalNormalizer.normalize("GB", "IV1")).surcharge_cny).to eq(17)
+      expect(version.surcharge_for("IV01").surcharge_cny).to eq(17)
     end
 
-    it "rejects an invalid rule" do
+    it "creates a rule from a district-range token" do
       expect {
         post shipping_remote_area_version_rules_path(shipping_remote_area_version_id: version.id), params: {
-          shipping_remote_area_rule: { postal_start: "", postal_end: "", surcharge_cny: "" }
+          shipping_remote_area_rule: { postcode: "KA27-28", surcharge_cny: 12, area_label: "islands" }
+        }
+      }.to change(version.rules, :count).by(1)
+      rule = version.reload.rules.sole
+      expect(rule.postal_start).to eq("KA27")
+      expect(rule.postal_end).to eq("KA28")
+    end
+
+    it "rejects a rule with an unrecognisable postcode token" do
+      expect {
+        post shipping_remote_area_version_rules_path(shipping_remote_area_version_id: version.id), params: {
+          shipping_remote_area_rule: { postcode: "1234", surcharge_cny: 10, area_label: "x" }
+        }
+      }.not_to change(version.rules, :count)
+      expect(response).to redirect_to(shipping_remote_area_versions_path)
+      expect(flash[:alert]).to eq(I18n.t("remote_areas.bad_postcode"))
+    end
+
+    it "rejects a rule with a valid postcode but invalid surcharge" do
+      expect {
+        post shipping_remote_area_version_rules_path(shipping_remote_area_version_id: version.id), params: {
+          shipping_remote_area_rule: { postcode: "IV", surcharge_cny: "", area_label: "x" }
         }
       }.not_to change(version.rules, :count)
       expect(response).to redirect_to(shipping_remote_area_versions_path)
@@ -157,7 +187,7 @@ RSpec.describe "ShippingRemoteAreaVersions", type: :request do
       patch switch_company_path(id: company.id)
       expect {
         post shipping_remote_area_version_rules_path(shipping_remote_area_version_id: version.id), params: {
-          shipping_remote_area_rule: { postal_start: "AB35", postal_end: "AB35", surcharge_cny: 10 }
+          shipping_remote_area_rule: { postcode: "AB35", surcharge_cny: 10 }
         }
       }.not_to change(version.rules, :count)
       expect(response).to redirect_to(shipping_remote_area_versions_path)
