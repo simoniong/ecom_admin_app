@@ -706,22 +706,28 @@ RSpec.describe "Parcels", type: :request do
       expect(response.body).to include("20.0%") # o2 row, frozen
     end
 
-    it "totals variance across the whole filtered set, independent of the current page" do
-      o1 = priced_order(name: "PKS#SUM1", zip: "2075", weight_grams: 1500)
-      o1.update!(estimated_shipping_cost: 100)
-      create(:parcel, shopify_store: est_store, order: o1, identifier: "SUMA", zone: "1",
-             billed_weight_g: 1500, cost_cny: 80, fx_rate_snapshot: 7.0, cost_amount: 150)
-      o2 = priced_order(name: "PKS#SUM2", zip: "2075", weight_grams: 1500)
-      o2.update!(estimated_shipping_cost: 200)
-      create(:parcel, shopify_store: est_store, order: o2, identifier: "SUMB", zone: "1",
-             billed_weight_g: 1500, cost_cny: 80, fx_rate_snapshot: 7.0, cost_amount: 250)
+    it "totals variance across the whole filtered set, not just the visible page" do
+      # 25 zero-variance orders fill page 1; one high-variance order is pushed to
+      # page 2 by the ascending sort. A page-scoped summary would read 0% on
+      # page 1 — the real one still counts the off-page order. (Bare orders: the
+      # summary only reads the frozen estimated/actual, no line items needed.)
+      def au_order(name, est, actual)
+        o = create(:order, customer: est_customer, shopify_store: est_store, name: name,
+                   ordered_at: 1.day.ago, estimated_shipping_cost: est,
+                   shopify_data: { "shipping_address" => { "country_code" => "AU", "zip" => "2075" } })
+        create(:parcel, shopify_store: est_store, order: o, identifier: "P-#{name}",
+               cost_cny: 1, fx_rate_snapshot: 7.0, cost_amount: actual)
+        o
+      end
+      25.times { |i| au_order("PKS#Z#{i}", 100, 100) } # variance 0
+      au_order("PKS#BIG", 100, 200)                    # variance 100
 
-      # Page 2 holds no rows (only two matching orders, one page). A page-scoped
-      # summary would show 0 here; the real summary still totals the whole set.
-      get parcels_path, params: { country: "AU", page: "2" }
+      get parcels_path, params: { country: "AU", sort_column: "variance", sort_direction: "asc", page: "1" }
 
-      # est 300, actual 400 -> variance 100 (store) -> 33.33%; CNY = 100 * fx(7.0) = 700
-      expect(response.body).to include("33.33%")
+      # page 1 shows only the 25 zero-variance orders, but the summary spans all
+      # 26: est 2600, actual 2700 -> variance 100 -> 3.85%; CNY = 100 * 7.0 = 700
+      expect(response.body).not_to include("PKS#BIG") # off page 1
+      expect(response.body).to include("3.85%")
       expect(response.body).to include("¥700.00")
     end
 
