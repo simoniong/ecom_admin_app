@@ -421,6 +421,7 @@
       weight: "商品总重 %{weight} kg"
       band: "重量带 %{min}–%{max} kg"
       formula: "%{rate}/kg × %{weight} + %{flat} 挂号 + %{op} 操作费"
+      remote_surcharge: "+ %{amount} 偏远费（%{area}）"
       over_max_split: "超重·按拆包计价"
     contents:
       title: "订单商品"
