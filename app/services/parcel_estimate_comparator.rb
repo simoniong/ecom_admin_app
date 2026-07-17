@@ -22,6 +22,7 @@ class ParcelEstimateComparator
     :actual_cny, :actual,
     :variance_cny, :variance, :variance_pct,
     :billed_zone, :zone_mismatch,
+    :est_remote_cny, :actual_remote_cny, :remote_mismatch,
     keyword_init: true
   )
 
@@ -35,6 +36,8 @@ class ParcelEstimateComparator
     :actual_total_cny,
     :split_cost_cny, :overcharge_cny,
     :any_zone_mismatch,
+    :any_remote_mismatch, :est_remote_total_cny, :actual_remote_total_cny,
+    :remote_area_label, :remote_relevant,
     keyword_init: true
   )
 
@@ -72,6 +75,14 @@ class ParcelEstimateComparator
       overcharge_cny  = actual_total_cny - parcels_estimate_cny
     end
 
+    # Remote-fee reconciliation: the estimated remote surcharge is a single
+    # per-parcel figure on the Basis (billed once per parcel — see
+    # ShippingCostCalculator::Basis#cost_cny_for), so the order-level
+    # estimated total is just that figure × parcel count. The actual side
+    # sums whatever the carrier bill recorded per parcel, nil-safe.
+    est_remote_total_cny = basis ? (basis.remote_surcharge_cny * parcels.size) : BigDecimal("0")
+    actual_remote_total_cny = parcels.sum { |p| p.remote_area_fee_cny || BigDecimal("0") }
+
     Result.new(
       order: @order,
       basis: basis,
@@ -87,7 +98,12 @@ class ParcelEstimateComparator
       actual_total_cny: actual_total_cny,
       split_cost_cny: split_cost_cny,
       overcharge_cny: overcharge_cny,
-      any_zone_mismatch: lines.any?(&:zone_mismatch)
+      any_zone_mismatch: lines.any?(&:zone_mismatch),
+      any_remote_mismatch: lines.any?(&:remote_mismatch),
+      est_remote_total_cny: est_remote_total_cny,
+      actual_remote_total_cny: actual_remote_total_cny,
+      remote_area_label: basis&.remote_area_label,
+      remote_relevant: basis.present? && (est_remote_total_cny.positive? || actual_remote_total_cny.positive?)
     )
   end
 
@@ -108,12 +124,24 @@ class ParcelEstimateComparator
     billed_zone = parcel.zone
     zone_mismatch = estimated_zone.present? && billed_zone.present? && estimated_zone.to_s != billed_zone.to_s
 
+    # Remote-fee reconciliation, per parcel. `est_remote_cny` is nil (not 0)
+    # when there's no basis at all — without a basis we have no idea whether
+    # the postcode is remote, so we can't judge the bill either way, and
+    # `remote_mismatch` stays false rather than guessing. When a basis IS
+    # present, its remote_surcharge_cny is always a BigDecimal (0 for a
+    # non-remote postcode), so an exact BigDecimal `!=` against the billed
+    # remote_area_fee_cny (nil treated as 0) is a safe, precise comparison.
+    est_remote_cny = basis&.remote_surcharge_cny
+    actual_remote_cny = parcel.remote_area_fee_cny || BigDecimal("0")
+    remote_mismatch = basis.present? && (est_remote_cny || BigDecimal("0")) != actual_remote_cny
+
     ParcelLine.new(
       parcel: parcel,
       estimate_cny: estimate_cny, estimate: estimate,
       actual_cny: actual_cny, actual: actual,
       variance_cny: variance_cny, variance: variance, variance_pct: variance_pct,
-      billed_zone: billed_zone, zone_mismatch: zone_mismatch
+      billed_zone: billed_zone, zone_mismatch: zone_mismatch,
+      est_remote_cny: est_remote_cny, actual_remote_cny: actual_remote_cny, remote_mismatch: remote_mismatch
     )
   end
 

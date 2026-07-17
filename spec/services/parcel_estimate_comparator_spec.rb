@@ -161,6 +161,138 @@ RSpec.describe ParcelEstimateComparator do
     end
   end
 
+  describe "remote-fee reconciliation (estimated vs billed remote_area_fee_cny)" do
+    # A GB order priced against an unzoned rate card with a remote-area rule
+    # so every parcel's basis carries a non-zero remote_surcharge_cny — the
+    # comparator must then diff that per-parcel estimate against whatever the
+    # carrier actually billed as remote_area_fee_cny on each parcel.
+    let(:gb_company) { create(:company) }
+    let(:gb_store) do
+      create(:shopify_store, user: create(:user), company: gb_company, currency: "USD",
+             cost_fx_rate: 7.0, default_service_type: "with_battery")
+    end
+    let(:gb_customer) { create(:customer, shopify_store: gb_store) }
+
+    def gb_remote_order(zip: "IV1 1AA", grams: 1000)
+      o = create(:order, customer: gb_customer, shopify_store: gb_store,
+                 ordered_at: 1.day.ago,
+                 shopify_data: { "shipping_address" => { "country_code" => "GB", "zip" => zip } })
+      variant = create(:product_variant, product: create(:product, shopify_store: gb_store), weight_grams: grams)
+      create(:order_line_item, order: o, product_variant: variant, quantity: 1)
+      o
+    end
+
+    before do
+      v = create(:shipping_rate_card_version, company: gb_company, country_code: "GB",
+                 service_type: "with_battery", effective_from: Date.new(2020, 1, 1))
+      create(:shipping_rate_card_rate, version: v, zone: nil, weight_min_kg: 0, weight_max_kg: 5,
+             per_kg_rate_cny: 50, flat_fee_cny: 30)
+      rav = create(:shipping_remote_area_version, company: gb_company, country_code: "GB",
+                   effective_from: Date.new(2020, 1, 1))
+      create(:shipping_remote_area_rule, version: rav, postal_start: "IV00", postal_end: "IV99",
+             surcharge_cny: 17, area_label: "area 2")
+    end
+
+    it "Case A: flags a mismatch when the carrier billed a remote fee for a non-remote parcel (estimate 0, actual > 0)" do
+      order = gb_remote_order(zip: "M1 1AA") # not remote -> estimate's remote surcharge is 0
+      parcel = create(:parcel, shopify_store: gb_store, order: order, identifier: "RF-A1",
+                      billed_weight_g: 1000, cost_cny: 92, fx_rate_snapshot: 7.0, cost_amount: 13.14,
+                      remote_area_fee_cny: 10)
+
+      result = described_class.new(order).call
+      line = result.parcel_lines.find { |l| l.parcel == parcel }
+
+      expect(line.est_remote_cny).to eq(0)
+      expect(line.actual_remote_cny).to eq(10)
+      expect(line.remote_mismatch).to be true
+      expect(result.any_remote_mismatch).to be true
+      expect(result.est_remote_total_cny).to eq(0)
+      expect(result.actual_remote_total_cny).to eq(10)
+      expect(result.remote_relevant).to be true
+    end
+
+    it "Case B: flags a mismatch when the billed remote fee differs from the estimated one (both > 0)" do
+      order = gb_remote_order(zip: "IV1 1AA") # remote -> estimate carries the ¥17 surcharge
+      parcel = create(:parcel, shopify_store: gb_store, order: order, identifier: "RF-B1",
+                      billed_weight_g: 1000, cost_cny: 106, fx_rate_snapshot: 7.0, cost_amount: 15.14,
+                      remote_area_fee_cny: 24)
+
+      result = described_class.new(order).call
+      line = result.parcel_lines.find { |l| l.parcel == parcel }
+
+      expect(line.est_remote_cny).to eq(17)
+      expect(line.actual_remote_cny).to eq(24)
+      expect(line.remote_mismatch).to be true
+      expect(result.any_remote_mismatch).to be true
+      expect(result.remote_area_label).to eq("area 2")
+    end
+
+    it "Case C: does not flag a mismatch when the billed remote fee matches the estimate exactly (both > 0)" do
+      order = gb_remote_order(zip: "IV1 1AA")
+      parcel = create(:parcel, shopify_store: gb_store, order: order, identifier: "RF-C1",
+                      billed_weight_g: 1000, cost_cny: 99, fx_rate_snapshot: 7.0, cost_amount: 14.14,
+                      remote_area_fee_cny: 17)
+
+      result = described_class.new(order).call
+      line = result.parcel_lines.find { |l| l.parcel == parcel }
+
+      expect(line.remote_mismatch).to be false
+      expect(result.any_remote_mismatch).to be false
+      expect(result.remote_relevant).to be true
+      expect(result.est_remote_total_cny).to eq(17)
+      expect(result.actual_remote_total_cny).to eq(17)
+    end
+
+    it "Case D: is not remote-relevant when neither side ever charges a remote fee" do
+      order = gb_remote_order(zip: "M1 1AA") # not remote
+      parcel = create(:parcel, shopify_store: gb_store, order: order, identifier: "RF-D1",
+                      billed_weight_g: 1000, cost_cny: 82, fx_rate_snapshot: 7.0, cost_amount: 11.71,
+                      remote_area_fee_cny: 0)
+
+      result = described_class.new(order).call
+      line = result.parcel_lines.find { |l| l.parcel == parcel }
+
+      expect(line.est_remote_cny).to eq(0)
+      expect(line.actual_remote_cny).to eq(0)
+      expect(line.remote_mismatch).to be false
+      expect(result.any_remote_mismatch).to be false
+      expect(result.remote_relevant).to be false
+      expect(result.est_remote_total_cny).to eq(0)
+      expect(result.actual_remote_total_cny).to eq(0)
+    end
+
+    it "treats a nil remote_area_fee_cny on the parcel as 0 (bill import may leave it unset)" do
+      order = gb_remote_order(zip: "M1 1AA")
+      parcel = create(:parcel, shopify_store: gb_store, order: order, identifier: "RF-NIL1",
+                      billed_weight_g: 1000, cost_cny: 82, fx_rate_snapshot: 7.0, cost_amount: 11.71,
+                      remote_area_fee_cny: nil)
+
+      result = described_class.new(order).call
+      line = result.parcel_lines.find { |l| l.parcel == parcel }
+
+      expect(line.actual_remote_cny).to eq(0)
+      expect(line.remote_mismatch).to be false
+    end
+
+    it "is not remote-mismatched (or relevant) when the order has no basis at all" do
+      order = create(:order, customer: gb_customer, shopify_store: gb_store,
+                     ordered_at: 1.day.ago, shopify_data: {}) # no country -> no basis
+      parcel = create(:parcel, shopify_store: gb_store, order: order, identifier: "RF-NB1",
+                      billed_weight_g: 1000, cost_cny: 50, fx_rate_snapshot: 7.0, cost_amount: 7.14,
+                      remote_area_fee_cny: 10) # can't tell if this is right or wrong without a basis
+
+      result = described_class.new(order).call
+      line = result.parcel_lines.find { |l| l.parcel == parcel }
+
+      expect(line.est_remote_cny).to be_nil
+      expect(line.remote_mismatch).to be false
+      expect(result.any_remote_mismatch).to be false
+      expect(result.remote_relevant).to be false
+      expect(result.est_remote_total_cny).to eq(0)
+      expect(result.remote_area_label).to be_nil
+    end
+  end
+
   describe "when the order itself is not estimable (no basis)" do
     it "returns nil order estimate and nil per-parcel estimates without raising" do
       order = create(:order, customer: customer, shopify_store: store,
