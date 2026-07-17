@@ -40,19 +40,19 @@
     </table>
     <%= render "parcels/pagination", page: @page, total_pages: @total_pages, total_count: @total_count %>
   <% else %>
-    <%= form_tag parcels_path, method: :get, class: "bg-white rounded-lg border border-gray-200 p-4 mb-4 flex flex-wrap gap-4 items-end" do %>
+    <% field_cls = "rounded-md border border-gray-300 shadow-sm text-sm text-gray-700 py-2 px-3 focus:border-blue-500 focus:ring-blue-500" %>
+    <%= form_tag parcels_path, method: :get, class: "bg-white rounded-lg border border-gray-200 p-4 mb-4 flex flex-wrap gap-3 items-end" do %>
       <div>
         <label for="q" class="block text-xs font-medium text-gray-500 mb-1"><%= t("parcels.search_order") %></label>
-        <%= text_field_tag :q, params[:q], placeholder: t("parcels.search_order_placeholder"),
-              class: "w-40 rounded-md border-gray-300 text-sm" %>
+        <%= text_field_tag :q, params[:q], placeholder: t("parcels.search_order_placeholder"), class: "w-40 #{field_cls}" %>
       </div>
       <div>
         <label for="from_date" class="block text-xs font-medium text-gray-500 mb-1"><%= t("parcels.from_date") %></label>
-        <%= date_field_tag :from_date, @from_date, class: "rounded-md border-gray-300 text-sm" %>
+        <%= date_field_tag :from_date, @from_date, class: field_cls %>
       </div>
       <div>
         <label for="to_date" class="block text-xs font-medium text-gray-500 mb-1"><%= t("parcels.to_date") %></label>
-        <%= date_field_tag :to_date, @to_date, class: "rounded-md border-gray-300 text-sm" %>
+        <%= date_field_tag :to_date, @to_date, class: field_cls %>
       </div>
       <% country_codes = (@countries + [ @country ]).compact_blank.uniq.sort %>
       <% if country_codes.any? %>
@@ -63,25 +63,64 @@
                   [ [ t("parcels.all_countries"), "" ] ] +
                     country_codes.map { |c| [ "#{parcel_country_flag(c)} #{parcel_country_name(c)}", c ] },
                   @country),
-                class: "rounded-md border-gray-300 text-sm" %>
+                class: field_cls %>
         </div>
       <% end %>
-      <label class="flex items-center gap-2 text-sm text-gray-700">
+      <div>
+        <label for="sort_column" class="block text-xs font-medium text-gray-500 mb-1"><%= t("parcels.sort_by") %></label>
+        <div class="flex gap-2">
+          <%= select_tag :sort_column,
+                options_for_select([
+                  [ t("parcels.columns.variance_pct"), "variance_pct" ],
+                  [ t("parcels.columns.variance"),     "variance" ],
+                  [ t("parcels.columns.estimated"),    "estimated" ],
+                  [ t("parcels.columns.actual"),       "actual" ],
+                  [ t("parcels.sort.ordered_at"),      "ordered_at" ]
+                ], @sort_column),
+                class: field_cls %>
+          <%= select_tag :sort_direction,
+                options_for_select([ [ t("parcels.sort.desc"), "desc" ], [ t("parcels.sort.asc"), "asc" ] ], @sort_direction),
+                class: field_cls %>
+        </div>
+      </div>
+      <div>
+        <label for="min_over_pct" class="block text-xs font-medium text-gray-500 mb-1"><%= t("parcels.min_over_pct") %> %</label>
+        <%= number_field_tag :min_over_pct, @min_over_pct, min: 0, step: "any", class: "w-24 #{field_cls}" %>
+      </div>
+      <label class="flex items-center gap-2 text-sm text-gray-700 py-2">
         <%= check_box_tag :multi_parcel_only, "1", params[:multi_parcel_only].present?, class: "rounded border-gray-300" %>
         <%= t("parcels.multi_parcel_only") %>
       </label>
-      <label class="flex items-center gap-2 text-sm text-gray-700">
+      <label class="flex items-center gap-2 text-sm text-gray-700 py-2">
         <%= check_box_tag :over_only, "1", params[:over_only].present?, class: "rounded border-gray-300" %>
         <%= t("parcels.over_only") %>
       </label>
-      <div>
-        <label for="min_over_pct" class="block text-xs font-medium text-gray-500 mb-1"><%= t("parcels.min_over_pct") %> %</label>
-        <%= number_field_tag :min_over_pct, @min_over_pct, min: 0, step: "any", class: "w-24 rounded-md border-gray-300 text-sm" %>
-      </div>
-      <%= submit_tag t("parcels.filter"), class: "px-4 py-2 bg-gray-900 text-white text-sm rounded-md cursor-pointer" %>
+      <%= submit_tag t("parcels.filter"), class: "px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-md cursor-pointer hover:bg-gray-800" %>
       <%= link_to t("parcels.export.button"), export_parcels_path(request.query_parameters),
             class: "px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-50" %>
     <% end %>
+
+    <%# Totals across the whole filtered set — see ParcelsController#shipping_variance_summary. %>
+    <div class="bg-white rounded-lg border border-gray-200 p-4 mb-4 flex flex-wrap items-center gap-x-10 gap-y-3">
+      <div>
+        <div class="text-[11px] font-medium text-gray-500 uppercase tracking-wide"><%= t("parcels.summary.estimated_total") %></div>
+        <div class="mt-0.5"><%= dual_currency(@summary[:estimated_cny], @summary[:estimated_store]) %></div>
+      </div>
+      <div>
+        <div class="text-[11px] font-medium text-gray-500 uppercase tracking-wide"><%= t("parcels.summary.actual_total") %></div>
+        <div class="mt-0.5"><%= dual_currency(@summary[:actual_cny], @summary[:actual_store]) %></div>
+      </div>
+      <div class="pl-10 border-l border-gray-200">
+        <div class="text-[11px] font-medium text-gray-500 uppercase tracking-wide"><%= t("parcels.summary.variance_total") %></div>
+        <div class="mt-0.5 text-base"><%= dual_currency(@summary[:variance_cny], @summary[:variance_store], over: @summary[:variance_store].to_f.positive?, sign: true) %></div>
+      </div>
+      <div>
+        <div class="text-[11px] font-medium text-gray-500 uppercase tracking-wide"><%= t("parcels.summary.variance_pct") %></div>
+        <div class="mt-0.5 text-lg font-semibold <%= @summary[:variance_pct].to_f.positive? ? "text-red-600" : "text-gray-900" %>">
+          <%= @summary[:variance_pct] ? "#{@summary[:variance_pct]}%" : "—" %>
+        </div>
+      </div>
+    </div>
 
     <div data-controller="edit-mode" data-edit-mode-editing-class="parcels-editing" class="bg-white rounded-lg border border-gray-200 overflow-hidden">
       <div class="overflow-x-auto">
@@ -115,9 +154,21 @@
           </thead>
           <% @orders.each do |order| %>
             <% result = @comparisons[order.id] %>
+            <%# Order-row figures use the FROZEN estimated/actual_shipping_cost so
+                they match the SQL sort and the summary above exactly. CNY is the
+                store-currency figure converted at the store's current fx. The
+                expanded detail below still recomputes per-parcel live; run
+                shipping:reestimate after a rate change to re-align the two. %>
+            <% fx = order.shopify_store&.cost_fx_rate %>
+            <% est_store = order.estimated_shipping_cost %>
+            <% act_store = order.actual_shipping_cost %>
+            <% var_store = order.shipping_variance %>
+            <% order_variance_pct = order.shipping_variance_pct %>
+            <% to_cny = ->(v) { (v && fx) ? v * fx : nil } %>
+            <%# Recon (in the expanded detail) decomposes the LIVE recomputed
+                order variance, not the frozen order-row one — the per-parcel
+                split/overcharge it explains are themselves recomputed. %>
             <% order_variance_cny = (result.order_estimate_cny && result.actual_total_cny) ? (result.actual_total_cny - result.order_estimate_cny) : nil %>
-            <% order_variance_usd = (result.order_estimate && order.actual_shipping_cost) ? (order.actual_shipping_cost - result.order_estimate) : nil %>
-            <% order_variance_pct = (order_variance_cny && result.order_estimate_cny&.nonzero?) ? (order_variance_cny / result.order_estimate_cny * 100).round(2) : nil %>
             <tbody data-controller="collapsible" class="divide-y divide-gray-100 border-t border-gray-100">
               <tr class="cursor-pointer hover:bg-gray-50"
                   data-action="click->collapsible#toggle keydown.enter->collapsible#toggle keydown.space->collapsible#toggle:prevent"
@@ -135,9 +186,9 @@
                     <span class="ml-1 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-red-50 text-red-600"><%= t("parcels.zone_mismatch_badge") %></span>
                   <% end %>
                 </td>
-                <td class="px-4 py-3 text-right"><%= dual_currency(result.order_estimate_cny, result.order_estimate) %></td>
-                <td class="px-4 py-3 text-right"><%= dual_currency(result.actual_total_cny, order.actual_shipping_cost) %></td>
-                <td class="px-4 py-3 text-right"><%= dual_currency(order_variance_cny, order_variance_usd, over: order_variance_cny.to_f.positive?, sign: true) %></td>
+                <td class="px-4 py-3 text-right"><%= dual_currency(to_cny.call(est_store), est_store) %></td>
+                <td class="px-4 py-3 text-right"><%= dual_currency(to_cny.call(act_store), act_store) %></td>
+                <td class="px-4 py-3 text-right"><%= dual_currency(to_cny.call(var_store), var_store, over: var_store.to_f.positive?, sign: true) %></td>
                 <td class="px-4 py-3 text-right text-sm <%= "text-red-600 font-medium" if order_variance_pct && order_variance_pct.positive? %>">
                   <%= order_variance_pct ? "#{order_variance_pct}%" : "—" %>
                 </td>

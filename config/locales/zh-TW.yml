@@ -388,6 +388,16 @@
     all_countries: "全部國家"
     search_order: "訂單編號"
     search_order_placeholder: "如 PKS#1234"
+    sort_by: "排序"
+    sort:
+      ordered_at: "下單時間"
+      desc: "降序"
+      asc: "升序"
+    summary:
+      estimated_total: "預估合計"
+      actual_total: "實際合計"
+      variance_total: "總差異"
+      variance_pct: "總差異 %"
     filter: "篩選"
     assign: "指派"
     save: "儲存"

@@ -685,6 +685,52 @@ RSpec.describe "Parcels", type: :request do
       expect(response.body).to include(I18n.t("parcels.contents.missing_note"))
     end
 
+    it "shows the order-row variance % from the FROZEN estimate (so it matches the sort), not the recomputed one" do
+      o1 = priced_order(name: "PKS#FROZENPCT", zip: "2075", weight_grams: 1500)
+      o1.update!(estimated_shipping_cost: 100) # frozen; the rate card would recompute a different number
+      create(:parcel, shopify_store: est_store, order: o1, identifier: "FZ1", zone: "1",
+             billed_weight_g: 1500, cost_cny: 80, fx_rate_snapshot: 7.0, cost_amount: 150) # actual 150 -> frozen 50.0%
+
+      # A second order so the summary bar's aggregate % (35.0%) differs from
+      # either row's %, meaning a bare "50.0%" in the body can only be o1's ROW
+      # (frozen) — if the row regressed to the recomputed estimate it would read
+      # ~14.29%, not 50.0%.
+      o2 = priced_order(name: "PKS#FROZENPCT2", zip: "2075", weight_grams: 1500)
+      o2.update!(estimated_shipping_cost: 100)
+      create(:parcel, shopify_store: est_store, order: o2, identifier: "FZ2", zone: "1",
+             billed_weight_g: 1500, cost_cny: 80, fx_rate_snapshot: 7.0, cost_amount: 120) # frozen 20.0%
+
+      get parcels_path, params: { country: "AU" }
+
+      expect(response.body).to include("50.0%") # o1 row, frozen
+      expect(response.body).to include("20.0%") # o2 row, frozen
+    end
+
+    it "totals variance across the whole filtered set, not just the visible page" do
+      # 25 zero-variance orders fill page 1; one high-variance order is pushed to
+      # page 2 by the ascending sort. A page-scoped summary would read 0% on
+      # page 1 — the real one still counts the off-page order. (Bare orders: the
+      # summary only reads the frozen estimated/actual, no line items needed.)
+      def au_order(name, est, actual)
+        o = create(:order, customer: est_customer, shopify_store: est_store, name: name,
+                   ordered_at: 1.day.ago, estimated_shipping_cost: est,
+                   shopify_data: { "shipping_address" => { "country_code" => "AU", "zip" => "2075" } })
+        create(:parcel, shopify_store: est_store, order: o, identifier: "P-#{name}",
+               cost_cny: 1, fx_rate_snapshot: 7.0, cost_amount: actual)
+        o
+      end
+      25.times { |i| au_order("PKS#Z#{i}", 100, 100) } # variance 0
+      au_order("PKS#BIG", 100, 200)                    # variance 100
+
+      get parcels_path, params: { country: "AU", sort_column: "variance", sort_direction: "asc", page: "1" }
+
+      # page 1 shows only the 25 zero-variance orders, but the summary spans all
+      # 26: est 2600, actual 2700 -> variance 100 -> 3.85%; CNY = 100 * 7.0 = 700
+      expect(response.body).not_to include("PKS#BIG") # off page 1
+      expect(response.body).to include("3.85%")
+      expect(response.body).to include("¥700.00")
+    end
+
     # Per-parcel estimate/actual/variance, each in CNY (primary) and USD
     # (secondary) — the report's core new data, not present on the report at
     # all before this feature.

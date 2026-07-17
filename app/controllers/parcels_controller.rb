@@ -72,8 +72,10 @@ class ParcelsController < AdminController
                       .compact_blank
                       .sort
 
+    @summary = shipping_variance_summary
+
     @orders = paginate(filtered_orders_base)
-      .includes(:parcels, order_line_items: :product_variant)
+      .includes(:parcels, :shopify_store, order_line_items: :product_variant)
       .reorder(Arel.sql("#{SORTABLE.fetch(@sort_column)} #{@sort_direction} NULLS LAST"))
 
     # Per-parcel estimate comparison (basis + zone/variance decomposition) for
@@ -393,6 +395,43 @@ class ParcelsController < AdminController
     end
 
     base
+  end
+
+  # Totals across the WHOLE filtered set (not just the current page), so the
+  # summary reflects everything the filter selected — the point is to compare,
+  # e.g., total overrun per country as the operator switches the country filter.
+  # Only orders that carry a frozen estimate count toward the totals (an order
+  # with no estimate has no comparable variance). CNY is each order's
+  # store-currency figure times that store's cost_fx_rate, so multi-store /
+  # multi-fx sets still total correctly. Everything here is the frozen
+  # estimated/actual_shipping_cost — the same basis the order rows, the sort and
+  # the over/min-overrun filters use, so the summary can never disagree with the
+  # rows it sits above.
+  def shipping_variance_summary
+    est_store, act_store, est_cny, act_cny =
+      filtered_orders_base
+        .where.not(estimated_shipping_cost: nil)
+        .joins(:shopify_store)
+        # Only stores with a usable fx rate: the CNY sums multiply by
+        # cost_fx_rate, so a NULL/zero-fx store would drop out of the CNY total
+        # while still counting in the store-currency total — making the bar
+        # contradict itself. Excluding those rows keeps both totals over the
+        # exact same set. (A store with no fx rate can't be shown in CNY anyway.)
+        .where("shopify_stores.cost_fx_rate > 0")
+        .pick(Arel.sql(
+          "COALESCE(SUM(orders.estimated_shipping_cost), 0), " \
+          "COALESCE(SUM(orders.actual_shipping_cost), 0), " \
+          "COALESCE(SUM(orders.estimated_shipping_cost * shopify_stores.cost_fx_rate), 0), " \
+          "COALESCE(SUM(orders.actual_shipping_cost * shopify_stores.cost_fx_rate), 0)"
+        ))
+
+    {
+      estimated_store: est_store, actual_store: act_store,
+      estimated_cny: est_cny, actual_cny: act_cny,
+      variance_store: act_store - est_store,
+      variance_cny: act_cny - est_cny,
+      variance_pct: est_store.positive? ? ((act_store - est_store) / est_store * 100).round(2) : nil
+    }
   end
 
   # Y/N only when both sides of the comparison actually exist — an unzoned
