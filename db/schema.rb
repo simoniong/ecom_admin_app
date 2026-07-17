@@ -742,6 +742,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_17_090002) do
   add_foreign_key "shipping_rate_card_versions", "companies"
   add_foreign_key "shipping_reminder_rules", "companies"
   add_foreign_key "shipping_reminder_settings", "companies"
+  add_foreign_key "shipping_remote_area_rules", "shipping_remote_area_versions", column: "version_id"
+  add_foreign_key "shipping_remote_area_versions", "companies"
   add_foreign_key "shipping_zone_postal_rules", "companies"
   add_foreign_key "shopify_stores", "companies"
   add_foreign_key "shopify_stores", "groups"

@@ -10,5 +10,6 @@ class CreateShippingRemoteAreaVersions < ActiveRecord::Migration[8.1]
     end
     add_index :shipping_remote_area_versions, [ :company_id, :country_code, :effective_from ],
               name: "idx_remote_area_versions_lookup"
+    add_foreign_key :shipping_remote_area_versions, :companies
   end
 end
