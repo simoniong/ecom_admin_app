@@ -66,7 +66,7 @@ RSpec.describe "Sidebar navigation", type: :request do
       )
     end
 
-    it "shows all five children, in order, to the owner" do
+    it "shows all six children, in order, to the owner" do
       sign_in user
       enable_tracking!(company)
 
@@ -83,6 +83,7 @@ RSpec.describe "Sidebar navigation", type: :request do
         parcels_path,
         shipping_rate_card_versions_path,
         shipping_zone_postal_rules_path,
+        shipping_remote_area_versions_path,
         shipping_reminder_rules_path
       ])
 
@@ -90,7 +91,25 @@ RSpec.describe "Sidebar navigation", type: :request do
       expect(menu.text).to include(I18n.t("nav.parcels"))
       expect(menu.text).to include(I18n.t("nav.shipping_rate_cards"))
       expect(menu.text).to include(I18n.t("nav.shipping_zone_postal_rules"))
+      expect(menu.text).to include(I18n.t("nav.shipping_remote_areas"))
       expect(menu.text).to include(I18n.t("nav.shipping_reminders"))
+    end
+
+    it "shows the Remote Areas child to a member granted the shipping permission" do
+      member = create(:user)
+      create(:membership, user: member, company: company, role: :member, permissions: [ "shipping" ])
+      sign_in member
+      patch switch_company_path(id: company.id)
+
+      get authenticated_root_path
+
+      expect(response).to have_http_status(:ok)
+      doc = Nokogiri::HTML(response.body)
+      menu = doc.at_css("#shipping-menu")
+      expect(menu).to be_present
+
+      expect(menu.text).to include(I18n.t("nav.shipping_remote_areas"))
+      expect(menu.text).not_to include(I18n.t("nav.shipping_rate_cards"))
     end
 
     it "shows the Shipping-Variance child but not Rate Cards / Postal Zones for a member with parcels but not shopify_stores" do

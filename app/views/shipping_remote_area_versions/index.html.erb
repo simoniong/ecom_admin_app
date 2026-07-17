@@ -1,0 +1,41 @@
+<div class="max-w-5xl mx-auto px-4 py-6">
+  <h1 class="text-2xl font-semibold text-gray-900 mb-4"><%= t("remote_areas.title") %></h1>
+
+  <% if flash[:remote_import_errors].present? %>
+    <div class="mb-4 rounded border border-red-300 bg-red-50 p-3 text-sm text-red-700">
+      <p class="font-medium"><%= t("remote_areas.import_errors") %></p>
+      <ul class="mt-1 list-disc list-inside">
+        <% flash[:remote_import_errors].each do |e| %><li><%= e %></li><% end %>
+      </ul>
+    </div>
+  <% end %>
+
+  <%# Filter %>
+  <%= form_with url: shipping_remote_area_versions_path, method: :get, local: true,
+                class: "flex items-end gap-4 mb-6" do %>
+    <label class="text-sm text-gray-700">
+      <%= t("remote_areas.filter_country") %>
+      <select name="country_code" onchange="this.form.requestSubmit()"
+              class="block mt-1 border border-gray-300 rounded px-2 py-1 text-sm">
+        <option value=""><%= t("remote_areas.filter_all") %></option>
+        <% @countries.each do |c| %>
+          <option value="<%= c %>" <%= "selected" if @selected_country == c %>><%= t("shipping_rate_cards.countries.#{c}", default: c) %></option>
+        <% end %>
+      </select>
+    </label>
+  <% end %>
+
+  <% if current_membership&.owner? %>
+    <%= render "new_version_form" %>
+  <% end %>
+
+  <div id="remote_area_versions" class="space-y-6">
+    <% if @versions.empty? %>
+      <p class="text-sm text-gray-500"><%= t("remote_areas.empty") %></p>
+    <% else %>
+      <% @versions.each do |version| %>
+        <%= render "version", version: version %>
+      <% end %>
+    <% end %>
+  </div>
+</div>

@@ -1,0 +1,14 @@
+<% owner = current_membership&.owner? %>
+<div id="<%= dom_id(rule) %>" class="grid grid-cols-[1fr_1fr_1fr_1fr_auto] gap-3 items-center px-5 py-2 border-b border-gray-50">
+  <div class="text-gray-600"><%= rule.postal_start %></div>
+  <div class="text-gray-600"><%= rule.postal_end %></div>
+  <div class="text-gray-600"><%= rule.area_label.presence || "—" %></div>
+  <div class="text-gray-600"><%= rule.surcharge_cny %></div>
+  <div>
+    <% if owner %>
+      <%= button_to "🗑", shipping_remote_area_version_rule_path(shipping_remote_area_version_id: version.id, id: rule.id), method: :delete,
+            form: { data: { turbo_confirm: t("remote_areas.rule_deleted") } },
+            class: "text-gray-400 hover:text-red-600" %>
+    <% end %>
+  </div>
+</div>

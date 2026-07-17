@@ -94,6 +94,11 @@ Rails.application.routes.draw do
     resources :shipping_zone_postal_rules, only: [ :index ] do
       post :import, on: :collection
     end
+    resources :shipping_remote_area_versions, only: [ :index, :create, :update, :destroy ] do
+      resources :rules, only: [ :create, :destroy ], controller: "shipping_remote_area_rules" do
+        post :import, on: :collection
+      end
+    end
     resources :ad_accounts, only: [ :index, :show, :update, :destroy ]
     resources :ad_campaigns, only: [ :index ] do
       post :sync, on: :collection

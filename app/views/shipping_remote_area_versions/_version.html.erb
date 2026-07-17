@@ -1,0 +1,63 @@
+<% owner = current_membership&.owner? %>
+<div id="<%= dom_id(version) %>" class="bg-white border border-gray-200 rounded-lg shadow-sm">
+  <%# Header row %>
+  <div class="flex flex-wrap items-center gap-3 px-5 py-3 border-b border-gray-100 text-sm">
+    <span class="font-medium text-gray-900"><%= version.name %></span>
+    <span class="text-gray-600"><%= t("shipping_rate_cards.countries.#{version.country_code}", default: version.country_code) %></span>
+    <span class="text-gray-600"><%= version.effective_from %></span>
+    <span class="text-gray-400">&rarr;</span>
+    <span class="text-gray-600"><%= version.effective_to || t("remote_areas.until_superseded") %></span>
+    <% if owner %>
+      <%= button_to "🗑", shipping_remote_area_version_path(id: version.id), method: :delete,
+            form: { class: "ml-auto", data: { turbo_confirm: t("remote_areas.version_deleted") } },
+            class: "text-gray-400 hover:text-red-600" %>
+    <% end %>
+  </div>
+
+  <%# Rules: header / rows / add-form share one grid template so columns align regardless of row count. %>
+  <div class="text-sm">
+    <div class="grid grid-cols-[1fr_1fr_1fr_1fr_auto] gap-3 items-center px-5 py-2 text-left text-gray-500 border-b border-gray-100">
+      <span><%= t("remote_areas.columns.postal_start") %></span>
+      <span><%= t("remote_areas.columns.postal_end") %></span>
+      <span><%= t("remote_areas.columns.area_label") %></span>
+      <span><%= t("remote_areas.columns.surcharge") %></span>
+      <span></span>
+    </div>
+
+    <div id="<%= dom_id(version, :rules) %>">
+      <% version.rules.sort_by(&:postal_start).each do |rule| %>
+        <%= render "shipping_remote_area_rules/rule", version: version, rule: rule %>
+      <% end %>
+    </div>
+
+    <% if owner %>
+      <%= form_with url: shipping_remote_area_version_rules_path(shipping_remote_area_version_id: version.id), method: :post, local: true,
+                    class: "grid grid-cols-[1fr_1fr_1fr_1fr_auto] gap-3 items-center px-5 py-3 border-t border-gray-100" do %>
+        <input type="text" name="shipping_remote_area_rule[postal_start]"
+               placeholder="<%= t('remote_areas.columns.postal_start') %>" required
+               class="w-full border border-gray-300 rounded px-2 py-1 text-sm">
+        <input type="text" name="shipping_remote_area_rule[postal_end]"
+               placeholder="<%= t('remote_areas.columns.postal_end') %>" required
+               class="w-full border border-gray-300 rounded px-2 py-1 text-sm">
+        <input type="text" name="shipping_remote_area_rule[area_label]"
+               placeholder="<%= t('remote_areas.columns.area_label') %>"
+               class="w-full border border-gray-300 rounded px-2 py-1 text-sm">
+        <input type="number" step="0.01" min="0" name="shipping_remote_area_rule[surcharge_cny]"
+               placeholder="<%= t('remote_areas.columns.surcharge') %>" required
+               class="w-full border border-gray-300 rounded px-2 py-1 text-sm">
+        <button type="submit"
+                class="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 whitespace-nowrap">
+          <%= t("remote_areas.add_rule") %>
+        </button>
+      <% end %>
+      <%= form_with url: import_shipping_remote_area_version_rules_path(shipping_remote_area_version_id: version.id), method: :post, local: true,
+                    class: "px-5 py-3 border-t border-gray-100 space-y-2" do %>
+        <p class="text-xs text-gray-500"><%= t("remote_areas.import_hint") %></p>
+        <textarea name="text" id="text_<%= version.id %>" rows="4" class="w-full border border-gray-300 rounded px-2 py-1 text-sm font-mono"></textarea>
+        <button type="submit" id="import_<%= version.id %>" class="px-3 py-1 text-sm bg-gray-700 text-white rounded hover:bg-gray-800">
+          <%= t("remote_areas.bulk_import") %>
+        </button>
+      <% end %>
+    <% end %>
+  </div>
+</div>
