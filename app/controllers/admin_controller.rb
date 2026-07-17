@@ -18,8 +18,8 @@ class AdminController < ApplicationController
     "shipping_rate_card_versions" => "shopify_stores",
     "shipping_rate_card_rates"    => "shopify_stores",
     "shipping_zone_postal_rules" => "shopify_stores",
-    "shipping_remote_area_versions" => "shipping",
-    "shipping_remote_area_rules"    => "shipping"
+    "shipping_remote_area_versions" => "shopify_stores",
+    "shipping_remote_area_rules"    => "shopify_stores"
   }.freeze
 
   STORE_SWITCHER_CONTROLLERS = %w[dashboard orders shipments tickets ad_campaigns].freeze

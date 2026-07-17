@@ -1011,7 +1011,6 @@
       email_accounts: "邮箱"
       shipping_reminder_rules: "物流提醒"
       parcels: "包裹"
-      shipping: "物流设置"
   memberships:
     edit_title: "编辑权限"
     edit: "编辑"

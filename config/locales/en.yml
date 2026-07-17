@@ -1013,7 +1013,6 @@ en:
       email_accounts: "Email Accounts"
       shipping_reminder_rules: "Shipping Reminders"
       parcels: "Parcels"
-      shipping: "Shipping Config"
   memberships:
     edit_title: "Edit Permissions"
     edit: "Edit"

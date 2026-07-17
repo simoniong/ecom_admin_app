@@ -44,7 +44,7 @@ RSpec.describe "ShippingRemoteAreaVersions", type: :request do
 
     it "denies a non-owner member from creating a version" do
       member = create(:user)
-      create(:membership, user: member, company: company, role: :member, permissions: [ "shipping" ])
+      create(:membership, user: member, company: company, role: :member, permissions: [ "shopify_stores" ])
       sign_out user
       sign_in member
       post shipping_remote_area_versions_path, params: {
@@ -54,7 +54,7 @@ RSpec.describe "ShippingRemoteAreaVersions", type: :request do
       expect(ShippingRemoteAreaVersion.count).to eq(0)
     end
 
-    it "blocks a member without the shipping permission entirely" do
+    it "blocks a member without the shopify_stores permission entirely" do
       member = create(:user)
       create(:membership, user: member, company: company, role: :member, permissions: [])
       sign_out user
@@ -142,7 +142,7 @@ RSpec.describe "ShippingRemoteAreaVersions", type: :request do
 
     it "denies rule creation to a non-owner member" do
       member = create(:user)
-      create(:membership, user: member, company: company, role: :member, permissions: [ "shipping" ])
+      create(:membership, user: member, company: company, role: :member, permissions: [ "shopify_stores" ])
       sign_out user
       sign_in member
       expect {
