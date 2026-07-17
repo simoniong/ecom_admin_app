@@ -4,23 +4,29 @@ class ShippingCostCalculator
   # Reused to price a parcel's billed weight in the SAME zone/version, so
   # per-parcel estimates stay consistent with the order-level one.
   class Basis
-    attr_reader :version, :zone, :zoned, :order_weight_kg, :fx_rate, :rates
+    attr_reader :version, :zone, :zoned, :order_weight_kg, :fx_rate, :rates,
+                :remote_surcharge_cny, :remote_area_label
 
-    def initialize(version:, zone:, zoned:, order_weight_kg:, fx_rate:)
+    def initialize(version:, zone:, zoned:, order_weight_kg:, fx_rate:,
+                   remote_surcharge_cny: BigDecimal("0"), remote_area_label: nil)
       @version = version
       @zone = zone
       @zoned = zoned
       @order_weight_kg = order_weight_kg
       @fx_rate = fx_rate
       @rates = version.rates.where(zone: zone)
+      @remote_surcharge_cny = remote_surcharge_cny || BigDecimal("0")
+      @remote_area_label = remote_area_label
     end
 
     # CNY cost for an arbitrary weight, priced against this basis's zone. nil
     # when the weight is missing/non-positive or matches no band (incl. the
     # over-max greedy-split case bottoming out on an unmatched remainder).
+    # Includes the per-parcel remote-area surcharge (0 when this destination
+    # isn't a matched remote area).
     def estimate_cny_for(weight_kg)
       return nil unless weight_kg && weight_kg.positive?
-      ShippingCostCalculator.cost_cny_for(rates, weight_kg)
+      ShippingCostCalculator.cost_cny_for(rates, weight_kg, @remote_surcharge_cny)
     end
 
     def order_estimate_cny
@@ -84,13 +90,16 @@ class ShippingCostCalculator
   # Cost in CNY for a weight against a set of bands. If the weight exceeds the
   # heaviest band, simulate a greedy split into parcels at the max band weight,
   # charging each parcel its own per-kg charge + handling fee. Returns nil if any
-  # parcel's weight matches no band.
-  def self.cost_cny_for(scope, weight_kg)
+  # parcel's weight matches no band. `remote_surcharge_cny` is billed once PER
+  # PARCEL (same as the operation fee folded into parcel_cost), since a remote-
+  # area surcharge is a carrier per-parcel charge, not a flat order-level add-on.
+  def self.cost_cny_for(scope, weight_kg, remote_surcharge_cny = BigDecimal("0"))
     weight = BigDecimal(weight_kg.to_s)   # exact decimal; keeps the money math in BigDecimal
+    surcharge = remote_surcharge_cny || BigDecimal("0")
 
     # Common case: a single band covers the weight — one indexed query, no over-fetch.
     rate = scope.for_weight(weight).first
-    return parcel_cost(rate, weight) if rate
+    return parcel_cost(rate, weight) + surcharge if rate
 
     # Over-max: load the bands once and simulate a greedy parcel split.
     bands = scope.to_a
@@ -103,6 +112,7 @@ class ShippingCostCalculator
     # O(1) greedy split: N full parcels at `max` + one remainder parcel.
     full_count = (weight / max).floor
     remainder  = weight - (full_count * max)
+    parcels    = full_count
 
     cost = parcel_cost(full_band, max) * full_count
     if remainder.positive?
@@ -110,8 +120,9 @@ class ShippingCostCalculator
       return nil unless rem_band
 
       cost += parcel_cost(rem_band, remainder)
+      parcels += 1
     end
-    cost
+    cost + (surcharge * parcels)
   end
 
   def self.band_for(bands, weight_kg)
@@ -174,16 +185,53 @@ class ShippingCostCalculator
     zone = resolve_zone(country)   # nil = unzoned country, String = matched zone, :unmatched = give up
     return Resolution.new(reason: :unmatched_zone) if zone == :unmatched
 
+    surcharge_rule = remote_area_rule(country)
     Resolution.new(basis: Basis.new(
       version: version,
       zone: zone,
       zoned: !zone.nil?,
       order_weight_kg: weight_kg,
-      fx_rate: @store.cost_fx_rate
+      fx_rate: @store.cost_fx_rate,
+      remote_surcharge_cny: surcharge_rule&.surcharge_cny || BigDecimal("0"),
+      remote_area_label: surcharge_rule&.area_label
     ))
   end
 
   private
+
+  # The remote-area rule matching this order's destination postcode on its order
+  # date, or nil. Uses the SAME shipping-then-billing postcode + normalizer the
+  # zone resolution uses, so a surcharge is only added where the postcode maps to
+  # a remote area for the order's date. Both DB round trips are memoized in
+  # @cache (like fetch_version / fetch_zone_for) so a /parcels page of orders
+  # sharing a company/country/date + postcode collapses to O(1) queries.
+  def remote_area_rule(country)
+    key = PostalNormalizer.normalize(country, postal_from_order)
+    return nil unless key
+    version = fetch_remote_version(country, @order.ordered_at.to_date)
+    return nil unless version
+    fetch_remote_rule(version, key)
+  end
+
+  # Memoized per (company, country, date). Caches nil too — orders sharing a
+  # company/country/date that have NO remote-area version must not each re-query.
+  def fetch_remote_version(country, on_date)
+    cache_key = [ @store.company_id, country, on_date ]
+    cache_slot(:remote_version).fetch(cache_key) do
+      cache_slot(:remote_version)[cache_key] = ShippingRemoteAreaVersion.lookup(
+        company: @store.company, country: country, on_date: on_date
+      )
+    end
+  end
+
+  # Memoized per (version, postal key) — same version + same postcode resolves
+  # the matching rule (or nil) once.
+  def fetch_remote_rule(version, key)
+    cache_key = [ version.id, key ]
+    cache_slot(:remote_rule).fetch(cache_key) do
+      cache_slot(:remote_rule)[cache_key] = version.surcharge_for(key)
+    end
+  end
 
   # Memoized per (company, country, service_type, date) in @cache — repeated
   # for every order on the same store/country/date range, which is the common

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_14_133832) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_17_090002) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -454,6 +454,28 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_14_133832) do
     t.index ["company_id"], name: "index_shipping_reminder_settings_on_company_id", unique: true
   end
 
+  create_table "shipping_remote_area_rules", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.string "area_label"
+    t.datetime "created_at", null: false
+    t.string "postal_end", null: false
+    t.string "postal_start", null: false
+    t.decimal "surcharge_cny", precision: 10, scale: 2, null: false
+    t.datetime "updated_at", null: false
+    t.uuid "version_id", null: false
+    t.index ["version_id", "postal_start"], name: "idx_remote_area_rules_lookup"
+  end
+
+  create_table "shipping_remote_area_versions", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "company_id", null: false
+    t.string "country_code", null: false
+    t.datetime "created_at", null: false
+    t.date "effective_from", null: false
+    t.date "effective_to"
+    t.string "name", null: false
+    t.datetime "updated_at", null: false
+    t.index ["company_id", "country_code", "effective_from"], name: "idx_remote_area_versions_lookup"
+  end
+
   create_table "shipping_zone_postal_rules", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.uuid "company_id", null: false
     t.string "country_code", null: false
@@ -720,6 +742,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_14_133832) do
   add_foreign_key "shipping_rate_card_versions", "companies"
   add_foreign_key "shipping_reminder_rules", "companies"
   add_foreign_key "shipping_reminder_settings", "companies"
+  add_foreign_key "shipping_remote_area_rules", "shipping_remote_area_versions", column: "version_id"
+  add_foreign_key "shipping_remote_area_versions", "companies"
   add_foreign_key "shipping_zone_postal_rules", "companies"
   add_foreign_key "shopify_stores", "companies"
   add_foreign_key "shopify_stores", "groups"

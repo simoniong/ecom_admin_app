@@ -662,6 +662,143 @@ RSpec.describe "Parcels", type: :request do
       expect(response.body).not_to include("× 5.50") # the single-parcel formula must not render for a split order
     end
 
+    it "shows a remote-area surcharge chip in the basis line when the postcode is remote" do
+      # A GB order priced against a GB (unzoned) rate card whose destination
+      # postcode matches a remote-area rule — the basis line must surface the
+      # surcharge as its own chip.
+      gb_version = create(:shipping_rate_card_version, company: company, country_code: "GB",
+                          service_type: "with_battery", effective_from: Date.new(2020, 1, 1))
+      create(:shipping_rate_card_rate, version: gb_version, zone: nil, weight_min_kg: 0, weight_max_kg: 5,
+             per_kg_rate_cny: 50, flat_fee_cny: 30)
+      rav = create(:shipping_remote_area_version, company: company, country_code: "GB",
+                   effective_from: Date.new(2020, 1, 1))
+      create(:shipping_remote_area_rule, version: rav, postal_start: "IV00", postal_end: "IV99",
+             surcharge_cny: 17, area_label: "area 2")
+
+      order = create(:order, customer: est_customer, shopify_store: est_store, name: "PKS#REMOTE",
+                     ordered_at: 1.day.ago,
+                     shopify_data: { "shipping_address" => { "country_code" => "GB", "zip" => "IV1 1AA" } })
+      variant = create(:product_variant, product: create(:product, shopify_store: est_store), weight_grams: 1000)
+      create(:order_line_item, order: order, product_variant: variant, quantity: 1)
+      create(:parcel, shopify_store: est_store, order: order, identifier: "RA1",
+             billed_weight_g: 1000, cost_cny: 99, fx_rate_snapshot: 7.0, cost_amount: 14.14)
+
+      get parcels_path
+
+      expect(response.body).to include(I18n.t("parcels.basis.remote_surcharge", amount: "¥17.00", area: "area 2"))
+    end
+
+    describe "remote-fee reconciliation (estimated vs billed remote_area_fee_cny)" do
+      # Same GB + remote-area-rule setup as the surcharge-chip test above, but
+      # here we vary what the carrier BILLED (parcel.remote_area_fee_cny)
+      # against what the rule would estimate, to exercise the 3 display
+      # cases the brief pins down: A (mismatch, should-be-zero), C (matched,
+      # low-key), D (not remote-relevant at all, no block).
+      def setup_gb_remote_rule
+        gb_version = create(:shipping_rate_card_version, company: company, country_code: "GB",
+                            service_type: "with_battery", effective_from: Date.new(2020, 1, 1))
+        create(:shipping_rate_card_rate, version: gb_version, zone: nil, weight_min_kg: 0, weight_max_kg: 5,
+               per_kg_rate_cny: 50, flat_fee_cny: 30)
+        rav = create(:shipping_remote_area_version, company: company, country_code: "GB",
+                     effective_from: Date.new(2020, 1, 1))
+        create(:shipping_remote_area_rule, version: rav, postal_start: "IV00", postal_end: "IV99",
+               surcharge_cny: 17, area_label: "area 2")
+      end
+
+      def gb_order(name:, zip:, grams: 1000)
+        o = create(:order, customer: est_customer, shopify_store: est_store, name: name,
+                   ordered_at: 1.day.ago,
+                   shopify_data: { "shipping_address" => { "country_code" => "GB", "zip" => zip } })
+        variant = create(:product_variant, product: create(:product, shopify_store: est_store), weight_grams: grams)
+        create(:order_line_item, order: o, product_variant: variant, quantity: 1)
+        o
+      end
+
+      # Mutation-test target for the badge/detail gating: dropping
+      # `any_remote_mismatch` from the badge condition would make it render
+      # unconditionally (present on Case C/D too); dropping `remote_relevant`
+      # from the detail-block gate would make the block leak onto Case D.
+      it "Case A: shows the red mismatch badge and a mismatch detail block when a non-remote parcel was billed a remote fee" do
+        setup_gb_remote_rule
+        order = gb_order(name: "PKS#RRA", zip: "M1 1AA") # not remote -> estimate's remote surcharge is 0
+        create(:parcel, shopify_store: est_store, order: order, identifier: "RRA1",
+               billed_weight_g: 1000, cost_cny: 92, fx_rate_snapshot: 7.0, cost_amount: 13.14,
+               remote_area_fee_cny: 10)
+
+        get parcels_path
+
+        expect(response).to have_http_status(:ok)
+        # The badge and the detail-block title share the exact same i18n
+        # string ("⚠ 偏遠費不符"), so a plain `include` can't tell the
+        # order-row badge apart from the title — it would still pass even if
+        # the badge condition were dropped, since the title renders the same
+        # text. Assert the exact count instead: 1 order-row badge + 1 detail
+        # title = 2. This is the mutation-test target for the badge gate.
+        badge_text = I18n.t("parcels.remote_recon.badge")
+        expect(response.body.scan(badge_text).size).to eq(2)
+        expect(response.body).to include("bg-red-50 text-red-600") # badge styling present
+        expect(response.body).to include(I18n.t("parcels.remote_recon.explain_should_not_charge"))
+        # The existing "possible carrier overcharge" breakdown line gets an
+        # extra annotation calling out how much of it is the remote-fee delta.
+        expect(response.body).to include(I18n.t("parcels.remote_recon.split_note", amount: "+¥10.00"))
+      end
+
+      it "Case B: shows the mismatch badge with the amount-mismatch explanation when the billed remote fee differs from a nonzero estimate" do
+        setup_gb_remote_rule
+        order = gb_order(name: "PKS#RRB", zip: "IV1 1AA") # remote -> estimate carries the ¥17 surcharge
+        create(:parcel, shopify_store: est_store, order: order, identifier: "RRB1",
+               billed_weight_g: 1000, cost_cny: 92, fx_rate_snapshot: 7.0, cost_amount: 13.14,
+               remote_area_fee_cny: 10) # billed ¥10 vs estimated ¥17 -> amount mismatch, NOT should-not-charge
+
+        get parcels_path
+
+        expect(response).to have_http_status(:ok)
+        # The estimate's remote surcharge is nonzero, so the mismatch is an
+        # AMOUNT mismatch — the view must pick the amount-mismatch explanation
+        # branch, not the "should not have charged" one. This is the mutation-
+        # test target for the `est_remote_total_cny.zero?` branch selector.
+        expect(response.body.scan(I18n.t("parcels.remote_recon.badge")).size).to eq(2)
+        expect(response.body).to include(I18n.t("parcels.remote_recon.explain_amount_mismatch"))
+        expect(response.body).not_to include(I18n.t("parcels.remote_recon.explain_should_not_charge"))
+      end
+
+      it "Case C: shows no badge but a low-key matched detail block when the billed remote fee matches the estimate" do
+        setup_gb_remote_rule
+        order = gb_order(name: "PKS#RRC", zip: "IV1 1AA") # remote -> estimate carries the ¥17 surcharge
+        create(:parcel, shopify_store: est_store, order: order, identifier: "RRC1",
+               billed_weight_g: 1000, cost_cny: 99, fx_rate_snapshot: 7.0, cost_amount: 14.14,
+               remote_area_fee_cny: 17)
+
+        get parcels_path
+
+        expect(response).to have_http_status(:ok)
+        # Neither the order-row badge nor the mismatch title (same string as
+        # the badge) may appear anywhere on the page for a matched order.
+        expect(response.body).not_to include(I18n.t("parcels.remote_recon.badge"))
+        expect(response.body).to include(I18n.t("parcels.remote_recon.title_ok"))
+        # No delta between actual and estimated remote-fee totals -> no annotation,
+        # regardless of amount (checked against the i18n text stripped of its
+        # %{amount} interpolation so any non-zero figure would still be caught).
+        split_note_prefix = I18n.t("parcels.remote_recon.split_note", amount: "").strip
+        expect(response.body).not_to include(split_note_prefix)
+      end
+
+      it "Case D: shows no badge and no detail block at all when neither side ever charges a remote fee" do
+        setup_gb_remote_rule
+        order = gb_order(name: "PKS#RRD", zip: "M1 1AA") # not remote
+        create(:parcel, shopify_store: est_store, order: order, identifier: "RRD1",
+               billed_weight_g: 1000, cost_cny: 82, fx_rate_snapshot: 7.0, cost_amount: 11.71,
+               remote_area_fee_cny: 0)
+
+        get parcels_path
+
+        expect(response).to have_http_status(:ok)
+        expect(response.body).not_to include(I18n.t("parcels.remote_recon.badge"))
+        expect(response.body).not_to include(I18n.t("parcels.remote_recon.title_ok"))
+        expect(response.body).not_to include(I18n.t("parcels.remote_recon.title_mismatch"))
+      end
+    end
+
     it "lists the order's SKUs, quantities and per-SKU estimated weight (qty x unit)" do
       order = create(:order, customer: est_customer, shopify_store: est_store, name: "PKS#SKULIST",
                      ordered_at: 1.day.ago,

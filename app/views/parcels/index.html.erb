@@ -185,6 +185,9 @@
                   <% if result.any_zone_mismatch %>
                     <span class="ml-1 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-red-50 text-red-600"><%= t("parcels.zone_mismatch_badge") %></span>
                   <% end %>
+                  <% if result.any_remote_mismatch %>
+                    <span class="ml-1 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-red-50 text-red-600"><%= t("parcels.remote_recon.badge") %></span>
+                  <% end %>
                 </td>
                 <td class="px-4 py-3 text-right"><%= dual_currency(to_cny.call(est_store), est_store) %></td>
                 <td class="px-4 py-3 text-right"><%= dual_currency(to_cny.call(act_store), act_store) %></td>
@@ -237,9 +240,75 @@
                           </span>
                         <% end %>
                       <% end %>
+                      <% if result.basis.remote_surcharge_cny&.positive? %>
+                        <span class="px-2 py-1 rounded bg-amber-50 text-amber-700 text-[11px]">
+                          <%= t("parcels.basis.remote_surcharge", amount: cny(result.basis.remote_surcharge_cny), area: result.basis.remote_area_label) %>
+                        </span>
+                      <% end %>
                       <span class="ml-auto font-semibold text-gray-900 text-sm whitespace-nowrap">
                         = <%= dual_currency(result.order_estimate_cny, result.order_estimate) %>
                       </span>
+                    </div>
+                  <% end %>
+
+                  <%# Remote-fee reconciliation — estimated (result.basis.remote_surcharge_cny,
+                      per parcel) vs actually billed (parcel.remote_area_fee_cny). Gated on
+                      remote_relevant so a genuinely non-remote order (neither side ever
+                      charges anything) shows no block at all — Case D in the design preview.
+                      Mismatched (any_remote_mismatch) renders red like the zone-mismatch
+                      recon question above it; matched renders low-key gray with a
+                      confirmation note, same visual language as the zone-mismatch pairing. %>
+                  <% if result.remote_relevant %>
+                    <% remote_mismatch = result.any_remote_mismatch %>
+                    <div class="mb-3 rounded-lg border px-3.5 py-3 text-xs <%= remote_mismatch ? "bg-red-50 border-red-200" : "bg-white border-gray-200" %>">
+                      <div class="font-semibold mb-2 <%= remote_mismatch ? "text-red-600" : "text-gray-900" %>">
+                        <% if remote_mismatch %>
+                          <%= t("parcels.remote_recon.title_mismatch") %>
+                          &middot;
+                          <%= result.est_remote_total_cny.zero? ? t("parcels.remote_recon.explain_should_not_charge") : t("parcels.remote_recon.explain_amount_mismatch") %>
+                        <% else %>
+                          <%= t("parcels.remote_recon.title_ok") %>
+                        <% end %>
+                      </div>
+                      <div class="overflow-x-auto">
+                        <table class="min-w-full text-xs">
+                          <thead>
+                            <tr class="text-gray-400">
+                              <th class="py-1 text-left"><%= t("parcels.remote_recon.parcel") %></th>
+                              <th class="py-1 text-left"><%= t("parcels.remote_recon.zip_area") %></th>
+                              <th class="py-1 text-right"><%= t("parcels.remote_recon.estimated") %></th>
+                              <th class="py-1 text-right"><%= t("parcels.remote_recon.actual") %></th>
+                              <th class="py-1 text-right"><%= t("parcels.remote_recon.variance") %></th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <% result.parcel_lines.each do |line| %>
+                              <tr class="border-t border-gray-100 <%= "text-red-600 font-semibold" if line.remote_mismatch %>">
+                                <td class="py-1 text-left font-mono"><%= line.parcel.identifier %></td>
+                                <td class="py-1 text-left <%= "text-red-500" if line.remote_mismatch %> <%= "text-gray-500" unless line.remote_mismatch %>">
+                                  <%= parcel_order_zip(order).presence || "—" %>
+                                  &middot;
+                                  <%= result.remote_area_label.presence || t("parcels.remote_recon.not_remote") %>
+                                </td>
+                                <td class="py-1 text-right"><%= cny(line.est_remote_cny) %></td>
+                                <td class="py-1 text-right"><%= cny(line.actual_remote_cny) %></td>
+                                <td class="py-1 text-right"><%= signed_cny(line.actual_remote_cny - line.est_remote_cny) %></td>
+                              </tr>
+                            <% end %>
+                          </tbody>
+                          <tfoot>
+                            <tr class="border-t-2 border-gray-300 font-semibold <%= "text-red-600" if remote_mismatch %>">
+                              <td class="py-1 text-left" colspan="2"><%= t("parcels.remote_recon.totals") %></td>
+                              <td class="py-1 text-right"><%= cny(result.est_remote_total_cny) %></td>
+                              <td class="py-1 text-right"><%= cny(result.actual_remote_total_cny) %></td>
+                              <td class="py-1 text-right"><%= signed_cny(result.actual_remote_total_cny - result.est_remote_total_cny) %></td>
+                            </tr>
+                          </tfoot>
+                        </table>
+                      </div>
+                      <% unless remote_mismatch %>
+                        <p class="mt-2 text-[11px] text-gray-400"><%= t("parcels.remote_recon.explain_ok") %></p>
+                      <% end %>
                     </div>
                   <% end %>
 
@@ -403,6 +472,9 @@
                           <span class="text-[10px] text-gray-400">
                             <%= t("parcels.recon.overcharge_label") %>
                             &middot; <%= signed_usd(overcharge_usd) %>
+                            <% if result.actual_remote_total_cny != result.est_remote_total_cny %>
+                              <br><%= t("parcels.remote_recon.split_note", amount: signed_cny(result.actual_remote_total_cny - result.est_remote_total_cny)) %>
+                            <% end %>
                           </span>
                         </span>
                       </div>

@@ -324,4 +324,122 @@ RSpec.describe ShippingCostCalculator do
       end
     end
   end
+
+  describe "remote-area surcharge" do
+    let(:company) { create(:company) }
+    let(:store) do
+      create(:shopify_store, company: company, user: create(:user),
+             currency: "USD", cost_fx_rate: 7.0, default_service_type: "with_battery")
+    end
+    let(:customer) { create(:customer, shopify_store: store) }
+
+    def gb_order(zip:, grams: 1000)
+      o = create(:order, customer: customer, shopify_store: store,
+                 ordered_at: Time.utc(2026, 6, 15, 12),
+                 shopify_data: { "shipping_address" => { "country_code" => "GB", "zip" => zip } })
+      variant = create(:product_variant, product: create(:product, shopify_store: store), weight_grams: grams)
+      create(:order_line_item, order: o, product_variant: variant, quantity: 1)
+      o
+    end
+
+    before do
+      v = create(:shipping_rate_card_version, company: company, country_code: "GB",
+                 service_type: "with_battery", effective_from: Date.new(2026, 1, 1))
+      create(:shipping_rate_card_rate, version: v, zone: nil, weight_min_kg: 0, weight_max_kg: 5,
+             per_kg_rate_cny: 50, flat_fee_cny: 30) # base 1kg: 50*1+30 = 80 (+¥2 op = 82)
+
+      rav = create(:shipping_remote_area_version, company: company, country_code: "GB",
+                   effective_from: Date.new(2026, 6, 1))
+      create(:shipping_remote_area_rule, version: rav, postal_start: "IV00", postal_end: "IV99",
+             surcharge_cny: 17, area_label: "area 2")
+    end
+
+    it "adds the surcharge (per parcel) to a matching postcode's estimate" do
+      basis = ShippingCostCalculator.basis(gb_order(zip: "IV1 1AA"))
+      # 50*1 + 30 flat + 2 op + 17 remote = 99
+      expect(basis.order_estimate_cny).to eq(99)
+      expect(basis.remote_surcharge_cny).to eq(17)
+      expect(basis.remote_area_label).to eq("area 2")
+    end
+
+    it "adds nothing for a non-remote postcode" do
+      basis = ShippingCostCalculator.basis(gb_order(zip: "M1 1AA"))
+      expect(basis.order_estimate_cny).to eq(82) # 80 base + 2 op, no remote
+      expect(basis.remote_surcharge_cny).to eq(0)
+    end
+
+    it "charges the surcharge once per parcel on an over-max split" do
+      basis = ShippingCostCalculator.basis(gb_order(zip: "IV1 1AA", grams: 5500)) # 5.5kg -> 5 + 0.5 = 2 parcels
+      # base(5kg: 250+30+2=282) + base(0.5kg: 25+30+2=57) + 17*2 remote = 373
+      expect(basis.order_estimate_cny).to eq(373)
+    end
+
+    it "resolves the remote-area version once for N cache-sharing orders (no N+1)" do
+      orders = Array.new(5) { gb_order(zip: "IV1 1AA") } # same company/country/date, same rule
+
+      version_queries = 0
+      subscription = ActiveSupport::Notifications.subscribe("sql.active_record") do |*, payload|
+        # Match the data query only, not Postgres's one-time schema-introspection
+        # load (which references the table name but selects from pg_attribute).
+        version_queries += 1 if payload[:sql].include?('FROM "shipping_remote_area_versions"')
+      end
+
+      cache = {}
+      orders.each { |o| ShippingCostCalculator.basis(o, cache: cache) }
+
+      ActiveSupport::Notifications.unsubscribe(subscription)
+      # Memoized in @cache: one lookup total, not one per order.
+      expect(version_queries).to be < orders.size
+      expect(version_queries).to eq(1)
+    end
+  end
+
+  describe "remote-area surcharge with no configured version (nil cache path)" do
+    let(:company) { create(:company) }
+    let(:store) do
+      create(:shopify_store, company: company, user: create(:user),
+             currency: "USD", cost_fx_rate: 7.0, default_service_type: "with_battery")
+    end
+    let(:customer) { create(:customer, shopify_store: store) }
+
+    def gb_order(zip:, grams: 1000)
+      o = create(:order, customer: customer, shopify_store: store,
+                 ordered_at: Time.utc(2026, 6, 15, 12),
+                 shopify_data: { "shipping_address" => { "country_code" => "GB", "zip" => zip } })
+      variant = create(:product_variant, product: create(:product, shopify_store: store), weight_grams: grams)
+      create(:order_line_item, order: o, product_variant: variant, quantity: 1)
+      o
+    end
+
+    before do
+      v = create(:shipping_rate_card_version, company: company, country_code: "GB",
+                 service_type: "with_battery", effective_from: Date.new(2026, 1, 1))
+      create(:shipping_rate_card_rate, version: v, zone: nil, weight_min_kg: 0, weight_max_kg: 5,
+             per_kg_rate_cny: 50, flat_fee_cny: 30)
+      # Deliberately NO ShippingRemoteAreaVersion — the common case (most
+      # companies never configure remote areas). The lookup returns nil and
+      # that nil must be cached, or every order re-queries the versions table.
+    end
+
+    it "caches the nil version lookup once for N cache-sharing orders (surcharge 0)" do
+      orders = Array.new(5) { gb_order(zip: "IV1 1AA") } # normalizable postcode, but no version
+
+      version_queries = 0
+      subscription = ActiveSupport::Notifications.subscribe("sql.active_record") do |*, payload|
+        # Match the data query only, not Postgres's one-time schema-introspection
+        # load (which references the table name but selects from pg_attribute).
+        version_queries += 1 if payload[:sql].include?('FROM "shipping_remote_area_versions"')
+      end
+
+      cache = {}
+      bases = orders.map { |o| ShippingCostCalculator.basis(o, cache: cache) }
+
+      ActiveSupport::Notifications.unsubscribe(subscription)
+
+      # No version → no surcharge, and the nil lookup is memoized: one query, not N.
+      expect(bases).to all(have_attributes(remote_surcharge_cny: 0, remote_area_label: nil))
+      expect(version_queries).to be < orders.size
+      expect(version_queries).to eq(1)
+    end
+  end
 end
