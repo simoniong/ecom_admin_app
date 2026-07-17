@@ -651,6 +651,17 @@ RSpec.describe "Parcels", type: :request do
       expect(response.body).to include(I18n.t("parcels.basis.postal", zip: "2075"))
     end
 
+    it "shows an over-max split note in the basis line (not a misleading single-parcel formula) past the heaviest band" do
+      order = priced_order(name: "PKS#OVERMAX", zip: "2075", weight_grams: 5500) # 5.5kg > the 0–5kg band
+      create(:parcel, shopify_store: est_store, order: order, identifier: "OM1", zone: "1",
+             billed_weight_g: 5500, cost_cny: 200, fx_rate_snapshot: 7.0, cost_amount: 28.57)
+
+      get parcels_path
+
+      expect(response.body).to include(I18n.t("parcels.basis.over_max_split"))
+      expect(response.body).not_to include("× 5.50") # the single-parcel formula must not render for a split order
+    end
+
     it "lists the order's SKUs, quantities and per-SKU estimated weight (qty x unit)" do
       order = create(:order, customer: est_customer, shopify_store: est_store, name: "PKS#SKULIST",
                      ordered_at: 1.day.ago,

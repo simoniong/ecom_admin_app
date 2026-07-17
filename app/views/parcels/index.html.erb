@@ -220,13 +220,22 @@
                         <%= t("parcels.basis.weight", weight: number_with_precision(result.order_weight_kg, precision: 2)) %>
                       </span>
                       <% if band = result.basis.display_band %>
-                        <span class="px-2 py-1 rounded bg-gray-50 border border-gray-200 font-mono text-[11px]">
-                          <%= t("parcels.basis.band", min: band.weight_min_kg, max: band.weight_max_kg) %>
-                        </span>
-                        <span class="text-gray-300">&rarr;</span>
-                        <span class="px-2 py-1 rounded bg-gray-50 border border-gray-200 font-mono text-[11px]">
-                          <%= t("parcels.basis.formula", rate: cny(band.per_kg_rate_cny), weight: number_with_precision(result.order_weight_kg, precision: 2), flat: cny(band.flat_fee_cny), op: cny(ShippingCostCalculator::OPERATION_FEE_CNY)) %>
-                        </span>
+                        <% if result.order_weight_kg && band.weight_max_kg && result.order_weight_kg > band.weight_max_kg %>
+                          <%# Over the heaviest band: the order is priced by splitting into
+                              multiple parcels, so a single-band "rate × weight + flat" line
+                              would not equal the = total. Show a note instead; the = total
+                              on the right stays correct. %>
+                          <span class="text-gray-300">&rarr;</span>
+                          <span class="px-2 py-1 rounded bg-gray-50 border border-gray-200 text-[11px]"><%= t("parcels.basis.over_max_split") %></span>
+                        <% else %>
+                          <span class="px-2 py-1 rounded bg-gray-50 border border-gray-200 font-mono text-[11px]">
+                            <%= t("parcels.basis.band", min: band.weight_min_kg, max: band.weight_max_kg) %>
+                          </span>
+                          <span class="text-gray-300">&rarr;</span>
+                          <span class="px-2 py-1 rounded bg-gray-50 border border-gray-200 font-mono text-[11px]">
+                            <%= t("parcels.basis.formula", rate: cny(band.per_kg_rate_cny), weight: number_with_precision(result.order_weight_kg, precision: 2), flat: cny(band.flat_fee_cny), op: cny(ShippingCostCalculator::OPERATION_FEE_CNY)) %>
+                          </span>
+                        <% end %>
                       <% end %>
                       <span class="ml-auto font-semibold text-gray-900 text-sm whitespace-nowrap">
                         = <%= dual_currency(result.order_estimate_cny, result.order_estimate) %>
