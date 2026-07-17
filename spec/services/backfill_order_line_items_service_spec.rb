@@ -98,7 +98,7 @@ RSpec.describe BackfillOrderLineItemsService do
     end
     let(:shipping_customer) { create(:customer, shopify_store: shipping_store) }
 
-    # Rate card: 0.201–0.45 kg → cny = 0.3*92 + 23 = 50.6 → usd = 50.6/7.0 = 7.23
+    # Rate card: 0.201–0.45 kg → cny = 0.3*92 + 23 + 2 = 52.6 → usd = 52.6/7.0 = 7.51
     before do
       version = create(:shipping_rate_card_version,
                        company: shipping_store.company,
@@ -124,7 +124,7 @@ RSpec.describe BackfillOrderLineItemsService do
     it "fills estimated_shipping_cost when nil and reports shipping_filled: 1" do
       order = order_with_weighted_line
       result = described_class.new(shipping_store).call
-      expect(order.reload.estimated_shipping_cost).to eq(7.23)
+      expect(order.reload.estimated_shipping_cost).to eq(7.51)
       expect(result[:shipping_filled]).to eq(1)
     end
 

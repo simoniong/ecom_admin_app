@@ -118,8 +118,15 @@ class ShippingCostCalculator
     bands.find { |b| b.weight_min_kg < weight_kg && b.weight_max_kg >= weight_kg }
   end
 
+  # Flat ¥2 handling fee the carrier bills on every parcel. The import adds the
+  # same fee to every actual (ParcelBillParser::DEFAULT_OPERATION_FEE_CNY), so
+  # folding it into every priced parcel here keeps the estimate on the SAME
+  # basis as the actual — an on-target order then reads ~¥0 variance instead of
+  # a standing +¥2 "overcharge" that is really just this handling fee.
+  OPERATION_FEE_CNY = BigDecimal("2")
+
   def self.parcel_cost(band, weight_kg)
-    (weight_kg * band.per_kg_rate_cny) + band.flat_fee_cny
+    (weight_kg * band.per_kg_rate_cny) + band.flat_fee_cny + OPERATION_FEE_CNY
   end
 
   def initialize(order, cache: {})

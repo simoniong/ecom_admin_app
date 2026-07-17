@@ -510,7 +510,7 @@ RSpec.describe SyncAllOrdersService do
       create(:product_variant, product: product, shopify_variant_id: 8001, weight_grams: 300)
     end
 
-    # Rate card: 0.3 kg * 92.0 CNY/kg + 23.0 CNY flat = 50.6 CNY / 7.0 = 7.23 USD
+    # Rate card: 0.3 kg * 92.0 CNY/kg + 23.0 CNY flat + 2 CNY op fee = 52.6 CNY / 7.0 = 7.51 USD
     let!(:rate_card_version) do
       create(:shipping_rate_card_version,
              company: store.company,
@@ -553,11 +553,11 @@ RSpec.describe SyncAllOrdersService do
       store.update!(cost_fx_rate: 7.0, default_service_type: "with_battery")
     end
 
-    it "sets estimated_shipping_cost after sync using the calculator (0.3 kg / US / April 2026 → 7.23)" do
+    it "sets estimated_shipping_cost after sync using the calculator (0.3 kg / US / April 2026 → 7.51)" do
       service.sync_single_order(shopify_order_with_weight)
 
       order = Order.find_by(shopify_order_id: 200)
-      expect(order.estimated_shipping_cost).to eq(7.23)
+      expect(order.estimated_shipping_cost).to eq(7.51)
     end
 
     it "does not overwrite estimated_shipping_cost on re-sync (frozen once set)" do

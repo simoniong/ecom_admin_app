@@ -125,10 +125,10 @@ RSpec.describe "Parcels export", type: :request do
     expect(data["remote_area_fee_cny"]).to eq(0.5)
     expect(data["operation_fee_cny"]).to eq(2)
     expect(data["cost_cny"]).to eq(71.5)
-    # estimate: 1.5kg * 30 + 25 = 70 CNY; variance = 71.5 - 70 = 1.5; pct = 1.5/70*100 = 2.14
-    expect(data["estimate_cny"]).to eq(70)
-    expect(data["variance_cny"]).to eq(1.5)
-    expect(data["variance_pct"]).to eq(2.14)
+    # estimate: 1.5kg * 30 + 25 + 2 = 72 CNY; variance = 71.5 - 72 = -0.5; pct = -0.5/72*100 = -0.69
+    expect(data["estimate_cny"]).to eq(72)
+    expect(data["variance_cny"]).to eq(-0.5)
+    expect(data["variance_pct"]).to eq(-0.69)
   end
 
   # Identifier/code columns are forced to :string cells in the controller
