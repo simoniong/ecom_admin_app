@@ -412,6 +412,12 @@ class ParcelsController < AdminController
       filtered_orders_base
         .where.not(estimated_shipping_cost: nil)
         .joins(:shopify_store)
+        # Only stores with a usable fx rate: the CNY sums multiply by
+        # cost_fx_rate, so a NULL/zero-fx store would drop out of the CNY total
+        # while still counting in the store-currency total — making the bar
+        # contradict itself. Excluding those rows keeps both totals over the
+        # exact same set. (A store with no fx rate can't be shown in CNY anyway.)
+        .where("shopify_stores.cost_fx_rate > 0")
         .pick(Arel.sql(
           "COALESCE(SUM(orders.estimated_shipping_cost), 0), " \
           "COALESCE(SUM(orders.actual_shipping_cost), 0), " \

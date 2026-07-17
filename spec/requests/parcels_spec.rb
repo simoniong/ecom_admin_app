@@ -686,18 +686,27 @@ RSpec.describe "Parcels", type: :request do
     end
 
     it "shows the order-row variance % from the FROZEN estimate (so it matches the sort), not the recomputed one" do
-      order = priced_order(name: "PKS#FROZENPCT", zip: "2075", weight_grams: 1500)
-      order.update!(estimated_shipping_cost: 100) # frozen; the rate card would recompute a different number
-      create(:parcel, shopify_store: est_store, order: order, identifier: "FZ1", zone: "1",
-             billed_weight_g: 1500, cost_cny: 80, fx_rate_snapshot: 7.0, cost_amount: 150) # actual 150
+      o1 = priced_order(name: "PKS#FROZENPCT", zip: "2075", weight_grams: 1500)
+      o1.update!(estimated_shipping_cost: 100) # frozen; the rate card would recompute a different number
+      create(:parcel, shopify_store: est_store, order: o1, identifier: "FZ1", zone: "1",
+             billed_weight_g: 1500, cost_cny: 80, fx_rate_snapshot: 7.0, cost_amount: 150) # actual 150 -> frozen 50.0%
+
+      # A second order so the summary bar's aggregate % (35.0%) differs from
+      # either row's %, meaning a bare "50.0%" in the body can only be o1's ROW
+      # (frozen) — if the row regressed to the recomputed estimate it would read
+      # ~14.29%, not 50.0%.
+      o2 = priced_order(name: "PKS#FROZENPCT2", zip: "2075", weight_grams: 1500)
+      o2.update!(estimated_shipping_cost: 100)
+      create(:parcel, shopify_store: est_store, order: o2, identifier: "FZ2", zone: "1",
+             billed_weight_g: 1500, cost_cny: 80, fx_rate_snapshot: 7.0, cost_amount: 120) # frozen 20.0%
 
       get parcels_path, params: { country: "AU" }
 
-      # frozen: (150 - 100) / 100 = 50.0% — the same figure the SQL sort orders by
-      expect(response.body).to include("50.0%")
+      expect(response.body).to include("50.0%") # o1 row, frozen
+      expect(response.body).to include("20.0%") # o2 row, frozen
     end
 
-    it "totals variance across the whole filtered set (CNY and %), not just the page" do
+    it "totals variance across the whole filtered set, independent of the current page" do
       o1 = priced_order(name: "PKS#SUM1", zip: "2075", weight_grams: 1500)
       o1.update!(estimated_shipping_cost: 100)
       create(:parcel, shopify_store: est_store, order: o1, identifier: "SUMA", zone: "1",
@@ -707,7 +716,9 @@ RSpec.describe "Parcels", type: :request do
       create(:parcel, shopify_store: est_store, order: o2, identifier: "SUMB", zone: "1",
              billed_weight_g: 1500, cost_cny: 80, fx_rate_snapshot: 7.0, cost_amount: 250)
 
-      get parcels_path, params: { country: "AU" }
+      # Page 2 holds no rows (only two matching orders, one page). A page-scoped
+      # summary would show 0 here; the real summary still totals the whole set.
+      get parcels_path, params: { country: "AU", page: "2" }
 
       # est 300, actual 400 -> variance 100 (store) -> 33.33%; CNY = 100 * fx(7.0) = 700
       expect(response.body).to include("33.33%")
