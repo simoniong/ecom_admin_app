@@ -743,6 +743,25 @@ RSpec.describe "Parcels", type: :request do
         expect(response.body).to include(I18n.t("parcels.remote_recon.split_note", amount: "+¥10.00"))
       end
 
+      it "Case B: shows the mismatch badge with the amount-mismatch explanation when the billed remote fee differs from a nonzero estimate" do
+        setup_gb_remote_rule
+        order = gb_order(name: "PKS#RRB", zip: "IV1 1AA") # remote -> estimate carries the ¥17 surcharge
+        create(:parcel, shopify_store: est_store, order: order, identifier: "RRB1",
+               billed_weight_g: 1000, cost_cny: 92, fx_rate_snapshot: 7.0, cost_amount: 13.14,
+               remote_area_fee_cny: 10) # billed ¥10 vs estimated ¥17 -> amount mismatch, NOT should-not-charge
+
+        get parcels_path
+
+        expect(response).to have_http_status(:ok)
+        # The estimate's remote surcharge is nonzero, so the mismatch is an
+        # AMOUNT mismatch — the view must pick the amount-mismatch explanation
+        # branch, not the "should not have charged" one. This is the mutation-
+        # test target for the `est_remote_total_cny.zero?` branch selector.
+        expect(response.body.scan(I18n.t("parcels.remote_recon.badge")).size).to eq(2)
+        expect(response.body).to include(I18n.t("parcels.remote_recon.explain_amount_mismatch"))
+        expect(response.body).not_to include(I18n.t("parcels.remote_recon.explain_should_not_charge"))
+      end
+
       it "Case C: shows no badge but a low-key matched detail block when the billed remote fee matches the estimate" do
         setup_gb_remote_rule
         order = gb_order(name: "PKS#RRC", zip: "IV1 1AA") # remote -> estimate carries the ¥17 surcharge

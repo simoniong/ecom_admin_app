@@ -496,7 +496,7 @@ en:
       title_mismatch: "⚠ Remote-fee mismatch"
       title_ok: "Remote-fee comparison · matches ✓"
       explain_should_not_charge: "This postal code should not have a remote fee, but the bill has one"
-      explain_amount_mismatch: "Billed remote fee doesn't match the estimate (possibly the wrong area)"
+      explain_amount_mismatch: "Billed remote fee does not match the estimate (possibly the wrong area)"
       explain_ok: "The estimated and billed remote fee match — the carrier charged correctly."
       parcel: "Parcel"
       zip_area: "Postal / estimated area"
