@@ -66,6 +66,100 @@ RSpec.describe "Parcels", type: :request do
       end
     end
 
+    it "shows the destination country flag next to the order number on the order row" do
+      # No rate card for this order, so the comparator resolves no Basis and the
+      # expanded "estimate basis" line (the other place a country flag renders)
+      # never appears — the 🇦🇺 flag can therefore only come from the order row
+      # itself, which is exactly what this pins.
+      au = create(:order, customer: customer, shopify_store: store, name: "PKS#AUFLAG",
+                          estimated_shipping_cost: 30, ordered_at: 1.day.ago,
+                          shopify_data: { "shipping_address" => { "country_code" => "AU", "zip" => "2000" } })
+      create(:parcel, shopify_store: store, order: au, identifier: "AUF1", cost_amount: 40)
+
+      get parcels_path
+
+      expect(response.body).to include("PKS#AUFLAG")
+      expect(response.body).to include("🇦🇺")
+    end
+
+    describe "country filter" do
+      let!(:au_order) do
+        o = create(:order, customer: customer, shopify_store: store, name: "PKS#AUCTRY",
+                           estimated_shipping_cost: 30, ordered_at: 1.day.ago,
+                           shopify_data: { "shipping_address" => { "country_code" => "AU", "zip" => "2000" } })
+        create(:parcel, shopify_store: store, order: o, identifier: "AUC1", cost_amount: 40)
+        o
+      end
+
+      let!(:us_order) do
+        o = create(:order, customer: customer, shopify_store: store, name: "PKS#USCTRY",
+                           estimated_shipping_cost: 30, ordered_at: 1.day.ago,
+                           shopify_data: { "shipping_address" => { "country_code" => "US", "zip" => "10001" } })
+        create(:parcel, shopify_store: store, order: o, identifier: "USC1", cost_amount: 40)
+        o
+      end
+
+      it "keeps only orders whose destination country matches" do
+        get parcels_path, params: { country: "AU" }
+        expect(response.body).to include("PKS#AUCTRY")
+        expect(response.body).not_to include("PKS#USCTRY")
+      end
+
+      it "resolves the country from billing when the shipping address has none, matching the row's country" do
+        billing_only = create(:order, customer: customer, shopify_store: store, name: "PKS#AUBILL",
+                              estimated_shipping_cost: 30, ordered_at: 1.day.ago,
+                              shopify_data: { "billing_address" => { "country_code" => "AU", "zip" => "3000" } })
+        create(:parcel, shopify_store: store, order: billing_only, identifier: "AUB1", cost_amount: 40)
+
+        get parcels_path, params: { country: "AU" }
+        expect(response.body).to include("PKS#AUBILL")
+        expect(response.body).to include("PKS#AUCTRY")
+        expect(response.body).not_to include("PKS#USCTRY")
+      end
+
+      it "treats a whitespace-only shipping country_code as blank and resolves to billing, matching the row" do
+        # Mirrors Ruby String#present?: "   " is blank, so both the row display
+        # and the filter must fall through to the billing country, not resolve
+        # to a bogus "   " code.
+        ws = create(:order, customer: customer, shopify_store: store, name: "PKS#AUWS",
+                    estimated_shipping_cost: 30, ordered_at: 1.day.ago,
+                    shopify_data: { "shipping_address" => { "country_code" => "   " },
+                                    "billing_address" => { "country_code" => "AU", "zip" => "3000" } })
+        create(:parcel, shopify_store: store, order: ws, identifier: "AUWS1", cost_amount: 40)
+
+        get parcels_path, params: { country: "AU" }
+        expect(response.body).to include("PKS#AUWS")
+      end
+
+      it "offers each destination country present in the window as a filter option" do
+        get parcels_path
+        expect(response.body).to include('value="AU"')
+        expect(response.body).to include('value="US"')
+      end
+    end
+
+    describe "order ID search" do
+      it "keeps only orders whose number matches, on a partial query" do
+        get parcels_path, params: { q: "3052" }
+        expect(response.body).to include("PKS#3052")
+        expect(response.body).not_to include("PKS#3001")
+      end
+
+      it "matches the full order number too" do
+        get parcels_path, params: { q: "PKS#3001" }
+        expect(response.body).to include("PKS#3001")
+        expect(response.body).not_to include("PKS#3052")
+      end
+
+      it "treats a wildcard character literally, not as a match-all" do
+        # sanitize_sql_like escapes %, so "%" matches only names that literally
+        # contain a percent sign — none here — rather than every order.
+        get parcels_path, params: { q: "%" }
+        expect(response.body).not_to include("PKS#3052")
+        expect(response.body).not_to include("PKS#3001")
+      end
+    end
+
     it "filters to multi-parcel orders only" do
       get parcels_path, params: { multi_parcel_only: "1" }
       expect(response.body).to include("PKS#3052")
@@ -545,6 +639,96 @@ RSpec.describe "Parcels", type: :request do
       badge = I18n.t("parcels.zone_mismatch_badge")
       expect(response.body.scan(badge).size).to eq(2) # order-row badge + per-parcel zone2 badge, mismatched order only
       expect(response.body).to include("text-red-600")
+    end
+
+    it "shows, in the estimate-basis line, the postal code that resolved the zone" do
+      order = priced_order(name: "PKS#ZIPBASIS", zip: "2075", weight_grams: 1500) # zip 2075 -> zone 1
+      create(:parcel, shopify_store: est_store, order: order, identifier: "ZB1", zone: "1",
+             billed_weight_g: 1500, cost_cny: 80, fx_rate_snapshot: 7.2, cost_amount: 11.11)
+
+      get parcels_path
+
+      expect(response.body).to include(I18n.t("parcels.basis.postal", zip: "2075"))
+    end
+
+    it "lists the order's SKUs, quantities and per-SKU estimated weight (qty x unit)" do
+      order = create(:order, customer: est_customer, shopify_store: est_store, name: "PKS#SKULIST",
+                     ordered_at: 1.day.ago,
+                     shopify_data: { "shipping_address" => { "country_code" => "AU", "zip" => "2075" } })
+      v1 = create(:product_variant, product: create(:product, shopify_store: est_store), weight_grams: 650)
+      create(:order_line_item, order: order, product_variant: v1, sku_at_sale: "CANVAS-16x20", title_at_sale: "Canvas", quantity: 1)
+      v2 = create(:product_variant, product: create(:product, shopify_store: est_store), weight_grams: 225)
+      create(:order_line_item, order: order, product_variant: v2, sku_at_sale: "BRUSH-12", title_at_sale: "Brush set", quantity: 2)
+      create(:parcel, shopify_store: est_store, order: order, identifier: "SK1", zone: "1",
+             billed_weight_g: 1100, cost_cny: 80, fx_rate_snapshot: 7.2, cost_amount: 11.11)
+
+      get parcels_path
+
+      expect(response.body).to include("CANVAS-16x20")
+      expect(response.body).to include("BRUSH-12")
+      expect(response.body).to include("650 g")   # v1 unit/line weight
+      expect(response.body).to include("450 g")   # v2 line weight = 225 x 2
+    end
+
+    it "shows a dash and a can't-estimate note when a line item's SKU has no weight" do
+      order = create(:order, customer: est_customer, shopify_store: est_store, name: "PKS#NOWT",
+                     ordered_at: 1.day.ago,
+                     shopify_data: { "shipping_address" => { "country_code" => "AU", "zip" => "2075" } })
+      v = create(:product_variant, product: create(:product, shopify_store: est_store), weight_grams: nil)
+      create(:order_line_item, order: order, product_variant: v, sku_at_sale: "NOWEIGHT", title_at_sale: "x", quantity: 1)
+      create(:parcel, shopify_store: est_store, order: order, identifier: "NW1", zone: "1",
+             billed_weight_g: 500, cost_cny: 50, fx_rate_snapshot: 7.2, cost_amount: 6.94)
+
+      get parcels_path
+
+      expect(response.body).to include("NOWEIGHT")
+      expect(response.body).to include(I18n.t("parcels.contents.missing_note"))
+    end
+
+    it "shows the order-row variance % from the FROZEN estimate (so it matches the sort), not the recomputed one" do
+      o1 = priced_order(name: "PKS#FROZENPCT", zip: "2075", weight_grams: 1500)
+      o1.update!(estimated_shipping_cost: 100) # frozen; the rate card would recompute a different number
+      create(:parcel, shopify_store: est_store, order: o1, identifier: "FZ1", zone: "1",
+             billed_weight_g: 1500, cost_cny: 80, fx_rate_snapshot: 7.0, cost_amount: 150) # actual 150 -> frozen 50.0%
+
+      # A second order so the summary bar's aggregate % (35.0%) differs from
+      # either row's %, meaning a bare "50.0%" in the body can only be o1's ROW
+      # (frozen) — if the row regressed to the recomputed estimate it would read
+      # ~14.29%, not 50.0%.
+      o2 = priced_order(name: "PKS#FROZENPCT2", zip: "2075", weight_grams: 1500)
+      o2.update!(estimated_shipping_cost: 100)
+      create(:parcel, shopify_store: est_store, order: o2, identifier: "FZ2", zone: "1",
+             billed_weight_g: 1500, cost_cny: 80, fx_rate_snapshot: 7.0, cost_amount: 120) # frozen 20.0%
+
+      get parcels_path, params: { country: "AU" }
+
+      expect(response.body).to include("50.0%") # o1 row, frozen
+      expect(response.body).to include("20.0%") # o2 row, frozen
+    end
+
+    it "totals variance across the whole filtered set, not just the visible page" do
+      # 25 zero-variance orders fill page 1; one high-variance order is pushed to
+      # page 2 by the ascending sort. A page-scoped summary would read 0% on
+      # page 1 — the real one still counts the off-page order. (Bare orders: the
+      # summary only reads the frozen estimated/actual, no line items needed.)
+      def au_order(name, est, actual)
+        o = create(:order, customer: est_customer, shopify_store: est_store, name: name,
+                   ordered_at: 1.day.ago, estimated_shipping_cost: est,
+                   shopify_data: { "shipping_address" => { "country_code" => "AU", "zip" => "2075" } })
+        create(:parcel, shopify_store: est_store, order: o, identifier: "P-#{name}",
+               cost_cny: 1, fx_rate_snapshot: 7.0, cost_amount: actual)
+        o
+      end
+      25.times { |i| au_order("PKS#Z#{i}", 100, 100) } # variance 0
+      au_order("PKS#BIG", 100, 200)                    # variance 100
+
+      get parcels_path, params: { country: "AU", sort_column: "variance", sort_direction: "asc", page: "1" }
+
+      # page 1 shows only the 25 zero-variance orders, but the summary spans all
+      # 26: est 2600, actual 2700 -> variance 100 -> 3.85%; CNY = 100 * 7.0 = 700
+      expect(response.body).not_to include("PKS#BIG") # off page 1
+      expect(response.body).to include("3.85%")
+      expect(response.body).to include("¥700.00")
     end
 
     # Per-parcel estimate/actual/variance, each in CNY (primary) and USD

@@ -1,0 +1,82 @@
+# Recomputes orders.estimated_shipping_cost against the CURRENT shipping rate
+# cards and OVERWRITES the existing (frozen) value. This is the deliberate
+# counterpart to BackfillOrderLineItemsService#backfill_estimated_shipping,
+# which only fills blanks and never overwrites — this service exists so ops
+# can refresh stale estimates after a rate card change (a new
+# ShippingRateCardVersion with a later effective_from) without waiting for
+# orders to re-sync.
+#
+# When the current estimate can't be computed (no matching rate card, no
+# weight, no address, ...) the order is left untouched — we skip it rather
+# than clearing out a previously-good value.
+class ReestimateShippingCostsService
+  # country: nil = all countries (matched via Order.with_destination_country,
+  #   the same shipping-then-billing resolution ShippingCostCalculator uses).
+  # from: nil = all dates; otherwise a Date/Time filtering on ordered_at >= from.
+  #   Deliberately a plain UTC ordered_at comparison, NOT a store-local window:
+  #   the estimate this service recomputes selects its rate-card version by
+  #   `order.ordered_at.to_date` (UTC, since the app runs in the default UTC
+  #   zone), and a rate card's effective_from is compared against that same UTC
+  #   date. So a UTC `from` matches exactly which orders a rate change actually
+  #   affects; a store-local window would scan orders whose UTC ordered_at date
+  #   still falls under the old version, recomputing them to an unchanged value.
+  # store_ids: nil = all stores.
+  def initialize(country: nil, from: nil, store_ids: nil)
+    @country = country
+    @from = from
+    @store_ids = store_ids
+  end
+
+  def call
+    scanned = 0
+    updated = 0
+    skipped = 0
+    skipped_details = []
+    cache = {}
+
+    orders_scope.includes(order_line_items: :product_variant).find_each(batch_size: 200) do |order|
+      scanned += 1
+      resolution = ShippingCostCalculator.resolve(order, cache: cache)
+      estimate = resolution.basis&.order_estimate
+
+      if estimate.nil?
+        skipped += 1
+        # `reason` is set when there's no Basis at all; a Basis whose order
+        # weight matches no rate band still yields a nil estimate — name that
+        # case explicitly rather than reporting a blank reason.
+        skipped_details << {
+          order_id: order.id,
+          order_name: order.name,
+          country: destination_country_code(order),
+          reason: resolution.reason || :no_matching_band
+        }
+        next
+      end
+
+      order.update_column(:estimated_shipping_cost, estimate)
+      updated += 1
+    end
+
+    { scanned: scanned, updated: updated, skipped: skipped, skipped_details: skipped_details }
+  end
+
+  private
+
+  # Best-effort destination country for a skipped order's diagnostic line,
+  # mirroring ShippingCostCalculator's shipping-then-billing resolution.
+  def destination_country_code(order)
+    data = order.shopify_data
+    return nil unless data
+    shipping = data["shipping_address"]
+    return shipping["country_code"] if shipping && shipping["country_code"].present?
+    data.dig("billing_address", "country_code")
+  end
+
+  def orders_scope
+    scope = Order.all
+    scope = scope.where(shopify_store_id: @store_ids) if @store_ids
+    scope = scope.where("orders.ordered_at >= ?", @from) if @from
+    scope = scope.with_destination_country(@country) if @country.present?
+    scope
+  end
+end

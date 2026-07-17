@@ -20,6 +20,22 @@ class ParcelsController < AdminController
   PER_PAGE = 25
   MAX_UPLOAD_BYTES = 20.megabytes
 
+  # An order's DESTINATION country code, resolved from shopify_data exactly the
+  # way ParcelsHelper#parcel_order_destination_address (and the service's zone
+  # resolution) does: the shipping address's country_code when it is "present"
+  # (Ruby's String#present? — non-blank after stripping whitespace), else the
+  # billing address's. The TRIM/NULLIF mirrors #present? (so a whitespace-only
+  # "   " shipping code falls through to billing just as it does on the row),
+  # and the CASE returns the RAW code of the chosen address so the value equals
+  # what the row displays. Used both to build the country-filter dropdown and
+  # to filter by it, so the filter matches the country shown on each order row.
+  # It's a frozen constant, never interpolated with user input — the filter
+  # value is always passed as a bound parameter.
+  DEST_COUNTRY_SQL =
+    "CASE WHEN NULLIF(TRIM(orders.shopify_data #>> '{shipping_address,country_code}'), '') IS NOT NULL " \
+    "THEN orders.shopify_data #>> '{shipping_address,country_code}' " \
+    "ELSE orders.shopify_data #>> '{billing_address,country_code}' END"
+
   def index
     @tab = params[:tab] == "unmatched" ? "unmatched" : "orders"
     @page = [ params[:page].to_i, 1 ].max
@@ -40,9 +56,26 @@ class ParcelsController < AdminController
     # what they typed (and can correct it) rather than having it silently
     # vanish when it fails to parse.
     @min_over_pct = params[:min_over_pct]
+    @country = params[:country].presence
+
+    # Destination countries present in the current store + date window, for the
+    # filter dropdown. Built from the date-scoped set only (not the other
+    # filters) so the option list stays stable as the operator narrows by
+    # country/overrun — picking a country must never make the other options
+    # vanish. DISTINCT on the same resolved-country expression the filter uses.
+    store_ids = visible_shopify_stores.pluck(:id)
+    @countries = Order.where(shopify_store_id: store_ids)
+                      .where.not(actual_shipping_cost: nil)
+                      .ordered_between(@from_time, @to_time)
+                      .distinct
+                      .pluck(Arel.sql(DEST_COUNTRY_SQL))
+                      .compact_blank
+                      .sort
+
+    @summary = shipping_variance_summary
 
     @orders = paginate(filtered_orders_base)
-      .includes(:parcels, order_line_items: :product_variant)
+      .includes(:parcels, :shopify_store, order_line_items: :product_variant)
       .reorder(Arel.sql("#{SORTABLE.fetch(@sort_column)} #{@sort_direction} NULLS LAST"))
 
     # Per-parcel estimate comparison (basis + zone/variance decomposition) for
@@ -344,8 +377,10 @@ class ParcelsController < AdminController
                 .where.not(actual_shipping_cost: nil)
                 .ordered_between(@from_time, @to_time)
 
+    base = base.name_matching(params[:q]) if params[:q].present?
     base = base.where(id: Parcel.group(:order_id).having("COUNT(*) > 1").select(:order_id)) if params[:multi_parcel_only].present?
     base = base.where("orders.actual_shipping_cost > orders.estimated_shipping_cost") if params[:over_only].present?
+    base = base.where("#{DEST_COUNTRY_SQL} = ?", params[:country]) if params[:country].present?
 
     if (pct = parse_pct(params[:min_over_pct]))
       # estimated_shipping_cost can be NULL or 0 for orders that never got an
@@ -360,6 +395,43 @@ class ParcelsController < AdminController
     end
 
     base
+  end
+
+  # Totals across the WHOLE filtered set (not just the current page), so the
+  # summary reflects everything the filter selected — the point is to compare,
+  # e.g., total overrun per country as the operator switches the country filter.
+  # Only orders that carry a frozen estimate count toward the totals (an order
+  # with no estimate has no comparable variance). CNY is each order's
+  # store-currency figure times that store's cost_fx_rate, so multi-store /
+  # multi-fx sets still total correctly. Everything here is the frozen
+  # estimated/actual_shipping_cost — the same basis the order rows, the sort and
+  # the over/min-overrun filters use, so the summary can never disagree with the
+  # rows it sits above.
+  def shipping_variance_summary
+    est_store, act_store, est_cny, act_cny =
+      filtered_orders_base
+        .where.not(estimated_shipping_cost: nil)
+        .joins(:shopify_store)
+        # Only stores with a usable fx rate: the CNY sums multiply by
+        # cost_fx_rate, so a NULL/zero-fx store would drop out of the CNY total
+        # while still counting in the store-currency total — making the bar
+        # contradict itself. Excluding those rows keeps both totals over the
+        # exact same set. (A store with no fx rate can't be shown in CNY anyway.)
+        .where("shopify_stores.cost_fx_rate > 0")
+        .pick(Arel.sql(
+          "COALESCE(SUM(orders.estimated_shipping_cost), 0), " \
+          "COALESCE(SUM(orders.actual_shipping_cost), 0), " \
+          "COALESCE(SUM(orders.estimated_shipping_cost * shopify_stores.cost_fx_rate), 0), " \
+          "COALESCE(SUM(orders.actual_shipping_cost * shopify_stores.cost_fx_rate), 0)"
+        ))
+
+    {
+      estimated_store: est_store, actual_store: act_store,
+      estimated_cny: est_cny, actual_cny: act_cny,
+      variance_store: act_store - est_store,
+      variance_cny: act_cny - est_cny,
+      variance_pct: est_store.positive? ? ((act_store - est_store) / est_store * 100).round(2) : nil
+    }
   end
 
   # Y/N only when both sides of the comparison actually exist — an unzoned
