@@ -50,7 +50,7 @@ class RemoteAreaRuleImporter
     rescue ArgumentError, TypeError
       nil
     end
-    return "bad price '#{price}'" if amount.nil? || amount.negative?
+    return "bad price '#{price}'" if amount.nil? || !amount.finite? || amount.negative?
     [ { postal_start: range[0], postal_end: range[1], surcharge_cny: amount, area_label: area.presence } ]
   end
 end

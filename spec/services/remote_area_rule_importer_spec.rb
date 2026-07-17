@@ -27,4 +27,12 @@ RSpec.describe RemoteAreaRuleImporter do
     result = described_class.new(version: version, text: "AB35, area 3, xx").call
     expect(result[:errors]).not_to be_empty
   end
+
+  it "rejects NaN and Infinity prices without persisting anything" do
+    [ "NaN", "Infinity" ].each do |bad|
+      result = described_class.new(version: version, text: "AB35, area 3, #{bad}").call
+      expect(result[:errors]).not_to be_empty
+      expect(version.rules.count).to eq(0)
+    end
+  end
 end
