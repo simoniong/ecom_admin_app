@@ -54,8 +54,18 @@ class ShippingCostCalculator
     end
   end
 
+  # A resolved Basis, or the reason it couldn't be resolved. `reason` is a
+  # symbol (see #resolve) when `basis` is nil, and nil when `basis` is present.
+  # Callers that only want the Basis use .basis / #basis; diagnostics (e.g. the
+  # reestimate rake task explaining which orders it skipped) read `reason`.
+  Resolution = Struct.new(:basis, :reason, keyword_init: true)
+
   def self.estimate(order)
     new(order).call
+  end
+
+  def self.resolve(order, cache: {})
+    new(order, cache: cache).resolve
   end
 
   # `cache` is an optional Hash the CALLER owns and reuses across multiple
@@ -122,35 +132,48 @@ class ShippingCostCalculator
     basis&.order_estimate
   end
 
-  # Resolve the order-level pricing context: rate card version, zone, order
-  # weight and fx rate. Returns nil under the exact same guards `call` used to
-  # apply directly (missing fx rate / service type / country / weight /
-  # version / unmatched zone) — nil here means "can't estimate", same as
-  # `call` returning nil.
+  # The Basis for this order, or nil when it can't be resolved (see #resolve for
+  # the exact guards). Unchanged public contract — every existing caller gets
+  # the same Basis-or-nil.
   def basis
-    return nil unless @store&.cost_fx_rate&.positive?
-    return nil unless @store.default_service_type.present?
-    return nil unless @order.ordered_at
+    resolve.basis
+  end
+
+  # Resolve the order-level pricing context (rate card version, zone, order
+  # weight, fx rate), OR the reason it can't be. Same guards, same order, as
+  # basis-or-nil always used; the reason symbol just names which guard tripped
+  # so callers can report WHY an order has no estimate:
+  #   :no_fx_rate      store has no positive cost_fx_rate
+  #   :no_service_type store has no default_service_type
+  #   :no_order_date   order has no ordered_at
+  #   :no_country      no destination country on the order
+  #   :no_weight       no line items, or a line item has no positive weight
+  #   :no_rate_card    no rate card version covers the order's country/date
+  #   :unmatched_zone  zoned country, but the postal matches no zone rule
+  def resolve
+    return Resolution.new(reason: :no_fx_rate) unless @store&.cost_fx_rate&.positive?
+    return Resolution.new(reason: :no_service_type) unless @store.default_service_type.present?
+    return Resolution.new(reason: :no_order_date) unless @order.ordered_at
 
     country = country_code_from_order
-    return nil unless country
+    return Resolution.new(reason: :no_country) unless country
 
     weight_kg = total_weight_kg
-    return nil unless weight_kg && weight_kg.positive?
+    return Resolution.new(reason: :no_weight) unless weight_kg && weight_kg.positive?
 
     version = fetch_version(country, @order.ordered_at.to_date)
-    return nil unless version
+    return Resolution.new(reason: :no_rate_card) unless version
 
     zone = resolve_zone(country)   # nil = unzoned country, String = matched zone, :unmatched = give up
-    return nil if zone == :unmatched
+    return Resolution.new(reason: :unmatched_zone) if zone == :unmatched
 
-    Basis.new(
+    Resolution.new(basis: Basis.new(
       version: version,
       zone: zone,
       zoned: !zone.nil?,
       order_weight_kg: weight_kg,
       fx_rate: @store.cost_fx_rate
-    )
+    ))
   end
 
   private

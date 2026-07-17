@@ -31,13 +31,25 @@ class ReestimateShippingCostsService
     scanned = 0
     updated = 0
     skipped = 0
+    skipped_details = []
     cache = {}
 
     orders_scope.includes(order_line_items: :product_variant).find_each(batch_size: 200) do |order|
       scanned += 1
-      estimate = ShippingCostCalculator.basis(order, cache: cache)&.order_estimate
+      resolution = ShippingCostCalculator.resolve(order, cache: cache)
+      estimate = resolution.basis&.order_estimate
+
       if estimate.nil?
         skipped += 1
+        # `reason` is set when there's no Basis at all; a Basis whose order
+        # weight matches no rate band still yields a nil estimate — name that
+        # case explicitly rather than reporting a blank reason.
+        skipped_details << {
+          order_id: order.id,
+          order_name: order.name,
+          country: destination_country_code(order),
+          reason: resolution.reason || :no_matching_band
+        }
         next
       end
 
@@ -45,10 +57,20 @@ class ReestimateShippingCostsService
       updated += 1
     end
 
-    { scanned: scanned, updated: updated, skipped: skipped }
+    { scanned: scanned, updated: updated, skipped: skipped, skipped_details: skipped_details }
   end
 
   private
+
+  # Best-effort destination country for a skipped order's diagnostic line,
+  # mirroring ShippingCostCalculator's shipping-then-billing resolution.
+  def destination_country_code(order)
+    data = order.shopify_data
+    return nil unless data
+    shipping = data["shipping_address"]
+    return shipping["country_code"] if shipping && shipping["country_code"].present?
+    data.dig("billing_address", "country_code")
+  end
 
   def orders_scope
     scope = Order.all

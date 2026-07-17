@@ -44,7 +44,7 @@ RSpec.describe ReestimateShippingCostsService do
       result = described_class.new.call
 
       expect(order.reload.estimated_shipping_cost).to eq(current_estimate)
-      expect(result).to eq(scanned: 1, updated: 1, skipped: 0)
+      expect(result).to eq(scanned: 1, updated: 1, skipped: 0, skipped_details: [])
     end
   end
 
@@ -65,7 +65,7 @@ RSpec.describe ReestimateShippingCostsService do
       expect(order_value(au_order)).to eq(au_expected)
       expect(order_value(au_billing_only_order)).to eq(au_billing_expected)
       expect(order_value(us_order)).to eq(3.33) # untouched
-      expect(result).to eq(scanned: 2, updated: 2, skipped: 0)
+      expect(result).to eq(scanned: 2, updated: 2, skipped: 0, skipped_details: [])
     end
   end
 
@@ -81,7 +81,7 @@ RSpec.describe ReestimateShippingCostsService do
 
       expect(order_value(old_order)).to eq(1.11) # untouched
       expect(order_value(new_order)).to eq(new_expected)
-      expect(result).to eq(scanned: 1, updated: 1, skipped: 0)
+      expect(result).to eq(scanned: 1, updated: 1, skipped: 0, skipped_details: [])
     end
   end
 
@@ -107,7 +107,7 @@ RSpec.describe ReestimateShippingCostsService do
 
       expect(order_value(in_scope)).to eq(in_scope_expected)
       expect(order_value(out_of_scope)).to eq(2.22) # untouched — different store
-      expect(result).to eq(scanned: 1, updated: 1, skipped: 0)
+      expect(result).to eq(scanned: 1, updated: 1, skipped: 0, skipped_details: [])
     end
   end
 
@@ -122,7 +122,40 @@ RSpec.describe ReestimateShippingCostsService do
       result = described_class.new.call
 
       expect(order_value(order)).to eq(42.0)
-      expect(result).to eq(scanned: 1, updated: 0, skipped: 1)
+      expect(result).to eq(
+        scanned: 1, updated: 0, skipped: 1,
+        skipped_details: [ { order_id: order.id, order_name: order.name, country: "AU", reason: :no_matching_band } ]
+      )
+    end
+  end
+
+  describe "skipped_details reasons" do
+    it "reports order id/name, country and the specific reason each order was skipped" do
+      # No rate card at all for GB → :no_rate_card
+      no_card = build_order(country: "GB", estimated_shipping_cost: 1.0)
+      # AU rate card exists, but this order has no line-item weight → :no_weight
+      build_rate_card(country: "AU", per_kg: 30, flat: 25)
+      no_weight = create(:order, customer: customer, shopify_store: store,
+                         ordered_at: store.active_timezone.local(2026, 4, 15, 12),
+                         shopify_data: { "shipping_address" => { "country_code" => "AU" } },
+                         estimated_shipping_cost: 2.0)
+      # An order with no destination country at all → :no_country
+      no_country = create(:order, customer: customer, shopify_store: store,
+                          ordered_at: store.active_timezone.local(2026, 4, 15, 12),
+                          shopify_data: {}, estimated_shipping_cost: 3.0)
+
+      result = described_class.new.call
+
+      expect(result[:skipped]).to eq(3)
+      expect(result[:skipped_details]).to contain_exactly(
+        { order_id: no_card.id, order_name: no_card.name, country: "GB", reason: :no_rate_card },
+        { order_id: no_weight.id, order_name: no_weight.name, country: "AU", reason: :no_weight },
+        { order_id: no_country.id, order_name: no_country.name, country: nil, reason: :no_country }
+      )
+      # nothing was cleared
+      expect(order_value(no_card)).to eq(1.0)
+      expect(order_value(no_weight)).to eq(2.0)
+      expect(order_value(no_country)).to eq(3.0)
     end
   end
 
