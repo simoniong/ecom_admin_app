@@ -60,9 +60,22 @@ RSpec.describe PostalNormalizer do
       expect(PostalNormalizer.normalize("GB", "GY1")).to eq("GY01")
     end
 
+    it "parses a full postcode without a space by stripping the inward code" do
+      expect(PostalNormalizer.normalize("GB", "IV11AA")).to eq("IV01")
+    end
+
+    it "accepts an outward code with a trailing district letter" do
+      expect(PostalNormalizer.normalize("GB", "EC1A 1BB")).to eq("EC01")
+    end
+
     it "returns nil for blank or unparseable input" do
       expect(PostalNormalizer.normalize("GB", "")).to be_nil
       expect(PostalNormalizer.normalize("GB", "!!")).to be_nil
+    end
+
+    it "rejects junk that only partially matches the outward pattern" do
+      expect(PostalNormalizer.normalize("GB", "BT1@")).to be_nil
+      expect(PostalNormalizer.normalize("GB", "AB35XYZ")).to be_nil
     end
 
     it "expands a single outward code into a point range" do
@@ -80,6 +93,15 @@ RSpec.describe PostalNormalizer do
 
     it "returns nil for a malformed token" do
       expect(PostalNormalizer.range_for("GB", "1234")).to be_nil
+    end
+
+    it "rejects junk single-code tokens at the import boundary" do
+      expect(PostalNormalizer.range_for("GB", "AB35XYZ")).to be_nil
+      expect(PostalNormalizer.range_for("GB", "BT1@")).to be_nil
+    end
+
+    it "returns nil for an inverted district range" do
+      expect(PostalNormalizer.range_for("GB", "KA28-27")).to be_nil
     end
 
     it "lists GB as supported" do

@@ -52,14 +52,17 @@ class PostalNormalizer
     end
   end
 
-  # UK outward code -> "<LETTERS><2-digit district>". Takes the part before the
-  # first space, splits into leading letters (1–2) + trailing digits (1–2),
-  # zero-pads the digits to 2 so BT1 ("BT01") and BT10 ("BT10") stay distinct
-  # and comparable for range matching. A trailing letter (e.g. "EC1A") is
-  # ignored — area matching only needs area + district.
+  # UK outward code -> "<LETTERS><2-digit district>". Strips whitespace and the
+  # inward code (always digit + 2 letters, e.g. "1AA") so a full postcode with
+  # or without a space parses the same, then fully anchors the outward pattern:
+  # leading letters (1–2) + district digits (1–2) + an optional trailing letter
+  # (e.g. "EC1A"). Zero-pads the digits to 2 so BT1 ("BT01") and BT10 ("BT10")
+  # stay distinct and comparable for range matching. The full \z anchor rejects
+  # junk input ("BT1@", "AB35XYZ") instead of matching a leading prefix.
   def self.normalize_gb(raw)
-    outward = raw.to_s.strip.upcase.split(/\s+/).first.to_s
-    m = outward.match(/\A([A-Z]{1,2})(\d{1,2})/)
+    s = raw.to_s.strip.upcase.gsub(/\s+/, "")
+    s = s.sub(/\d[A-Z]{2}\z/, "") # drop inward code if a full postcode was given
+    m = s.match(/\A([A-Z]{1,2})(\d{1,2})[A-Z]?\z/)
     return nil unless m
     "#{m[1]}#{m[2].rjust(2, '0')}"
   end
