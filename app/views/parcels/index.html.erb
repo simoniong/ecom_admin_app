@@ -237,6 +237,11 @@
                           </span>
                         <% end %>
                       <% end %>
+                      <% if result.basis.remote_surcharge_cny&.positive? %>
+                        <span class="px-2 py-1 rounded bg-amber-50 text-amber-700 text-[11px]">
+                          <%= t("parcels.basis.remote_surcharge", amount: cny(result.basis.remote_surcharge_cny), area: result.basis.remote_area_label) %>
+                        </span>
+                      <% end %>
                       <span class="ml-auto font-semibold text-gray-900 text-sm whitespace-nowrap">
                         = <%= dual_currency(result.order_estimate_cny, result.order_estimate) %>
                       </span>

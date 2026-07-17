@@ -662,6 +662,32 @@ RSpec.describe "Parcels", type: :request do
       expect(response.body).not_to include("× 5.50") # the single-parcel formula must not render for a split order
     end
 
+    it "shows a remote-area surcharge chip in the basis line when the postcode is remote" do
+      # A GB order priced against a GB (unzoned) rate card whose destination
+      # postcode matches a remote-area rule — the basis line must surface the
+      # surcharge as its own chip.
+      gb_version = create(:shipping_rate_card_version, company: company, country_code: "GB",
+                          service_type: "with_battery", effective_from: Date.new(2020, 1, 1))
+      create(:shipping_rate_card_rate, version: gb_version, zone: nil, weight_min_kg: 0, weight_max_kg: 5,
+             per_kg_rate_cny: 50, flat_fee_cny: 30)
+      rav = create(:shipping_remote_area_version, company: company, country_code: "GB",
+                   effective_from: Date.new(2020, 1, 1))
+      create(:shipping_remote_area_rule, version: rav, postal_start: "IV00", postal_end: "IV99",
+             surcharge_cny: 17, area_label: "area 2")
+
+      order = create(:order, customer: est_customer, shopify_store: est_store, name: "PKS#REMOTE",
+                     ordered_at: 1.day.ago,
+                     shopify_data: { "shipping_address" => { "country_code" => "GB", "zip" => "IV1 1AA" } })
+      variant = create(:product_variant, product: create(:product, shopify_store: est_store), weight_grams: 1000)
+      create(:order_line_item, order: order, product_variant: variant, quantity: 1)
+      create(:parcel, shopify_store: est_store, order: order, identifier: "RA1",
+             billed_weight_g: 1000, cost_cny: 99, fx_rate_snapshot: 7.0, cost_amount: 14.14)
+
+      get parcels_path
+
+      expect(response.body).to include(I18n.t("parcels.basis.remote_surcharge", amount: "¥17.00", area: "area 2"))
+    end
+
     it "lists the order's SKUs, quantities and per-SKU estimated weight (qty x unit)" do
       order = create(:order, customer: est_customer, shopify_store: est_store, name: "PKS#SKULIST",
                      ordered_at: 1.day.ago,
