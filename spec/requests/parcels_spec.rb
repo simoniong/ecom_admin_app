@@ -685,6 +685,35 @@ RSpec.describe "Parcels", type: :request do
       expect(response.body).to include(I18n.t("parcels.contents.missing_note"))
     end
 
+    it "shows the order-row variance % from the FROZEN estimate (so it matches the sort), not the recomputed one" do
+      order = priced_order(name: "PKS#FROZENPCT", zip: "2075", weight_grams: 1500)
+      order.update!(estimated_shipping_cost: 100) # frozen; the rate card would recompute a different number
+      create(:parcel, shopify_store: est_store, order: order, identifier: "FZ1", zone: "1",
+             billed_weight_g: 1500, cost_cny: 80, fx_rate_snapshot: 7.0, cost_amount: 150) # actual 150
+
+      get parcels_path, params: { country: "AU" }
+
+      # frozen: (150 - 100) / 100 = 50.0% — the same figure the SQL sort orders by
+      expect(response.body).to include("50.0%")
+    end
+
+    it "totals variance across the whole filtered set (CNY and %), not just the page" do
+      o1 = priced_order(name: "PKS#SUM1", zip: "2075", weight_grams: 1500)
+      o1.update!(estimated_shipping_cost: 100)
+      create(:parcel, shopify_store: est_store, order: o1, identifier: "SUMA", zone: "1",
+             billed_weight_g: 1500, cost_cny: 80, fx_rate_snapshot: 7.0, cost_amount: 150)
+      o2 = priced_order(name: "PKS#SUM2", zip: "2075", weight_grams: 1500)
+      o2.update!(estimated_shipping_cost: 200)
+      create(:parcel, shopify_store: est_store, order: o2, identifier: "SUMB", zone: "1",
+             billed_weight_g: 1500, cost_cny: 80, fx_rate_snapshot: 7.0, cost_amount: 250)
+
+      get parcels_path, params: { country: "AU" }
+
+      # est 300, actual 400 -> variance 100 (store) -> 33.33%; CNY = 100 * fx(7.0) = 700
+      expect(response.body).to include("33.33%")
+      expect(response.body).to include("¥700.00")
+    end
+
     # Per-parcel estimate/actual/variance, each in CNY (primary) and USD
     # (secondary) — the report's core new data, not present on the report at
     # all before this feature.

@@ -388,6 +388,16 @@
     all_countries: "全部国家"
     search_order: "订单编号"
     search_order_placeholder: "如 PKS#1234"
+    sort_by: "排序"
+    sort:
+      ordered_at: "下单时间"
+      desc: "降序"
+      asc: "升序"
+    summary:
+      estimated_total: "预估合计"
+      actual_total: "实际合计"
+      variance_total: "总差异"
+      variance_pct: "总差异 %"
     filter: "筛选"
     assign: "指派"
     save: "保存"

@@ -388,6 +388,16 @@ en:
     all_countries: "All countries"
     search_order: "Order ID"
     search_order_placeholder: "e.g. PKS#1234"
+    sort_by: "Sort by"
+    sort:
+      ordered_at: "Order date"
+      desc: "Desc"
+      asc: "Asc"
+    summary:
+      estimated_total: "Estimated total"
+      actual_total: "Actual total"
+      variance_total: "Total variance"
+      variance_pct: "Total variance %"
     filter: "Filter"
     assign: "Assign"
     save: "Save"
