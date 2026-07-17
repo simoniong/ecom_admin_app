@@ -202,14 +202,35 @@ class ShippingCostCalculator
   # The remote-area rule matching this order's destination postcode on its order
   # date, or nil. Uses the SAME shipping-then-billing postcode + normalizer the
   # zone resolution uses, so a surcharge is only added where the postcode maps to
-  # a remote area for the order's date.
+  # a remote area for the order's date. Both DB round trips are memoized in
+  # @cache (like fetch_version / fetch_zone_for) so a /parcels page of orders
+  # sharing a company/country/date + postcode collapses to O(1) queries.
   def remote_area_rule(country)
     key = PostalNormalizer.normalize(country, postal_from_order)
     return nil unless key
-    version = ShippingRemoteAreaVersion.lookup(
-      company: @store.company, country: country, on_date: @order.ordered_at.to_date
-    )
-    version&.surcharge_for(key)
+    version = fetch_remote_version(country, @order.ordered_at.to_date)
+    return nil unless version
+    fetch_remote_rule(version, key)
+  end
+
+  # Memoized per (company, country, date). Caches nil too — orders sharing a
+  # company/country/date that have NO remote-area version must not each re-query.
+  def fetch_remote_version(country, on_date)
+    cache_key = [ @store.company_id, country, on_date ]
+    cache_slot(:remote_version).fetch(cache_key) do
+      cache_slot(:remote_version)[cache_key] = ShippingRemoteAreaVersion.lookup(
+        company: @store.company, country: country, on_date: on_date
+      )
+    end
+  end
+
+  # Memoized per (version, postal key) — same version + same postcode resolves
+  # the matching rule (or nil) once.
+  def fetch_remote_rule(version, key)
+    cache_key = [ version.id, key ]
+    cache_slot(:remote_rule).fetch(cache_key) do
+      cache_slot(:remote_rule)[cache_key] = version.surcharge_for(key)
+    end
   end
 
   # Memoized per (company, country, service_type, date) in @cache — repeated

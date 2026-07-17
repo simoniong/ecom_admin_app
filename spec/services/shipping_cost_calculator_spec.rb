@@ -373,5 +373,22 @@ RSpec.describe ShippingCostCalculator do
       # base(5kg: 250+30+2=282) + base(0.5kg: 25+30+2=57) + 17*2 remote = 373
       expect(basis.order_estimate_cny).to eq(373)
     end
+
+    it "resolves the remote-area version once for N cache-sharing orders (no N+1)" do
+      orders = Array.new(5) { gb_order(zip: "IV1 1AA") } # same company/country/date, same rule
+
+      version_queries = 0
+      subscription = ActiveSupport::Notifications.subscribe("sql.active_record") do |*, payload|
+        version_queries += 1 if payload[:sql].include?("shipping_remote_area_versions")
+      end
+
+      cache = {}
+      orders.each { |o| ShippingCostCalculator.basis(o, cache: cache) }
+
+      ActiveSupport::Notifications.unsubscribe(subscription)
+      # Memoized in @cache: one lookup total, not one per order.
+      expect(version_queries).to be < orders.size
+      expect(version_queries).to eq(1)
+    end
   end
 end
