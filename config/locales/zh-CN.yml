@@ -420,7 +420,7 @@
       postal: "邮编 %{zip}"
       weight: "商品总重 %{weight} kg"
       band: "重量带 %{min}–%{max} kg"
-      formula: "%{rate}/kg × %{weight} + %{flat} 挂号"
+      formula: "%{rate}/kg × %{weight} + %{flat} 挂号 + %{op} 操作费"
     contents:
       title: "订单商品"
       subtitle: "共 %{count} 件 · 每件预估重取自 SKU 重量"

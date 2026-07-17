@@ -741,19 +741,19 @@ RSpec.describe "Parcels", type: :request do
 
       get parcels_path
 
-      # estimate: 1.5kg * 30 + 25 = 70 CNY -> 70 / 7.0 = 10.00 USD
-      expect(response.body).to include("¥70.00")
-      expect(response.body).to include("$10.00")
+      # estimate: 1.5kg * 30 + 25 + 2 = 72 CNY -> 72 / 7.0 = 10.29 USD
+      expect(response.body).to include("¥72.00")
+      expect(response.body).to include("$10.29")
       # actual: straight from the parcel's own billed/converted figures
       expect(response.body).to include("¥80.00")
       expect(response.body).to include("$11.11")
-      # variance: 80 - 70 = 10 CNY; USD variance is actual($11.11) - estimate($10.00) = +$1.11
+      # variance: 80 - 72 = 8 CNY; USD variance is actual($11.11) - estimate($10.29) = +$0.82
       # (NOT cny-variance/fx_rate — actual/estimate each convert independently,
       # via the parcel's own stored cost_amount and the basis fx_rate respectively).
-      # pct = variance_cny / estimate_cny * 100 = 10/70*100 = 14.29%
-      expect(response.body).to include("+¥10.00")
-      expect(response.body).to include("+$1.11")
-      expect(response.body).to include("+14.29%")
+      # pct = variance_cny / estimate_cny * 100 = 8/72*100 = 11.11%
+      expect(response.body).to include("+¥8.00")
+      expect(response.body).to include("+$0.82")
+      expect(response.body).to include("+11.11%")
     end
 
     # The two-term decomposition (折包代價 + 物流商可能超收) only ever renders
@@ -791,17 +791,17 @@ RSpec.describe "Parcels", type: :request do
     # cost_amount wasn't converted at the same fx rate as the basis — as it
     # deliberately isn't here, to force that drift.
     it "renders a recon total USD that equals split USD + overcharge USD, even when the order-row rollup would disagree" do
-      order = priced_order(name: "PKS#RECONUSD", zip: "2075", weight_grams: 2500) # order estimate 100 CNY
-      # D1/D2 estimates: 70 + 55 = 125 CNY -> split_cost_cny = 125 - 100 = 25
-      # actual: 80 + 50 = 130 CNY -> overcharge_cny = 130 - 125 = 5
+      order = priced_order(name: "PKS#RECONUSD", zip: "2075", weight_grams: 2500) # order estimate 102 CNY
+      # D1/D2 estimates: 72 + 57 = 129 CNY -> split_cost_cny = 129 - 102 = 27
+      # actual: 80 + 50 = 130 CNY -> overcharge_cny = 130 - 129 = 1
       # basis.fx_rate is 7.0 (est_store.cost_fx_rate), so:
-      #   split_usd      = (25 / 7.0).round(2) = 3.57
-      #   overcharge_usd = (5  / 7.0).round(2) = 0.71
-      #   recon total    = 3.57 + 0.71         = 4.28
+      #   split_usd      = (27 / 7.0).round(2) = 3.86
+      #   overcharge_usd = (1  / 7.0).round(2) = 0.14
+      #   recon total    = 3.86 + 0.14         = 4.00
       # cost_amount below is set independently of cost_cny / basis.fx_rate
       # (as a real parcel's own fx_rate_snapshot conversion would be), so the
-      # order-row rollup (actual_shipping_cost 17.81 - order_estimate 14.29
-      # = 3.52) intentionally disagrees with 4.28 — proving the recon block
+      # order-row rollup (actual_shipping_cost 17.81 - order_estimate 14.57
+      # = 3.24) intentionally disagrees with 4.00 — proving the recon block
       # no longer reads that rollup for its "total" line.
       create(:parcel, shopify_store: est_store, order: order, identifier: "RU1", zone: "1",
              billed_weight_g: 1500, cost_cny: 80, fx_rate_snapshot: 7.5, cost_amount: 10.67)
@@ -812,15 +812,15 @@ RSpec.describe "Parcels", type: :request do
 
       expect(response).to have_http_status(:ok)
       # Note: the order-row widget legitimately shows the rollup figure
-      # (+$3.52) elsewhere on the page — that's the OTHER widget the fix
+      # (+$3.24) elsewhere on the page — that's the OTHER widget the fix
       # brief says must stay untouched. So these assertions are scoped to
       # just the recon block (".bg-purple-50"), not the whole response body,
       # to actually pin down which figure the recon section itself renders.
       recon = Nokogiri::HTML(response.body).at_css(".bg-purple-50").text
-      expect(recon).to include("+$3.57") # split USD
-      expect(recon).to include("+$0.71") # overcharge USD
-      expect(recon).to include("+$4.28") # recon total USD == 3.57 + 0.71
-      expect(recon).not_to include("+$3.52") # the stale order-row-rollup figure must not leak in here
+      expect(recon).to include("+$3.86") # split USD
+      expect(recon).to include("+$0.14") # overcharge USD
+      expect(recon).to include("+$4.00") # recon total USD == 3.86 + 0.14
+      expect(recon).not_to include("+$3.24") # the stale order-row-rollup figure must not leak in here
     end
 
     # N+1 guard: Step 1's review flagged that ShippingCostCalculator.basis

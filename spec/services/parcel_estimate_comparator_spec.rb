@@ -10,16 +10,16 @@ RSpec.describe ParcelEstimateComparator do
   let(:customer) { create(:customer, shopify_store: store) }
 
   # An AU order (zone "1"), single line item weighing 2.5kg, priced against a
-  # single 0..5kg band (per_kg 30, flat 25):
-  #   order estimate  = 2.5 * 30 + 25 = 100 CNY  → 100 / 7.0 = 14.29 USD
+  # single 0..5kg band (per_kg 30, flat 25, + ¥2 operation fee per parcel):
+  #   order estimate  = 2.5 * 30 + 25 + 2 = 102 CNY  → 102 / 7.0 = 14.57 USD
   # Split into two parcels whose billed weights sum back to the SAME 2.5kg
   # (so the split cost is pure "extra flat fee", not a weight discrepancy):
-  #   P1 1.5kg → 1.5*30+25 = 70 CNY   actual 80 CNY (over by 10)
-  #   P2 1.0kg → 1.0*30+25 = 55 CNY   actual 50 CNY (under by 5)
-  #   Σestimate = 125 CNY   Σactual = 130 CNY
-  #   split_cost = 125 - 100 = 25 (the second flat fee)
-  #   overcharge = 130 - 125 = 5
-  #   invariant: 25 + 5 = 30 = 130 - 100 ✓ (both terms non-zero, non-vacuous)
+  #   P1 1.5kg → 1.5*30+25+2 = 72 CNY   actual 80 CNY (over by 8)
+  #   P2 1.0kg → 1.0*30+25+2 = 57 CNY   actual 50 CNY (under by 7)
+  #   Σestimate = 129 CNY   Σactual = 130 CNY
+  #   split_cost = 129 - 102 = 27 (the second flat fee + the two ¥2 operation fees)
+  #   overcharge = 130 - 129 = 1
+  #   invariant: 27 + 1 = 28 = 130 - 102 ✓ (both terms non-zero, non-vacuous)
   def build_zoned_order(weight_grams: 2500, zip: "2075")
     order = create(:order, customer: customer, shopify_store: store,
                    ordered_at: store.active_timezone.local(2026, 4, 15, 12),
@@ -56,26 +56,26 @@ RSpec.describe ParcelEstimateComparator do
       line1 = result.parcel_lines.find { |l| l.parcel == p1 }
       line2 = result.parcel_lines.find { |l| l.parcel == p2 }
 
-      expect(line1.estimate_cny).to eq(70)   # 1.5 * 30 + 25
-      expect(line2.estimate_cny).to eq(55)   # 1.0 * 30 + 25
-      expect(line1.estimate).to eq((70 / 7.0).round(2))
-      expect(line2.estimate).to eq((55 / 7.0).round(2))
+      expect(line1.estimate_cny).to eq(72)   # 1.5 * 30 + 25 + 2
+      expect(line2.estimate_cny).to eq(57)   # 1.0 * 30 + 25 + 2
+      expect(line1.estimate).to eq((72 / 7.0).round(2))
+      expect(line2.estimate).to eq((57 / 7.0).round(2))
     end
 
     it "computes the order-level estimate via the shared Basis" do
-      expect(result.order_estimate_cny).to eq(100)
-      expect(result.order_estimate).to eq(14.29)
+      expect(result.order_estimate_cny).to eq(102)
+      expect(result.order_estimate).to eq(14.57)
       expect(result.estimated_zone).to eq("1")
       expect(result.zoned).to be true
     end
 
     it "satisfies the money invariant: split_cost + overcharge == actual_total - order_estimate, with both terms non-trivial" do
       expect(result.decomposable).to be true
-      expect(result.parcels_estimate_cny).to eq(125)
+      expect(result.parcels_estimate_cny).to eq(129)
       expect(result.actual_total_cny).to eq(130)
 
-      expect(result.split_cost_cny).to eq(25)
-      expect(result.overcharge_cny).to eq(5)
+      expect(result.split_cost_cny).to eq(27)
+      expect(result.overcharge_cny).to eq(1)
       expect(result.split_cost_cny).not_to eq(result.overcharge_cny) # both non-zero and distinct — not vacuous
 
       expect(result.split_cost_cny + result.overcharge_cny)
@@ -83,7 +83,7 @@ RSpec.describe ParcelEstimateComparator do
     end
 
     it "matches ShippingCostCalculator.estimate(order) (refactor did not change the order-level number)" do
-      expect(ShippingCostCalculator.estimate(order)).to eq(14.29)
+      expect(ShippingCostCalculator.estimate(order)).to eq(14.57)
       expect(ShippingCostCalculator.estimate(order)).to eq(result.order_estimate)
     end
 
@@ -148,14 +148,14 @@ RSpec.describe ParcelEstimateComparator do
       priced_line = result.parcel_lines.find { |l| l.parcel == priced }
       unpriced_line = result.parcel_lines.find { |l| l.parcel == unpriced }
 
-      expect(priced_line.estimate_cny).to eq(55)
+      expect(priced_line.estimate_cny).to eq(57)
       expect(unpriced_line.estimate_cny).to be_nil
       expect(unpriced_line.variance_cny).to be_nil
       expect(unpriced_line.variance_pct).to be_nil
 
       expect(result.decomposable).to be false
       # Sum of the known ones only — never silently wrong, never a full total either.
-      expect(result.parcels_estimate_cny).to eq(55)
+      expect(result.parcels_estimate_cny).to eq(57)
       expect(result.split_cost_cny).to be_nil
       expect(result.overcharge_cny).to be_nil
     end

@@ -225,7 +225,7 @@
                         </span>
                         <span class="text-gray-300">&rarr;</span>
                         <span class="px-2 py-1 rounded bg-gray-50 border border-gray-200 font-mono text-[11px]">
-                          <%= t("parcels.basis.formula", rate: cny(band.per_kg_rate_cny), weight: number_with_precision(result.order_weight_kg, precision: 2), flat: cny(band.flat_fee_cny)) %>
+                          <%= t("parcels.basis.formula", rate: cny(band.per_kg_rate_cny), weight: number_with_precision(result.order_weight_kg, precision: 2), flat: cny(band.flat_fee_cny), op: cny(ShippingCostCalculator::OPERATION_FEE_CNY)) %>
                         </span>
                       <% end %>
                       <span class="ml-auto font-semibold text-gray-900 text-sm whitespace-nowrap">

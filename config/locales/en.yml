@@ -420,7 +420,7 @@ en:
       postal: "Postal %{zip}"
       weight: "Item weight %{weight} kg"
       band: "Weight band %{min}–%{max} kg"
-      formula: "%{rate}/kg × %{weight} + %{flat} registration"
+      formula: "%{rate}/kg × %{weight} + %{flat} registration + %{op} handling"
     contents:
       title: "Order contents"
       subtitle: "%{count} items · unit weight from each SKU"
