@@ -420,7 +420,8 @@
       postal: "郵編 %{zip}"
       weight: "商品總重 %{weight} kg"
       band: "重量帶 %{min}–%{max} kg"
-      formula: "%{rate}/kg × %{weight} + %{flat} 掛號"
+      formula: "%{rate}/kg × %{weight} + %{flat} 掛號 + %{op} 操作費"
+      over_max_split: "超重·按拆包計價"
     contents:
       title: "訂單商品"
       subtitle: "共 %{count} 件 · 每件預估重取自 SKU 重量"

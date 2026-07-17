@@ -33,8 +33,8 @@ RSpec.describe ShippingCostCalculator do
   it "returns the band cost converted to store currency" do
     build_version_with_band
     order = build_order(weight_grams: 300) # 0.3 kg → band 0.201..0.45
-    # cny = 0.3 * 92 + 23 = 50.6; usd = 50.6 / 7.0 = 7.23
-    expect(ShippingCostCalculator.estimate(order)).to eq(7.23)
+    # cny = 0.3 * 92 + 23 + 2 = 52.6; usd = 52.6 / 7.0 = 7.51
+    expect(ShippingCostCalculator.estimate(order)).to eq(7.51)
   end
 
   it "uses the older version for an early date and the newer one once it takes over" do
@@ -44,8 +44,8 @@ RSpec.describe ShippingCostCalculator do
     early = build_order(weight_grams: 300, ordered_on: Date.new(2026, 4, 15))
     late  = build_order(weight_grams: 300, ordered_on: Date.new(2026, 5, 10))
 
-    expect(ShippingCostCalculator.estimate(early)).to eq((((0.3 * 92.0) + 23.0) / 7.0).round(2))
-    expect(ShippingCostCalculator.estimate(late)).to eq((((0.3 * 100.0) + 30.0) / 7.0).round(2))
+    expect(ShippingCostCalculator.estimate(early)).to eq((((0.3 * 92.0) + 23.0 + 2) / 7.0).round(2))
+    expect(ShippingCostCalculator.estimate(late)).to eq((((0.3 * 100.0) + 30.0 + 2) / 7.0).round(2))
   end
 
   it "returns nil when the variant has no weight" do
@@ -77,7 +77,7 @@ RSpec.describe ShippingCostCalculator do
     product = create(:product, shopify_store: store)
     variant = create(:product_variant, product: product, weight_grams: 300)
     create(:order_line_item, order: order, product_variant: variant, quantity: 1)
-    expect(ShippingCostCalculator.estimate(order)).to eq(7.23)
+    expect(ShippingCostCalculator.estimate(order)).to eq(7.51)
   end
 
   it "returns nil when no country can be determined" do
@@ -136,11 +136,11 @@ RSpec.describe ShippingCostCalculator do
     end
 
     it "uses the zone-1 rate for a zone-1 postcode" do
-      expect(ShippingCostCalculator.estimate(au_order(zip: "2075"))).to eq(7.23)
+      expect(ShippingCostCalculator.estimate(au_order(zip: "2075"))).to eq(7.51)
     end
 
     it "uses the zone-2 rate for a zone-2 postcode" do
-      expect(ShippingCostCalculator.estimate(au_order(zip: "2082"))).to eq(8.57)
+      expect(ShippingCostCalculator.estimate(au_order(zip: "2082"))).to eq(8.86)
     end
 
     it "returns nil when the postcode matches no zone" do
@@ -200,31 +200,31 @@ RSpec.describe ShippingCostCalculator do
     end
 
     it "splits into 5kg + 0.5kg parcels, each with its own handling fee, using each parcel's band" do
-      # 5kg → band 1–5: 5*30+25 = 175 ; 0.5kg → band 0–1: 0.5*27+23 = 36.5 ; sum 211.5 / 7.0 = 30.21
-      expect(ShippingCostCalculator.estimate(us_order(grams: 5500))).to eq(30.21)
+      # 5kg → band 1–5: 5*30+25+2 = 177 ; 0.5kg → band 0–1: 0.5*27+23+2 = 38.5 ; sum 215.5 / 7.0 = 30.79
+      expect(ShippingCostCalculator.estimate(us_order(grams: 5500))).to eq(30.79)
     end
 
     it "handles an exact multiple of the max (10kg → 5 + 5)" do
-      # 2 × (5*30+25 = 175) = 350 / 7.0 = 50.0
-      expect(ShippingCostCalculator.estimate(us_order(grams: 10_000))).to eq(50.0)
+      # 2 × (5*30+25+2 = 177) = 354 / 7.0 = 50.57
+      expect(ShippingCostCalculator.estimate(us_order(grams: 10_000))).to eq(50.57)
     end
 
     it "splits into three parcels (12kg → 5 + 5 + 2)" do
-      # 175 + 175 + (2*30+25 = 85) = 435 / 7.0 = 62.14
-      expect(ShippingCostCalculator.estimate(us_order(grams: 12_000))).to eq(62.14)
+      # 177 + 177 + (2*30+25+2 = 87) = 441 / 7.0 = 63.0
+      expect(ShippingCostCalculator.estimate(us_order(grams: 12_000))).to eq(63.0)
     end
 
     it "does not split an order at exactly the max (5kg → single parcel)" do
-      # band 1–5: 5*30+25 = 175 / 7.0 = 25.0
-      expect(ShippingCostCalculator.estimate(us_order(grams: 5000))).to eq(25.0)
+      # band 1–5: 5*30+25+2 = 177 / 7.0 = 25.29
+      expect(ShippingCostCalculator.estimate(us_order(grams: 5000))).to eq(25.29)
     end
 
     it "computes a many-parcel split with a tiny max band in O(1)" do
       # A small top band (max 0.05kg) over a 0.2kg order = 4 parcels — must not loop per-parcel.
       version.rates.delete_all
       create(:shipping_rate_card_rate, version: version, zone: nil, weight_min_kg: 0, weight_max_kg: 0.05, per_kg_rate_cny: 100, flat_fee_cny: 5)
-      # 4 × (0.05*100 + 5 = 10) = 40 / 7.0 = 5.71 (5.714… rounds to 5.71)
-      expect(ShippingCostCalculator.estimate(us_order(grams: 200))).to eq(5.71)
+      # 4 × (0.05*100 + 5 + 2 = 12) = 48 / 7.0 = 6.86 (6.857… rounds to 6.86)
+      expect(ShippingCostCalculator.estimate(us_order(grams: 200))).to eq(6.86)
     end
 
     it "returns nil when a remainder parcel matches no band (below the lowest min)" do
@@ -248,7 +248,7 @@ RSpec.describe ShippingCostCalculator do
       product = create(:product, shopify_store: store)
       variant = create(:product_variant, product: product, weight_grams: 5500)
       create(:order_line_item, order: order, product_variant: variant, quantity: 1)
-      expect(ShippingCostCalculator.estimate(order)).to eq(30.21)
+      expect(ShippingCostCalculator.estimate(order)).to eq(30.79)
     end
   end
 
@@ -263,12 +263,12 @@ RSpec.describe ShippingCostCalculator do
       expect(basis.zoned).to be false
       expect(basis.order_weight_kg).to eq(0.3)
       expect(basis.fx_rate).to eq(7.0)
-      expect(basis.order_estimate_cny).to eq(50.6)   # 0.3 * 92 + 23
-      expect(basis.order_estimate).to eq(7.23)
+      expect(basis.order_estimate_cny).to eq(52.6)   # 0.3 * 92 + 23 + 2
+      expect(basis.order_estimate).to eq(7.51)
       expect(basis.order_estimate).to eq(ShippingCostCalculator.estimate(order))
 
       # An arbitrary (parcel) weight in the same band, same zone/version.
-      expect(basis.estimate_cny_for(0.25)).to eq((0.25 * 92.0) + 23.0)
+      expect(basis.estimate_cny_for(0.25)).to eq((0.25 * 92.0) + 23.0 + 2)
       # A weight outside every band returns nil rather than a wrong number.
       expect(basis.estimate_cny_for(10)).to be_nil
       expect(basis.estimate_cny_for(nil)).to be_nil
