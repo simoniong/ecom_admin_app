@@ -47,6 +47,10 @@ RSpec.describe "ShippingRemoteAreaVersions", type: :request do
       create(:membership, user: member, company: company, role: :member, permissions: [ "shopify_stores" ])
       sign_out user
       sign_in member
+      # A member's user factory auto-creates its own (unrelated) owner company,
+      # so current_company can't be trusted to default to `company` — select it
+      # explicitly rather than relying on companies.first's row order.
+      patch switch_company_path(id: company.id)
       post shipping_remote_area_versions_path, params: {
         shipping_remote_area_version: { country_code: "GB", name: "x", effective_from: "2026-06-01" }
       }
@@ -59,6 +63,7 @@ RSpec.describe "ShippingRemoteAreaVersions", type: :request do
       create(:membership, user: member, company: company, role: :member, permissions: [])
       sign_out user
       sign_in member
+      patch switch_company_path(id: company.id)
       post shipping_remote_area_versions_path, params: {
         shipping_remote_area_version: { country_code: "GB", name: "x", effective_from: "2026-06-01" }
       }
@@ -126,10 +131,14 @@ RSpec.describe "ShippingRemoteAreaVersions", type: :request do
       expect(response).to redirect_to(shipping_remote_area_versions_path)
     end
 
-    it "batch-imports rules into a version" do
+    it "batch-imports rules into a version, replacing any existing rules" do
+      # Seed a pre-existing rule so we can prove the import replaces rather than
+      # appends: 1 existing + 2 imported must end at 2, not 3.
+      create(:shipping_remote_area_rule, version: version, postal_start: "ZZ00", postal_end: "ZZ99")
       post import_shipping_remote_area_version_rules_path(shipping_remote_area_version_id: version.id),
            params: { text: "AB35, area 3, 10\nIV, area 2, 17" }
       expect(version.reload.rules.count).to eq(2)
+      expect(version.rules.pluck(:postal_start)).not_to include("ZZ00")
       expect(response).to redirect_to(shipping_remote_area_versions_path)
     end
 
@@ -145,6 +154,7 @@ RSpec.describe "ShippingRemoteAreaVersions", type: :request do
       create(:membership, user: member, company: company, role: :member, permissions: [ "shopify_stores" ])
       sign_out user
       sign_in member
+      patch switch_company_path(id: company.id)
       expect {
         post shipping_remote_area_version_rules_path(shipping_remote_area_version_id: version.id), params: {
           shipping_remote_area_rule: { postal_start: "AB35", postal_end: "AB35", surcharge_cny: 10 }
