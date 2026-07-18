@@ -167,4 +167,127 @@ RSpec.describe "Sidebar navigation", type: :request do
       expect(settings_menu.text).not_to include(I18n.t("nav.shipping_reminders"))
     end
   end
+
+  # Products is a flat Level-1 link sitting directly below the Shipping group.
+  # It shares the shopify_stores permission gate with ProductsController
+  # (PERMISSION_KEY_MAP maps "products" => "shopify_stores"), so its visibility
+  # must follow that gate exactly — otherwise a member is shown a link to a page
+  # they'd be redirected away from, or can't reach a page they may open.
+  describe "Products link" do
+    it "shows the Products link at the top level to the owner" do
+      sign_in user
+
+      get authenticated_root_path
+
+      expect(response).to have_http_status(:ok)
+      doc = Nokogiri::HTML(response.body)
+      link = doc.at_css("nav a[href='#{products_path}']")
+      expect(link).to be_present
+      expect(link.text).to include(I18n.t("nav.products"))
+      # It lives at Level 1, not inside any of the collapsible group menus.
+      expect(link.ancestors("#shipping-menu")).to be_empty
+      expect(link.ancestors("#settings-menu")).to be_empty
+      expect(link.ancestors("#tickets-menu")).to be_empty
+    end
+
+    it "shows the Products link to a member granted shopify_stores" do
+      member = create(:user)
+      create(:membership, user: member, company: company, role: :member, permissions: [ "shopify_stores" ])
+      sign_in member
+      patch switch_company_path(id: company.id)
+
+      get authenticated_root_path
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include(products_path)
+      expect(response.body).to include(I18n.t("nav.products"))
+    end
+
+    # Mutation-test target: drop the has_permission?("shopify_stores") guard
+    # around the Products link and this spec must fail — this member is granted
+    # no permissions at all.
+    it "hides the Products link from a member without shopify_stores" do
+      member = create(:user)
+      create(:membership, user: member, company: company, role: :member, permissions: [])
+      sign_in member
+      patch switch_company_path(id: company.id)
+
+      get authenticated_root_path
+
+      expect(response).to have_http_status(:ok)
+      doc = Nokogiri::HTML(response.body)
+      expect(doc.at_css("nav a[href='#{products_path}']")).to be_nil
+      expect(response.body).not_to include(I18n.t("nav.products"))
+    end
+  end
+
+  # The Tickets entry is a collapsible nav-group (like Shipping / Settings)
+  # gathering the ticket list and its Email Workflows automation under one
+  # header. Email Workflows was moved here out of the Settings group.
+  describe "Tickets group" do
+    it "nests the ticket list and Email Workflows under #tickets-menu for the owner" do
+      create(:shopify_store, user: user, company: company)
+      sign_in user
+
+      get authenticated_root_path
+
+      expect(response).to have_http_status(:ok)
+      doc = Nokogiri::HTML(response.body)
+      menu = doc.at_css("#tickets-menu")
+      expect(menu).to be_present
+
+      hrefs = menu.css("a").map { |a| a["href"] }
+      expect(hrefs.first).to eq(tickets_path)
+      expect(hrefs).to include(shopify_store_email_workflows_path(company.shopify_stores.first))
+
+      expect(menu.text).to include(I18n.t("nav.tickets"))
+      expect(menu.text).to include(I18n.t("nav.email_workflows"))
+    end
+
+    it "no longer lists Email Workflows under the Settings group" do
+      create(:shopify_store, user: user, company: company)
+      sign_in user
+
+      get authenticated_root_path
+
+      expect(response).to have_http_status(:ok)
+      doc = Nokogiri::HTML(response.body)
+      settings_menu = doc.at_css("#settings-menu")
+      expect(settings_menu).to be_present
+      expect(settings_menu.text).not_to include(I18n.t("nav.email_workflows"))
+    end
+
+    # Email Workflows keeps the shopify_stores gate even inside the Tickets
+    # group: EmailWorkflowsController authorizes on shopify_stores, so a member
+    # with only tickets permission must not be shown the link.
+    it "hides the Email Workflows child from a member with tickets but not shopify_stores" do
+      create(:shopify_store, user: user, company: company)
+      member = create(:user)
+      create(:membership, user: member, company: company, role: :member, permissions: [ "tickets" ])
+      sign_in member
+      patch switch_company_path(id: company.id)
+
+      get authenticated_root_path
+
+      expect(response).to have_http_status(:ok)
+      doc = Nokogiri::HTML(response.body)
+      menu = doc.at_css("#tickets-menu")
+      expect(menu).to be_present
+      expect(menu.text).to include(I18n.t("nav.tickets"))
+      expect(menu.text).not_to include(I18n.t("nav.email_workflows"))
+    end
+
+    it "hides the Tickets group entirely from a member without the tickets permission" do
+      member = create(:user)
+      create(:membership, user: member, company: company, role: :member, permissions: [])
+      sign_in member
+      patch switch_company_path(id: company.id)
+
+      get authenticated_root_path
+
+      expect(response).to have_http_status(:ok)
+      doc = Nokogiri::HTML(response.body)
+      expect(doc.at_css("#tickets-menu")).to be_nil
+    end
+  end
 end
