@@ -27,10 +27,21 @@ export default class extends Controller {
   arm() {
     this.armed = true
     this.element.textContent = this.confirmTextValue
+    // Match whole class tokens (not substrings) so any Tailwind color family
+    // (gray, green, etc.) is swapped to red without one replacement's output
+    // being re-matched by a later, broader regex (e.g. "hover:bg-red-700"
+    // getting its "bg-red-700" portion re-matched by the plain bg- rule).
     this.element.className = this.element.className
-      .replace(/hover:bg-gray-\d+/g, "hover:bg-red-700")
-      .replace(/focus:ring-gray-\d+/g, "focus:ring-red-500")
-      .replace(/bg-gray-\d+/g, "bg-red-600")
+      .split(/\s+/)
+      .map((token) => {
+        if (/^hover:bg-[a-z]+-\d+$/.test(token)) return "hover:bg-red-700"
+        // Exclude "offset" so the ring-offset-width utility (e.g. focus:ring-offset-2)
+        // isn't mistaken for a ring-color utility (e.g. focus:ring-green-500).
+        if (/^focus:ring-(?!offset-)[a-z]+-\d+$/.test(token)) return "focus:ring-red-500"
+        if (/^bg-[a-z]+-\d+$/.test(token)) return "bg-red-600"
+        return token
+      })
+      .join(" ")
 
     this.timer = setTimeout(() => this.reset(), this.timeoutValue)
   }

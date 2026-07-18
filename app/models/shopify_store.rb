@@ -20,6 +20,9 @@ class ShopifyStore < ApplicationRecord
   validates :client_secret, presence: true
   validates :cost_fx_rate, numericality: { greater_than: 0, allow_nil: true }
   validates :default_service_type, inclusion: { in: ShippingRateCardVersion::SERVICE_TYPES }, allow_blank: true
+  validates :trustpilot_bcc_email,
+            format: { with: /\A[^@\s]+@invite\.trustpilot\.com\z/, message: :invalid_trustpilot_address },
+            allow_blank: true
 
   def active_timezone
     ActiveSupport::TimeZone[timezone] || ActiveSupport::TimeZone["UTC"]

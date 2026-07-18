@@ -14,6 +14,10 @@
               only_with_backfill_mode: "僅當追蹤範圍為回補歷史訂單時才能設定天數。"
         email_account:
           send_window_invalid: "結束時間必須晚於開始時間。"
+        shopify_store:
+          attributes:
+            trustpilot_bcc_email:
+              invalid_trustpilot_address: "必須是結尾為 @invite.trustpilot.com 的 Trustpilot 邀請信箱。"
   errors:
     messages:
       required_when_company_has_groups: "公司已有部門，必須指定所屬部門"
@@ -26,6 +30,7 @@
     email_accounts: "郵箱"
     shopify_stores: "Shopify 商店"
     tickets: "工單"
+    customer_support: "客戶支援"
     orders: "訂單"
     ad_accounts: "廣告帳戶"
     ad_campaigns: "廣告活動"
@@ -227,6 +232,7 @@
       move_to_draft: "轉為草稿"
       confirm_schedule: "確認並排程發送"
       confirm_schedule_confirm: "確認此草稿並排程發送郵件？"
+      trustpilot_bcc_label: "發送 Trustpilot 評論邀請(BCC)"
       edit_draft: "編輯草稿"
       reset_to_new: "退回新工單"
       close_ticket: "關閉工單"
@@ -254,6 +260,7 @@
       reverse_bind_hint: "綁定訂單後客戶將自動連結。"
       threads_heading: "Thread 列表"
       open_new_thread: "新建 Thread"
+      trustpilot_invited_badge: "已發送 Trustpilot 邀請"
     reopened_reasons:
       customer_inquiry: "顧客查詢"
       customer_reply: "顧客回覆"
@@ -321,6 +328,12 @@
     service_type_owner_only: "（僅擁有者可修改）"
     save_service_type: "儲存"
     service_not_set: "未設定"
+    trustpilot_bcc: "Trustpilot 評論邀請"
+    trustpilot_bcc_hint: "在選定的 ticket 回覆 BCC 這個店鋪專屬的 Trustpilot 信箱，即可自動向客人邀請評論。留空則停用。"
+    trustpilot_bcc_placeholder: "yourdomain.com+xxxx@invite.trustpilot.com"
+    save_trustpilot_bcc: "儲存"
+    trustpilot_bcc_updated: "Trustpilot 邀請信箱已更新。"
+    trustpilot_bcc_owner_only: "只有擁有者可以變更。"
   shipping_rate_cards:
     title: "運費費率卡"
     filter_country: "國家"

@@ -23,11 +23,12 @@ class GmailService
     client.get_user_profile("me")
   end
 
-  def send_message(to:, subject:, body:, thread_id: nil)
+  def send_message(to:, subject:, body:, thread_id: nil, bcc: nil)
     from_addr = email_account.email
     mail = Mail.new
     mail.from = from_addr
     mail.to = to
+    mail.bcc = bcc if bcc.present?
     mail.subject = subject
     mail.body = body
     mail.charset = "UTF-8"

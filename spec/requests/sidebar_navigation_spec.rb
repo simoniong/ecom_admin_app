@@ -240,6 +240,12 @@ RSpec.describe "Sidebar navigation", type: :request do
       expect(hrefs.first).to eq(tickets_path)
       expect(hrefs).to include(shopify_store_email_workflows_path(company.shopify_stores.first))
 
+      # The group header (Level 1) reads "Customer Support"; the ticket list
+      # child link (Level 2) keeps the "Tickets" label.
+      header = doc.at_css("button[aria-controls='tickets-menu']")
+      expect(header.text).to include(I18n.t("nav.customer_support"))
+      expect(header.text).not_to include(I18n.t("nav.tickets"))
+
       expect(menu.text).to include(I18n.t("nav.tickets"))
       expect(menu.text).to include(I18n.t("nav.email_workflows"))
     end
