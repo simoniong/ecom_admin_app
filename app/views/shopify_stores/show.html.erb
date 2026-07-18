@@ -121,6 +121,32 @@
   </div>
 
   <div class="mt-6 bg-white shadow-sm rounded-lg border border-gray-200 p-6">
+    <h2 class="text-lg font-medium text-gray-900"><%= t("shopify_stores.trustpilot_bcc") %></h2>
+    <p class="mt-1 text-sm text-gray-500"><%= t("shopify_stores.trustpilot_bcc_hint") %></p>
+    <% if current_membership&.owner? %>
+      <%= form_with url: shopify_store_path(@shopify_store), method: :patch, local: true,
+                    class: "mt-3 flex items-center gap-2" do %>
+        <input type="email"
+               name="shopify_store[trustpilot_bcc_email]"
+               id="shopify_store_trustpilot_bcc_email"
+               value="<%= @shopify_store.trustpilot_bcc_email %>"
+               placeholder="<%= t("shopify_stores.trustpilot_bcc_placeholder") %>"
+               aria-label="<%= t("shopify_stores.trustpilot_bcc") %>"
+               class="w-96 max-w-full border border-gray-300 rounded px-2 py-1 text-sm">
+        <button type="submit"
+                class="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700">
+          <%= t("shopify_stores.save_trustpilot_bcc") %>
+        </button>
+      <% end %>
+    <% else %>
+      <p class="mt-3 text-sm text-gray-700">
+        <strong><%= @shopify_store.trustpilot_bcc_email.presence || "—" %></strong>
+        <span class="text-xs text-gray-500 ml-2"><%= t("shopify_stores.trustpilot_bcc_owner_only") %></span>
+      </p>
+    <% end %>
+  </div>
+
+  <div class="mt-6 bg-white shadow-sm rounded-lg border border-gray-200 p-6">
     <h2 class="text-lg font-medium text-gray-900"><%= t("products.title") %></h2>
     <p class="mt-1 text-sm text-gray-500">
       <%= t("shopify_stores.products_synced_at") %>:

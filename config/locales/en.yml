@@ -14,6 +14,10 @@ en:
               only_with_backfill_mode: "Backfill days only apply when the backfill scope is selected."
         email_account:
           send_window_invalid: "End time must be after start time."
+        shopify_store:
+          attributes:
+            trustpilot_bcc_email:
+              invalid_trustpilot_address: "must be a Trustpilot invitation address ending in @invite.trustpilot.com."
   errors:
     messages:
       required_when_company_has_groups: "is required because this company has departments"
@@ -230,6 +234,7 @@ en:
       move_to_draft: "Move to Draft"
       confirm_schedule: "Confirm & Schedule Send"
       confirm_schedule_confirm: "Confirm this draft and schedule the email to be sent?"
+      trustpilot_bcc_label: "Send Trustpilot review invite (BCC)"
       edit_draft: "Edit Draft"
       reset_to_new: "Reset to New"
       close_ticket: "Close Ticket"
@@ -255,6 +260,7 @@ en:
       reverse_bind_hint: "Binding an order will auto-link its customer."
       threads_heading: "Threads"
       open_new_thread: "New thread"
+      trustpilot_invited_badge: "Trustpilot invite sent"
     reopened_reasons:
       customer_inquiry: "Customer Inquiry"
       customer_reply: "Customer Reply"
@@ -322,6 +328,12 @@ en:
     service_type_owner_only: "(Only owners can change this)"
     save_service_type: "Save"
     service_not_set: "Not set"
+    trustpilot_bcc: "Trustpilot review invitations"
+    trustpilot_bcc_hint: "BCC this store's unique Trustpilot address on selected ticket replies to auto-request a review. Leave blank to disable."
+    trustpilot_bcc_placeholder: "yourdomain.com+xxxx@invite.trustpilot.com"
+    save_trustpilot_bcc: "Save"
+    trustpilot_bcc_updated: "Trustpilot invitation address updated."
+    trustpilot_bcc_owner_only: "Only an owner can change this."
   shipping_rate_cards:
     title: "Shipping Rate Cards"
     filter_country: "Country"

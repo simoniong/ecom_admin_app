@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_17_090002) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_18_120004) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -273,6 +273,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_17_090002) do
   end
 
   create_table "messages", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.string "bcc"
     t.text "body"
     t.string "cc"
     t.datetime "created_at", null: false
@@ -522,6 +523,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_17_090002) do
     t.string "scopes"
     t.string "shop_domain", null: false
     t.string "timezone", default: "UTC", null: false
+    t.string "trustpilot_bcc_email"
     t.datetime "updated_at", null: false
     t.uuid "user_id", null: false
     t.datetime "webhooks_registered_at"
@@ -653,6 +655,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_17_090002) do
   end
 
   create_table "tickets", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.boolean "bcc_trustpilot", default: false, null: false
     t.datetime "created_at", null: false
     t.string "customer_email", null: false
     t.uuid "customer_id"
@@ -670,6 +673,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_17_090002) do
     t.datetime "scheduled_send_at"
     t.integer "status", default: 0, null: false
     t.string "subject"
+    t.string "trustpilot_bcc_email"
     t.datetime "updated_at", null: false
     t.index ["customer_id"], name: "index_tickets_on_customer_id"
     t.index ["email_account_id", "gmail_thread_id"], name: "index_tickets_on_email_account_id_and_gmail_thread_id", unique: true, where: "(gmail_thread_id IS NOT NULL)"

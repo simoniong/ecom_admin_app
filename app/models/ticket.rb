@@ -73,6 +73,11 @@ class Ticket < ApplicationRecord
       attrs[:draft_reply_at] = nil
     end
 
+    if new_status != "draft_confirmed"
+      attrs[:bcc_trustpilot] = false
+      attrs[:trustpilot_bcc_email] = nil
+    end
+
     update!(attrs)
 
     # Schedule/cancel email based on transition
