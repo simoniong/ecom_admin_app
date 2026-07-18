@@ -220,10 +220,12 @@ class TicketsController < AdminController
   private
 
   def handle_status_transition
-    if params.dig(:ticket, :status) == "draft_confirmed" && params[:ticket].key?(:bcc_trustpilot)
-      @ticket.update!(bcc_trustpilot: ActiveModel::Type::Boolean.new.cast(params.dig(:ticket, :bcc_trustpilot)))
+    Ticket.transaction do
+      if params.dig(:ticket, :status) == "draft_confirmed" && params[:ticket].key?(:bcc_trustpilot)
+        @ticket.update!(bcc_trustpilot: ActiveModel::Type::Boolean.new.cast(params.dig(:ticket, :bcc_trustpilot)))
+      end
+      @ticket.transition_status!(params.dig(:ticket, :status))
     end
-    @ticket.transition_status!(params.dig(:ticket, :status))
 
     if params.dig(:ticket, :position_ids).present?
       visible_tickets.reorder_positions!(params.dig(:ticket, :position_ids))

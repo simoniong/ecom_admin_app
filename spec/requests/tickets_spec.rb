@@ -828,5 +828,14 @@ RSpec.describe "Tickets", type: :request do
       patch ticket_path(id: ticket.id), params: { ticket: { status: "draft_confirmed", bcc_trustpilot: "0" } }
       expect(ticket.reload.bcc_trustpilot).to be(false)
     end
+
+    it "does not persist the flag when the status transition is rejected" do
+      already_confirmed = create(:ticket, :draft_confirmed, email_account: email_account, bcc_trustpilot: false)
+
+      patch ticket_path(id: already_confirmed.id), params: { ticket: { status: "draft_confirmed", bcc_trustpilot: "1" } }
+
+      expect(response).to redirect_to(ticket_path(id: already_confirmed.id))
+      expect(already_confirmed.reload.bcc_trustpilot).to be(false)
+    end
   end
 end
