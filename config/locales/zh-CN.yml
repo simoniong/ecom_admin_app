@@ -325,7 +325,7 @@
     save_service_type: "保存"
     service_not_set: "未设置"
     trustpilot_bcc: "Trustpilot 评论邀请"
-    trustpilot_bcc_hint: "在选定的工单回复 BCC 这个店铺专属的 Trustpilot 信箱,即可自动向客人邀请评论。留空则停用。"
+    trustpilot_bcc_hint: "在选定的工单回复 BCC 这个店铺专属的 Trustpilot 信箱，即可自动向客人邀请评论。留空则停用。"
     trustpilot_bcc_placeholder: "yourdomain.com+xxxx@invite.trustpilot.com"
     save_trustpilot_bcc: "保存"
     trustpilot_bcc_updated: "Trustpilot 邀请信箱已更新。"

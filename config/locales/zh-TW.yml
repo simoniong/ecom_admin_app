@@ -325,7 +325,7 @@
     save_service_type: "儲存"
     service_not_set: "未設定"
     trustpilot_bcc: "Trustpilot 評論邀請"
-    trustpilot_bcc_hint: "在選定的 ticket 回覆 BCC 這個店鋪專屬的 Trustpilot 信箱,即可自動向客人邀請評論。留空則停用。"
+    trustpilot_bcc_hint: "在選定的 ticket 回覆 BCC 這個店鋪專屬的 Trustpilot 信箱，即可自動向客人邀請評論。留空則停用。"
     trustpilot_bcc_placeholder: "yourdomain.com+xxxx@invite.trustpilot.com"
     save_trustpilot_bcc: "儲存"
     trustpilot_bcc_updated: "Trustpilot 邀請信箱已更新。"
