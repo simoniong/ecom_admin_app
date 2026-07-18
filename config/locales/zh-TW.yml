@@ -256,6 +256,7 @@
       reverse_bind_hint: "綁定訂單後客戶將自動連結。"
       threads_heading: "Thread 列表"
       open_new_thread: "新建 Thread"
+      trustpilot_invited_badge: "已發送 Trustpilot 邀請"
     reopened_reasons:
       customer_inquiry: "顧客查詢"
       customer_reply: "顧客回覆"

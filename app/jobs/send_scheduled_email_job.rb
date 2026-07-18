@@ -22,17 +22,21 @@ class SendScheduledEmailJob < ApplicationJob
     new_thread = ticket.gmail_thread_id.blank?
     subject = new_thread ? ticket.subject.to_s : "Re: #{ticket.subject}"
 
+    bcc = ticket.bcc_trustpilot? ? ticket.email_account&.shopify_store&.trustpilot_bcc_email.presence : nil
+
     sent_message = gmail.send_message(
       to: ticket.customer_email,
       subject: subject,
       body: ticket.draft_reply,
-      thread_id: ticket.gmail_thread_id
+      thread_id: ticket.gmail_thread_id,
+      bcc: bcc
     )
 
     ticket.messages.create!(
       gmail_message_id: sent_message.id,
       from: ticket.email_account.email,
       to: ticket.customer_email,
+      bcc: bcc,
       subject: subject,
       body: ticket.draft_reply,
       sent_at: Time.current,
