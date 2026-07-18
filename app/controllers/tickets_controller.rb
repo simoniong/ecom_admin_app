@@ -222,7 +222,12 @@ class TicketsController < AdminController
   def handle_status_transition
     Ticket.transaction do
       if params.dig(:ticket, :status) == "draft_confirmed" && params[:ticket].key?(:bcc_trustpilot)
-        @ticket.update!(bcc_trustpilot: ActiveModel::Type::Boolean.new.cast(params.dig(:ticket, :bcc_trustpilot)))
+        opted_in = ActiveModel::Type::Boolean.new.cast(params.dig(:ticket, :bcc_trustpilot))
+        store_addr = @ticket.email_account&.shopify_store&.trustpilot_bcc_email
+        @ticket.update!(
+          bcc_trustpilot: opted_in,
+          trustpilot_bcc_email: opted_in ? store_addr.presence : nil
+        )
       end
       @ticket.transition_status!(params.dig(:ticket, :status))
     end

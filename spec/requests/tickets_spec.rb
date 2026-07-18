@@ -813,13 +813,27 @@ RSpec.describe "Tickets", type: :request do
 
     it "stores bcc_trustpilot=true when the box is checked" do
       patch ticket_path(id: ticket.id), params: { ticket: { status: "draft_confirmed", bcc_trustpilot: "1" } }
-      expect(ticket.reload.bcc_trustpilot).to be(true)
+      ticket.reload
+      expect(ticket.bcc_trustpilot).to be(true)
+      expect(ticket.trustpilot_bcc_email).to eq(store.trustpilot_bcc_email)
       expect(ticket).to be_draft_confirmed
     end
 
     it "stores bcc_trustpilot=false when the box is unchecked (hidden 0 only)" do
       patch ticket_path(id: ticket.id), params: { ticket: { status: "draft_confirmed", bcc_trustpilot: "0" } }
-      expect(ticket.reload.bcc_trustpilot).to be(false)
+      ticket.reload
+      expect(ticket.bcc_trustpilot).to be(false)
+      expect(ticket.trustpilot_bcc_email).to be_nil
+    end
+
+    it "clears the snapshot and flag when walking back to draft" do
+      patch ticket_path(id: ticket.id), params: { ticket: { status: "draft_confirmed", bcc_trustpilot: "1" } }
+      expect(ticket.reload.trustpilot_bcc_email).to eq(store.trustpilot_bcc_email)
+
+      patch ticket_path(id: ticket.id), params: { ticket: { status: "draft" } }
+      ticket.reload
+      expect(ticket.trustpilot_bcc_email).to be_nil
+      expect(ticket.bcc_trustpilot).to be(false)
     end
 
     it "resets a previously-true flag when re-confirmed unchecked" do

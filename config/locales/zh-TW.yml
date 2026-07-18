@@ -14,6 +14,10 @@
               only_with_backfill_mode: "僅當追蹤範圍為回補歷史訂單時才能設定天數。"
         email_account:
           send_window_invalid: "結束時間必須晚於開始時間。"
+        shopify_store:
+          attributes:
+            trustpilot_bcc_email:
+              invalid_trustpilot_address: "必須是結尾為 @invite.trustpilot.com 的 Trustpilot 邀請信箱。"
   errors:
     messages:
       required_when_company_has_groups: "公司已有部門，必須指定所屬部門"

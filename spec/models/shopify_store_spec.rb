@@ -159,6 +159,12 @@ RSpec.describe ShopifyStore, type: :model do
       expect(store).not_to be_valid
       expect(store.errors[:trustpilot_bcc_email]).to be_present
     end
+
+    it "rejects a valid email that is not a Trustpilot invite address" do
+      store = build(:shopify_store, trustpilot_bcc_email: "someone@example.com")
+      expect(store).not_to be_valid
+      expect(store.errors[:trustpilot_bcc_email]).to be_present
+    end
   end
 
   describe "#display_name" do

@@ -109,46 +109,59 @@ RSpec.describe SendScheduledEmailJob, type: :job do
     let(:store) { create(:shopify_store, trustpilot_bcc_email: "shop.com+abc@invite.trustpilot.com") }
     let(:email_account) { create(:email_account, email: "shop@gmail.com", token_expires_at: 1.hour.from_now, shopify_store: store) }
 
-    def run_confirmed_ticket(bcc_flag)
+    def run_confirmed_ticket(bcc_flag, snapshot)
       t = create(:ticket, :draft_confirmed, email_account: email_account,
                  gmail_thread_id: "thread-t", customer_email: "buyer@example.com",
-                 scheduled_send_at: Time.current, scheduled_job_id: nil, bcc_trustpilot: bcc_flag)
+                 scheduled_send_at: Time.current, scheduled_job_id: nil,
+                 bcc_trustpilot: bcc_flag, trustpilot_bcc_email: snapshot)
       job = described_class.new(t.id)
       t.update!(scheduled_job_id: job.job_id)
       job.perform_now
       t.reload
     end
 
-    it "passes the store address as BCC and records it when the flag is set" do
+    it "passes the snapshot address as BCC and records it when present" do
       gmail = instance_double(GmailService)
       allow(GmailService).to receive(:new).and_return(gmail)
       sent = Google::Apis::GmailV1::Message.new(id: "sent-1", thread_id: "thread-t")
       expect(gmail).to receive(:send_message)
         .with(hash_including(bcc: "shop.com+abc@invite.trustpilot.com")).and_return(sent)
 
-      t = run_confirmed_ticket(true)
+      t = run_confirmed_ticket(true, "shop.com+abc@invite.trustpilot.com")
       expect(t.messages.last.bcc).to eq("shop.com+abc@invite.trustpilot.com")
     end
 
-    it "sends no BCC when the flag is false" do
+    it "sends no BCC when the snapshot is nil" do
       gmail = instance_double(GmailService)
       allow(GmailService).to receive(:new).and_return(gmail)
       sent = Google::Apis::GmailV1::Message.new(id: "sent-2", thread_id: "thread-t")
       expect(gmail).to receive(:send_message).with(hash_including(bcc: nil)).and_return(sent)
 
-      t = run_confirmed_ticket(false)
+      t = run_confirmed_ticket(false, nil)
       expect(t.messages.last.bcc).to be_nil
     end
 
-    it "sends no BCC when the flag is set but the store has no address" do
-      store.update!(trustpilot_bcc_email: nil)
+    it "sends no BCC when the flag is set but the snapshot is nil" do
       gmail = instance_double(GmailService)
       allow(GmailService).to receive(:new).and_return(gmail)
       sent = Google::Apis::GmailV1::Message.new(id: "sent-3", thread_id: "thread-t")
       expect(gmail).to receive(:send_message).with(hash_including(bcc: nil)).and_return(sent)
 
-      t = run_confirmed_ticket(true)
+      t = run_confirmed_ticket(true, nil)
       expect(t.messages.last.bcc).to be_nil
+    end
+
+    it "ignores the live store association and uses only the snapshot (re-linking immunity)" do
+      store.update!(trustpilot_bcc_email: "different-store.com+z@invite.trustpilot.com")
+
+      gmail = instance_double(GmailService)
+      allow(GmailService).to receive(:new).and_return(gmail)
+      sent = Google::Apis::GmailV1::Message.new(id: "sent-4", thread_id: "thread-t")
+      expect(gmail).to receive(:send_message)
+        .with(hash_including(bcc: "snap.com+x@invite.trustpilot.com")).and_return(sent)
+
+      t = run_confirmed_ticket(true, "snap.com+x@invite.trustpilot.com")
+      expect(t.messages.last.bcc).to eq("snap.com+x@invite.trustpilot.com")
     end
   end
 end
