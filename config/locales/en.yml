@@ -39,6 +39,7 @@ en:
     profile: "Profile"
     shipping_reminders: "Shipping Reminders"
     email_workflows: "Email Workflows"
+    products: "Products"
     groups: "Departments"
     shipping_rate_cards: "Shipping Rate Cards"
     shipping_zone_postal_rules: "Postal Zones"

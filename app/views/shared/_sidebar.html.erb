@@ -143,14 +143,54 @@
       </div>
     <% end %>
 
-    <% if current_membership&.has_permission?("tickets") %>
-      <%= link_to tickets_path, data: { action: "click->sidebar#close" },
-          class: "flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md #{current_page?(tickets_path) ? 'bg-gray-100 text-gray-900' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'}" do %>
+    <%# Products — flat link, gated by shopify_stores like the store-scoped pages %>
+    <% if current_membership&.has_permission?("shopify_stores") %>
+      <%= link_to products_path, data: { action: "click->sidebar#close" },
+          class: "flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md #{controller_name == 'products' ? 'bg-gray-100 text-gray-900' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'}" do %>
         <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 6v.75m0 3v.75m0 3v.75m0 3V18m-9-5.25h5.25M7.5 15h3M3.375 5.25c-.621 0-1.125.504-1.125 1.125v3.026a2.999 2.999 0 0 1 0 5.198v3.026c0 .621.504 1.125 1.125 1.125h17.25c.621 0 1.125-.504 1.125-1.125v-3.026a2.999 2.999 0 0 1 0-5.198V6.375c0-.621-.504-1.125-1.125-1.125H3.375Z" />
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9.568 3H5.25A2.25 2.25 0 0 0 3 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 0 0 5.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 0 0 9.568 3Z" />
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6 6h.008v.008H6V6Z" />
         </svg>
-        <%= t("nav.tickets") %>
+        <%= t("nav.products") %>
       <% end %>
+    <% end %>
+
+    <%# Tickets group — the ticket list plus its email-workflow automation %>
+    <% if current_membership&.has_permission?("tickets") %>
+      <% tickets_active = %w[tickets email_workflows email_workflow_steps].include?(controller_name) %>
+      <div data-controller="nav-group" data-nav-group-open-value="<%= tickets_active %>">
+        <button type="button" data-action="click->nav-group#toggle"
+                aria-expanded="<%= tickets_active %>" aria-controls="tickets-menu"
+                class="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md <%= tickets_active ? 'text-gray-900' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900' %>">
+          <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 6v.75m0 3v.75m0 3v.75m0 3V18m-9-5.25h5.25M7.5 15h3M3.375 5.25c-.621 0-1.125.504-1.125 1.125v3.026a2.999 2.999 0 0 1 0 5.198v3.026c0 .621.504 1.125 1.125 1.125h17.25c.621 0 1.125-.504 1.125-1.125v-3.026a2.999 2.999 0 0 1 0-5.198V6.375c0-.621-.504-1.125-1.125-1.125H3.375Z" />
+          </svg>
+          <%= t("nav.tickets") %>
+          <svg data-nav-group-target="arrow" class="w-4 h-4 ml-auto transition-transform duration-200 <%= tickets_active ? 'rotate-90' : '' %>" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+          </svg>
+        </button>
+
+        <div id="tickets-menu" data-nav-group-target="menu" class="ml-4 mt-1 space-y-1 <%= tickets_active ? '' : 'hidden' %>">
+          <%= link_to tickets_path, data: { action: "click->sidebar#close" },
+              class: "flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md #{controller_name == 'tickets' ? 'bg-gray-100 text-gray-900' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'}" do %>
+            <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 6v.75m0 3v.75m0 3v.75m0 3V18m-9-5.25h5.25M7.5 15h3M3.375 5.25c-.621 0-1.125.504-1.125 1.125v3.026a2.999 2.999 0 0 1 0 5.198v3.026c0 .621.504 1.125 1.125 1.125h17.25c.621 0 1.125-.504 1.125-1.125v-3.026a2.999 2.999 0 0 1 0-5.198V6.375c0-.621-.504-1.125-1.125-1.125H3.375Z" />
+            </svg>
+            <%= t("nav.tickets") %>
+          <% end %>
+
+          <% if current_membership&.has_permission?("shopify_stores") && (store = visible_shopify_stores.first) %>
+            <%= link_to shopify_store_email_workflows_path(store), data: { action: "click->sidebar#close" },
+                class: "flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md #{%w[email_workflows email_workflow_steps].include?(controller_name) ? 'bg-gray-100 text-gray-900' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'}" do %>
+              <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 0 1 0 3.75H5.625a1.875 1.875 0 0 1 0-3.75Z" />
+              </svg>
+              <%= t("nav.email_workflows") %>
+            <% end %>
+          <% end %>
+        </div>
+      </div>
     <% end %>
 
     <% if current_membership&.has_permission?("ad_campaigns") %>
@@ -171,7 +211,7 @@
          current_membership&.has_permission?("email_accounts") ||
          (current_membership&.has_permission?("shipping_reminder_rules") && current_company.tracking_enabled?) %>
     <% if has_settings_items %>
-      <% settings_active = %w[shopify_stores ad_accounts email_accounts companies invitations groups email_workflows email_workflow_steps].include?(controller_name) %>
+      <% settings_active = %w[shopify_stores ad_accounts email_accounts companies invitations groups].include?(controller_name) %>
       <div data-controller="nav-group" data-nav-group-open-value="<%= settings_active %>">
         <button type="button" data-action="click->nav-group#toggle"
                 aria-expanded="<%= settings_active %>" aria-controls="settings-menu"
@@ -232,16 +272,6 @@
                 <path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75" />
               </svg>
               <%= t("nav.email_accounts") %>
-            <% end %>
-          <% end %>
-
-          <% if current_membership&.has_permission?("shopify_stores") && (store = visible_shopify_stores.first) %>
-            <%= link_to shopify_store_email_workflows_path(store), data: { action: "click->sidebar#close" },
-                class: "flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md #{%w[email_workflows email_workflow_steps].include?(controller_name) ? 'bg-gray-100 text-gray-900' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'}" do %>
-              <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 0 1 0 3.75H5.625a1.875 1.875 0 0 1 0-3.75Z" />
-              </svg>
-              <%= t("nav.email_workflows") %>
             <% end %>
           <% end %>
         </div>
