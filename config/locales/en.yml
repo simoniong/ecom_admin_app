@@ -230,6 +230,7 @@ en:
       move_to_draft: "Move to Draft"
       confirm_schedule: "Confirm & Schedule Send"
       confirm_schedule_confirm: "Confirm this draft and schedule the email to be sent?"
+      trustpilot_bcc_label: "Send Trustpilot review invite (BCC)"
       edit_draft: "Edit Draft"
       reset_to_new: "Reset to New"
       close_ticket: "Close Ticket"

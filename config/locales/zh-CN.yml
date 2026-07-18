@@ -230,6 +230,7 @@
       move_to_draft: "转为草稿"
       confirm_schedule: "确认并排程发送"
       confirm_schedule_confirm: "确认此草稿并排程发送邮件？"
+      trustpilot_bcc_label: "发送 Trustpilot 评论邀请(BCC)"
       edit_draft: "编辑草稿"
       reset_to_new: "退回新工单"
       close_ticket: "关闭工单"

@@ -152,4 +152,29 @@ RSpec.describe "Tickets", type: :system do
       expect(panel[:class].to_s.split).to include("hidden")
     end
   end
+
+  describe "Trustpilot BCC opt-in", :js do
+    let(:user) { create(:user) }
+
+    it "shows the checkbox only when the store has a Trustpilot address" do
+      store = create(:shopify_store, user: user, company: user.companies.first, trustpilot_bcc_email: "shop.com+abc@invite.trustpilot.com")
+      account = create(:email_account, user: user, company: user.companies.first, shopify_store: store)
+      ticket = create(:ticket, :draft, email_account: account)
+
+      sign_in_as user
+      visit ticket_path(id: ticket.id)
+      expect(page).to have_content(I18n.t("tickets.show.trustpilot_bcc_label"))
+    end
+
+    it "hides the checkbox when the store has no Trustpilot address" do
+      store = create(:shopify_store, user: user, company: user.companies.first, trustpilot_bcc_email: nil)
+      account = create(:email_account, user: user, company: user.companies.first, shopify_store: store)
+      ticket = create(:ticket, :draft, email_account: account)
+
+      sign_in_as user
+      visit ticket_path(id: ticket.id)
+      expect(page).not_to have_content(I18n.t("tickets.show.trustpilot_bcc_label"))
+      expect(page).to have_button(I18n.t("tickets.show.confirm_schedule"))
+    end
+  end
 end
