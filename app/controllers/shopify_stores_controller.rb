@@ -44,6 +44,17 @@ class ShopifyStoresController < AdminController
       return
     end
 
+    if params[:shopify_store].is_a?(ActionController::Parameters) && params[:shopify_store].key?(:trustpilot_bcc_email)
+      return redirect_to(shopify_store_path(@shopify_store), alert: t("companies.no_permission")) unless current_membership&.owner?
+
+      if @shopify_store.update(shopify_store_trustpilot_params)
+        redirect_to shopify_store_path(@shopify_store), notice: t("shopify_stores.trustpilot_bcc_updated")
+      else
+        redirect_to shopify_store_path(@shopify_store), alert: @shopify_store.errors.full_messages.join(", ")
+      end
+      return
+    end
+
     if params.key?(:email_account_ids)
       email_account_ids = Array(params[:email_account_ids]).select(&:present?)
       visible_email_accounts.where(shopify_store: @shopify_store).update_all(shopify_store_id: nil)
@@ -85,5 +96,9 @@ class ShopifyStoresController < AdminController
 
   def shopify_store_service_params
     params.require(:shopify_store).permit(:default_service_type)
+  end
+
+  def shopify_store_trustpilot_params
+    params.require(:shopify_store).permit(:trustpilot_bcc_email)
   end
 end

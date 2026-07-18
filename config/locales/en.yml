@@ -322,6 +322,12 @@ en:
     service_type_owner_only: "(Only owners can change this)"
     save_service_type: "Save"
     service_not_set: "Not set"
+    trustpilot_bcc: "Trustpilot review invitations"
+    trustpilot_bcc_hint: "BCC this store's unique Trustpilot address on selected ticket replies to auto-request a review. Leave blank to disable."
+    trustpilot_bcc_placeholder: "yourdomain.com+xxxx@invite.trustpilot.com"
+    save_trustpilot_bcc: "Save"
+    trustpilot_bcc_updated: "Trustpilot invitation address updated."
+    trustpilot_bcc_owner_only: "Only an owner can change this."
   shipping_rate_cards:
     title: "Shipping Rate Cards"
     filter_country: "Country"

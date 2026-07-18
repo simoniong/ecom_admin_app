@@ -143,6 +143,24 @@ RSpec.describe ShopifyStore, type: :model do
     end
   end
 
+  describe "trustpilot_bcc_email" do
+    it "is valid when blank" do
+      store = build(:shopify_store, trustpilot_bcc_email: nil)
+      expect(store).to be_valid
+    end
+
+    it "accepts a Trustpilot plus-addressed email" do
+      store = build(:shopify_store, trustpilot_bcc_email: "paintkitstudio.com+a43bb38eeb@invite.trustpilot.com")
+      expect(store).to be_valid
+    end
+
+    it "rejects a malformed address" do
+      store = build(:shopify_store, trustpilot_bcc_email: "not-an-email")
+      expect(store).not_to be_valid
+      expect(store.errors[:trustpilot_bcc_email]).to be_present
+    end
+  end
+
   describe "#display_name" do
     it "returns the Shopify shop name when present" do
       store.update!(name: "Paint Kit Studio", shop_domain: "paint-kit.myshopify.com")

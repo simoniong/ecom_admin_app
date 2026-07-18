@@ -278,4 +278,32 @@ RSpec.describe "ShopifyStores", type: :request do
       expect(store.reload.default_service_type).to be_nil
     end
   end
+
+  describe "PATCH /shopify_stores/:id trustpilot_bcc_email" do
+    let(:user)  { create(:user) }
+    let(:store) { create(:shopify_store, user: user, company: user.companies.first) }
+
+    it "lets an owner set the Trustpilot BCC address" do
+      sign_in user
+      patch shopify_store_path(id: store.id), params: { shopify_store: { trustpilot_bcc_email: "shop.com+abc@invite.trustpilot.com" } }
+      expect(store.reload.trustpilot_bcc_email).to eq("shop.com+abc@invite.trustpilot.com")
+    end
+
+    it "rejects a malformed address" do
+      sign_in user
+      patch shopify_store_path(id: store.id), params: { shopify_store: { trustpilot_bcc_email: "nope" } }
+      expect(store.reload.trustpilot_bcc_email).to be_nil
+      follow_redirect!
+      expect(response.body).to include(CGI.escapeHTML("Trustpilot"))
+    end
+
+    it "forbids a non-owner member from changing it" do
+      member = create(:user)
+      create(:membership, user: member, company: user.companies.first, role: :member, permissions: [ "shopify_stores" ])
+      sign_in member
+      patch switch_company_path(id: user.companies.first.id)
+      patch shopify_store_path(id: store.id), params: { shopify_store: { trustpilot_bcc_email: "shop.com+abc@invite.trustpilot.com" } }
+      expect(store.reload.trustpilot_bcc_email).to be_nil
+    end
+  end
 end
