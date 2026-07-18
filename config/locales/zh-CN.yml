@@ -39,6 +39,7 @@
     profile: "个人资料"
     shipping_reminders: "物流提醒"
     email_workflows: "邮件工作流"
+    products: "商品"
     groups: "部门"
     shipping_rate_cards: "运费费率卡"
     shipping_zone_postal_rules: "邮编分区"
