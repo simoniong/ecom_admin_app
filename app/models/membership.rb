@@ -16,6 +16,7 @@ class Membership < ApplicationRecord
     orders shipments tickets ad_campaigns
     shopify_stores ad_accounts email_accounts
     shipping_reminder_rules parcels products
+    logistics_channels
   ].freeze
 
   def has_permission?(controller_name)

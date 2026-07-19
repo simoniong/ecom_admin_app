@@ -1070,6 +1070,7 @@ en:
       shipping_reminder_rules: "Shipping Reminders"
       parcels: "Parcels"
       products: "Products"
+      logistics_channels: "Logistics Channels"
   memberships:
     edit_title: "Edit Permissions"
     edit: "Edit"
