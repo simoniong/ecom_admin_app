@@ -1,4 +1,6 @@
 class GmailService
+  class TokenRefreshError < StandardError; end
+
   GOOGLE_TOKEN_URI = "https://oauth2.googleapis.com/token"
 
   attr_reader :email_account
@@ -69,15 +71,15 @@ class GmailService
       grant_type: "refresh_token"
     )
 
-    raise "Token refresh failed: HTTP #{response.code} - #{response.body}" unless response.is_a?(Net::HTTPSuccess)
+    raise TokenRefreshError, "Token refresh failed: HTTP #{response.code} - #{response.body}" unless response.is_a?(Net::HTTPSuccess)
 
     begin
       data = JSON.parse(response.body)
     rescue JSON::ParserError => e
-      raise "Token refresh failed: invalid JSON (HTTP #{response.code}): #{e.message}"
+      raise TokenRefreshError, "Token refresh failed: invalid JSON (HTTP #{response.code}): #{e.message}"
     end
 
-    raise "Token refresh failed: #{data['error'] || 'no access_token in response'}" unless data["access_token"]
+    raise TokenRefreshError, "Token refresh failed: #{data['error'] || 'no access_token in response'}" unless data["access_token"]
 
     email_account.update!(
       access_token: data["access_token"],

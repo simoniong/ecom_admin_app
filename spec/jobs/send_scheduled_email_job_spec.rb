@@ -75,6 +75,96 @@ RSpec.describe SendScheduledEmailJob, type: :job do
     expect { job.perform_now }.to raise_error(RuntimeError, /Gmail API error/)
   end
 
+  it "clears the in-flight marker after a successful send" do
+    job = described_class.new(ticket.id)
+    ticket.update!(scheduled_job_id: job.job_id)
+
+    job.perform_now
+    ticket.reload
+
+    expect(ticket.sending_started_at).to be_nil
+    expect(ticket).to be_closed
+  end
+
+  it "does not resend when the ticket is already claimed (mid-send crash recovery)" do
+    job = described_class.new(ticket.id)
+    ticket.update!(scheduled_job_id: job.job_id, sending_started_at: 1.minute.ago)
+
+    expect(GmailService).not_to receive(:new)
+
+    expect { job.perform_now }.not_to change { ticket.reload.messages.count }
+    ticket.reload
+    expect(ticket).to be_draft_confirmed
+  end
+
+  it "clears the marker on a definitely-unsent error (retryable)" do
+    job = described_class.new(ticket.id)
+    ticket.update!(scheduled_job_id: job.job_id)
+
+    gmail = instance_double(GmailService)
+    allow(GmailService).to receive(:new).and_return(gmail)
+    allow(gmail).to receive(:send_message).and_raise(Google::Apis::ClientError.new("bad request"))
+
+    expect { job.perform_now }.to raise_error(Google::Apis::ClientError, /bad request/)
+
+    ticket.reload
+    expect(ticket.sending_started_at).to be_nil
+    expect(ticket).to be_draft_confirmed
+    expect(ticket.messages.count).to eq(1)
+  end
+
+  it "clears the marker on a token-refresh failure (retryable)" do
+    job = described_class.new(ticket.id)
+    ticket.update!(scheduled_job_id: job.job_id)
+
+    gmail = instance_double(GmailService)
+    allow(GmailService).to receive(:new).and_return(gmail)
+    allow(gmail).to receive(:send_message).and_raise(GmailService::TokenRefreshError.new("Token refresh failed: boom"))
+
+    expect { job.perform_now }.to raise_error(GmailService::TokenRefreshError, /Token refresh failed: boom/)
+
+    ticket.reload
+    expect(ticket.sending_started_at).to be_nil
+    expect(ticket).to be_draft_confirmed
+    expect(ticket.messages.count).to eq(1)
+  end
+
+  it "leaves the marker set on an ambiguous error (needs human review)" do
+    job = described_class.new(ticket.id)
+    ticket.update!(scheduled_job_id: job.job_id)
+
+    gmail = instance_double(GmailService)
+    allow(GmailService).to receive(:new).and_return(gmail)
+    allow(gmail).to receive(:send_message).and_raise(Google::Apis::ServerError.new("upstream 503"))
+
+    expect { job.perform_now }.to raise_error(Google::Apis::ServerError, /upstream 503/)
+
+    ticket.reload
+    expect(ticket.sending_started_at).to be_present
+    expect(ticket).to be_draft_confirmed
+    expect(ticket.messages.count).to eq(1)
+  end
+
+  it "leaves the marker set when a post-send DB write fails" do
+    # Drive a real (unmocked) DB failure after a successful send: the stubbed
+    # Gmail response returns gmail_message_id "sent-msg-id", so pre-creating a
+    # message with that same id trips the model's real uniqueness validation
+    # on `ticket.messages.create!` — no domain object is mocked.
+    other_ticket = create(:ticket, :draft_confirmed, email_account: email_account,
+                          gmail_thread_id: "thread-xyz", customer_email: "other@example.com")
+    create(:message, ticket: other_ticket, from: "buyer@example.com", gmail_message_id: "sent-msg-id")
+
+    job = described_class.new(ticket.id)
+    ticket.update!(scheduled_job_id: job.job_id)
+
+    expect { job.perform_now }.to raise_error(ActiveRecord::RecordInvalid)
+
+    ticket.reload
+    expect(ticket.sending_started_at).to be_present
+    expect(ticket).to be_draft_confirmed
+    expect(ticket.messages.count).to eq(1)
+  end
+
   context "agent-initiated thread with no gmail_thread_id" do
     let(:agent_ticket) do
       create(:ticket, :draft_confirmed, email_account: email_account,
