@@ -41,10 +41,15 @@ class SendScheduledEmailJob < ApplicationJob
           thread_id: ticket.gmail_thread_id,
           bcc: bcc
         )
-      rescue
-        # Send did not succeed → clear the claim so this stays retryable.
-        # (The outer rescue owns the error logging.)
+      rescue GmailService::TokenRefreshError, Google::Apis::AuthorizationError, Google::Apis::ClientError, Google::Apis::RateLimitError
+        # Rejected before Gmail accepted the message (token/auth/4xx/rate-limit) →
+        # definitely not sent, so clear the claim and stay retryable.
         ticket.update_columns(sending_started_at: nil)
+        raise
+      rescue
+        # Ambiguous (5xx, network, timeout, or unknown): the message may have
+        # reached Gmail. Leave the claim set so a human verifies delivery
+        # before any resend.
         raise
       end
 

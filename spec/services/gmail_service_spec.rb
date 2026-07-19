@@ -48,7 +48,7 @@ RSpec.describe GmailService do
           headers: { "Content-Type" => "application/json" }
         )
 
-      expect { service.send(:refresh_token_if_needed!) }.to raise_error(RuntimeError, /Token refresh failed/)
+      expect { service.send(:refresh_token_if_needed!) }.to raise_error(GmailService::TokenRefreshError, /Token refresh failed/)
     end
 
     it "does not refresh when token is valid" do

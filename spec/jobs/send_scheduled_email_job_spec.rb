@@ -97,18 +97,50 @@ RSpec.describe SendScheduledEmailJob, type: :job do
     expect(ticket).to be_draft_confirmed
   end
 
-  it "clears the marker and re-raises when the Gmail send fails (stays retryable)" do
+  it "clears the marker on a definitely-unsent error (retryable)" do
     job = described_class.new(ticket.id)
     ticket.update!(scheduled_job_id: job.job_id)
 
     gmail = instance_double(GmailService)
     allow(GmailService).to receive(:new).and_return(gmail)
-    allow(gmail).to receive(:send_message).and_raise(RuntimeError, "Gmail API error")
+    allow(gmail).to receive(:send_message).and_raise(Google::Apis::ClientError.new("bad request"))
 
-    expect { job.perform_now }.to raise_error(RuntimeError, /Gmail API error/)
+    expect { job.perform_now }.to raise_error(Google::Apis::ClientError, /bad request/)
 
     ticket.reload
     expect(ticket.sending_started_at).to be_nil
+    expect(ticket).to be_draft_confirmed
+    expect(ticket.messages.count).to eq(1)
+  end
+
+  it "clears the marker on a token-refresh failure (retryable)" do
+    job = described_class.new(ticket.id)
+    ticket.update!(scheduled_job_id: job.job_id)
+
+    gmail = instance_double(GmailService)
+    allow(GmailService).to receive(:new).and_return(gmail)
+    allow(gmail).to receive(:send_message).and_raise(GmailService::TokenRefreshError.new("Token refresh failed: boom"))
+
+    expect { job.perform_now }.to raise_error(GmailService::TokenRefreshError, /Token refresh failed: boom/)
+
+    ticket.reload
+    expect(ticket.sending_started_at).to be_nil
+    expect(ticket).to be_draft_confirmed
+    expect(ticket.messages.count).to eq(1)
+  end
+
+  it "leaves the marker set on an ambiguous error (needs human review)" do
+    job = described_class.new(ticket.id)
+    ticket.update!(scheduled_job_id: job.job_id)
+
+    gmail = instance_double(GmailService)
+    allow(GmailService).to receive(:new).and_return(gmail)
+    allow(gmail).to receive(:send_message).and_raise(Google::Apis::ServerError.new("upstream 503"))
+
+    expect { job.perform_now }.to raise_error(Google::Apis::ServerError, /upstream 503/)
+
+    ticket.reload
+    expect(ticket.sending_started_at).to be_present
     expect(ticket).to be_draft_confirmed
     expect(ticket.messages.count).to eq(1)
   end
