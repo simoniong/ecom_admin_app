@@ -85,6 +85,32 @@ RSpec.describe "LogisticsAccounts", type: :request do
       follow_redirect!
       expect(response.body).to include("Raydo")
     end
+
+    it "handles a Raydo transport failure (timeout) gracefully instead of a 500" do
+      create(:logistics_account, company: company, username: "TEST", password: "123456",
+             url1_base: "http://raydo.test:8082")
+      stub_request(:get, "http://raydo.test:8082/selectAuth.htm")
+        .with(query: hash_including({}))
+        .to_timeout
+
+      post authenticate_logistics_account_path
+      expect(response).not_to have_http_status(:internal_server_error)
+      expect(response).to redirect_to(logistics_account_path)
+      follow_redirect!
+      expect(response.body).to include("Raydo")
+    end
+
+    it "handles a Raydo connection refusal gracefully instead of a 500" do
+      create(:logistics_account, company: company, username: "TEST", password: "123456",
+             url1_base: "http://raydo.test:8082")
+      stub_request(:get, "http://raydo.test:8082/selectAuth.htm")
+        .with(query: hash_including({}))
+        .to_raise(Errno::ECONNREFUSED)
+
+      post authenticate_logistics_account_path
+      expect(response).not_to have_http_status(:internal_server_error)
+      expect(response).to redirect_to(logistics_account_path)
+    end
   end
 
   describe "permission gate" do

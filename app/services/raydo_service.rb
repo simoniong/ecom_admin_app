@@ -26,5 +26,7 @@ class RaydoService
     resp = HTTParty.get("#{base}#{path}", query: query, timeout: 20)
     raise Error, "Raydo HTTP #{resp.code}" unless resp.success?
     resp.parsed_response
+  rescue HTTParty::Error, Net::OpenTimeout, Net::ReadTimeout, IO::TimeoutError, Timeout::Error, SocketError, SystemCallError => e
+    raise Error, "Raydo connection failed (#{e.class})"
   end
 end

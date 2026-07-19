@@ -25,4 +25,34 @@ RSpec.describe RaydoService do
     list = described_class.new(account).product_list
     expect(list.first["product_id"]).to eq("P1")
   end
+
+  it "wraps a network timeout as RaydoService::Error instead of letting it escape" do
+    stub_request(:get, "http://raydo.test:8082/selectAuth.htm").
+      with(query: hash_including({})).
+      to_timeout
+
+    expect { described_class.new(account).authenticate }.to raise_error(RaydoService::Error)
+  end
+
+  it "wraps a connection refused error as RaydoService::Error instead of letting it escape" do
+    stub_request(:get, "http://raydo.test:8082/selectAuth.htm").
+      with(query: hash_including({})).
+      to_raise(Errno::ECONNREFUSED)
+
+    expect { described_class.new(account).authenticate }.to raise_error(RaydoService::Error)
+  end
+
+  it "never leaks the username/password (carried in the query string) into the raised error message" do
+    stub_request(:get, "http://raydo.test:8082/selectAuth.htm").
+      with(query: hash_including({})).
+      to_timeout
+
+    begin
+      described_class.new(account).authenticate
+    rescue RaydoService::Error => e
+      expect(e.message).not_to include("123456")
+      expect(e.message).not_to include("TEST")
+      expect(e.message).not_to include("selectAuth.htm")
+    end
+  end
 end
