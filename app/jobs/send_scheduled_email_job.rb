@@ -41,10 +41,10 @@ class SendScheduledEmailJob < ApplicationJob
           thread_id: ticket.gmail_thread_id,
           bcc: bcc
         )
-      rescue => e
+      rescue
         # Send did not succeed → clear the claim so this stays retryable.
+        # (The outer rescue owns the error logging.)
         ticket.update_columns(sending_started_at: nil)
-        Rails.logger.error("[SendEmail] Send failed for Ticket##{ticket_id}: #{e.message}")
         raise
       end
 
