@@ -41,8 +41,8 @@ class SendScheduledEmailJob < ApplicationJob
           thread_id: ticket.gmail_thread_id,
           bcc: bcc
         )
-      rescue GmailService::TokenRefreshError, Google::Apis::AuthorizationError, Google::Apis::ClientError, Google::Apis::RateLimitError
-        # Rejected before Gmail accepted the message (token/auth/4xx/rate-limit) →
+      rescue GmailService::TokenRefreshError, Google::Apis::AuthorizationError, Google::Apis::ClientError, Google::Apis::RateLimitError, Google::Apis::RedirectError
+        # Rejected before Gmail accepted the message (token/auth/4xx/rate-limit/redirect) →
         # definitely not sent, so clear the claim and stay retryable.
         ticket.update_columns(sending_started_at: nil)
         raise
