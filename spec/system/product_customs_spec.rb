@@ -22,23 +22,46 @@ RSpec.describe "Product Customs UI", type: :system do
     expect(page).to have_content(I18n.t("product_customs.status.complete"))
   end
 
-  it "inline-edits a SKU's customs info via Turbo Stream, and rejects a blank required field" do
+  it "saves a row's customs info via the per-row Save button (all fields together)" do
     visit product_customs_path(store_id: store.id)
 
     within("##{ActionView::RecordIdentifier.dom_id(variant)}") do
-      find("[data-cell-edit-field-value='customs_name_zh'] [data-cell-edit-target='display']").click
-      find("[data-cell-edit-field-value='customs_name_zh'] input").set("積木")
-      find("[data-cell-edit-field-value='customs_name_zh'] input").send_keys(:tab)
+      find("input[name='product_variant[customs_name_zh]']").set("積木")
+      find("input[name='product_variant[customs_name_en]']").set("Blocks")
+      find("input[name='product_variant[declared_value_usd]']").set("9.99")
+      find("input[name='product_variant[weight_grams]']").set("120")
+      click_button I18n.t("product_customs.save")
     end
-
-    # customs_name_zh alone (with the other three still blank) must be
-    # rejected — enforce required-together — so the badge stays "incomplete"
-    # and the saved cell reverts (nothing persisted).
-    expect(variant.reload.customs_name_zh).to be_nil
 
     within("##{ActionView::RecordIdentifier.dom_id(variant)}") do
+      expect(page).to have_content(I18n.t("product_customs.status.complete"))
+    end
+    variant.reload
+    expect(variant.customs_name_zh).to eq("積木")
+    expect(variant.customs_name_en).to eq("Blocks")
+    expect(variant.declared_value_usd).to eq(9.99)
+    expect(variant.weight_grams).to eq(120)
+  end
+
+  it "rejects a row save that leaves weight_grams blank, showing an inline error and saving nothing" do
+    visit product_customs_path(store_id: store.id)
+
+    within("##{ActionView::RecordIdentifier.dom_id(variant)}") do
+      find("input[name='product_variant[customs_name_zh]']").set("積木")
+      find("input[name='product_variant[customs_name_en]']").set("Blocks")
+      find("input[name='product_variant[declared_value_usd]']").set("9.99")
+      # weight_grams left blank on purpose — required-together must reject
+      # the whole row, not save the other three fields.
+      click_button I18n.t("product_customs.save")
+
+      expect(page).to have_content("can't be blank")
       expect(page).to have_content(I18n.t("product_customs.status.incomplete"))
     end
+
+    variant.reload
+    expect(variant.customs_name_zh).to be_nil
+    expect(variant.customs_name_en).to be_nil
+    expect(variant.declared_value_usd).to be_nil
   end
 
   it "narrows the list with the 只顯示未完成 / incomplete-only filter" do

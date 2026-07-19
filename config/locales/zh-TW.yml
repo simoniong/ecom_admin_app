@@ -629,6 +629,8 @@
       import_hs_code: "進口海關編碼"
       weight: "重量(g)"
       status: "狀態"
+      actions: "操作"
+    save: "儲存"
   product_variants:
     updated: "已更新"
     cell_edit_aria: "點擊或按 Enter 編輯"

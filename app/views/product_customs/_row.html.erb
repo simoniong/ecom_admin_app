@@ -1,4 +1,17 @@
-<tr id="<%= dom_id(variant) %>" class="border-b border-gray-200">
+<%# Per-row customs edit: all customs fields (customs_name_zh, customs_name_en,
+    declared_value_usd, hs_code, import_hs_code, weight_grams) submit together
+    in a single PATCH via the row-edit Stimulus controller (see
+    app/javascript/controllers/row_edit_controller.js for why this is not a
+    literal <form> tag), so the :customs validation — which requires
+    customs_name_zh, customs_name_en, declared_value_usd, and weight_grams
+    together (see ProductVariant::CUSTOMS_REQUIRED) — is evaluated once
+    against the whole row instead of once per field. This also means editing
+    weight_grams from this page always travels with the other three required
+    fields, so it can never silently save on the default (unenforced)
+    context. %>
+<tr id="<%= dom_id(variant) %>" class="border-b border-gray-200"
+    data-controller="row-edit"
+    data-row-edit-url-value="<%= product_variant_path(id: variant.id, context: "customs") %>">
   <td class="px-2 py-2">
     <input type="checkbox"
            name="variant_ids[]"
@@ -14,91 +27,65 @@
   <td class="px-2 py-2 text-sm"><%= variant.product.title %></td>
   <td class="px-2 py-2 text-sm"><%= variant.title %></td>
   <td class="px-2 py-2 text-xs font-mono"><%= variant.sku.presence || "—" %></td>
-  <td class="px-2 py-2"
-      data-controller="cell-edit"
-      data-cell-edit-url-value="<%= product_variant_path(id: variant.id, context: "customs") %>"
-      data-cell-edit-field-value="customs_name_zh"
-      data-cell-edit-type-value="text">
-    <span data-cell-edit-target="display"
-          role="button"
-          tabindex="0"
-          aria-label="<%= t("product_variants.cell_edit_aria") %>"
-          data-action="click->cell-edit#startEdit keydown.enter->cell-edit#startEdit keydown.space->cell-edit#startEdit"
-          class="cursor-pointer hover:bg-gray-100 focus:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-300 px-2 py-1 rounded inline-block min-w-[64px] text-sm border border-dashed border-transparent hover:border-gray-300">
-      <%= variant.customs_name_zh.presence || "—" %>
-    </span>
+  <td class="px-2 py-2 align-top">
+    <input type="text"
+           name="product_variant[customs_name_zh]"
+           value="<%= variant.customs_name_zh %>"
+           data-row-edit-target="field"
+           aria-label="<%= t("product_customs.columns.customs_name_zh") %>"
+           class="w-24 border rounded px-2 py-1 text-sm <%= variant.errors[:customs_name_zh].present? ? "border-red-500" : "border-gray-300" %>">
+    <% if variant.errors[:customs_name_zh].present? %>
+      <p class="text-[10px] text-red-600 mt-0.5"><%= variant.errors[:customs_name_zh].first %></p>
+    <% end %>
   </td>
-  <td class="px-2 py-2"
-      data-controller="cell-edit"
-      data-cell-edit-url-value="<%= product_variant_path(id: variant.id, context: "customs") %>"
-      data-cell-edit-field-value="customs_name_en"
-      data-cell-edit-type-value="text">
-    <span data-cell-edit-target="display"
-          role="button"
-          tabindex="0"
-          aria-label="<%= t("product_variants.cell_edit_aria") %>"
-          data-action="click->cell-edit#startEdit keydown.enter->cell-edit#startEdit keydown.space->cell-edit#startEdit"
-          class="cursor-pointer hover:bg-gray-100 focus:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-300 px-2 py-1 rounded inline-block min-w-[64px] text-sm border border-dashed border-transparent hover:border-gray-300">
-      <%= variant.customs_name_en.presence || "—" %>
-    </span>
+  <td class="px-2 py-2 align-top">
+    <input type="text"
+           name="product_variant[customs_name_en]"
+           value="<%= variant.customs_name_en %>"
+           data-row-edit-target="field"
+           aria-label="<%= t("product_customs.columns.customs_name_en") %>"
+           class="w-24 border rounded px-2 py-1 text-sm <%= variant.errors[:customs_name_en].present? ? "border-red-500" : "border-gray-300" %>">
+    <% if variant.errors[:customs_name_en].present? %>
+      <p class="text-[10px] text-red-600 mt-0.5"><%= variant.errors[:customs_name_en].first %></p>
+    <% end %>
   </td>
-  <td class="px-2 py-2"
-      data-controller="cell-edit"
-      data-cell-edit-url-value="<%= product_variant_path(id: variant.id, context: "customs") %>"
-      data-cell-edit-field-value="declared_value_usd"
-      data-cell-edit-step-value="0.01"
-      data-cell-edit-min-value="0.01">
-    <span data-cell-edit-target="display"
-          role="button"
-          tabindex="0"
-          aria-label="<%= t("product_variants.cell_edit_aria") %>"
-          data-action="click->cell-edit#startEdit keydown.enter->cell-edit#startEdit keydown.space->cell-edit#startEdit"
-          class="cursor-pointer hover:bg-gray-100 focus:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-300 px-2 py-1 rounded inline-block min-w-[64px] text-sm border border-dashed border-transparent hover:border-gray-300">
-      <%= variant.declared_value_usd.present? ? number_to_currency(variant.declared_value_usd, unit: "$") : "—" %>
-    </span>
+  <td class="px-2 py-2 align-top">
+    <input type="number" step="0.01" min="0.01"
+           name="product_variant[declared_value_usd]"
+           value="<%= variant.declared_value_usd %>"
+           data-row-edit-target="field"
+           aria-label="<%= t("product_customs.columns.declared_value_usd") %>"
+           class="w-24 border rounded px-2 py-1 text-sm <%= variant.errors[:declared_value_usd].present? ? "border-red-500" : "border-gray-300" %>">
+    <% if variant.errors[:declared_value_usd].present? %>
+      <p class="text-[10px] text-red-600 mt-0.5"><%= variant.errors[:declared_value_usd].first %></p>
+    <% end %>
   </td>
-  <td class="px-2 py-2"
-      data-controller="cell-edit"
-      data-cell-edit-url-value="<%= product_variant_path(id: variant.id, context: "customs") %>"
-      data-cell-edit-field-value="hs_code"
-      data-cell-edit-type-value="text">
-    <span data-cell-edit-target="display"
-          role="button"
-          tabindex="0"
-          aria-label="<%= t("product_variants.cell_edit_aria") %>"
-          data-action="click->cell-edit#startEdit keydown.enter->cell-edit#startEdit keydown.space->cell-edit#startEdit"
-          class="cursor-pointer hover:bg-gray-100 focus:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-300 px-2 py-1 rounded inline-block min-w-[64px] text-sm border border-dashed border-transparent hover:border-gray-300">
-      <%= variant.hs_code.presence || "—" %>
-    </span>
+  <td class="px-2 py-2 align-top">
+    <input type="text"
+           name="product_variant[hs_code]"
+           value="<%= variant.hs_code %>"
+           data-row-edit-target="field"
+           aria-label="<%= t("product_customs.columns.hs_code") %>"
+           class="w-24 border border-gray-300 rounded px-2 py-1 text-sm">
   </td>
-  <td class="px-2 py-2"
-      data-controller="cell-edit"
-      data-cell-edit-url-value="<%= product_variant_path(id: variant.id, context: "customs") %>"
-      data-cell-edit-field-value="import_hs_code"
-      data-cell-edit-type-value="text">
-    <span data-cell-edit-target="display"
-          role="button"
-          tabindex="0"
-          aria-label="<%= t("product_variants.cell_edit_aria") %>"
-          data-action="click->cell-edit#startEdit keydown.enter->cell-edit#startEdit keydown.space->cell-edit#startEdit"
-          class="cursor-pointer hover:bg-gray-100 focus:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-300 px-2 py-1 rounded inline-block min-w-[64px] text-sm border border-dashed border-transparent hover:border-gray-300">
-      <%= variant.import_hs_code.presence || "—" %>
-    </span>
+  <td class="px-2 py-2 align-top">
+    <input type="text"
+           name="product_variant[import_hs_code]"
+           value="<%= variant.import_hs_code %>"
+           data-row-edit-target="field"
+           aria-label="<%= t("product_customs.columns.import_hs_code") %>"
+           class="w-24 border border-gray-300 rounded px-2 py-1 text-sm">
   </td>
-  <td class="px-2 py-2"
-      data-controller="cell-edit"
-      data-cell-edit-url-value="<%= product_variant_path(id: variant.id, context: "customs") %>"
-      data-cell-edit-field-value="weight_grams"
-      data-cell-edit-step-value="0.001"
-      data-cell-edit-min-value="0.001">
-    <span data-cell-edit-target="display"
-          role="button"
-          tabindex="0"
-          aria-label="<%= t("product_variants.cell_edit_aria") %>"
-          data-action="click->cell-edit#startEdit keydown.enter->cell-edit#startEdit keydown.space->cell-edit#startEdit"
-          class="cursor-pointer hover:bg-gray-100 focus:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-300 px-2 py-1 rounded inline-block min-w-[64px] text-sm border border-dashed border-transparent hover:border-gray-300">
-      <%= variant.weight_grams.present? ? "#{number_with_precision(variant.weight_grams, precision: 3, strip_insignificant_zeros: true)} g" : "—" %>
-    </span>
+  <td class="px-2 py-2 align-top">
+    <input type="number" step="0.001" min="0.001"
+           name="product_variant[weight_grams]"
+           value="<%= variant.weight_grams %>"
+           data-row-edit-target="field"
+           aria-label="<%= t("product_customs.columns.weight") %>"
+           class="w-20 border rounded px-2 py-1 text-sm <%= variant.errors[:weight_grams].present? ? "border-red-500" : "border-gray-300" %>">
+    <% if variant.errors[:weight_grams].present? %>
+      <p class="text-[10px] text-red-600 mt-0.5"><%= variant.errors[:weight_grams].first %></p>
+    <% end %>
   </td>
   <td class="px-2 py-2">
     <% if variant.customs_complete? %>
@@ -110,5 +97,12 @@
         <%= t("product_customs.status.incomplete") %>
       </span>
     <% end %>
+  </td>
+  <td class="px-2 py-2">
+    <button type="button"
+            data-action="click->row-edit#save"
+            class="px-3 py-1 text-xs font-medium bg-blue-600 text-white rounded hover:bg-blue-700">
+      <%= t("product_customs.save") %>
+    </button>
   </td>
 </tr>

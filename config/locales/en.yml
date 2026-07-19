@@ -631,6 +631,8 @@ en:
       import_hs_code: "Import HS Code"
       weight: "Weight (g)"
       status: "Status"
+      actions: "Action"
+    save: "Save"
   product_variants:
     updated: "Updated"
     cell_edit_aria: "Click or press Enter to edit"

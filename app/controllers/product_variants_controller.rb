@@ -3,7 +3,7 @@ class ProductVariantsController < AdminController
 
   def update
     @variant.assign_attributes(variant_params)
-    context = customs_touched? ? :customs : nil
+    context = params[:context] == "customs" ? :customs : nil
 
     if @variant.save(context: context)
       respond_to do |format|
@@ -105,23 +105,21 @@ class ProductVariantsController < AdminController
     params[:context] == "customs" ? product_customs_path : products_path
   end
 
-  # Cost edits (unit_cost/weight_grams/packaging_cost via variant_params) must
-  # keep saving on the default context. Only treat the record as a customs
-  # edit — and enforce the required-together validation — when a customs-only
-  # field was actually submitted. weight_grams is deliberately excluded: it is
-  # shared with the cost page, so editing it alone from either page must not
-  # flip the record into the stricter :customs context.
-  def customs_touched?
-    pv = params[:product_variant]
-    return false unless pv
-
-    %w[customs_name_zh customs_name_en declared_value_usd hs_code import_hs_code].any? { |k| pv.key?(k) }
-  end
-
+  # The customs page always submits ALL customs fields together in one PATCH
+  # (see app/views/product_customs/_row.html.erb), so the :customs context
+  # (enforce-required-together) is driven purely by params[:context] == "customs"
+  # rather than by which fields happen to be present in the request. This is
+  # what makes weight_grams — shared with the cost page — safe to edit from
+  # either page: on the customs page it always arrives alongside the other
+  # three required fields and is validated together with them; on the cost
+  # page it arrives with no context param and saves under the default context.
   def variant_params
-    params.require(:product_variant).permit(
-      :unit_cost, :weight_grams, :packaging_cost,
-      :customs_name_zh, :customs_name_en, :declared_value_usd, :hs_code, :import_hs_code
-    )
+    if params[:context] == "customs"
+      params.require(:product_variant).permit(
+        :customs_name_zh, :customs_name_en, :declared_value_usd, :hs_code, :import_hs_code, :weight_grams
+      )
+    else
+      params.require(:product_variant).permit(:unit_cost, :weight_grams, :packaging_cost)
+    end
   end
 end

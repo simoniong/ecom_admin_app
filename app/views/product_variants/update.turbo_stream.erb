@@ -1,5 +1,6 @@
-<%# The cost page and the customs page share this #update action for inline
-    cell editing; the customs page's cell-edit URL carries context=customs
-    so the correct row partial (with customs columns) is re-rendered. %>
+<%# The cost page and the customs page share this #update action; the
+    customs page's row-edit submission (see product_customs/_row.html.erb)
+    carries context=customs so the correct row partial (with customs
+    columns) is re-rendered, on both success and validation failure. %>
 <% row_partial = params[:context] == "customs" ? "product_customs/row" : "product_variants/row" %>
 <%= turbo_stream.replace dom_id(@variant), partial: row_partial, locals: { variant: @variant } %>

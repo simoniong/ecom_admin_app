@@ -58,8 +58,8 @@ RSpec.describe "ProductVariants", type: :request do
     end
   end
 
-  describe "PATCH /product_variants/:id (customs, context=customs)" do
-    it "saves all four required customs fields together" do
+  describe "PATCH /product_variants/:id (customs, context=customs) — per-row submission" do
+    it "saves all four required customs fields together, submitted as one row" do
       patch product_variant_path(id: variant.id, context: "customs"),
             params: { product_variant: {
               customs_name_zh: "積木", customs_name_en: "Blocks",
@@ -72,7 +72,7 @@ RSpec.describe "ProductVariants", type: :request do
       expect(variant.weight_grams).to eq(120)
     end
 
-    it "rejects (enforce-required) when a customs edit leaves a required field blank, saving nothing" do
+    it "rejects (enforce-required) when customs_name_en is blank, saving nothing" do
       patch product_variant_path(id: variant.id, context: "customs"),
             params: { product_variant: {
               customs_name_zh: "積木", customs_name_en: "",
@@ -82,14 +82,56 @@ RSpec.describe "ProductVariants", type: :request do
       expect(variant.customs_name_zh).to be_nil
       expect(variant.customs_name_en).to be_nil
       expect(variant.declared_value_usd).to be_nil
+      expect(variant.weight_grams).to be_nil
     end
 
-    it "does not enforce the :customs context when only weight_grams (shared with the cost page) is submitted" do
+    it "CRITICAL regression: rejects when weight_grams is blank even though the other three required fields are present" do
+      # Before the fix, weight_grams was excluded from the "customs touched"
+      # check, so a row submitted from the customs page with a blank weight
+      # ran on the DEFAULT context (no required-together enforcement) and
+      # saved a customs record with a missing required field. Per-row
+      # submission plus context driven purely by params[:context] closes
+      # that gap: every field — including weight_grams — is validated
+      # together on :customs.
       patch product_variant_path(id: variant.id, context: "customs"),
-            params: { product_variant: { weight_grams: "75" } }
+            params: { product_variant: {
+              customs_name_zh: "積木", customs_name_en: "Blocks",
+              declared_value_usd: "9.99", weight_grams: ""
+            } }
       variant.reload
-      expect(variant.weight_grams).to eq(75)
-      expect(variant.customs_name_zh).to be_nil # still incomplete, but the lone weight edit was not rejected
+      expect(variant.customs_name_zh).to be_nil
+      expect(variant.customs_name_en).to be_nil
+      expect(variant.declared_value_usd).to be_nil
+      expect(variant.weight_grams).to be_nil
+    end
+
+    it "CRITICAL regression: rejects clearing weight_grams ALONE on an already-complete variant" do
+      # This reproduces the exact pre-fix trigger: the old per-cell weight
+      # editor submitted only `product_variant[weight_grams]`, and the old
+      # `customs_touched?` check deliberately excluded weight_grams from the
+      # set of fields that flip the request onto the :customs context (to
+      # protect the cost page). So a lone weight edit — even with
+      # context=customs in the URL — ran on the default context, where
+      # weight_grams has no presence requirement, and silently saved a blank
+      # weight onto an otherwise-complete customs record. Context is now
+      # driven purely by params[:context], so this must be rejected.
+      variant.update!(customs_name_zh: "積木", customs_name_en: "Blocks",
+                      declared_value_usd: 9.99, weight_grams: 120)
+
+      patch product_variant_path(id: variant.id, context: "customs"),
+            params: { product_variant: { weight_grams: "" } }
+
+      variant.reload
+      expect(variant.weight_grams).to eq(120) # unchanged; the blank-weight save was rejected
+      expect(variant.customs_name_zh).to eq("積木")
+    end
+
+    it "cost-page regression: a plain cost update (no context param) still succeeds on a variant with blank customs" do
+      expect(variant.customs_name_zh).to be_nil
+      patch product_variant_path(id: variant.id), params: { product_variant: { unit_cost: "12.50" } }
+      variant.reload
+      expect(variant.unit_cost).to eq(12.50)
+      expect(variant.customs_name_zh).to be_nil # default context: customs still not enforced
     end
   end
 
