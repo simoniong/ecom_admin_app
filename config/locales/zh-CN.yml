@@ -45,6 +45,8 @@
     shipping_reminders: "物流提醒"
     email_workflows: "邮件工作流"
     products: "商品"
+    product_costs: "商品成本"
+    product_customs: "报关信息"
     groups: "部门"
     shipping_rate_cards: "运费费率卡"
     shipping_zone_postal_rules: "邮编分区"
@@ -1043,6 +1045,7 @@
       email_accounts: "邮箱"
       shipping_reminder_rules: "物流提醒"
       parcels: "包裹"
+      products: "商品"
   memberships:
     edit_title: "编辑权限"
     edit: "编辑"

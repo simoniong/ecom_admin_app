@@ -50,4 +50,27 @@ RSpec.describe "Products", type: :request do
       expect(response.body).not_to include("STORE-B-SESSION-SKU")
     end
   end
+
+  describe "products permission gate" do
+    let(:owner) { create(:user) }
+    let(:company) { owner.companies.first }
+    # ProductsController redirects to shopify_stores_path when the company has
+    # no connected store — unrelated to the permission gate under test here —
+    # so a store must exist for the "allowed" case to actually reach :ok.
+    let!(:store) { create(:shopify_store, company: company, user: owner) }
+
+    it "allows a member granted the products permission" do
+      m = create(:user); create(:membership, user: m, company: company, role: :member, permissions: [ "products" ])
+      sign_in m; patch switch_company_path(id: company.id)
+      get products_path
+      expect(response).to have_http_status(:ok)
+    end
+
+    it "denies a member without the products permission (redirect)" do
+      m = create(:user); create(:membership, user: m, company: company, role: :member, permissions: [ "shopify_stores" ])
+      sign_in m; patch switch_company_path(id: company.id)
+      get products_path
+      expect(response).to redirect_to(authenticated_root_path)
+    end
+  end
 end

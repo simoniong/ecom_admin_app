@@ -168,29 +168,45 @@ RSpec.describe "Sidebar navigation", type: :request do
     end
   end
 
-  # Products is a flat Level-1 link sitting directly below the Shipping group.
-  # It shares the shopify_stores permission gate with ProductsController
-  # (PERMISSION_KEY_MAP maps "products" => "shopify_stores"), so its visibility
-  # must follow that gate exactly — otherwise a member is shown a link to a page
-  # they'd be redirected away from, or can't reach a page they may open.
-  describe "Products link" do
-    it "shows the Products link at the top level to the owner" do
+  # Products is now a collapsible nav-group (like Shipping / Settings / Tickets)
+  # gated on a dedicated "products" permission — no longer shopify_stores — with
+  # two children: the cost editor (Task 1/2) and Customs Info (Task 3).
+  describe "Products group" do
+    it "shows the Products group with both children to the owner" do
       sign_in user
 
       get authenticated_root_path
 
       expect(response).to have_http_status(:ok)
       doc = Nokogiri::HTML(response.body)
-      link = doc.at_css("nav a[href='#{products_path}']")
-      expect(link).to be_present
-      expect(link.text).to include(I18n.t("nav.products"))
-      # It lives at Level 1, not inside any of the collapsible group menus.
-      expect(link.ancestors("#shipping-menu")).to be_empty
-      expect(link.ancestors("#settings-menu")).to be_empty
-      expect(link.ancestors("#tickets-menu")).to be_empty
+      menu = doc.at_css("#products-menu")
+      expect(menu).to be_present
+
+      hrefs = menu.css("a").map { |a| a["href"] }
+      expect(hrefs).to include(products_path)
+      expect(hrefs).to include(product_customs_path)
+
+      expect(menu.text).to include(I18n.t("nav.product_costs"))
+      expect(menu.text).to include(I18n.t("nav.product_customs"))
     end
 
-    it "shows the Products link to a member granted shopify_stores" do
+    it "shows the Products group to a member granted the products permission" do
+      member = create(:user)
+      create(:membership, user: member, company: company, role: :member, permissions: [ "products" ])
+      sign_in member
+      patch switch_company_path(id: company.id)
+
+      get authenticated_root_path
+
+      expect(response).to have_http_status(:ok)
+      doc = Nokogiri::HTML(response.body)
+      expect(doc.at_css("#products-menu")).to be_present
+    end
+
+    # Mutation-test target: the products/product_variants/product_customs
+    # PERMISSION_KEY_MAP entries must point at "products", not "shopify_stores"
+    # — a member with only shopify_stores must no longer see this group.
+    it "hides the Products group from a member granted only shopify_stores" do
       member = create(:user)
       create(:membership, user: member, company: company, role: :member, permissions: [ "shopify_stores" ])
       sign_in member
@@ -199,14 +215,12 @@ RSpec.describe "Sidebar navigation", type: :request do
       get authenticated_root_path
 
       expect(response).to have_http_status(:ok)
-      expect(response.body).to include(products_path)
-      expect(response.body).to include(I18n.t("nav.products"))
+      doc = Nokogiri::HTML(response.body)
+      expect(doc.at_css("#products-menu")).to be_nil
+      expect(response.body).not_to include(I18n.t("nav.product_costs"))
     end
 
-    # Mutation-test target: drop the has_permission?("shopify_stores") guard
-    # around the Products link and this spec must fail — this member is granted
-    # no permissions at all.
-    it "hides the Products link from a member without shopify_stores" do
+    it "hides the Products group from a member without any permissions" do
       member = create(:user)
       create(:membership, user: member, company: company, role: :member, permissions: [])
       sign_in member
@@ -216,8 +230,7 @@ RSpec.describe "Sidebar navigation", type: :request do
 
       expect(response).to have_http_status(:ok)
       doc = Nokogiri::HTML(response.body)
-      expect(doc.at_css("nav a[href='#{products_path}']")).to be_nil
-      expect(response.body).not_to include(I18n.t("nav.products"))
+      expect(doc.at_css("#products-menu")).to be_nil
     end
   end
 

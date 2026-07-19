@@ -33,4 +33,18 @@ RSpec.describe "Products UI", type: :system do
     expect(page).to have_text(/packaging cost/i)
     expect(page).to have_content("0.00")
   end
+
+  describe "Products nav-group" do
+    it "expands to reveal Product Costs and Customs Info when clicked" do
+      visit authenticated_root_path
+
+      within "nav" do
+        expect(page).to have_no_css("#products-menu", visible: :visible)
+        click_button I18n.t("nav.products")
+        expect(page).to have_css("#products-menu", visible: :visible)
+        expect(page).to have_link(I18n.t("nav.product_costs"))
+        expect(page).to have_link(I18n.t("nav.product_customs"))
+      end
+    end
+  end
 end

@@ -79,6 +79,9 @@ Rails.application.routes.draw do
       end
     end
     resources :products, only: [ :index ]
+    # Task 3 builds ProductCustomsController + its view; the route is added
+    # here (Task 2) so `product_customs_path` resolves for the sidebar nav-group.
+    get "product_customs" => "product_customs#index", as: :product_customs
     resources :product_variants, only: [ :update ] do
       collection do
         post :bulk_update
