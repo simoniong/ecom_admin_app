@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_19_130001) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_19_140002) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -256,6 +256,33 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_19_130001) do
     t.index ["group_id"], name: "index_invitations_on_group_id"
     t.index ["invited_by_id"], name: "index_invitations_on_invited_by_id"
     t.index ["token"], name: "index_invitations_on_token", unique: true
+  end
+
+  create_table "logistics_accounts", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "company_id", null: false
+    t.datetime "created_at", null: false
+    t.string "customer_id"
+    t.string "customer_userid"
+    t.text "password"
+    t.string "provider", default: "raydo", null: false
+    t.datetime "updated_at", null: false
+    t.string "url1_base"
+    t.string "url2_base"
+    t.string "username"
+    t.index ["company_id", "provider"], name: "index_logistics_accounts_on_company_id_and_provider", unique: true
+    t.index ["company_id"], name: "index_logistics_accounts_on_company_id"
+  end
+
+  create_table "logistics_channels", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.uuid "logistics_account_id", null: false
+    t.string "name", null: false
+    t.string "product_id", null: false
+    t.string "product_shortname"
+    t.string "shopify_carrier_name", default: "Other", null: false
+    t.string "tracking_url_template", default: "https://t.17track.net/en#nums=#TrackingNumber#", null: false
+    t.datetime "updated_at", null: false
+    t.index ["logistics_account_id"], name: "index_logistics_channels_on_logistics_account_id"
   end
 
   create_table "memberships", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -734,6 +761,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_19_130001) do
   add_foreign_key "invitations", "companies"
   add_foreign_key "invitations", "groups"
   add_foreign_key "invitations", "users", column: "invited_by_id"
+  add_foreign_key "logistics_accounts", "companies"
+  add_foreign_key "logistics_channels", "logistics_accounts"
   add_foreign_key "memberships", "companies"
   add_foreign_key "memberships", "groups"
   add_foreign_key "memberships", "users"
