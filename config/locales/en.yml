@@ -612,11 +612,31 @@ en:
       unit_cost: "Our COGS"
       packaging_cost: "Packaging Cost"
       weight: "Weight (g)"
+  product_customs:
+    title: "Customs Info"
+    search_placeholder: "Search by product, variant, or SKU"
+    only_incomplete: "Show incomplete only"
+    status:
+      complete: "Complete"
+      incomplete: "Incomplete"
+    columns:
+      image: "Image"
+      product: "Product"
+      variant: "Variant"
+      sku: "SKU"
+      customs_name_zh: "Chinese Name"
+      customs_name_en: "English Name"
+      declared_value_usd: "Declared Value (USD)"
+      hs_code: "HS Code"
+      import_hs_code: "Import HS Code"
+      weight: "Weight (g)"
+      status: "Status"
   product_variants:
     updated: "Updated"
     cell_edit_aria: "Click or press Enter to edit"
     bulk_no_selection: "Select at least one variant"
     bulk_no_fields: "Enter at least a COGS, packaging, or weight value"
+    bulk_no_fields_customs: "Enter at least one customs field"
     bulk_updated: "Bulk updated %{count} SKUs"
     bulk:
       selected: "selected"

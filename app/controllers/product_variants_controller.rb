@@ -2,15 +2,18 @@ class ProductVariantsController < AdminController
   before_action :set_variant, only: :update
 
   def update
-    if @variant.update(variant_params)
+    @variant.assign_attributes(variant_params)
+    context = customs_touched? ? :customs : nil
+
+    if @variant.save(context: context)
       respond_to do |format|
         format.turbo_stream
-        format.html { redirect_to products_path, notice: t("product_variants.updated") }
+        format.html { redirect_to(index_path_for_context, notice: t("product_variants.updated")) }
       end
     else
       respond_to do |format|
         format.turbo_stream { render :update, status: :unprocessable_entity }
-        format.html { redirect_to products_path, alert: @variant.errors.full_messages.join(", ") }
+        format.html { redirect_back fallback_location: index_path_for_context, alert: @variant.errors.full_messages.join(", ") }
       end
     end
   end
@@ -55,6 +58,34 @@ class ProductVariantsController < AdminController
     render json: { ids: scope.pluck(:id) }
   end
 
+  # Enforce required-together on customs edits: any variant with a
+  # blank required customs field aborts the whole batch (RecordInvalid),
+  # nothing gets saved.
+  def bulk_update_customs
+    ids = Array(params[:variant_ids]).map(&:to_s)
+    return redirect_to(product_customs_path, alert: t("product_variants.bulk_no_selection")) if ids.empty?
+
+    updates = {}
+    %i[customs_name_zh customs_name_en declared_value_usd hs_code import_hs_code weight_grams].each do |f|
+      updates[f] = params[f] if params[f].to_s.strip.present?
+    end
+    return redirect_to(product_customs_path, alert: t("product_variants.bulk_no_fields_customs")) if updates.empty?
+
+    scope = scoped_variants.where(id: ids)
+    count = 0
+    ProductVariant.transaction do
+      scope.find_each do |v|
+        v.assign_attributes(updates)
+        v.save!(context: :customs) # enforce required-together on customs edits
+        count += 1
+      end
+    end
+    redirect_to product_customs_path(request.query_parameters.slice(:store_id, :search, :per_page, :page, :incomplete)),
+                notice: t("product_variants.bulk_updated", count: count)
+  rescue ActiveRecord::RecordInvalid => e
+    redirect_to product_customs_path, alert: e.record.errors.full_messages.join(", ")
+  end
+
   private
 
   def scoped_variants
@@ -66,7 +97,31 @@ class ProductVariantsController < AdminController
     @variant = scoped_variants.find(params[:id])
   end
 
+  # The cost page and the customs page both PATCH this same #update action
+  # (inline cell edit); the request carries context=customs when it originated
+  # on the customs page so the HTML fallback redirect and the turbo_stream row
+  # partial (see update.turbo_stream.erb) match the page the edit came from.
+  def index_path_for_context
+    params[:context] == "customs" ? product_customs_path : products_path
+  end
+
+  # Cost edits (unit_cost/weight_grams/packaging_cost via variant_params) must
+  # keep saving on the default context. Only treat the record as a customs
+  # edit — and enforce the required-together validation — when a customs-only
+  # field was actually submitted. weight_grams is deliberately excluded: it is
+  # shared with the cost page, so editing it alone from either page must not
+  # flip the record into the stricter :customs context.
+  def customs_touched?
+    pv = params[:product_variant]
+    return false unless pv
+
+    %w[customs_name_zh customs_name_en declared_value_usd hs_code import_hs_code].any? { |k| pv.key?(k) }
+  end
+
   def variant_params
-    params.require(:product_variant).permit(:unit_cost, :weight_grams, :packaging_cost)
+    params.require(:product_variant).permit(
+      :unit_cost, :weight_grams, :packaging_cost,
+      :customs_name_zh, :customs_name_en, :declared_value_usd, :hs_code, :import_hs_code
+    )
   end
 end

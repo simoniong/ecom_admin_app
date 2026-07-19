@@ -85,6 +85,7 @@ Rails.application.routes.draw do
     resources :product_variants, only: [ :update ] do
       collection do
         post :bulk_update
+        post :bulk_update_customs
         get :matching_ids
       end
     end

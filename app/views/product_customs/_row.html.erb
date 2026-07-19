@@ -1,0 +1,114 @@
+<tr id="<%= dom_id(variant) %>" class="border-b border-gray-200">
+  <td class="px-2 py-2">
+    <input type="checkbox"
+           name="variant_ids[]"
+           value="<%= variant.id %>"
+           data-bulk-select-target="rowCheckbox"
+           data-action="change->bulk-select#rowChanged">
+  </td>
+  <td class="px-2 py-2">
+    <% if variant.product.image_url.present? %>
+      <%= image_tag variant.product.image_url, class: "w-12 h-12 object-cover rounded" %>
+    <% end %>
+  </td>
+  <td class="px-2 py-2 text-sm"><%= variant.product.title %></td>
+  <td class="px-2 py-2 text-sm"><%= variant.title %></td>
+  <td class="px-2 py-2 text-xs font-mono"><%= variant.sku.presence || "—" %></td>
+  <td class="px-2 py-2"
+      data-controller="cell-edit"
+      data-cell-edit-url-value="<%= product_variant_path(id: variant.id, context: "customs") %>"
+      data-cell-edit-field-value="customs_name_zh"
+      data-cell-edit-type-value="text">
+    <span data-cell-edit-target="display"
+          role="button"
+          tabindex="0"
+          aria-label="<%= t("product_variants.cell_edit_aria") %>"
+          data-action="click->cell-edit#startEdit keydown.enter->cell-edit#startEdit keydown.space->cell-edit#startEdit"
+          class="cursor-pointer hover:bg-gray-100 focus:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-300 px-2 py-1 rounded inline-block min-w-[64px] text-sm border border-dashed border-transparent hover:border-gray-300">
+      <%= variant.customs_name_zh.presence || "—" %>
+    </span>
+  </td>
+  <td class="px-2 py-2"
+      data-controller="cell-edit"
+      data-cell-edit-url-value="<%= product_variant_path(id: variant.id, context: "customs") %>"
+      data-cell-edit-field-value="customs_name_en"
+      data-cell-edit-type-value="text">
+    <span data-cell-edit-target="display"
+          role="button"
+          tabindex="0"
+          aria-label="<%= t("product_variants.cell_edit_aria") %>"
+          data-action="click->cell-edit#startEdit keydown.enter->cell-edit#startEdit keydown.space->cell-edit#startEdit"
+          class="cursor-pointer hover:bg-gray-100 focus:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-300 px-2 py-1 rounded inline-block min-w-[64px] text-sm border border-dashed border-transparent hover:border-gray-300">
+      <%= variant.customs_name_en.presence || "—" %>
+    </span>
+  </td>
+  <td class="px-2 py-2"
+      data-controller="cell-edit"
+      data-cell-edit-url-value="<%= product_variant_path(id: variant.id, context: "customs") %>"
+      data-cell-edit-field-value="declared_value_usd"
+      data-cell-edit-step-value="0.01"
+      data-cell-edit-min-value="0.01">
+    <span data-cell-edit-target="display"
+          role="button"
+          tabindex="0"
+          aria-label="<%= t("product_variants.cell_edit_aria") %>"
+          data-action="click->cell-edit#startEdit keydown.enter->cell-edit#startEdit keydown.space->cell-edit#startEdit"
+          class="cursor-pointer hover:bg-gray-100 focus:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-300 px-2 py-1 rounded inline-block min-w-[64px] text-sm border border-dashed border-transparent hover:border-gray-300">
+      <%= variant.declared_value_usd.present? ? number_to_currency(variant.declared_value_usd, unit: "$") : "—" %>
+    </span>
+  </td>
+  <td class="px-2 py-2"
+      data-controller="cell-edit"
+      data-cell-edit-url-value="<%= product_variant_path(id: variant.id, context: "customs") %>"
+      data-cell-edit-field-value="hs_code"
+      data-cell-edit-type-value="text">
+    <span data-cell-edit-target="display"
+          role="button"
+          tabindex="0"
+          aria-label="<%= t("product_variants.cell_edit_aria") %>"
+          data-action="click->cell-edit#startEdit keydown.enter->cell-edit#startEdit keydown.space->cell-edit#startEdit"
+          class="cursor-pointer hover:bg-gray-100 focus:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-300 px-2 py-1 rounded inline-block min-w-[64px] text-sm border border-dashed border-transparent hover:border-gray-300">
+      <%= variant.hs_code.presence || "—" %>
+    </span>
+  </td>
+  <td class="px-2 py-2"
+      data-controller="cell-edit"
+      data-cell-edit-url-value="<%= product_variant_path(id: variant.id, context: "customs") %>"
+      data-cell-edit-field-value="import_hs_code"
+      data-cell-edit-type-value="text">
+    <span data-cell-edit-target="display"
+          role="button"
+          tabindex="0"
+          aria-label="<%= t("product_variants.cell_edit_aria") %>"
+          data-action="click->cell-edit#startEdit keydown.enter->cell-edit#startEdit keydown.space->cell-edit#startEdit"
+          class="cursor-pointer hover:bg-gray-100 focus:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-300 px-2 py-1 rounded inline-block min-w-[64px] text-sm border border-dashed border-transparent hover:border-gray-300">
+      <%= variant.import_hs_code.presence || "—" %>
+    </span>
+  </td>
+  <td class="px-2 py-2"
+      data-controller="cell-edit"
+      data-cell-edit-url-value="<%= product_variant_path(id: variant.id, context: "customs") %>"
+      data-cell-edit-field-value="weight_grams"
+      data-cell-edit-step-value="0.001"
+      data-cell-edit-min-value="0.001">
+    <span data-cell-edit-target="display"
+          role="button"
+          tabindex="0"
+          aria-label="<%= t("product_variants.cell_edit_aria") %>"
+          data-action="click->cell-edit#startEdit keydown.enter->cell-edit#startEdit keydown.space->cell-edit#startEdit"
+          class="cursor-pointer hover:bg-gray-100 focus:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-300 px-2 py-1 rounded inline-block min-w-[64px] text-sm border border-dashed border-transparent hover:border-gray-300">
+      <%= variant.weight_grams.present? ? "#{number_with_precision(variant.weight_grams, precision: 3, strip_insignificant_zeros: true)} g" : "—" %>
+    </span>
+  </td>
+  <td class="px-2 py-2">
+    <% if variant.customs_complete? %>
+      <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+        <%= t("product_customs.status.complete") %>
+      </span>
+    <% else %>
+      <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">
+        <%= t("product_customs.status.incomplete") %>
+      </span>
+    <% end %>
+  </td>
+</tr>
