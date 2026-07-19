@@ -137,6 +137,12 @@ Rails.application.routes.draw do
     resource :shipping_reminder_setting, only: [ :update ] do
       patch :toggle, on: :member
     end
+    resource :logistics_account, only: [ :show, :update ], controller: "logistics_accounts" do
+      post :authenticate, on: :member
+    end
+    resources :logistics_channels, only: [ :index, :new, :create, :edit, :update, :destroy ] do
+      get :product_options, on: :collection
+    end
   end
 
   devise_scope :user do

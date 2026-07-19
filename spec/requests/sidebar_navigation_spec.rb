@@ -66,7 +66,7 @@ RSpec.describe "Sidebar navigation", type: :request do
       )
     end
 
-    it "shows all six children, in order, to the owner" do
+    it "shows all seven children, in order, to the owner" do
       sign_in user
       enable_tracking!(company)
 
@@ -84,7 +84,8 @@ RSpec.describe "Sidebar navigation", type: :request do
         shipping_rate_card_versions_path,
         shipping_zone_postal_rules_path,
         shipping_remote_area_versions_path,
-        shipping_reminder_rules_path
+        shipping_reminder_rules_path,
+        logistics_channels_path
       ])
 
       expect(menu.text).to include(I18n.t("nav.tracking"))
@@ -93,6 +94,7 @@ RSpec.describe "Sidebar navigation", type: :request do
       expect(menu.text).to include(I18n.t("nav.shipping_zone_postal_rules"))
       expect(menu.text).to include(I18n.t("nav.shipping_remote_areas"))
       expect(menu.text).to include(I18n.t("nav.shipping_reminders"))
+      expect(menu.text).to include(I18n.t("nav.logistics_channels"))
     end
 
     # Remote Areas shares the shopify_stores gate with Rate Cards and Postal

@@ -1,0 +1,58 @@
+<div class="max-w-4xl mx-auto">
+  <div class="flex items-center justify-between">
+    <h1 class="text-2xl font-semibold text-gray-900"><%= t("logistics_channels.title") %></h1>
+    <div class="flex items-center gap-3">
+      <%= link_to t("logistics_accounts.title"), logistics_account_path, class: "text-sm text-gray-600 hover:text-gray-900" %>
+      <% if @logistics_account %>
+        <%= link_to t("logistics_channels.new"), new_logistics_channel_path,
+            class: "inline-flex items-center gap-2 px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800" %>
+      <% end %>
+    </div>
+  </div>
+
+  <% unless @logistics_account %>
+    <div class="mt-6 bg-yellow-50 border border-yellow-200 rounded-lg p-6">
+      <p class="text-sm text-yellow-800"><%= t("logistics_channels.account_required") %></p>
+      <%= link_to t("logistics_accounts.title"), logistics_account_path, class: "mt-2 inline-block text-sm text-blue-600 hover:underline" %>
+    </div>
+  <% end %>
+
+  <% if @channels.any? %>
+    <div class="mt-6 bg-white shadow-sm rounded-lg border border-gray-200 overflow-x-auto">
+      <table class="min-w-full divide-y divide-gray-200">
+        <thead class="bg-gray-50">
+          <tr>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase"><%= t("logistics_channels.name") %></th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase"><%= t("logistics_channels.product") %></th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase"><%= t("logistics_channels.shopify_carrier_name") %></th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase"><%= t("logistics_channels.tracking_url_template") %></th>
+            <th class="px-4 py-3"></th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-200">
+          <% @channels.each do |channel| %>
+            <tr>
+              <td class="px-4 py-3 text-sm text-gray-900"><%= channel.name %></td>
+              <td class="px-4 py-3 text-sm text-gray-700">
+                <%= channel.product_shortname.presence || "—" %>
+                <span class="text-xs text-gray-400 font-mono">(<%= channel.product_id %>)</span>
+              </td>
+              <td class="px-4 py-3 text-sm text-gray-700"><%= channel.shopify_carrier_name %></td>
+              <td class="px-4 py-3 text-xs text-gray-500 font-mono"><%= channel.tracking_url_template %></td>
+              <td class="px-4 py-3 text-right text-sm space-x-3 whitespace-nowrap">
+                <%= link_to t("logistics_channels.edit"), edit_logistics_channel_path(channel), class: "text-blue-600 hover:underline" %>
+                <%= button_to t("logistics_channels.delete"), logistics_channel_path(channel), method: :delete,
+                    data: { turbo_confirm: t("logistics_channels.delete_confirm") },
+                    class: "text-red-600 hover:underline bg-transparent border-0 p-0 text-sm cursor-pointer inline" %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% elsif @logistics_account %>
+    <div class="mt-6 bg-white shadow-sm rounded-lg border border-gray-200 p-6 text-center text-sm text-gray-500">
+      <%= t("logistics_channels.empty") %>
+    </div>
+  <% end %>
+</div>
