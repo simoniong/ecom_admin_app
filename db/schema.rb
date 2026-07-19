@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_18_120004) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_19_120001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -671,6 +671,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_18_120004) do
     t.string "reopened_reason"
     t.string "scheduled_job_id"
     t.datetime "scheduled_send_at"
+    t.datetime "sending_started_at"
     t.integer "status", default: 0, null: false
     t.string "subject"
     t.string "trustpilot_bcc_email"
