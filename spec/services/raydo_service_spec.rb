@@ -12,17 +12,28 @@ RSpec.describe RaydoService do
     expect(res["customer_userid"]).to eq("6901")
   end
 
-  it "parses Raydo's single-quoted pseudo-JSON auth response (non-JSON content-type)" do
-    # Raydo's real selectAuth returns single-quoted, invalid-JSON with a
-    # text/html content-type, so HTTParty#parsed_response yields a raw String.
+  it "parses Raydo's single-quoted pseudo-JSON auth response (text/html;charset=GBK)" do
+    # Confirmed against the live endpoint: selectAuth returns single-quoted,
+    # invalid-JSON with a text/html;charset=GBK content-type, so
+    # HTTParty#parsed_response yields a raw String the callers used to reject.
     stub_request(:get, "http://raydo.test:8082/selectAuth.htm").
       with(query: { username: "TEST", password: "123456" }).
-      to_return(body: "{'customer_id':'6581','customer_userid':'6901','ack':'true'}",
-                headers: { "Content-Type" => "text/html" })
+      to_return(body: "{'customer_id':'17001','customer_userid':'13461','ack':'true'}",
+                headers: { "Content-Type" => "text/html;charset=GBK" })
     res = described_class.new(account).authenticate
     expect(res["ack"]).to eq("true")
-    expect(res["customer_id"]).to eq("6581")
-    expect(res["customer_userid"]).to eq("6901")
+    expect(res["customer_id"]).to eq("17001")
+    expect(res["customer_userid"]).to eq("13461")
+  end
+
+  it "transcodes a GBK-encoded product list (Chinese names) to UTF-8" do
+    gbk_body = [ { product_id: "P1", product_shortname: "英国小包" } ].to_json.encode("GBK")
+    stub_request(:get, "http://raydo.test:8082/getProductList.htm").
+      to_return(body: gbk_body, headers: { "Content-Type" => "text/html;charset=GBK" })
+    list = described_class.new(account).product_list
+    expect(list.first["product_id"]).to eq("P1")
+    expect(list.first["product_shortname"]).to eq("英国小包")
+    expect(list.first["product_shortname"].encoding).to eq(Encoding::UTF_8)
   end
 
   it "raises on ack=false" do

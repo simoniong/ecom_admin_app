@@ -43,30 +43,49 @@ class RaydoService
     raise Error, "Raydo request failed (#{e.class})"
   end
 
-  # Raydo is inconsistent about its payloads: getProductList returns valid
-  # JSON, but selectAuth returns single-quoted pseudo-JSON (e.g.
-  # {'customer_id':'6581','ack':'true'}), frequently with a non-JSON
-  # content-type. In those cases HTTParty#parsed_response hands back the raw
-  # String, which the callers then reject as "not a Hash". Normalize both
-  # shapes so a successful auth is recognised.
+  # Raydo's payloads are non-standard in two ways, confirmed against the live
+  # endpoint (Content-Type: text/html;charset=GBK):
+  #   1. selectAuth returns single-quoted pseudo-JSON, e.g.
+  #      {'customer_id':'6581','ack':'true'} — invalid JSON, so
+  #      HTTParty#parsed_response hands back a raw String the callers reject.
+  #   2. bodies are GBK-encoded (getProductList's Chinese product_shortname),
+  #      so they must be transcoded to UTF-8 before JSON parsing.
+  # Normalize both so a successful response is recognised and readable.
   def parse_response(resp)
     parsed = resp.parsed_response
     return parsed if parsed.is_a?(Hash) || parsed.is_a?(Array)
 
-    body = resp.body.to_s.strip
-    return parsed if body.empty?
+    body = decode_body(resp)
+    return parsed if body.blank?
 
     begin
       JSON.parse(body)
     rescue JSON::ParserError
       begin
         # Coerce single-quoted pseudo-JSON into valid JSON. This only runs
-        # after strict parsing fails, so it never touches the already-valid
+        # after strict parsing fails, so it never touches an already-valid
         # double-quoted product list.
         JSON.parse(body.tr("'", '"'))
       rescue JSON::ParserError
         parsed # give up; hand back whatever HTTParty produced
       end
     end
+  end
+
+  # Transcode the response body to UTF-8 based on the declared charset
+  # (Raydo declares GBK). Falls back to the raw body if the charset is
+  # unknown/undeclared or transcoding fails.
+  def decode_body(resp)
+    body = resp.body.to_s
+    charset = resp.headers["content-type"].to_s[/charset=([\w-]+)/i, 1]
+    decoded =
+      if charset && !%w[utf-8 utf8].include?(charset.downcase)
+        body.dup.force_encoding(charset).encode("UTF-8", invalid: :replace, undef: :replace)
+      else
+        body.dup.force_encoding("UTF-8")
+      end
+    decoded.valid_encoding? ? decoded.strip : body.strip
+  rescue EncodingError, ArgumentError
+    resp.body.to_s.strip
   end
 end
