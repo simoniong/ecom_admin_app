@@ -55,4 +55,36 @@ RSpec.describe RaydoService do
       expect(e.message).not_to include("selectAuth.htm")
     end
   end
+
+  describe "malformed or blank url1_base" do
+    it "raises RaydoService::Error (not URI/ArgumentError) up front when url1_base is blank" do
+      blank_account = build(:logistics_account, username: "TEST", password: "123456")
+      blank_account.url1_base = ""
+      blank_account.save!(validate: false)
+
+      expect { described_class.new(blank_account).authenticate }.to raise_error(RaydoService::Error)
+      expect { described_class.new(blank_account).product_list }.to raise_error(RaydoService::Error)
+    end
+
+    it "raises RaydoService::Error (not URI::InvalidURIError) for a malformed url1_base" do
+      malformed_account = build(:logistics_account, username: "TEST", password: "123456")
+      malformed_account.url1_base = "not a url"
+      malformed_account.save!(validate: false)
+
+      expect { described_class.new(malformed_account).authenticate }.to raise_error(RaydoService::Error)
+    end
+
+    it "does not echo the malformed URL (which carries the password) into the error message" do
+      malformed_account = build(:logistics_account, username: "TEST", password: "secret-pw")
+      malformed_account.url1_base = "not a url"
+      malformed_account.save!(validate: false)
+
+      begin
+        described_class.new(malformed_account).authenticate
+      rescue RaydoService::Error => e
+        expect(e.message).not_to include("secret-pw")
+        expect(e.message).not_to include("not a url")
+      end
+    end
+  end
 end

@@ -22,11 +22,19 @@ class RaydoService
   private
 
   def get(path, query = {})
+    raise Error, "Raydo base URL is not configured" if @account.url1_base.blank?
+
     base = @account.url1_base.to_s.chomp("/")
     resp = HTTParty.get("#{base}#{path}", query: query, timeout: 20)
     raise Error, "Raydo HTTP #{resp.code}" unless resp.success?
     resp.parsed_response
   rescue HTTParty::Error, Net::OpenTimeout, Net::ReadTimeout, IO::TimeoutError, Timeout::Error, SocketError, SystemCallError => e
     raise Error, "Raydo connection failed (#{e.class})"
+  rescue URI::InvalidURIError, ArgumentError => e
+    # Do not interpolate the original exception message here: for a malformed
+    # URL, Ruby's URI/HTTParty error messages echo back the full offending
+    # URL, which for us includes the Raydo username/password in the query
+    # string. Only the exception class is safe to surface.
+    raise Error, "Raydo request failed (#{e.class})"
   end
 end

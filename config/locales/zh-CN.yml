@@ -14,6 +14,12 @@
               only_with_backfill_mode: "仅当追踪范围为回补历史订单时才能设置天数。"
         email_account:
           send_window_invalid: "结束时间必须晚于开始时间。"
+        logistics_account:
+          attributes:
+            url1_base:
+              invalid_url: "必须是有效的 http:// 或 https:// 网址。"
+            url2_base:
+              invalid_url: "必须是有效的 http:// 或 https:// 网址。"
         shopify_store:
           attributes:
             trustpilot_bcc_email:

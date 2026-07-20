@@ -36,6 +36,17 @@ RSpec.describe "LogisticsAccounts", type: :request do
       expect(company.reload.raydo_logistics_account.username).to eq("TEST")
     end
 
+    it "rejects a malformed url1_base with a graceful validation error, not a 500" do
+      patch logistics_account_path, params: {
+        logistics_account: {
+          username: "TEST", password: "secret123", url1_base: "not a url"
+        }
+      }
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.body).to include(I18n.t("activerecord.errors.models.logistics_account.attributes.url1_base.invalid_url"))
+    end
+
     it "keeps the existing password when the password field is left blank" do
       create(:logistics_account, company: company, username: "TEST", password: "original-secret")
 
@@ -110,6 +121,17 @@ RSpec.describe "LogisticsAccounts", type: :request do
       post authenticate_logistics_account_path
       expect(response).not_to have_http_status(:internal_server_error)
       expect(response).to redirect_to(logistics_account_path)
+    end
+
+    it "handles a malformed url1_base that bypassed validation gracefully instead of a 500" do
+      account = create(:logistics_account, company: company, username: "TEST", password: "123456")
+      account.update_column(:url1_base, "not a url")
+
+      post authenticate_logistics_account_path
+      expect(response).not_to have_http_status(:internal_server_error)
+      expect(response).to redirect_to(logistics_account_path)
+      follow_redirect!
+      expect(response.body).to include("Raydo")
     end
   end
 

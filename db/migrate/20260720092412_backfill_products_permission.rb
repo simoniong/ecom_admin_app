@@ -19,20 +19,16 @@ class BackfillProductsPermission < ActiveRecord::Migration[8.1]
     SQL
   end
 
-  # Best-effort reverse: remove "products" only from memberships that still
-  # have "shopify_stores" (i.e. rows this migration would have touched).
-  # Memberships where "products" was granted independently of this backfill
-  # (not paired with "shopify_stores") are intentionally left untouched.
+  # Intentionally a no-op. We cannot tell, at rollback time, which of the
+  # memberships that now have both "shopify_stores" and "products" got
+  # "products" from this backfill versus from an independent, later grant
+  # (e.g. an admin explicitly adding the Products permission after deploy).
+  # A previous version of this migration stripped "products" from every
+  # membership that also had "shopify_stores", which would have destroyed
+  # those independently-granted permissions on rollback. Since a granted
+  # permission is harmless to leave in place, the safe rollback is to leave
+  # the data untouched rather than guess and delete.
   def down
-    execute <<~SQL
-      UPDATE memberships
-      SET permissions = (
-        SELECT COALESCE(jsonb_agg(perm), '[]'::jsonb)
-        FROM jsonb_array_elements(permissions) AS perm
-        WHERE perm <> '"products"'::jsonb
-      )
-      WHERE permissions @> '["shopify_stores"]'::jsonb
-        AND permissions @> '["products"]'::jsonb
-    SQL
+    # no-op — see comment above.
   end
 end

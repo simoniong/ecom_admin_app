@@ -55,12 +55,16 @@ RSpec.describe BackfillProductsPermission do
   end
 
   describe "#down" do
-    it "removes products from memberships that also have shopify_stores" do
+    # down is intentionally a no-op: we cannot distinguish, at rollback time,
+    # memberships that got "products" from this backfill from ones where it
+    # was granted independently. A granted permission is harmless to keep,
+    # so rollback leaves all data untouched rather than guessing and deleting.
+    it "leaves products in place for memberships that also have shopify_stores" do
       membership = create(:membership, role: :member, permissions: [ "shopify_stores", "products" ])
 
       migration.down
 
-      expect(permissions_for(membership)).to eq([ "shopify_stores" ])
+      expect(permissions_for(membership)).to contain_exactly("shopify_stores", "products")
     end
 
     it "leaves products in place for memberships without shopify_stores" do
@@ -71,14 +75,14 @@ RSpec.describe BackfillProductsPermission do
       expect(permissions_for(membership)).to eq([ "products" ])
     end
 
-    it "round-trips: up then down restores the original state" do
+    it "does not undo the backfill when up is followed by down" do
       membership = create(:membership, role: :member, permissions: [ "shopify_stores" ])
 
       migration.up
       expect(permissions_for(membership)).to contain_exactly("shopify_stores", "products")
 
       migration.down
-      expect(permissions_for(membership)).to eq([ "shopify_stores" ])
+      expect(permissions_for(membership)).to contain_exactly("shopify_stores", "products")
     end
   end
 end

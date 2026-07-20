@@ -126,6 +126,15 @@ RSpec.describe "LogisticsChannels", type: :request do
       expect(JSON.parse(response.body)).to have_key("error")
     end
 
+    it "returns a JSON error (never a 500) when the account's url1_base is malformed" do
+      account.update_column(:url1_base, "not a url")
+
+      get product_options_logistics_channels_path, headers: { "Accept" => "application/json" }
+      expect(response).not_to have_http_status(:internal_server_error)
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(JSON.parse(response.body)).to have_key("error")
+    end
+
     it "returns a JSON error when no account is configured" do
       get product_options_logistics_channels_path, headers: { "Accept" => "application/json" }
       expect(response).to have_http_status(:unprocessable_entity)

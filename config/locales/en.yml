@@ -14,6 +14,12 @@ en:
               only_with_backfill_mode: "Backfill days only apply when the backfill scope is selected."
         email_account:
           send_window_invalid: "End time must be after start time."
+        logistics_account:
+          attributes:
+            url1_base:
+              invalid_url: "must be a valid http:// or https:// URL."
+            url2_base:
+              invalid_url: "must be a valid http:// or https:// URL."
         shopify_store:
           attributes:
             trustpilot_bcc_email:

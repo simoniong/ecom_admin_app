@@ -57,6 +57,32 @@ RSpec.describe LogisticsAccount, type: :model do
     end
   end
 
+  describe "url1_base / url2_base" do
+    it "accepts a blank url1_base and url2_base (account may exist before URLs are entered)" do
+      account.url1_base = ""
+      account.url2_base = ""
+      expect(account).to be_valid
+    end
+
+    it "accepts a valid http(s) URL" do
+      account.url1_base = "http://raydo.example.com:8082"
+      account.url2_base = "https://raydo.example.com:8089"
+      expect(account).to be_valid
+    end
+
+    it "rejects a url1_base that is not a valid URL" do
+      account.url1_base = "not a url"
+      expect(account).not_to be_valid
+      expect(account.errors[:url1_base]).to be_present
+    end
+
+    it "rejects a url2_base that is not a valid URL" do
+      account.url2_base = "not a url"
+      expect(account).not_to be_valid
+      expect(account.errors[:url2_base]).to be_present
+    end
+  end
+
   describe "associations" do
     it "has many logistics_channels" do
       channel = create(:logistics_channel, logistics_account: account)
