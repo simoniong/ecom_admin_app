@@ -68,7 +68,7 @@ RSpec.describe "LogisticsAccounts", type: :request do
       expect(response.body).to include(I18n.t("logistics_accounts.missing_credentials"))
     end
 
-    it "authenticates via RaydoService and caches the customer ids" do
+    it "authenticates via the fulfillment adapter and caches the customer ids" do
       account = create(:logistics_account, company: company, username: "TEST", password: "123456",
                         url1_base: "http://raydo.test:8082")
       stub_request(:get, "http://raydo.test:8082/selectAuth.htm")
@@ -84,7 +84,7 @@ RSpec.describe "LogisticsAccounts", type: :request do
       expect(account.customer_userid).to eq("6901")
     end
 
-    it "handles RaydoService::Error gracefully with a flash alert (never a 500)" do
+    it "handles a fulfillment error gracefully with a flash alert (never a 500)" do
       create(:logistics_account, company: company, username: "TEST", password: "wrong",
              url1_base: "http://raydo.test:8082")
       stub_request(:get, "http://raydo.test:8082/selectAuth.htm")

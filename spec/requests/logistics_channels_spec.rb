@@ -96,7 +96,7 @@ RSpec.describe "LogisticsChannels", type: :request do
       expect(body.first["product_id"]).to eq("P1")
     end
 
-    it "returns a JSON error (never a 500) when RaydoService raises" do
+    it "returns a JSON error (never a 500) when the fulfillment adapter raises" do
       account
       stub_request(:get, "http://raydo.test:8082/getProductList.htm")
         .to_return(status: 500, body: "boom")
