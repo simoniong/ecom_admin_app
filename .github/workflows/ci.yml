@@ -96,6 +96,9 @@ jobs:
         with:
           bundler-cache: true
 
+      - name: Build Tailwind CSS
+        run: bin/rails tailwindcss:build
+
       - name: Run System Tests
         env:
           RAILS_ENV: test
