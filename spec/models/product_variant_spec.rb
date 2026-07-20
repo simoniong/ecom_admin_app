@@ -76,6 +76,33 @@ RSpec.describe ProductVariant, type: :model do
     end
   end
 
+  describe "customs info" do
+    it "is complete only when zh name, en name, declared value and weight are all present" do
+      v = build(:product_variant, customs_name_zh: "積木", customs_name_en: "Blocks",
+                declared_value_usd: 5, weight_grams: 100)
+      expect(v.customs_complete?).to be(true)
+    end
+
+    it "is incomplete when any required customs field is blank" do
+      v = build(:product_variant, customs_name_zh: "積木", customs_name_en: "Blocks",
+                declared_value_usd: nil, weight_grams: 100)
+      expect(v.customs_complete?).to be(false)
+    end
+
+    it "on the :customs context, requires all four fields together" do
+      v = build(:product_variant, customs_name_zh: "積木", customs_name_en: nil,
+                declared_value_usd: 5, weight_grams: 100)
+      expect(v.valid?(:customs)).to be(false)
+      expect(v.errors[:customs_name_en]).to be_present
+    end
+
+    it "on the default context, does NOT require customs fields (Shopify sync creates blanks)" do
+      v = build(:product_variant, customs_name_zh: nil, customs_name_en: nil, declared_value_usd: nil)
+      v.valid?
+      expect(v.errors[:customs_name_en]).to be_empty
+    end
+  end
+
   describe "uniqueness of shopify_variant_id within a product" do
     it "rejects duplicates via DB index" do
       existing = create(:product_variant)

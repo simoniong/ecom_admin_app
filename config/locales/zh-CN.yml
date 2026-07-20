@@ -14,6 +14,12 @@
               only_with_backfill_mode: "仅当追踪范围为回补历史订单时才能设置天数。"
         email_account:
           send_window_invalid: "结束时间必须晚于开始时间。"
+        logistics_account:
+          attributes:
+            url1_base:
+              invalid_url: "必须是有效的 http:// 或 https:// 网址。"
+            url2_base:
+              invalid_url: "必须是有效的 http:// 或 https:// 网址。"
         shopify_store:
           attributes:
             trustpilot_bcc_email:
@@ -45,10 +51,13 @@
     shipping_reminders: "物流提醒"
     email_workflows: "邮件工作流"
     products: "商品"
+    product_costs: "商品成本"
+    product_customs: "报关信息"
     groups: "部门"
     shipping_rate_cards: "运费费率卡"
     shipping_zone_postal_rules: "邮编分区"
     shipping_remote_areas: "偏远地区附加费"
+    logistics_channels: "物流渠道"
   group_view_switcher:
     label: "部门"
     all: "全部部门"
@@ -608,11 +617,33 @@
       unit_cost: "我们的 COGS"
       packaging_cost: "包材成本"
       weight: "重量 (g)"
+  product_customs:
+    title: "报关信息"
+    search_placeholder: "搜索 product / variant / SKU"
+    only_incomplete: "只显示未完成"
+    status:
+      complete: "完成"
+      incomplete: "未完成"
+    columns:
+      image: "图"
+      product: "产品"
+      variant: "规格"
+      sku: "SKU"
+      customs_name_zh: "中文名"
+      customs_name_en: "英文名"
+      declared_value_usd: "申报金额(USD)"
+      hs_code: "海关编码"
+      import_hs_code: "进口海关编码"
+      weight: "重量(g)"
+      status: "状态"
+      actions: "操作"
+    save: "保存"
   product_variants:
     updated: "已更新"
     cell_edit_aria: "点击或按 Enter 编辑"
     bulk_no_selection: "请至少选择一个 variant"
     bulk_no_fields: "请至少填入 COGS、包材成本或重量"
+    bulk_no_fields_customs: "请至少填入一项报关字段"
     bulk_updated: "已批量更新 %{count} 个 SKU"
     bulk:
       selected: "已选"
@@ -1043,6 +1074,8 @@
       email_accounts: "邮箱"
       shipping_reminder_rules: "物流提醒"
       parcels: "包裹"
+      products: "商品"
+      logistics_channels: "物流渠道"
   memberships:
     edit_title: "编辑权限"
     edit: "编辑"
@@ -1236,3 +1269,43 @@
     label: "商店"
     all_stores: "所有商店"
     no_stores: "暂无商店"
+  logistics_accounts:
+    title: "华磊(Raydo)账号"
+    description: "设置公司层级的华磊(Raydo)物流账号，用于获取渠道列表，后续也用于创建运单。"
+    status: "认证状态"
+    customer_id: "Customer ID"
+    customer_userid: "Customer User ID"
+    test_authenticate: "测试认证"
+    credentials: "账号信息"
+    credentials_hint: "由华磊提供的测试/正式环境地址与账号密码。"
+    username: "账号"
+    password: "密码"
+    password_placeholder: "留空以保留原密码"
+    password_hint: "留空即保留当前密码不变。"
+    url1_base: "URL1（建单/查询）"
+    url2_base: "URL2（打印标签）"
+    save: "保存"
+    updated: "华磊账号设置已保存。"
+    missing_credentials: "请先保存账号与密码后再测试认证。"
+    authenticate_success: "已成功认证华磊账号。"
+    authenticate_failed: "华磊认证失败：%{message}"
+  logistics_channels:
+    title: "物流渠道"
+    new: "新建渠道"
+    new_title: "新建物流渠道"
+    edit_title: "编辑物流渠道"
+    edit: "编辑"
+    delete: "删除"
+    delete_confirm: "确定删除此渠道吗？此操作无法撤销。"
+    name: "别称"
+    product: "华磊渠道（Product）"
+    loading_products: "正在加载渠道列表…"
+    products_load_failed: "无法从华磊获取渠道列表，请检查账号设置。"
+    shopify_carrier_name: "Shopify 物流商名称"
+    tracking_url_template: "追踪链接模板"
+    save: "保存"
+    created: "物流渠道已创建。"
+    updated: "物流渠道已更新。"
+    deleted: "物流渠道已删除。"
+    account_required: "请先设置华磊账号后再管理渠道。"
+    empty: "暂无物流渠道，创建第一个渠道开始使用。"

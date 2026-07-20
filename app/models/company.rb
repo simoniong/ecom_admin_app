@@ -12,6 +12,7 @@ class Company < ApplicationRecord
   has_many :shipping_rate_card_versions, dependent: :destroy
   has_many :shipping_zone_postal_rules, dependent: :destroy
   has_many :shipping_remote_area_versions, dependent: :destroy
+  has_many :logistics_accounts, dependent: :destroy
 
   AVAILABLE_LOCALES = I18n.available_locales.map(&:to_s).freeze
 
@@ -49,6 +50,13 @@ class Company < ApplicationRecord
 
   def tracking_all_history?
     tracking_mode == "backfill" && tracking_backfill_days.nil?
+  end
+
+  # There is only ever one Raydo account per company (see LogisticsAccount's
+  # provider-uniqueness-per-company validation), so this is a has_one-style
+  # convenience accessor over the has_many association above.
+  def raydo_logistics_account
+    logistics_accounts.find_or_initialize_by(provider: "raydo")
   end
 
   def self.starts_at_for(mode:, days: nil, now: Time.current)

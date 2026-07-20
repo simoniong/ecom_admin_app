@@ -6,7 +6,7 @@ RSpec.describe "Tickets", type: :system do
 
   it "shows Kanban board with four swim lanes" do
     sign_in_as(user)
-    click_link "Tickets"
+    navigate_to_settings_item I18n.t("nav.tickets"), group: I18n.t("nav.customer_support")
 
     expect(page).to have_text("New")
     expect(page).to have_text("Draft")
@@ -20,7 +20,7 @@ RSpec.describe "Tickets", type: :system do
     create(:ticket, email_account: email_account, subject: "Old issue", status: :closed)
 
     sign_in_as(user)
-    click_link "Tickets"
+    navigate_to_settings_item I18n.t("nav.tickets"), group: I18n.t("nav.customer_support")
 
     within('[data-status="new_ticket"]') do
       expect(page).to have_text("New issue")
@@ -42,7 +42,7 @@ RSpec.describe "Tickets", type: :system do
     create(:message, ticket: ticket, from: "customer@example.com", body: "I need help with my order")
 
     sign_in_as(user)
-    click_link "Tickets"
+    navigate_to_settings_item I18n.t("nav.tickets"), group: I18n.t("nav.customer_support")
     click_link "Help needed"
 
     expect(page).to have_text("Help needed")
@@ -55,7 +55,7 @@ RSpec.describe "Tickets", type: :system do
                      draft_reply: "Agent generated reply")
 
     sign_in_as(user)
-    click_link "Tickets"
+    navigate_to_settings_item I18n.t("nav.tickets"), group: I18n.t("nav.customer_support")
     click_link "Draft ticket"
 
     expect(page).to have_text("Draft Reply")
@@ -68,7 +68,7 @@ RSpec.describe "Tickets", type: :system do
                      draft_reply: "Original draft")
 
     sign_in_as(user)
-    click_link "Tickets"
+    navigate_to_settings_item I18n.t("nav.tickets"), group: I18n.t("nav.customer_support")
     click_link "Editable draft"
 
     fill_in "ticket[draft_reply]", with: "Updated draft content"
