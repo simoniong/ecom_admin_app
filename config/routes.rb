@@ -79,9 +79,13 @@ Rails.application.routes.draw do
       end
     end
     resources :products, only: [ :index ]
+    # Task 3 builds ProductCustomsController + its view; the route is added
+    # here (Task 2) so `product_customs_path` resolves for the sidebar nav-group.
+    get "product_customs" => "product_customs#index", as: :product_customs
     resources :product_variants, only: [ :update ] do
       collection do
         post :bulk_update
+        post :bulk_update_customs
         get :matching_ids
       end
     end
@@ -132,6 +136,12 @@ Rails.application.routes.draw do
     resources :shipping_reminder_rules, only: [ :index, :create, :update ]
     resource :shipping_reminder_setting, only: [ :update ] do
       patch :toggle, on: :member
+    end
+    resource :logistics_account, only: [ :show, :update ], controller: "logistics_accounts" do
+      post :authenticate, on: :member
+    end
+    resources :logistics_channels, only: [ :index, :new, :create, :edit, :update, :destroy ] do
+      get :product_options, on: :collection
     end
   end
 

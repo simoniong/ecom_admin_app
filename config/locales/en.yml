@@ -14,6 +14,12 @@ en:
               only_with_backfill_mode: "Backfill days only apply when the backfill scope is selected."
         email_account:
           send_window_invalid: "End time must be after start time."
+        logistics_account:
+          attributes:
+            url1_base:
+              invalid_url: "must be a valid http:// or https:// URL."
+            url2_base:
+              invalid_url: "must be a valid http:// or https:// URL."
         shopify_store:
           attributes:
             trustpilot_bcc_email:
@@ -45,10 +51,13 @@ en:
     shipping_reminders: "Shipping Reminders"
     email_workflows: "Email Workflows"
     products: "Products"
+    product_costs: "Product Costs"
+    product_customs: "Customs Info"
     groups: "Departments"
     shipping_rate_cards: "Shipping Rate Cards"
     shipping_zone_postal_rules: "Postal Zones"
     shipping_remote_areas: "Remote Area Surcharges"
+    logistics_channels: "Logistics Channels"
   group_view_switcher:
     label: "Department"
     all: "All Departments"
@@ -610,11 +619,33 @@ en:
       unit_cost: "Our COGS"
       packaging_cost: "Packaging Cost"
       weight: "Weight (g)"
+  product_customs:
+    title: "Customs Info"
+    search_placeholder: "Search by product, variant, or SKU"
+    only_incomplete: "Show incomplete only"
+    status:
+      complete: "Complete"
+      incomplete: "Incomplete"
+    columns:
+      image: "Image"
+      product: "Product"
+      variant: "Variant"
+      sku: "SKU"
+      customs_name_zh: "Chinese Name"
+      customs_name_en: "English Name"
+      declared_value_usd: "Declared Value (USD)"
+      hs_code: "HS Code"
+      import_hs_code: "Import HS Code"
+      weight: "Weight (g)"
+      status: "Status"
+      actions: "Action"
+    save: "Save"
   product_variants:
     updated: "Updated"
     cell_edit_aria: "Click or press Enter to edit"
     bulk_no_selection: "Select at least one variant"
     bulk_no_fields: "Enter at least a COGS, packaging, or weight value"
+    bulk_no_fields_customs: "Enter at least one customs field"
     bulk_updated: "Bulk updated %{count} SKUs"
     bulk:
       selected: "selected"
@@ -1045,6 +1076,8 @@ en:
       email_accounts: "Email Accounts"
       shipping_reminder_rules: "Shipping Reminders"
       parcels: "Parcels"
+      products: "Products"
+      logistics_channels: "Logistics Channels"
   memberships:
     edit_title: "Edit Permissions"
     edit: "Edit"
@@ -1238,3 +1271,43 @@ en:
     label: "Store"
     all_stores: "All Stores"
     no_stores: "No stores"
+  logistics_accounts:
+    title: "Raydo Account"
+    description: "Configure the company-wide Raydo (华磊) logistics account used to fetch channels and, later, create shipments."
+    status: "Authentication Status"
+    customer_id: "Customer ID"
+    customer_userid: "Customer User ID"
+    test_authenticate: "Test Authentication"
+    credentials: "Credentials"
+    credentials_hint: "The test/production base URLs and account credentials provided by Raydo."
+    username: "Username"
+    password: "Password"
+    password_placeholder: "Leave blank to keep the current password"
+    password_hint: "Leave blank to keep the current password unchanged."
+    url1_base: "URL1 (orders / queries)"
+    url2_base: "URL2 (label printing)"
+    save: "Save"
+    updated: "Raydo account settings saved."
+    missing_credentials: "Please save a username and password before testing authentication."
+    authenticate_success: "Authenticated successfully with Raydo."
+    authenticate_failed: "Raydo authentication failed: %{message}"
+  logistics_channels:
+    title: "Logistics Channels"
+    new: "New Channel"
+    new_title: "New Logistics Channel"
+    edit_title: "Edit Logistics Channel"
+    edit: "Edit"
+    delete: "Delete"
+    delete_confirm: "Delete this channel? This cannot be undone."
+    name: "Alias"
+    product: "Raydo Product"
+    loading_products: "Loading products…"
+    products_load_failed: "Could not load the product list from Raydo. Please check the account credentials."
+    shopify_carrier_name: "Shopify Carrier Name"
+    tracking_url_template: "Tracking URL Template"
+    save: "Save"
+    created: "Logistics channel created."
+    updated: "Logistics channel updated."
+    deleted: "Logistics channel deleted."
+    account_required: "Please configure the Raydo account before managing channels."
+    empty: "No logistics channels yet. Create one to get started."

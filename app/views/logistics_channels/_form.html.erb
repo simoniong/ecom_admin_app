@@ -1,0 +1,65 @@
+<div class="max-w-2xl mx-auto">
+  <div class="flex items-center gap-3">
+    <%= link_to logistics_channels_path, class: "text-gray-400 hover:text-gray-600" do %>
+      <svg class="w-5 h-5" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
+      </svg>
+    <% end %>
+    <h1 class="text-2xl font-semibold text-gray-900">
+      <%= @channel.new_record? ? t("logistics_channels.new_title") : t("logistics_channels.edit_title") %>
+    </h1>
+  </div>
+
+  <div class="mt-6 bg-white shadow-sm rounded-lg border border-gray-200 p-6">
+    <%= form_with model: @channel,
+          url: (@channel.new_record? ? logistics_channels_path : logistics_channel_path(@channel)),
+          local: true, class: "space-y-4",
+          data: {
+            controller: "raydo-product-picker",
+            raydo_product_picker_url_value: product_options_logistics_channels_path,
+            raydo_product_picker_selected_value: @channel.product_id,
+            raydo_product_picker_error_message_value: t("logistics_channels.products_load_failed")
+          } do |f| %>
+      <% if @channel.errors.any? %>
+        <div class="p-3 bg-red-50 border border-red-200 rounded-md">
+          <% @channel.errors.full_messages.each do |msg| %>
+            <p class="text-sm text-red-600"><%= msg %></p>
+          <% end %>
+        </div>
+      <% end %>
+
+      <div>
+        <label class="block text-sm font-medium text-gray-700" for="logistics_channel_name"><%= t("logistics_channels.name") %></label>
+        <%= f.text_field :name, class: "mt-1 w-full border border-gray-300 rounded px-3 py-2 text-sm" %>
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium text-gray-700" for="logistics_channel_product_id"><%= t("logistics_channels.product") %></label>
+        <select name="logistics_channel[product_id]" id="logistics_channel_product_id"
+                data-raydo-product-picker-target="select"
+                data-action="change->raydo-product-picker#sync"
+                disabled
+                class="mt-1 w-full max-w-md border border-gray-300 rounded px-3 py-2 text-sm">
+          <option value=""><%= t("logistics_channels.loading_products") %></option>
+        </select>
+        <p class="mt-1 text-xs text-red-600 hidden" data-raydo-product-picker-target="error"></p>
+        <%= f.hidden_field :product_shortname, data: { raydo_product_picker_target: "shortname" } %>
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium text-gray-700" for="logistics_channel_shopify_carrier_name"><%= t("logistics_channels.shopify_carrier_name") %></label>
+        <%= f.text_field :shopify_carrier_name, class: "mt-1 w-full max-w-md border border-gray-300 rounded px-3 py-2 text-sm" %>
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium text-gray-700" for="logistics_channel_tracking_url_template"><%= t("logistics_channels.tracking_url_template") %></label>
+        <%= f.text_field :tracking_url_template, class: "mt-1 w-full border border-gray-300 rounded px-3 py-2 text-sm font-mono text-xs" %>
+      </div>
+
+      <div>
+        <%= f.submit t("logistics_channels.save"),
+              class: "inline-flex items-center px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2 cursor-pointer" %>
+      </div>
+    <% end %>
+  </div>
+</div>

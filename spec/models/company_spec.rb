@@ -56,6 +56,34 @@ RSpec.describe Company, type: :model do
       invitation = create(:invitation, company: company, invited_by: user)
       expect(company.invitations).to include(invitation)
     end
+
+    it "has many logistics_accounts" do
+      company = create(:company)
+      account = create(:logistics_account, company: company)
+      expect(company.logistics_accounts).to include(account)
+    end
+
+    it "destroys logistics_accounts when destroyed" do
+      company = create(:company)
+      account = create(:logistics_account, company: company)
+      company.destroy
+      expect(LogisticsAccount.exists?(account.id)).to be false
+    end
+  end
+
+  describe "#raydo_logistics_account" do
+    it "returns the existing raydo account when one exists" do
+      company = create(:company)
+      account = create(:logistics_account, company: company, provider: "raydo")
+      expect(company.raydo_logistics_account).to eq(account)
+    end
+
+    it "returns a new unsaved record when none exists yet" do
+      company = create(:company)
+      account = company.raydo_logistics_account
+      expect(account).to be_a_new_record
+      expect(account.provider).to eq("raydo")
+    end
   end
 
   let(:valid_key) { "A" * 32 }
