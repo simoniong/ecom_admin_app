@@ -40,9 +40,9 @@ class LogisticsChannelsController < AdminController
   # GET /logistics_channels/product_options — fetches the Raydo product list
   # (getProductList) live so the create/edit form can populate its dropdown.
   def product_options
-    products = RaydoService.new(@logistics_account).product_list
+    products = FulfillmentService.for(@logistics_account).product_list
     render json: products
-  rescue RaydoService::Error => e
+  rescue FulfillmentService::Error => e
     render json: { error: e.message }, status: :unprocessable_entity
   end
 
