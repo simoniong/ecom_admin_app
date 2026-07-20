@@ -17,7 +17,7 @@ RSpec.describe "Authentication", type: :system do
     expect(page).to have_text("Welcome back")
     expect(page).to have_selector("aside")
     expect(page).to have_button("Settings")
-    expect(page).to have_link("Tickets")
+    expect(page).to have_button(I18n.t("nav.customer_support"))
   end
 
   it "shows user email on page" do
@@ -35,7 +35,7 @@ RSpec.describe "Authentication", type: :system do
 
   it "navigates to tickets page" do
     sign_in_as(user)
-    click_link "Tickets"
+    navigate_to_settings_item I18n.t("nav.tickets"), group: I18n.t("nav.customer_support")
     expect(page).to have_text("Tickets")
     expect(page).to have_text("New")
     expect(page).to have_text("Draft")
