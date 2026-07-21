@@ -110,4 +110,67 @@ RSpec.describe Package do
       expect(pkg.reload).to have_state(:held)
     end
   end
+
+  describe "tracking readiness" do
+    let(:store) { create(:shopify_store, package_prefix: "XM", package_number_start: 1) }
+    let(:order) { create(:order, shopify_store: store, financial_status: "paid") }
+    let(:channel) { create(:logistics_channel) }
+
+    def complete_package
+      pkg = create(:package, shopify_store: store, order: order, aasm_state: "pending_process", number: 1,
+                   logistics_channel: channel,
+                   shipping_address_snapshot: { "name" => "J", "country_code" => "US", "address1" => "1 St", "city" => "NYC" })
+      create(:package_item, package: pkg, sku: "A", quantity: 2, refunded_quantity: 0,
+             customs_name_zh: "積木", customs_name_en: "Blocks", declared_value_usd: 5, customs_weight_grams: 100)
+      pkg
+    end
+
+    it "is ready when address, logistics and customs are all complete" do
+      expect(complete_package.ready_for_tracking?).to be(true)
+    end
+
+    it "reports a blocker when logistics is unassigned" do
+      pkg = complete_package
+      pkg.update!(logistics_channel: nil)
+      expect(pkg.ready_for_tracking?).to be(false)
+      expect(pkg.tracking_blockers.join).to match(/logistic/i).or match(/物流/)
+    end
+
+    it "reports a blocker when the address is incomplete" do
+      pkg = complete_package
+      pkg.update!(shipping_address_snapshot: { "name" => "J" })  # missing country/address1/city
+      expect(pkg.ready_for_tracking?).to be(false)
+      expect(pkg.tracking_blockers).to be_present
+    end
+
+    it "reports a blocker for an item missing required customs" do
+      pkg = complete_package
+      pkg.package_items.first.update!(declared_value_usd: nil)
+      expect(pkg.ready_for_tracking?).to be(false)
+      expect(pkg.tracking_blockers).to be_present
+    end
+
+    it "ignores fully-refunded items in the customs check" do
+      pkg = complete_package
+      create(:package_item, package: pkg, sku: "B", quantity: 1, refunded_quantity: 1)  # fully refunded, no customs
+      expect(pkg.ready_for_tracking?).to be(true)
+    end
+  end
+
+  describe "order_cancelled?" do
+    let(:store) { create(:shopify_store) }
+    it "is true when the order is cancelled and not fully refunded" do
+      order = create(:order, shopify_store: store, financial_status: "paid", shopify_data: { "cancelled_at" => "2026-07-20T00:00:00Z" })
+      pkg = create(:package, shopify_store: store, order: order, number: 1)
+      expect(pkg.order_cancelled?).to be(true)
+    end
+    it "is false when not cancelled" do
+      order = create(:order, shopify_store: store, financial_status: "paid", shopify_data: {})
+      expect(create(:package, shopify_store: store, order: order, number: 2).order_cancelled?).to be(false)
+    end
+    it "is false when fully refunded (that path is 已退款, not cancelled)" do
+      order = create(:order, shopify_store: store, financial_status: "refunded", shopify_data: { "cancelled_at" => "2026-07-20T00:00:00Z" })
+      expect(create(:package, shopify_store: store, order: order, number: 3).order_cancelled?).to be(false)
+    end
+  end
 end

@@ -650,6 +650,11 @@
     showing: "显示第 %{from}-%{to} 笔，共 %{total} 笔"
     prev: "上一页"
     next: "下一页"
+    blockers:
+      address: "收货地址不完整"
+      logistics: "未分配物流渠道"
+      customs: "SKU %{sku} 报关信息不完整"
+    order_cancelled: "订单已取消"
   products:
     title: "产品"
     no_store: "请先连接一个 Shopify Store"

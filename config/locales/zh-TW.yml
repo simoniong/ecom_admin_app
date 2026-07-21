@@ -650,6 +650,11 @@
     showing: "顯示第 %{from}-%{to} 筆，共 %{total} 筆"
     prev: "上一頁"
     next: "下一頁"
+    blockers:
+      address: "收件地址不完整"
+      logistics: "未分配物流渠道"
+      customs: "SKU %{sku} 報關資訊不完整"
+    order_cancelled: "訂單已取消"
   products:
     title: "產品"
     no_store: "請先連結一個 Shopify Store"

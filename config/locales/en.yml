@@ -652,6 +652,11 @@ en:
     showing: "Showing %{from}-%{to} of %{total}"
     prev: "Prev"
     next: "Next"
+    blockers:
+      address: "Shipping address incomplete"
+      logistics: "No logistics channel assigned"
+      customs: "SKU %{sku} missing customs info"
+    order_cancelled: "Order cancelled"
   products:
     title: "Products"
     no_store: "Connect a Shopify store first"

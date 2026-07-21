@@ -56,4 +56,44 @@ class Package < ApplicationRecord
   def package_code
     "#{shopify_store.package_prefix}#{number.to_s.rjust(7, '0')}"
   end
+
+  ADDRESS_REQUIRED = %w[name country_code address1 city].freeze
+
+  def address_complete?
+    ADDRESS_REQUIRED.all? { |k| shipping_address_snapshot[k].present? }
+  end
+
+  def logistics_assigned?
+    logistics_channel_id.present?
+  end
+
+  # Customs is complete when every not-fully-refunded item has the 4 required
+  # customs fields. Fully-refunded items are excluded (they won't ship).
+  def customs_complete?
+    package_items.reject(&:fully_refunded?).all? do |item|
+      item.customs_name_zh.present? && item.customs_name_en.present? &&
+        item.declared_value_usd.present? && item.customs_weight_grams.present?
+    end
+  end
+
+  def ready_for_tracking?
+    address_complete? && logistics_assigned? && customs_complete?
+  end
+
+  # Human-readable list of what's missing to advance to tracking application.
+  def tracking_blockers
+    blockers = []
+    blockers << I18n.t("packages.blockers.address") unless address_complete?
+    blockers << I18n.t("packages.blockers.logistics") unless logistics_assigned?
+    package_items.reject(&:fully_refunded?).each do |item|
+      next if item.customs_name_zh.present? && item.customs_name_en.present? &&
+              item.declared_value_usd.present? && item.customs_weight_grams.present?
+      blockers << I18n.t("packages.blockers.customs", sku: item.sku)
+    end
+    blockers
+  end
+
+  def order_cancelled?
+    order.shopify_data["cancelled_at"].present? && order.financial_status != "refunded"
+  end
 end
