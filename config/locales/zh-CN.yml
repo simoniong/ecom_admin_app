@@ -62,6 +62,7 @@
     shipping_zone_postal_rules: "邮编分区"
     shipping_remote_areas: "偏远地区附加费"
     logistics_channels: "物流渠道"
+    packing: "打包"
   group_view_switcher:
     label: "部门"
     all: "全部部门"
@@ -604,6 +605,35 @@
       estimate_cny: "预估运费 (¥)"
       variance_cny: "差异 (¥)"
       variance_pct: "差异 %"
+  packages:
+    title: "打包管理"
+    states:
+      pending_review: "待审核"
+      pending_process: "待处理"
+      applying_tracking: "运单号申请"
+      pending_label: "待打单"
+      shipped: "已交运"
+      refunded: "已退款"
+      held: "已搁置"
+    other_states: "其他"
+    application_status:
+      all: "全部"
+      pending: "申请中"
+      success: "申请成功"
+      failed: "申请失败"
+    columns:
+      package_code: "包裹编号"
+      items: "商品"
+      order_total: "订单金额"
+      destination: "目的地"
+      order_name: "订单编号"
+      created_at: "创建时间"
+      logistics_channel: "物流方式"
+      status: "状态"
+    no_packages: "暂无包裹"
+    showing: "显示第 %{from}-%{to} 笔，共 %{total} 笔"
+    prev: "上一页"
+    next: "下一页"
   products:
     title: "产品"
     no_store: "请先连接一个 Shopify Store"

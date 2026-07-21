@@ -62,6 +62,7 @@
     shipping_zone_postal_rules: "郵編分區"
     shipping_remote_areas: "偏遠地區附加費"
     logistics_channels: "物流管道"
+    packing: "打包"
   group_view_switcher:
     label: "部門"
     all: "全部部門"
@@ -604,6 +605,35 @@
       estimate_cny: "預估運費 (¥)"
       variance_cny: "差異 (¥)"
       variance_pct: "差異 %"
+  packages:
+    title: "打包管理"
+    states:
+      pending_review: "待審核"
+      pending_process: "待處理"
+      applying_tracking: "運單號申請"
+      pending_label: "待打單"
+      shipped: "已交運"
+      refunded: "已退款"
+      held: "已擱置"
+    other_states: "其他"
+    application_status:
+      all: "全部"
+      pending: "申請中"
+      success: "申請成功"
+      failed: "申請失敗"
+    columns:
+      package_code: "包裹編號"
+      items: "商品"
+      order_total: "訂單金額"
+      destination: "目的地"
+      order_name: "訂單編號"
+      created_at: "建立時間"
+      logistics_channel: "物流方式"
+      status: "狀態"
+    no_packages: "尚無包裹"
+    showing: "顯示第 %{from}-%{to} 筆，共 %{total} 筆"
+    prev: "上一頁"
+    next: "下一頁"
   products:
     title: "產品"
     no_store: "請先連結一個 Shopify Store"

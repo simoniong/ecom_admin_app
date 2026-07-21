@@ -154,6 +154,46 @@
       </div>
     <% end %>
 
+    <%# Packing group — Dianxiaomi-style per-status package lists (read-only in Phase 2A) %>
+    <% if current_membership&.any_packing_permission? %>
+      <% packing_active = controller_name == "packages" %>
+      <% package_counts = sidebar_package_counts %>
+      <div data-controller="nav-group" data-nav-group-open-value="<%= packing_active %>">
+        <button type="button" data-action="click->nav-group#toggle"
+                aria-expanded="<%= packing_active %>" aria-controls="packing-menu"
+                class="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md <%= packing_active ? 'text-gray-900' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900' %>">
+          <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375C2.754 3.75 2.25 4.254 2.25 4.875v1.5c0 .621.504 1.125 1.125 1.125Z" />
+          </svg>
+          <%= t("nav.packing") %>
+          <svg data-nav-group-target="arrow" class="w-4 h-4 ml-auto transition-transform duration-200 <%= packing_active ? 'rotate-90' : '' %>" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+          </svg>
+        </button>
+
+        <div id="packing-menu" data-nav-group-target="menu" class="ml-4 mt-1 space-y-1 <%= packing_active ? '' : 'hidden' %>">
+          <% %w[pending_review pending_process applying_tracking pending_label shipped].each do |state| %>
+            <%= link_to packages_path(state: state), data: { action: "click->sidebar#close" },
+                class: "flex items-center justify-between gap-2 px-3 py-2 text-sm font-medium rounded-md #{controller_name == 'packages' && params[:state] == state ? 'bg-gray-100 text-gray-900' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'}" do %>
+              <span><%= t("packages.states.#{state}") %></span>
+              <span class="text-xs text-gray-400"><%= package_counts[state].to_i %></span>
+            <% end %>
+          <% end %>
+
+          <div class="pt-2 mt-1 border-t border-gray-100">
+            <p class="px-3 pb-1 text-[11px] font-semibold text-gray-400 uppercase tracking-wide"><%= t("packages.other_states") %></p>
+            <% %w[refunded held].each do |state| %>
+              <%= link_to packages_path(state: state), data: { action: "click->sidebar#close" },
+                  class: "flex items-center justify-between gap-2 px-3 py-2 text-sm font-medium rounded-md #{controller_name == 'packages' && params[:state] == state ? 'bg-gray-100 text-gray-900' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'}" do %>
+                <span><%= t("packages.states.#{state}") %></span>
+                <span class="text-xs text-gray-400"><%= package_counts[state].to_i %></span>
+              <% end %>
+            <% end %>
+          </div>
+        </div>
+      </div>
+    <% end %>
+
     <%# Products group — cost editor + customs info %>
     <% if current_membership&.has_permission?("products") %>
       <% products_active = %w[products product_variants product_customs].include?(controller_name) %>

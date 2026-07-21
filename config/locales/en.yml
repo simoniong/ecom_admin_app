@@ -62,6 +62,7 @@ en:
     shipping_zone_postal_rules: "Postal Zones"
     shipping_remote_areas: "Remote Area Surcharges"
     logistics_channels: "Logistics Channels"
+    packing: "Packing"
   group_view_switcher:
     label: "Department"
     all: "All Departments"
@@ -606,6 +607,35 @@ en:
       estimate_cny: "Estimated Freight (¥)"
       variance_cny: "Variance (¥)"
       variance_pct: "Variance %"
+  packages:
+    title: "Packing"
+    states:
+      pending_review: "Pending Review"
+      pending_process: "Pending Process"
+      applying_tracking: "Tracking Number Request"
+      pending_label: "Pending Label"
+      shipped: "Shipped"
+      refunded: "Refunded"
+      held: "Held"
+    other_states: "Other"
+    application_status:
+      all: "All"
+      pending: "In Progress"
+      success: "Success"
+      failed: "Failed"
+    columns:
+      package_code: "Package"
+      items: "Items"
+      order_total: "Order Total"
+      destination: "Destination"
+      order_name: "Order"
+      created_at: "Created At"
+      logistics_channel: "Logistics"
+      status: "Status"
+    no_packages: "No packages yet"
+    showing: "Showing %{from}-%{to} of %{total}"
+    prev: "Prev"
+    next: "Next"
   products:
     title: "Products"
     no_store: "Connect a Shopify store first"
