@@ -4,4 +4,9 @@ class PackageItem < ApplicationRecord
   belongs_to :order_line_item, optional: true
 
   validates :quantity, numericality: { only_integer: true, greater_than: 0 }
+  validates :refunded_quantity, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
+
+  def fully_refunded?
+    refunded_quantity >= quantity
+  end
 end

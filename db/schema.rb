@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_21_140001) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_21_150002) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -358,10 +358,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_21_140001) do
 
   create_table "package_items", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.datetime "created_at", null: false
+    t.string "customs_name_en"
+    t.string "customs_name_zh"
+    t.boolean "customs_overridden", default: false, null: false
+    t.decimal "customs_weight_grams", precision: 12, scale: 3
+    t.decimal "declared_value_usd", precision: 10, scale: 2
+    t.string "hs_code"
+    t.string "import_hs_code"
     t.uuid "order_line_item_id"
     t.uuid "package_id", null: false
     t.uuid "product_variant_id"
     t.integer "quantity", null: false
+    t.integer "refunded_quantity", default: 0, null: false
     t.string "sku"
     t.string "title"
     t.datetime "updated_at", null: false
@@ -372,6 +380,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_21_140001) do
 
   create_table "packages", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.string "aasm_state", null: false
+    t.boolean "address_overridden", default: false, null: false
     t.string "application_status", default: "none", null: false
     t.datetime "created_at", null: false
     t.string "held_from"
@@ -379,6 +388,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_21_140001) do
     t.text "note"
     t.integer "number", null: false
     t.uuid "order_id", null: false
+    t.jsonb "shipping_address_snapshot", default: {}, null: false
     t.uuid "shopify_store_id", null: false
     t.datetime "updated_at", null: false
     t.index ["logistics_channel_id"], name: "index_packages_on_logistics_channel_id"
