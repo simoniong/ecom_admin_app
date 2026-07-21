@@ -21,7 +21,7 @@
 |------|------|------|
 | Phase 1 / 2A / 2B-1 | 打包基礎、列表、自動建包 + snapshot/override | ✅ 已合併 staging |
 | **2B-2** | 詳情 Modal + 待審核/待處理 編輯與狀態操作 | ✅ **已合併 staging(PR #211,merge `cc30e6d`)** |
-| **2B-3** | **折包(拆分)+ 合併** — 尚未開始 | ⬜ 下一步 |
+| **2B-3** | **折包(拆分)+ 合併** | ✅ 已完成(分支 `feature/order-packing-phase2b3`,待 PR 到 staging) |
 | 2C | 申請運單號(向物流商 API) | ⬜ 之後 |
 
 > 2B-2 正在 staging 上驗收中(用戶手動測試)。若測出問題,優先修 2B-2,再進 2B-3。
@@ -122,3 +122,39 @@ back_to_process、改地址/報關/物流/備註)、`package_shipping?`、`any_p
 
 之前逐任務進度記在 `.superpowers/sdd/progress.md`,那路徑也被 `.gitignore` 忽略、不會跟到 VPS。
 2B-2 的完整記錄已濃縮在本文件。2B-3 開始後可在 VPS 重建自己的 ledger。
+
+## 八、2B-3 交付摘要(折包/合併,Task 1-8 完成)
+
+2B-3 在 `pending_process` 狀態下,把「折包(split)」與「合併(merge)」實作為 **同一 order 底下
+sibling package 的增刪重組**,沒有新增 AASM state。核心是 `PackageSplitter`(一次性矩陣分配,
+店小秘「拆分订单」式:選來源包裹 + 逐 item 分配數量到多個新箱,允許拆單一 item 的部分 quantity)
+與 `PackageMerger`(把同一 order 下所有 `pending_process` 的 sibling **塌回號碼最小的存活包裹**,
+地址/物流不一致時前端先警告確認再送出)。Shopify auto-builder 的凍結/恢復完全由 **該 order 的
+package 數量動態推導**(`order_packages.count > 1` → 凍結,跳過 smart_update 覆寫;塌回 1 個 →
+自動恢復同步),不另外存凍結旗標。Controller 新增 `split` / `merge` member routes,權限掛在既有
+`package_process?`;`split_allocations` 的 `to_unsafe_h` 經 Brakeman 掃描確認無警告(key 會在
+`PackageSplitter` 內對照來源包裹自身 items 驗證,未知 id 一律 422,值強制轉整數,不會未經檢查
+流入 query 或 mass-assignment)。UI 沿用 2B-2 的 Modal + Turbo Frame + dom_id 局部替換慣例,新增
+兄弟包裹列(siblings strip)、折包矩陣對話框、專屬 Stimulus controller(即時餘量計算與送出前驗證)。
+
+**關鍵決策(brainstorming Q1–Q5,詳見
+`docs/superpowers/specs/2026-07-21-order-packing-phase2b3-split-merge-design.md`)**:
+
+- **Q1** 折包後 Shopify 同步 → 凍結,條件由「該 order 包裹數 > 1」動態推導;合併回 1 個自動恢復。
+- **Q2** 商品項拆分粒度 → 允許拆單一 item 的部分 quantity(同款商品可分箱)。
+- **Q3** 子包裹編號與關聯 → 扁平兄弟,各自從 store 序列取新 `number`,靠 `order_id` 關聯,無
+  parent 欄位。
+- **Q4** 合併範圍與衝突 → 全單塌回號碼最小的原始包裹;地址/物流不一致先警告確認再塌回。
+- **Q5** 折包操作方式 → 一次性矩陣分配(店小秘「拆分订单」式),只作用於單一來源包裹。
+
+**已知且驗收接受的後續事項(non-blocking)**:
+
+- 若某 sibling 包裹處於 `held`(擱置)或 `refunded`(已退款)狀態,會讓整個 order 的 auto-builder
+  持續處於凍結,直到該 sibling 被 unhold 並成功合併回去為止;目前行為正確但缺少提示文案,可在
+  之後的 UI 打磨中補上說明。
+- migration(拿掉 `order_id` 唯一索引)在真實環境已有折包資料後 **不可逆回退**(down migration
+  只在資料庫仍是「一 order 一 package」狀態時安全);屬設計上接受的 forward-only 限制。
+
+Task 8 全套驗證(2026-07-21,VPS):RSpec 全套 **2278 examples,0 failures**,line coverage
+**96.87%**(≥ 95% 門檻);RuboCop 0 offense;Brakeman 0 warning(含 `split_allocations` 的
+`to_unsafe_h` 未被標記)。
