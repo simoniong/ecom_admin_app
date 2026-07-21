@@ -26,7 +26,11 @@
     <%= number_to_currency(package.order.total_price, unit: "#{package.order.currency} ") %>
   </td>
   <td class="px-4 py-3 text-sm text-gray-700 align-top whitespace-nowrap">
-    <% country = package.order.shopify_data&.dig("shipping_address", "country_code") %>
+    <%# Prefer the package's own address snapshot so a manual override (which
+        sets address_overridden and may change the country) shows here too;
+        fall back to the order's raw Shopify shipping address otherwise. %>
+    <% country = package.shipping_address_snapshot["country_code"].presence ||
+                 package.order.shopify_data&.dig("shipping_address", "country_code") %>
     <% if country.present? %>
       <%= parcel_country_flag(country) %> <%= parcel_country_name(country) %>
     <% else %>

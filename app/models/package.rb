@@ -98,6 +98,9 @@ class Package < ApplicationRecord
   end
 
   def order_cancelled?
-    order.shopify_data["cancelled_at"].present? && order.financial_status != "refunded"
+    # shopify_data defaults to {} but has no NOT NULL constraint, and this is
+    # called from the list row + modal + order_info — .to_h guards a nil row
+    # the same way _package_row.html.erb uses &.dig for the shipping address.
+    order.shopify_data.to_h["cancelled_at"].present? && order.financial_status != "refunded"
   end
 end

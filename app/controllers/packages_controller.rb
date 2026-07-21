@@ -101,14 +101,26 @@ class PackagesController < AdminController
     return redirect_to(packages_path, alert: t("companies.no_permission")) unless current_membership&.package_process?
 
     @item = @package.package_items.find(params[:item_id])
-    @item.update!(customs_item_params.merge(customs_overridden: true))
     # `Package#package_items` declares inverse_of, so the `find` above reuses
     # the eager-loaded (set_package #includes) target object — the just-updated
-    # item is the same instance the customs_status_badge partial reads below,
-    # so no reset/re-query is needed for a fresh completeness check.
+    # item is the same instance the update_item stream's partials read, so no
+    # reset/re-query is needed for a fresh completeness check.
+    #
+    # A negative declared_value/weight fails PackageItem's numericality
+    # validation (a backstop behind the inputs' client-side min="0"). On that
+    # failure the same update_item stream re-renders the row with the submitted
+    # values + errors at 422 (row_edit_controller applies it either way) rather
+    # than 500ing — mirroring the transition action's InvalidTransition rescue.
+    saved = @item.update(customs_item_params.merge(customs_overridden: true))
     respond_to do |format|
-      format.turbo_stream { render :update_item }
-      format.html { redirect_to package_path(id: @package.id), notice: t("packages.item_saved") }
+      format.turbo_stream { render :update_item, status: saved ? :ok : :unprocessable_entity }
+      format.html do
+        if saved
+          redirect_to package_path(id: @package.id), notice: t("packages.item_saved")
+        else
+          redirect_to package_path(id: @package.id), alert: t("packages.item_invalid")
+        end
+      end
     end
   end
 

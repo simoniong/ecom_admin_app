@@ -719,6 +719,7 @@ en:
     transitioned: "Package updated."
     address_saved: "Address saved."
     item_saved: "Item saved."
+    item_invalid: "Could not save the item — please check the values."
     logistics_saved: "Logistics channel saved."
     note_saved: "Note saved."
     invalid_channel: "That logistics channel isn't available for this company."

@@ -5,6 +5,10 @@ class PackageItem < ApplicationRecord
 
   validates :quantity, numericality: { only_integer: true, greater_than: 0 }
   validates :refunded_quantity, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
+  # Customs numerics are optional (a partial customs edit persists freely), but
+  # never negative — a server-side backstop behind the edit inputs' min="0".
+  validates :declared_value_usd, numericality: { greater_than_or_equal_to: 0 }, allow_nil: true
+  validates :customs_weight_grams, numericality: { greater_than_or_equal_to: 0 }, allow_nil: true
 
   def fully_refunded?
     refunded_quantity >= quantity

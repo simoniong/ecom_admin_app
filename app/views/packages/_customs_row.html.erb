@@ -76,6 +76,9 @@
                placeholder="<%= t("packages.customs_fields.import_hs_code") %>"
                class="w-full border border-gray-300 rounded px-2 py-1 text-sm">
       </div>
+      <% if item.errors.any? %>
+        <p class="mt-2 text-[11px] text-red-700"><%= item.errors.full_messages.to_sentence %></p>
+      <% end %>
       <div class="mt-2 flex items-center gap-2">
         <% unless item.customs_complete? %>
           <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-800">

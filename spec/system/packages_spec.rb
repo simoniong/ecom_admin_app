@@ -255,5 +255,36 @@ RSpec.describe "Packages UI", type: :system do
         expect(page).to have_content(I18n.t("packages.order_cancelled"))
       end
     end
+
+    it "refreshes the readiness panel in place when the last missing piece is assigned (no modal reopen)" do
+      account = create(:logistics_account, company: company)
+      create(:logistics_channel, logistics_account: account, name: "DHL Express", product_shortname: "DHL")
+      order = create(:order, customer: customer, shopify_store: store, name: "PKS#3092")
+      # Address + customs complete, ONLY logistics missing → the readiness panel
+      # lists exactly the logistics blocker.
+      pkg = create(:package, shopify_store: store, order: order, aasm_state: "pending_process", number: 92,
+                   shipping_address_snapshot: { "name" => "Jane", "country_code" => "US", "address1" => "1 Main St", "city" => "Springfield" })
+      create(:package_item, package: pkg, sku: "SKU-RDY", title: "Widget", quantity: 1,
+             customs_name_zh: "小工具", customs_name_en: "Widget", declared_value_usd: 5, customs_weight_grams: 100)
+
+      visit packages_path(state: "pending_process")
+      click_link pkg.package_code
+
+      within("[data-modal-target='dialog']") do
+        expect(page).to have_content(I18n.t("packages.readiness.blocked_title"))
+        expect(page).to have_content(I18n.t("packages.blockers.logistics"))
+
+        click_button I18n.t("packages.tabs.logistics")
+        click_button I18n.t("packages.edit")
+        select "DHL Express — DHL", from: "logistics_channel_id"
+        click_button I18n.t("packages.save")
+
+        # Without reopening the modal, the panel flips to "ready" and the
+        # logistics blocker is gone — proving the turbo_stream refreshed the
+        # readiness region, not just the logistics section.
+        expect(page).to have_content(I18n.t("packages.readiness.ready"))
+        expect(page).to have_no_content(I18n.t("packages.blockers.logistics"))
+      end
+    end
   end
 end

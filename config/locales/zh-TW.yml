@@ -717,6 +717,7 @@
     transitioned: "包裹已更新。"
     address_saved: "地址已儲存。"
     item_saved: "項目已儲存。"
+    item_invalid: "無法儲存項目——請檢查輸入值。"
     logistics_saved: "物流渠道已儲存。"
     note_saved: "備註已儲存。"
     invalid_channel: "該物流渠道不適用於此公司。"

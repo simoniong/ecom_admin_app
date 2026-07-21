@@ -275,6 +275,35 @@ RSpec.describe "Packages", type: :request do
     end
   end
 
+  describe "destination country on the list reflects a manual address override" do
+    def flag_for(code)
+      code.each_char.map { |c| (c.ord + 127397).chr(Encoding::UTF_8) }.join
+    end
+
+    it "shows the snapshot's country (not the raw Shopify country) once the address is overridden" do
+      order = create(:order, customer: customer, shopify_store: store, name: "PKS#7001",
+                      shopify_data: { "shipping_address" => { "country_code" => "US" } })
+      create(:package, shopify_store: store, order: order, aasm_state: "pending_review", number: 701,
+             address_overridden: true, shipping_address_snapshot: { "country_code" => "JP" })
+
+      get packages_path(state: "pending_review")
+
+      expect(response.body).to include(flag_for("JP"))
+      expect(response.body).not_to include(flag_for("US"))
+    end
+
+    it "falls back to the raw Shopify country when the snapshot has none" do
+      order = create(:order, customer: customer, shopify_store: store, name: "PKS#7002",
+                      shopify_data: { "shipping_address" => { "country_code" => "US" } })
+      create(:package, shopify_store: store, order: order, aasm_state: "pending_review", number: 702,
+             shipping_address_snapshot: {})
+
+      get packages_path(state: "pending_review")
+
+      expect(response.body).to include(flag_for("US"))
+    end
+  end
+
   describe "POST /packages/sync" do
     it "enqueues a sync job for the selected store and redirects with a notice" do
       store # ensure exists
@@ -527,6 +556,17 @@ RSpec.describe "Packages", type: :request do
       expect(response.body).to include("Jane Doe")
     end
 
+    it "also refreshes the tab strips and readiness panel in the same turbo_stream" do
+      sign_in_as_member_with("package_process")
+
+      patch update_address_package_path(id: review_package.id), params: { address: address_params },
+            headers: { "Accept" => "text/vnd.turbo-stream.html" }
+
+      expect(response.body).to include(ActionView::RecordIdentifier.dom_id(review_package, :tab_strip_mobile))
+      expect(response.body).to include(ActionView::RecordIdentifier.dom_id(review_package, :tab_strip_desktop))
+      expect(response.body).to include(ActionView::RecordIdentifier.dom_id(review_package, :readiness))
+    end
+
     it "redirects with a notice on a plain HTML request" do
       sign_in_as_member_with("package_process")
 
@@ -664,6 +704,45 @@ RSpec.describe "Packages", type: :request do
       expect(item.customs_name_en).to be_nil
     end
 
+    it "rejects a negative declared value with 422 (re-renders the row) instead of 500ing, and does not persist" do
+      sign_in_as_member_with("package_process")
+
+      patch update_item_package_path(id: review_package.id, item_id: item.id),
+            params: { package_item: customs_params.merge(declared_value_usd: "-1") },
+            headers: { "Accept" => "text/vnd.turbo-stream.html" }
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.media_type).to eq("text/vnd.turbo-stream.html")
+      expect(response.body).to include(ActionView::RecordIdentifier.dom_id(item))
+      item.reload
+      expect(item.declared_value_usd).to be_nil
+      expect(item.customs_overridden).to be(false)
+    end
+
+    it "refreshes the package-wide indicators (customs badge, tab strips, readiness) in the same successful stream" do
+      sign_in_as_member_with("package_process")
+
+      patch update_item_package_path(id: review_package.id, item_id: item.id),
+            params: { package_item: customs_params },
+            headers: { "Accept" => "text/vnd.turbo-stream.html" }
+
+      expect(response.body).to include(ActionView::RecordIdentifier.dom_id(review_package, :customs_status))
+      expect(response.body).to include(ActionView::RecordIdentifier.dom_id(review_package, :tab_strip_mobile))
+      expect(response.body).to include(ActionView::RecordIdentifier.dom_id(review_package, :tab_strip_desktop))
+      expect(response.body).to include(ActionView::RecordIdentifier.dom_id(review_package, :readiness))
+    end
+
+    it "does NOT refresh the package-wide indicators on a failed (422) save (DB unchanged)" do
+      sign_in_as_member_with("package_process")
+
+      patch update_item_package_path(id: review_package.id, item_id: item.id),
+            params: { package_item: customs_params.merge(customs_weight_grams: "-5") },
+            headers: { "Accept" => "text/vnd.turbo-stream.html" }
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.body).not_to include(ActionView::RecordIdentifier.dom_id(review_package, :readiness))
+    end
+
     it "denies a member with only package_review (redirect, no_permission), and does not persist" do
       sign_in_as_member_with("package_review")
 
@@ -753,6 +832,18 @@ RSpec.describe "Packages", type: :request do
       patch update_logistics_package_path(id: review_package.id), params: { logistics_channel_id: "" }
 
       expect(review_package.reload.logistics_channel_id).to be_nil
+    end
+
+    it "refreshes the tab strips and readiness panel in the same turbo_stream (no modal reopen needed)" do
+      sign_in_as_member_with("package_process")
+
+      patch update_logistics_package_path(id: process_package.id), params: { logistics_channel_id: channel.id },
+            headers: { "Accept" => "text/vnd.turbo-stream.html" }
+
+      expect(response.media_type).to eq("text/vnd.turbo-stream.html")
+      expect(response.body).to include(ActionView::RecordIdentifier.dom_id(process_package, :tab_strip_mobile))
+      expect(response.body).to include(ActionView::RecordIdentifier.dom_id(process_package, :tab_strip_desktop))
+      expect(response.body).to include(ActionView::RecordIdentifier.dom_id(process_package, :readiness))
     end
 
     it "re-renders the logistics section via turbo_stream with the new value" do

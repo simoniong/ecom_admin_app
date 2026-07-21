@@ -1,6 +1,12 @@
 <%= turbo_stream.replace dom_id(@item), partial: "packages/customs_row", locals: { package: @package, item: @item } %>
-<%# Also refresh the section header's completeness badge — it's driven by
-    Package#customs_complete? across ALL items, not just the one just saved,
-    so a per-row-only replace would leave it stale (see
-    _customs_status_badge.html.erb for why this is split out). %>
-<%= turbo_stream.replace dom_id(@package, :customs_status), partial: "packages/customs_status_badge", locals: { package: @package } %>
+<%# Only refresh the package-wide indicators on a SUCCESSFUL save. On a
+    validation failure @item carries dirty in-memory values (and errors), so
+    reading customs_complete?/ready_for_tracking? off it would show a false
+    "complete" — the DB is unchanged, so leaving the indicators as-is is
+    correct. row_edit_controller applies this stream on both 200 and 422. %>
+<% if @item.errors.empty? %>
+  <%= turbo_stream.replace dom_id(@package, :customs_status), partial: "packages/customs_status_badge", locals: { package: @package } %>
+  <%= turbo_stream.replace dom_id(@package, :tab_strip_mobile), partial: "packages/tab_strip", locals: { package: @package, variant: "mobile" } %>
+  <%= turbo_stream.replace dom_id(@package, :tab_strip_desktop), partial: "packages/tab_strip", locals: { package: @package, variant: "desktop" } %>
+  <%= turbo_stream.replace dom_id(@package, :readiness), partial: "packages/readiness", locals: { package: @package } %>
+<% end %>

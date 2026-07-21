@@ -174,5 +174,12 @@ RSpec.describe Package do
       order = create(:order, shopify_store: store, financial_status: "refunded", shopify_data: { "cancelled_at" => "2026-07-20T00:00:00Z" })
       expect(create(:package, shopify_store: store, order: order, number: 3).order_cancelled?).to be(false)
     end
+
+    it "does not raise when the order's shopify_data is nil" do
+      order = create(:order, shopify_store: store, financial_status: "paid")
+      order.update_column(:shopify_data, nil)
+      pkg = create(:package, shopify_store: store, order: order, number: 4)
+      expect(pkg.order_cancelled?).to be(false)
+    end
   end
 end
