@@ -2,8 +2,10 @@ class PackagesController < AdminController
   PER_PAGE = 50
   STATES = %w[pending_review pending_process applying_tracking pending_label shipped refunded held].freeze
   APPLICATION_STATUSES = %w[pending succeeded failed].freeze
+  REVIEW_EVENTS  = %w[submit_review back_to_review].freeze
+  PROCESS_EVENTS = %w[hold unhold back_to_process].freeze
 
-  before_action :set_package, only: :show
+  before_action :set_package, only: [ :show, :transition ]
 
   def index
     @state = STATES.include?(params[:state]) ? params[:state] : "pending_review"
@@ -32,7 +34,55 @@ class PackagesController < AdminController
     render partial: "modal", locals: { package: @package } if turbo_frame_request?
   end
 
+  # Drives one of Package's AASM bang events (submit_review!/back_to_review!/
+  # hold!/unhold!/back_to_process!). REVIEW_EVENTS and PROCESS_EVENTS are
+  # gated on separate Membership permissions (Task 1), so a member with only
+  # one of package_review/package_process can perform their half but not the
+  # other's — neither gate failure nor an AASM::InvalidTransition may ever
+  # 500, both re-render the (unchanged) modal or redirect with an alert.
+  def transition
+    event = params[:event].to_s
+    unless REVIEW_EVENTS.include?(event) || PROCESS_EVENTS.include?(event)
+      return redirect_to(packages_path, alert: t("packages.invalid_action"))
+    end
+    unless authorized_for_event?(event)
+      return redirect_to(packages_path, alert: t("companies.no_permission"))
+    end
+
+    fire_event!(event)
+    respond_to do |format|
+      format.turbo_stream { render :transition }
+      format.html { redirect_to packages_path(state: @package.aasm_state), notice: t("packages.transitioned") }
+    end
+  rescue AASM::InvalidTransition
+    respond_to do |format|
+      format.turbo_stream { render turbo_stream: turbo_stream.replace("package-modal", partial: "packages/modal", locals: { package: @package.reload }), status: :unprocessable_entity }
+      format.html { redirect_to packages_path, alert: t("packages.invalid_transition") }
+    end
+  end
+
   private
+
+  # Explicit dispatch (rather than @package.public_send("#{event}!")) so a
+  # user-controlled string never reaches a dynamic method invocation — event
+  # is already whitelisted against REVIEW_EVENTS/PROCESS_EVENTS by the caller,
+  # but this keeps Brakeman's static "Dangerous Send" check clean too.
+  def fire_event!(event)
+    case event
+    when "submit_review"   then @package.submit_review!
+    when "back_to_review"  then @package.back_to_review!
+    when "hold"            then @package.hold!
+    when "unhold"          then @package.unhold!
+    when "back_to_process" then @package.back_to_process!
+    end
+  end
+
+  def authorized_for_event?(event)
+    m = current_membership
+    return false unless m
+
+    REVIEW_EVENTS.include?(event) ? m.package_review? : m.package_process?
+  end
 
   # scoped_packages.find raises ActiveRecord::RecordNotFound for a package
   # belonging to another company/store — no rescue_from is defined anywhere

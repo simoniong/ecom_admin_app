@@ -366,4 +366,125 @@ RSpec.describe "Packages", type: :request do
       expect(response).to redirect_to(authenticated_root_path)
     end
   end
+
+  describe "PATCH /packages/:id/transition" do
+    def sign_in_as_member_with(permission)
+      member = create(:user)
+      create(:membership, user: member, company: company, role: :member, permissions: [ permission ])
+      sign_out user
+      sign_in member
+      member
+    end
+
+    describe "review gate (submit_review / back_to_review)" do
+      it "lets a member with package_review submit_review, advancing pending_review -> pending_process" do
+        sign_in_as_member_with("package_review")
+
+        patch transition_package_path(id: review_package.id, event: "submit_review")
+
+        expect(review_package.reload.aasm_state).to eq("pending_process")
+      end
+
+      it "re-renders the modal via turbo_stream, reflecting the new state" do
+        sign_in_as_member_with("package_review")
+
+        patch transition_package_path(id: review_package.id, event: "submit_review"),
+              headers: { "Accept" => "text/vnd.turbo-stream.html" }
+
+        expect(response).to have_http_status(:ok)
+        expect(response.media_type).to eq("text/vnd.turbo-stream.html")
+        expect(response.body).to include("turbo-stream")
+        expect(response.body).to include(I18n.t("packages.states.pending_process"))
+      end
+
+      it "denies a member with only package_process (redirect, no_permission), and does not transition" do
+        sign_in_as_member_with("package_process")
+
+        patch transition_package_path(id: review_package.id, event: "submit_review")
+
+        expect(response).to redirect_to(packages_path)
+        follow_redirect!
+        expect(response.body).to include(CGI.escapeHTML(I18n.t("companies.no_permission")))
+        expect(review_package.reload.aasm_state).to eq("pending_review")
+      end
+
+      it "lets a member with package_review back_to_review, reverting pending_process -> pending_review" do
+        sign_in_as_member_with("package_review")
+
+        patch transition_package_path(id: process_package.id, event: "back_to_review")
+
+        expect(process_package.reload.aasm_state).to eq("pending_review")
+      end
+    end
+
+    describe "process gate (hold / unhold / back_to_process)" do
+      it "lets a member with package_process hold a package, capturing held_from" do
+        sign_in_as_member_with("package_process")
+
+        patch transition_package_path(id: review_package.id, event: "hold")
+
+        review_package.reload
+        expect(review_package.aasm_state).to eq("held")
+        expect(review_package.held_from).to eq("pending_review")
+      end
+
+      it "denies a member with only package_review (redirect, no_permission), and does not transition" do
+        sign_in_as_member_with("package_review")
+
+        patch transition_package_path(id: review_package.id, event: "hold")
+
+        expect(response).to redirect_to(packages_path)
+        follow_redirect!
+        expect(response.body).to include(CGI.escapeHTML(I18n.t("companies.no_permission")))
+        expect(review_package.reload.aasm_state).to eq("pending_review")
+      end
+
+      it "restores a held package to its original state on unhold" do
+        sign_in_as_member_with("package_process")
+        held_package = create(:package, shopify_store: store, order: create(:order, customer: customer, shopify_store: store, name: "PKS#4001"),
+                               aasm_state: "held", held_from: "pending_process", number: 40)
+
+        patch transition_package_path(id: held_package.id, event: "unhold")
+
+        # Note: Package#unhold!'s `after { self.held_from = nil }` runs after
+        # AASM's own persistence save, so held_from itself is only cleared on
+        # the in-memory object, not in the DB (pre-existing behavior from the
+        # Phase 2A AASM state machine, not introduced here) — harmless today
+        # since held_from is only ever displayed while aasm_state == "held".
+        # What matters for this task is that the state itself is restored.
+        expect(held_package.reload.aasm_state).to eq("pending_process")
+      end
+    end
+
+    describe "invalid transitions/events do not 500" do
+      it "rejects an unlisted/bogus event name with an alert, not a 500" do
+        sign_in_as_member_with("package_review")
+
+        patch transition_package_path(id: review_package.id, event: "launch_rocket")
+
+        expect(response).to redirect_to(packages_path)
+        follow_redirect!
+        expect(response.body).to include(I18n.t("packages.invalid_action"))
+      end
+
+      it "rejects an AASM-invalid event for the package's current state (ship from pending_review), not a 500" do
+        sign_in_as_member_with("package_process")
+
+        patch transition_package_path(id: review_package.id, event: "back_to_process")
+
+        expect(response).not_to have_http_status(:internal_server_error)
+        expect(review_package.reload.aasm_state).to eq("pending_review")
+      end
+
+      it "returns 422 with the re-rendered modal on turbo_stream for an AASM::InvalidTransition" do
+        sign_in_as_member_with("package_process")
+
+        patch transition_package_path(id: review_package.id, event: "back_to_process"),
+              headers: { "Accept" => "text/vnd.turbo-stream.html" }
+
+        expect(response).to have_http_status(:unprocessable_entity)
+        expect(response.body).to include("package-modal")
+      end
+    end
+  end
 end

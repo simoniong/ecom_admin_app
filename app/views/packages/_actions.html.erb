@@ -1,0 +1,31 @@
+<%#
+  Bottom action bar of the package detail modal — state-transition buttons,
+  conditional on the package's current aasm_state AND the membership's
+  fine-grained packing permission (Task 1's package_review?/package_process?).
+  Every button_to targets the modal Turbo Frame so the controller's
+  turbo_stream.replace("package-modal", ...) response lands back in the frame
+  instead of navigating the whole page.
+%>
+<div class="flex items-center gap-2">
+  <% if package.pending_review? && current_membership&.package_review? %>
+    <%= button_to t("packages.actions.review"), transition_package_path(id: package.id, event: "submit_review"),
+        method: :patch, form: { data: { turbo_frame: "package-modal" } },
+        class: "px-4 py-2 bg-green-600 text-white text-sm rounded hover:bg-green-700" %>
+  <% end %>
+
+  <% if package.pending_process? && current_membership&.package_review? %>
+    <%= button_to t("packages.actions.back_to_review"), transition_package_path(id: package.id, event: "back_to_review"),
+        method: :patch, form: { data: { turbo_frame: "package-modal" } },
+        class: "px-4 py-2 bg-blue-500 text-white text-sm rounded hover:bg-blue-600" %>
+  <% end %>
+
+  <% if package.held? && current_membership&.package_process? %>
+    <%= button_to t("packages.actions.unhold"), transition_package_path(id: package.id, event: "unhold"),
+        method: :patch, form: { data: { turbo_frame: "package-modal" } },
+        class: "px-4 py-2 bg-yellow-600 text-white text-sm rounded hover:bg-yellow-700" %>
+  <% elsif %w[pending_review pending_process].include?(package.aasm_state) && current_membership&.package_process? %>
+    <%= button_to t("packages.actions.hold"), transition_package_path(id: package.id, event: "hold"),
+        method: :patch, form: { data: { turbo_frame: "package-modal" } },
+        class: "px-4 py-2 bg-gray-500 text-white text-sm rounded hover:bg-gray-600" %>
+  <% end %>
+</div>

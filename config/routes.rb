@@ -79,7 +79,8 @@ Rails.application.routes.draw do
       end
     end
     resources :packages, only: [ :index, :show ] do
-      post :sync, on: :collection
+      member { patch :transition }
+      collection { post :sync }
     end
     resources :products, only: [ :index ]
     # Task 3 builds ProductCustomsController + its view; the route is added

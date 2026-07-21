@@ -702,6 +702,14 @@
       quantity: "数量"
       unit_price: "单价"
       no_items: "暂无商品明细"
+    actions:
+      review: "审核"
+      back_to_review: "打回"
+      hold: "搁置"
+      unhold: "还原"
+    invalid_action: "未知操作。"
+    invalid_transition: "该操作不适用于包裹当前的状态。"
+    transitioned: "包裹已更新。"
   products:
     title: "产品"
     no_store: "请先连接一个 Shopify Store"

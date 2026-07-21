@@ -97,4 +97,27 @@ RSpec.describe "Packages UI", type: :system do
       expect(page).to have_css("[data-modal-target='dialog']", visible: :hidden)
     end
   end
+
+  describe "state operations in the detail modal" do
+    it "advances pending_review -> pending_process via the review button, then holds it" do
+      visit packages_path
+      click_link review_package.package_code
+
+      within("[data-modal-target='dialog']") do
+        expect(page).to have_content(I18n.t("packages.states.pending_review"))
+        click_button I18n.t("packages.actions.review")
+
+        expect(page).to have_content(I18n.t("packages.detail_title", code: review_package.package_code))
+        expect(page).to have_button(I18n.t("packages.actions.back_to_review"))
+      end
+      expect(review_package.reload.aasm_state).to eq("pending_process")
+
+      within("[data-modal-target='dialog']") do
+        click_button I18n.t("packages.actions.hold")
+        expect(page).to have_content(I18n.t("packages.states.held"))
+      end
+      expect(review_package.reload.aasm_state).to eq("held")
+      expect(review_package.held_from).to eq("pending_process")
+    end
+  end
 end

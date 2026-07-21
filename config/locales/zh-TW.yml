@@ -702,6 +702,14 @@
       quantity: "數量"
       unit_price: "單價"
       no_items: "尚無商品明細"
+    actions:
+      review: "審核"
+      back_to_review: "打回"
+      hold: "擱置"
+      unhold: "還原"
+    invalid_action: "未知操作。"
+    invalid_transition: "該操作不適用於包裹目前的狀態。"
+    transitioned: "包裹已更新。"
   products:
     title: "產品"
     no_store: "請先連結一個 Shopify Store"

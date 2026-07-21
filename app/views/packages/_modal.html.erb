@@ -75,7 +75,10 @@
 
     <%= render "packages/order_info", package: package %>
 
-    <!-- Bottom actions placeholder — Tasks 4-8 wire the state-transition buttons here -->
-    <div id="<%= dom_id(package, :actions) %>" class="border-t border-gray-100 px-6 py-3"></div>
+    <!-- Bottom actions bar — Task 4 wires the review/hold/unhold/back_to_review
+         buttons here; later tasks (5-8) may add more to the same partial. -->
+    <div id="<%= dom_id(package, :actions) %>" class="border-t border-gray-100 px-6 py-3">
+      <%= render "packages/actions", package: package %>
+    </div>
   </div>
 <% end %>

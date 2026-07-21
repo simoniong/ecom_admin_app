@@ -704,6 +704,14 @@ en:
       quantity: "Qty"
       unit_price: "Unit Price"
       no_items: "No line items"
+    actions:
+      review: "Review"
+      back_to_review: "Send Back"
+      hold: "Hold"
+      unhold: "Restore"
+    invalid_action: "Unknown action."
+    invalid_transition: "That action isn't available for this package's current state."
+    transitioned: "Package updated."
   products:
     title: "Products"
     no_store: "Connect a Shopify store first"
