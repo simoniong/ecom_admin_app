@@ -24,6 +24,10 @@
           attributes:
             trustpilot_bcc_email:
               invalid_trustpilot_address: "必須是結尾為 @invite.trustpilot.com 的 Trustpilot 邀請信箱。"
+            package_prefix:
+              locked_after_first_package: "產生第一個包裹後即無法變更"
+            package_number_start:
+              locked_after_first_package: "產生第一個包裹後即無法變更"
   errors:
     messages:
       required_when_company_has_groups: "公司已有部門，必須指定所屬部門"
@@ -58,6 +62,7 @@
     shipping_zone_postal_rules: "郵編分區"
     shipping_remote_areas: "偏遠地區附加費"
     logistics_channels: "物流管道"
+    packing: "打包"
   group_view_switcher:
     label: "部門"
     all: "全部部門"
@@ -343,6 +348,17 @@
     save_trustpilot_bcc: "儲存"
     trustpilot_bcc_updated: "Trustpilot 邀請信箱已更新。"
     trustpilot_bcc_owner_only: "只有擁有者可以變更。"
+    packing_title: "包裹裝箱"
+    packing_hint: "啟用裝箱功能後，此店鋪的已付款訂單將自動建立包裹。"
+    packing_enabled_label: "啟用訂單裝箱"
+    package_prefix_label: "包裹編號前綴"
+    package_number_start_label: "包裹編號起始值"
+    save_packing_settings: "儲存"
+    packing_settings_updated: "裝箱設定已更新。"
+    packing_owner_only: "只有擁有者可以變更。"
+    packing_locked_hint: "此店鋪產生第一個包裹後，前綴與起始編號即會鎖定，無法再變更。"
+    packing_enabled_yes: "已啟用"
+    packing_enabled_no: "已停用"
   shipping_rate_cards:
     title: "運費費率卡"
     filter_country: "國家"
@@ -600,6 +616,36 @@
       estimate_cny: "預估運費 (¥)"
       variance_cny: "差異 (¥)"
       variance_pct: "差異 %"
+  packages:
+    title: "打包管理"
+    states:
+      pending_review: "待審核"
+      pending_process: "待處理"
+      applying_tracking: "運單號申請"
+      pending_label: "待打單"
+      shipped: "已交運"
+      refunded: "已退款"
+      held: "已擱置"
+    other_states: "其他"
+    held_from_label: "原狀態:%{state}"
+    application_status:
+      all: "全部"
+      pending: "申請中"
+      succeeded: "申請成功"
+      failed: "申請失敗"
+    columns:
+      package_code: "包裹編號"
+      items: "商品"
+      order_total: "訂單金額"
+      destination: "目的地"
+      order_name: "訂單編號"
+      created_at: "建立時間"
+      logistics_channel: "物流方式"
+      status: "狀態"
+    no_packages: "尚無包裹"
+    showing: "顯示第 %{from}-%{to} 筆，共 %{total} 筆"
+    prev: "上一頁"
+    next: "下一頁"
   products:
     title: "產品"
     no_store: "請先連結一個 Shopify Store"
@@ -1076,6 +1122,9 @@
       parcels: "包裹"
       products: "商品"
       logistics_channels: "物流管道"
+      package_review: "包裹審核"
+      package_process: "包裹處理"
+      package_shipping: "包裹打單與發貨"
   memberships:
     edit_title: "編輯權限"
     edit: "編輯"

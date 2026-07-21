@@ -24,6 +24,10 @@ en:
           attributes:
             trustpilot_bcc_email:
               invalid_trustpilot_address: "must be a Trustpilot invitation address ending in @invite.trustpilot.com."
+            package_prefix:
+              locked_after_first_package: "cannot be changed after the first package is created"
+            package_number_start:
+              locked_after_first_package: "cannot be changed after the first package is created"
   errors:
     messages:
       required_when_company_has_groups: "is required because this company has departments"
@@ -58,6 +62,7 @@ en:
     shipping_zone_postal_rules: "Postal Zones"
     shipping_remote_areas: "Remote Area Surcharges"
     logistics_channels: "Logistics Channels"
+    packing: "Packing"
   group_view_switcher:
     label: "Department"
     all: "All Departments"
@@ -343,6 +348,17 @@ en:
     save_trustpilot_bcc: "Save"
     trustpilot_bcc_updated: "Trustpilot invitation address updated."
     trustpilot_bcc_owner_only: "Only an owner can change this."
+    packing_title: "Order packing"
+    packing_hint: "Enable packing to auto-build packages for paid orders from this store."
+    packing_enabled_label: "Enable order packing"
+    package_prefix_label: "Package code prefix"
+    package_number_start_label: "Package number start"
+    save_packing_settings: "Save"
+    packing_settings_updated: "Packing settings updated."
+    packing_owner_only: "Only an owner can change this."
+    packing_locked_hint: "The prefix and start number are locked once this store's first package is created."
+    packing_enabled_yes: "Enabled"
+    packing_enabled_no: "Disabled"
   shipping_rate_cards:
     title: "Shipping Rate Cards"
     filter_country: "Country"
@@ -602,6 +618,36 @@ en:
       estimate_cny: "Estimated Freight (¥)"
       variance_cny: "Variance (¥)"
       variance_pct: "Variance %"
+  packages:
+    title: "Packing"
+    states:
+      pending_review: "Pending Review"
+      pending_process: "Pending Process"
+      applying_tracking: "Tracking Number Request"
+      pending_label: "Pending Label"
+      shipped: "Shipped"
+      refunded: "Refunded"
+      held: "Held"
+    other_states: "Other"
+    held_from_label: "Original state: %{state}"
+    application_status:
+      all: "All"
+      pending: "In Progress"
+      succeeded: "Succeeded"
+      failed: "Failed"
+    columns:
+      package_code: "Package"
+      items: "Items"
+      order_total: "Order Total"
+      destination: "Destination"
+      order_name: "Order"
+      created_at: "Created At"
+      logistics_channel: "Logistics"
+      status: "Status"
+    no_packages: "No packages yet"
+    showing: "Showing %{from}-%{to} of %{total}"
+    prev: "Prev"
+    next: "Next"
   products:
     title: "Products"
     no_store: "Connect a Shopify store first"
@@ -1078,6 +1124,9 @@ en:
       parcels: "Parcels"
       products: "Products"
       logistics_channels: "Logistics Channels"
+      package_review: "Package Review"
+      package_process: "Package Processing"
+      package_shipping: "Package Labeling & Shipping"
   memberships:
     edit_title: "Edit Permissions"
     edit: "Edit"

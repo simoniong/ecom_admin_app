@@ -47,6 +47,12 @@ RSpec.describe Order, type: :model do
     expect { order.destroy }.to change(Fulfillment, :count).by(-1)
   end
 
+  it "has many packages with dependent destroy" do
+    order = create(:order)
+    create(:package, shopify_store: order.shopify_store, order: order)
+    expect { order.destroy }.to change(Package, :count).by(-1)
+  end
+
   it ".by_recency orders by ordered_at desc" do
     customer = create(:customer)
     old_order = create(:order, customer: customer, ordered_at: 5.days.ago)

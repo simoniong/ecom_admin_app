@@ -24,6 +24,10 @@
           attributes:
             trustpilot_bcc_email:
               invalid_trustpilot_address: "必须是结尾为 @invite.trustpilot.com 的 Trustpilot 邀请信箱。"
+            package_prefix:
+              locked_after_first_package: "生成第一个包裹后即无法变更"
+            package_number_start:
+              locked_after_first_package: "生成第一个包裹后即无法变更"
   errors:
     messages:
       required_when_company_has_groups: "公司已有部门，必须指定所属部门"
@@ -58,6 +62,7 @@
     shipping_zone_postal_rules: "邮编分区"
     shipping_remote_areas: "偏远地区附加费"
     logistics_channels: "物流渠道"
+    packing: "打包"
   group_view_switcher:
     label: "部门"
     all: "全部部门"
@@ -343,6 +348,17 @@
     save_trustpilot_bcc: "保存"
     trustpilot_bcc_updated: "Trustpilot 邀请信箱已更新。"
     trustpilot_bcc_owner_only: "只有拥有者可以变更。"
+    packing_title: "包裹装箱"
+    packing_hint: "启用装箱功能后，此店铺的已付款订单将自动创建包裹。"
+    packing_enabled_label: "启用订单装箱"
+    package_prefix_label: "包裹编号前缀"
+    package_number_start_label: "包裹编号起始值"
+    save_packing_settings: "保存"
+    packing_settings_updated: "装箱设定已更新。"
+    packing_owner_only: "只有拥有者可以变更。"
+    packing_locked_hint: "此店铺创建第一个包裹后，前缀与起始编号即会锁定，无法再变更。"
+    packing_enabled_yes: "已启用"
+    packing_enabled_no: "已停用"
   shipping_rate_cards:
     title: "运费费率卡"
     filter_country: "国家"
@@ -600,6 +616,36 @@
       estimate_cny: "预估运费 (¥)"
       variance_cny: "差异 (¥)"
       variance_pct: "差异 %"
+  packages:
+    title: "打包管理"
+    states:
+      pending_review: "待审核"
+      pending_process: "待处理"
+      applying_tracking: "运单号申请"
+      pending_label: "待打单"
+      shipped: "已交运"
+      refunded: "已退款"
+      held: "已搁置"
+    other_states: "其他"
+    held_from_label: "原状态:%{state}"
+    application_status:
+      all: "全部"
+      pending: "申请中"
+      succeeded: "申请成功"
+      failed: "申请失败"
+    columns:
+      package_code: "包裹编号"
+      items: "商品"
+      order_total: "订单金额"
+      destination: "目的地"
+      order_name: "订单编号"
+      created_at: "创建时间"
+      logistics_channel: "物流方式"
+      status: "状态"
+    no_packages: "暂无包裹"
+    showing: "显示第 %{from}-%{to} 笔，共 %{total} 笔"
+    prev: "上一页"
+    next: "下一页"
   products:
     title: "产品"
     no_store: "请先连接一个 Shopify Store"
@@ -1076,6 +1122,9 @@
       parcels: "包裹"
       products: "商品"
       logistics_channels: "物流渠道"
+      package_review: "包裹审核"
+      package_process: "包裹处理"
+      package_shipping: "包裹打单与发货"
   memberships:
     edit_title: "编辑权限"
     edit: "编辑"

@@ -1,0 +1,51 @@
+<div class="p-6">
+  <div class="flex items-center justify-between mb-6">
+    <h1 class="text-2xl font-semibold text-gray-900">
+      <%= t("packages.title") %>
+      <span class="text-base font-normal text-gray-500">&middot; <%= t("packages.states.#{@state}") %></span>
+    </h1>
+  </div>
+
+  <% if @state == "applying_tracking" %>
+    <nav class="flex gap-4 border-b border-gray-200 mb-4">
+      <%= link_to t("packages.application_status.all"), packages_path(state: @state),
+            class: "pb-2 text-sm font-medium #{params[:application_status].blank? ? 'border-b-2 border-gray-900 text-gray-900' : 'text-gray-500 hover:text-gray-700'}" %>
+      <% PackagesController::APPLICATION_STATUSES.each do |status| %>
+        <%= link_to t("packages.application_status.#{status}"), packages_path(state: @state, application_status: status),
+              class: "pb-2 text-sm font-medium #{params[:application_status] == status ? 'border-b-2 border-gray-900 text-gray-900' : 'text-gray-500 hover:text-gray-700'}" %>
+      <% end %>
+    </nav>
+  <% end %>
+
+  <div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
+    <div class="overflow-x-auto">
+      <table class="min-w-full divide-y divide-gray-200">
+        <thead class="bg-gray-50">
+          <tr>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase"><%= t("packages.columns.package_code") %></th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase"><%= t("packages.columns.items") %></th>
+            <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase"><%= t("packages.columns.order_total") %></th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase"><%= t("packages.columns.destination") %></th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase"><%= t("packages.columns.order_name") %></th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase"><%= t("packages.columns.created_at") %></th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase"><%= t("packages.columns.logistics_channel") %></th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase"><%= t("packages.columns.status") %></th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100">
+          <% if @packages.empty? %>
+            <tr>
+              <td colspan="8" class="px-4 py-8 text-center text-sm text-gray-500"><%= t("packages.no_packages") %></td>
+            </tr>
+          <% else %>
+            <% @packages.each do |package| %>
+              <%= render "packages/package_row", package: package %>
+            <% end %>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <%= render "packages/pagination", page: @page, total_pages: @total_pages, total_count: @total_count %>
+</div>

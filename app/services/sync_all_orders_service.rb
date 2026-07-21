@@ -107,6 +107,7 @@ class SyncAllOrdersService
     end
 
     sync_line_items(order, shopify_order)
+    PackageAutoBuilder.new(order).call
     sync_estimated_shipping_cost(order)
     sync_fulfillments(order, shopify_order)
 

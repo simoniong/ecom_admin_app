@@ -66,6 +66,20 @@ module ApplicationHelper
     end
   end
 
+  # Package counts per aasm_state for the 打包 sidebar group. Scoped to the
+  # currently-selected store (via the store switcher) when one is chosen,
+  # else to every store the current membership can see — same scoping as
+  # PackagesController#scoped_packages, so a sidebar badge always matches the
+  # list being viewed and can never leak a count from another company's
+  # store. Computed as a single grouped query here — not one query per state
+  # link.
+  def sidebar_package_counts
+    return {} unless current_membership&.any_packing_permission?
+
+    store_ids = current_shopify_store ? [ current_shopify_store.id ] : visible_shopify_stores.select(:id)
+    Package.where(shopify_store_id: store_ids).group(:aasm_state).count
+  end
+
   def pagination_range(current, total, window: 2)
     return (1..total).to_a if total <= (window * 2 + 5)
 

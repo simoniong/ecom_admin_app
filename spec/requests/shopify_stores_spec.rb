@@ -306,4 +306,56 @@ RSpec.describe "ShopifyStores", type: :request do
       expect(store.reload.trustpilot_bcc_email).to be_nil
     end
   end
+
+  describe "PATCH /shopify_stores/:id packing settings" do
+    let(:user)  { create(:user) }
+    let(:store) { create(:shopify_store, user: user, company: user.companies.first) }
+
+    it "lets an owner enable packing with a prefix and start number" do
+      sign_in user
+      patch shopify_store_path(id: store.id), params: {
+        shopify_store: { packing_enabled: "1", package_prefix: "PK", package_number_start: "1000" }
+      }
+      store.reload
+      expect(store.packing_enabled).to be true
+      expect(store.package_prefix).to eq("PK")
+      expect(store.package_number_start).to eq(1000)
+      expect(response).to redirect_to(shopify_store_path(store))
+    end
+
+    it "rejects enabling packing without a prefix" do
+      sign_in user
+      patch shopify_store_path(id: store.id), params: {
+        shopify_store: { packing_enabled: "1", package_prefix: "", package_number_start: "1000" }
+      }
+      store.reload
+      expect(store.packing_enabled).to be false
+      follow_redirect!
+      expect(response.body).to include(CGI.escapeHTML("Package prefix"))
+    end
+
+    it "rejects changing the prefix once a package exists (locked)" do
+      store.update!(packing_enabled: true, package_prefix: "PK", package_number_start: 1)
+      create(:package, shopify_store: store)
+      sign_in user
+
+      patch shopify_store_path(id: store.id), params: {
+        shopify_store: { packing_enabled: "1", package_prefix: "NEW", package_number_start: "1" }
+      }
+      expect(store.reload.package_prefix).to eq("PK")
+      follow_redirect!
+      expect(response.body).to include(CGI.escapeHTML("cannot be changed after the first package is created"))
+    end
+
+    it "forbids a non-owner member from changing packing settings" do
+      member = create(:user)
+      create(:membership, user: member, company: user.companies.first, role: :member, permissions: [ "shopify_stores" ])
+      sign_in member
+      patch switch_company_path(id: user.companies.first.id)
+      patch shopify_store_path(id: store.id), params: {
+        shopify_store: { packing_enabled: "1", package_prefix: "PK", package_number_start: "1" }
+      }
+      expect(store.reload.packing_enabled).to be false
+    end
+  end
 end
