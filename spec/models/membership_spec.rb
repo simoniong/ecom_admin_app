@@ -56,6 +56,25 @@ RSpec.describe Membership, type: :model do
     end
   end
 
+  describe "#any_packing_permission?" do
+    let(:company) { create(:company) }
+
+    it "is true for an owner" do
+      m = create(:membership, company: company, role: :owner)
+      expect(m.any_packing_permission?).to be(true)
+    end
+
+    it "is true for a member with any packing permission" do
+      m = create(:membership, company: company, role: :member, permissions: [ "package_process" ], group: create(:group, company: company))
+      expect(m.any_packing_permission?).to be(true)
+    end
+
+    it "is false for a member with no packing permission" do
+      m = create(:membership, company: company, role: :member, permissions: [ "orders" ], group: create(:group, company: company))
+      expect(m.any_packing_permission?).to be(false)
+    end
+  end
+
   describe "group assignment rules" do
     let(:company) { create(:company) }
     let(:user) { create(:user) }

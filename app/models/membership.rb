@@ -17,10 +17,17 @@ class Membership < ApplicationRecord
     shopify_stores ad_accounts email_accounts
     shipping_reminder_rules parcels products
     logistics_channels
+    package_review package_process package_shipping
   ].freeze
+
+  PACKING_PERMISSIONS = %w[package_review package_process package_shipping].freeze
 
   def has_permission?(controller_name)
     owner? || controller_name.to_s == "dashboard" || permissions.include?(controller_name.to_s)
+  end
+
+  def any_packing_permission?
+    owner? || PACKING_PERMISSIONS.any? { |p| permissions.include?(p) }
   end
 
   private

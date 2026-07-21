@@ -1082,6 +1082,9 @@ en:
       parcels: "Parcels"
       products: "Products"
       logistics_channels: "Logistics Channels"
+      package_review: "Package Review"
+      package_process: "Package Processing"
+      package_shipping: "Package Labeling & Shipping"
   memberships:
     edit_title: "Edit Permissions"
     edit: "Edit"

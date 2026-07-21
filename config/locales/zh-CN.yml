@@ -1080,6 +1080,9 @@
       parcels: "包裹"
       products: "商品"
       logistics_channels: "物流渠道"
+      package_review: "包裹审核"
+      package_process: "包裹处理"
+      package_shipping: "包裹打单与发货"
   memberships:
     edit_title: "编辑权限"
     edit: "编辑"

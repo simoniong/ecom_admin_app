@@ -1080,6 +1080,9 @@
       parcels: "包裹"
       products: "商品"
       logistics_channels: "物流管道"
+      package_review: "包裹審核"
+      package_process: "包裹處理"
+      package_shipping: "包裹打單與發貨"
   memberships:
     edit_title: "編輯權限"
     edit: "編輯"
