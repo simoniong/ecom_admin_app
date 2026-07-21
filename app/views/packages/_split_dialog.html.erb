@@ -1,0 +1,88 @@
+<%# Split dialog: matrix of shippable items × boxes. Box 1 (source remainder)
+    is auto-computed; boxes 2..N are inputs. The split controller clones the
+    per-row/header templates to add/remove box columns and live-updates the
+    remainder, per-box footers, and submit-disabled state. Rendered only for a
+    pending_process, not-yet-split package. %>
+<% if package.pending_process? && !package.split? %>
+  <div data-controller="split" data-split-box-word="<%= t('packages.split.box_word', default: '包裹') %>" class="mt-3 px-6">
+    <button type="button" data-action="split#open"
+            class="px-4 py-2 bg-purple-600 text-white text-sm rounded hover:bg-purple-700">
+      <%= t("packages.split.button") %>
+    </button>
+
+    <div data-split-target="dialog" class="hidden mt-3 border border-gray-200 rounded-md p-4 bg-gray-50">
+      <div class="flex items-center justify-between mb-3">
+        <h4 class="text-sm font-semibold text-gray-900"><%= t("packages.split.title") %></h4>
+        <button type="button" data-action="split#addBox"
+                class="text-xs text-blue-600 hover:underline"><%= t("packages.split.add_box") %></button>
+      </div>
+
+      <% if defined?(split_errors) && split_errors.present? %>
+        <div class="mb-3 px-3 py-2 rounded bg-red-50 border border-red-200 text-red-800 text-xs">
+          <ul class="list-disc list-inside">
+            <% split_errors.each do |code| %>
+              <li><%= t("packages.split.errors.#{code}", default: code.to_s) %></li>
+            <% end %>
+          </ul>
+        </div>
+      <% end %>
+
+      <%= form_with url: split_package_path(id: package.id), method: :post,
+            data: { turbo_frame: "package-modal", split_target: "form" } do %>
+        <table class="w-full text-xs border-collapse">
+          <thead>
+            <tr class="text-left text-gray-500 border-b border-gray-200" data-split-target="headerRow">
+              <th class="py-1 pr-2"><%= t("packages.split.col_product") %></th>
+              <th class="py-1 px-2 text-center"><%= t("packages.split.col_total") %></th>
+              <th class="py-1 px-2 text-center"><%= t("packages.split.remainder_box") %></th>
+              <%# box header cells appended here by split#addBox %>
+            </tr>
+          </thead>
+          <tbody>
+            <% package.shippable_items.each do |item| %>
+              <% shippable = item.quantity - item.refunded_quantity %>
+              <tr class="border-b border-gray-100"
+                  data-split-target="row"
+                  data-line-item-id="<%= item.order_line_item_id %>"
+                  data-shippable="<%= shippable %>">
+                <td class="py-2 pr-2">
+                  <span class="font-mono"><%= item.sku %></span>
+                  <span class="text-gray-500"><%= item.title %></span>
+                </td>
+                <td class="py-2 px-2 text-center"><%= shippable %></td>
+                <td class="py-2 px-2 text-center font-medium" data-split-target="remainder"><%= shippable %></td>
+                <%# box input cells appended here by split#addBox %>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+
+        <div class="mt-3 flex items-center gap-2">
+          <button type="submit" data-split-target="submit"
+                  class="px-4 py-2 bg-purple-600 text-white text-sm rounded hover:bg-purple-700 disabled:opacity-40 disabled:cursor-not-allowed">
+            <%= t("packages.split.submit") %>
+          </button>
+          <button type="button" data-action="split#close"
+                  class="px-4 py-2 bg-gray-200 text-gray-700 text-sm rounded hover:bg-gray-300">
+            <%= t("packages.split.cancel") %>
+          </button>
+        </div>
+      <% end %>
+
+      <%# Templates cloned per added box. %>
+      <template data-split-target="headerCellTemplate">
+        <th class="py-1 px-2 text-center">
+          <span data-split-target="boxLabel"></span>
+          <button type="button" data-action="split#removeBox" class="ml-1 text-red-500 hover:text-red-700" title="<%= t("packages.split.remove_box") %>">&times;</button>
+        </th>
+      </template>
+      <template data-split-target="cellTemplate">
+        <td class="py-2 px-2 text-center">
+          <input type="number" min="0" value="0"
+                 data-split-target="input" data-action="input->split#recompute"
+                 class="w-14 border border-gray-300 rounded px-1 py-0.5 text-center">
+        </td>
+      </template>
+    </div>
+  </div>
+<% end %>

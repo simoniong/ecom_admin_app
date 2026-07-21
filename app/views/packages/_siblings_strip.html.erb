@@ -1,0 +1,31 @@
+<%# Shown only while the order is folded into multiple boxes. Lists the order's
+    sibling packages (switchable via the modal Turbo Frame), the Merge button
+    (conflict-aware confirm text), and the frozen-auto-sync notice. Stable
+    dom_id so future edits can turbo_stream-replace it if needed. %>
+<div id="<%= dom_id(package, :siblings_strip) %>">
+  <% if package.split? %>
+    <div class="mx-6 mt-3 px-4 py-3 rounded-md bg-indigo-50 border border-indigo-200 text-sm">
+      <div class="flex items-center flex-wrap gap-2">
+        <span class="text-xs font-medium text-indigo-800"><%= t("packages.split.title") %>:</span>
+        <% package.order_packages.each do |sib| %>
+          <% if sib.id == package.id %>
+            <span class="px-2 py-1 rounded bg-indigo-600 text-white text-xs font-mono"><%= sib.package_code %></span>
+          <% else %>
+            <%= link_to sib.package_code, package_path(id: sib.id),
+                  data: { turbo_frame: "package-modal" },
+                  class: "px-2 py-1 rounded bg-white border border-indigo-300 text-indigo-700 text-xs font-mono hover:bg-indigo-100" %>
+          <% end %>
+        <% end %>
+
+        <% if package.pending_process? %>
+          <%= button_to t("packages.merge.button"),
+                merge_package_path(id: package.id), method: :post,
+                form: { data: { turbo_frame: "package-modal" } },
+                data: { turbo_confirm: PackageMerger.new(package).conflict? ? t("packages.merge.confirm_conflict") : t("packages.merge.confirm") },
+                class: "ml-auto px-3 py-1 bg-indigo-600 text-white text-xs rounded hover:bg-indigo-700" %>
+        <% end %>
+      </div>
+      <p class="mt-2 text-xs text-indigo-700"><%= t("packages.frozen_notice") %></p>
+    </div>
+  <% end %>
+</div>
