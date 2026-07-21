@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_21_130001) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_21_130003) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -354,6 +354,38 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_21_130001) do
     t.index ["shopify_store_id", "ordered_at"], name: "idx_orders_store_ordered_at"
     t.index ["shopify_store_id", "shopify_order_id"], name: "idx_orders_store_shopify_id", unique: true
     t.index ["shopify_store_id"], name: "index_orders_on_shopify_store_id"
+  end
+
+  create_table "package_items", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.uuid "order_line_item_id"
+    t.uuid "package_id", null: false
+    t.uuid "product_variant_id"
+    t.integer "quantity", null: false
+    t.string "sku"
+    t.string "title"
+    t.datetime "updated_at", null: false
+    t.index ["order_line_item_id"], name: "index_package_items_on_order_line_item_id"
+    t.index ["package_id"], name: "index_package_items_on_package_id"
+    t.index ["product_variant_id"], name: "index_package_items_on_product_variant_id"
+  end
+
+  create_table "packages", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.string "aasm_state", null: false
+    t.string "application_status", default: "none", null: false
+    t.datetime "created_at", null: false
+    t.string "held_from"
+    t.uuid "logistics_channel_id"
+    t.text "note"
+    t.integer "number", null: false
+    t.uuid "order_id", null: false
+    t.uuid "shopify_store_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["logistics_channel_id"], name: "index_packages_on_logistics_channel_id"
+    t.index ["order_id"], name: "index_packages_on_order_id_unique", unique: true
+    t.index ["shopify_store_id", "aasm_state"], name: "index_packages_on_shopify_store_id_and_aasm_state"
+    t.index ["shopify_store_id", "number"], name: "index_packages_on_shopify_store_id_and_number", unique: true
+    t.index ["shopify_store_id"], name: "index_packages_on_shopify_store_id"
   end
 
   create_table "parcel_import_batches", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -775,6 +807,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_21_130001) do
   add_foreign_key "order_line_items", "product_variants"
   add_foreign_key "orders", "customers"
   add_foreign_key "orders", "shopify_stores"
+  add_foreign_key "package_items", "order_line_items"
+  add_foreign_key "package_items", "packages"
+  add_foreign_key "package_items", "product_variants"
+  add_foreign_key "packages", "logistics_channels"
+  add_foreign_key "packages", "orders"
+  add_foreign_key "packages", "shopify_stores"
   add_foreign_key "parcel_import_batches", "shopify_stores"
   add_foreign_key "parcel_import_batches", "users"
   add_foreign_key "parcels", "orders"

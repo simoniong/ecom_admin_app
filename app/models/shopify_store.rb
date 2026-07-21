@@ -9,12 +9,7 @@ class ShopifyStore < ApplicationRecord
   has_many :orders, dependent: :destroy
   has_many :products, dependent: :destroy
   has_many :email_workflows, dependent: :destroy
-  # NOTE: no `dependent: :destroy` yet — the Package model doesn't exist until
-  # Task 2, and Rails resolves the dependent-destroy callback's target class
-  # eagerly on every `store.destroy` (not just when packages are present),
-  # which would break `store.destroy` for all stores in the meantime. Task 2
-  # should add `dependent: :destroy` back once the Package model exists.
-  has_many :packages
+  has_many :packages, dependent: :destroy
 
   encrypts :access_token, deterministic: false
   encrypts :client_secret, deterministic: false
@@ -39,10 +34,6 @@ class ShopifyStore < ApplicationRecord
 
   def packing_settings_locked?
     packages.exists?
-  rescue NameError
-    # The Package model does not exist yet (Task 2 introduces it); until then,
-    # nothing can be locked.
-    false
   end
 
   # Human-friendly label for the store. Falls back to the myshopify domain
