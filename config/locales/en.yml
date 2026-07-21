@@ -723,6 +723,10 @@ en:
     logistics_saved: "Logistics channel saved."
     note_saved: "Note saved."
     invalid_channel: "That logistics channel isn't available for this company."
+    split_invalid_state: "Only a package in Process can be split or merged."
+    split_done: "Package split."
+    split_invalid: "Could not split the package — please check the allocations."
+    merge_done: "Packages merged."
   products:
     title: "Products"
     no_store: "Connect a Shopify store first"

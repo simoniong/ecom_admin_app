@@ -721,6 +721,10 @@
     logistics_saved: "物流渠道已儲存。"
     note_saved: "備註已儲存。"
     invalid_channel: "該物流渠道不適用於此公司。"
+    split_invalid_state: "只有處理中狀態的包裹才能拆分或合併。"
+    split_done: "包裹已拆分。"
+    split_invalid: "無法拆分包裹 — 請檢查分配數量。"
+    merge_done: "包裹已合併。"
   products:
     title: "產品"
     no_store: "請先連結一個 Shopify Store"

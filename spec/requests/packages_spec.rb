@@ -972,6 +972,103 @@ RSpec.describe "Packages", type: :request do
     end
   end
 
+  describe "POST /packages/:id/split" do
+    # PackageSplitter mints the new sibling's number from
+    # package_number_seq || package_number_start — the shared `store` let
+    # doesn't set either (packing_enabled is off by default), so seed a
+    # sequence here the same way spec/services/package_splitter_spec.rb does.
+    before { store.update_columns(package_number_start: 500_000, package_number_seq: 500_000) }
+
+    let(:order) { create(:order, customer: customer, shopify_store: store, name: "PKS#SPLIT") }
+    let(:oli)   { create(:order_line_item, order: order) }
+    let!(:src) do
+      pkg = create(:package, shopify_store: store, order: order, number: 500, aasm_state: "pending_process")
+      create(:package_item, package: pkg, order_line_item: oli, sku: "A", quantity: 3)
+      pkg
+    end
+
+    def sign_in_as_member_with(permission)
+      member = create(:user)
+      create(:membership, user: member, company: company, role: :member, permissions: [ permission ])
+      sign_out user
+      sign_in member
+      member
+    end
+
+    it "splits into a new sibling box and returns turbo_stream" do
+      post split_package_path(id: src.id), params: { allocations: { oli.id => [ "1" ] } },
+           headers: { "Accept" => "text/vnd.turbo-stream.html" }
+      expect(response).to have_http_status(:ok)
+      expect(store.packages.where(order_id: order.id).count).to eq(2)
+    end
+
+    it "returns 422 (not 500) on an invalid allocation and persists nothing" do
+      post split_package_path(id: src.id), params: { allocations: { oli.id => [ "0" ] } },
+           headers: { "Accept" => "text/vnd.turbo-stream.html" }
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(store.packages.where(order_id: order.id).count).to eq(1)
+    end
+
+    it "rejects splitting a non-pending_process package" do
+      src.update!(aasm_state: "pending_review")
+      post split_package_path(id: src.id), params: { allocations: { oli.id => [ "1" ] } }
+      expect(response).to have_http_status(:found) # redirect with alert
+      expect(store.packages.where(order_id: order.id).count).to eq(1)
+    end
+
+    it "forbids a member without package_process permission" do
+      sign_in_as_member_with("package_review")
+      post split_package_path(id: src.id), params: { allocations: { oli.id => [ "1" ] } }
+      expect(response).to have_http_status(:found)
+      expect(store.packages.where(order_id: order.id).count).to eq(1)
+    end
+
+    it "404s for a package of another company" do
+      stranger = create(:user)
+      sign_in stranger
+      post split_package_path(id: src.id), params: { allocations: { oli.id => [ "1" ] } }
+      expect(response).to have_http_status(:not_found)
+    end
+  end
+
+  describe "POST /packages/:id/merge" do
+    let(:order) { create(:order, customer: customer, shopify_store: store, name: "PKS#MERGE") }
+    let(:oli)   { create(:order_line_item, order: order) }
+    let!(:survivor) do
+      pkg = create(:package, shopify_store: store, order: order, number: 600, aasm_state: "pending_process")
+      create(:package_item, package: pkg, order_line_item: oli, sku: "A", quantity: 2)
+      pkg
+    end
+    let!(:other) do
+      pkg = create(:package, shopify_store: store, order: order, number: 601, aasm_state: "pending_process")
+      create(:package_item, package: pkg, order_line_item: oli, sku: "A", quantity: 1)
+      pkg
+    end
+
+    def sign_in_as_member_with(permission)
+      member = create(:user)
+      create(:membership, user: member, company: company, role: :member, permissions: [ permission ])
+      sign_out user
+      sign_in member
+      member
+    end
+
+    it "merges the order's boxes back into one and returns turbo_stream" do
+      post merge_package_path(id: other.id),
+           headers: { "Accept" => "text/vnd.turbo-stream.html" }
+      expect(response).to have_http_status(:ok)
+      expect(store.packages.where(order_id: order.id).count).to eq(1)
+      expect(survivor.reload.package_items.find_by(order_line_item_id: oli.id).quantity).to eq(3)
+    end
+
+    it "forbids a member without package_process permission" do
+      sign_in_as_member_with("package_review")
+      post merge_package_path(id: other.id)
+      expect(response).to have_http_status(:found)
+      expect(store.packages.where(order_id: order.id).count).to eq(2)
+    end
+  end
+
   describe "readiness + cancel display" do
     it "shows the logistics blocker for an incomplete pending_process package" do
       order = create(:order, customer: customer, shopify_store: store, name: "PKS#8001")

@@ -1,0 +1,5 @@
+<%# Success and failure both reload the source modal. On failure @split_errors
+    is passed through so the split dialog re-opens showing the error banner. %>
+<%= turbo_stream.replace "package-modal",
+      partial: "packages/modal",
+      locals: { package: @package.reload, split_errors: @split_errors } %>
