@@ -630,6 +630,8 @@
       held: "已擱置"
     other_states: "其他"
     held_from_label: "原狀態:%{state}"
+    item_refunded: "已退款 %{n}/%{total}"
+    do_not_ship: "勿發"
     application_status:
       all: "全部"
       pending: "申請中"

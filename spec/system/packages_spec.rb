@@ -52,6 +52,17 @@ RSpec.describe "Packages UI", type: :system do
     end
   end
 
+  describe "item refund warnings on the list" do
+    it "shows the do-not-ship badge for a fully-refunded item" do
+      create(:package_item, package: review_package, sku: "WP-1", quantity: 2, refunded_quantity: 2)
+
+      visit packages_path
+
+      expect(page).to have_content(I18n.t("packages.item_refunded", n: 2, total: 2))
+      expect(page).to have_content(I18n.t("packages.do_not_ship"))
+    end
+  end
+
   describe "sync orders button" do
     it "is visible on the packing list and shows a flash notice when clicked" do
       visit packages_path

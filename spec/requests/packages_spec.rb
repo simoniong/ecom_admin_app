@@ -251,6 +251,30 @@ RSpec.describe "Packages", type: :request do
     end
   end
 
+  describe "item refund warnings on the list" do
+    let(:user) { create(:user) }
+    let(:company) { user.companies.first }
+    let(:store) { create(:shopify_store, user: user, company: company) }
+
+    it "shows a refund badge and 'do not ship' for a fully-refunded item" do
+      pkg = create(:package, shopify_store: store, aasm_state: "pending_review", number: 501)
+      create(:package_item, package: pkg, sku: "WP-1", quantity: 2, refunded_quantity: 2)
+      sign_in user
+      get packages_path(state: "pending_review")
+      expect(response.body).to include(CGI.escapeHTML(I18n.t("packages.do_not_ship")))
+      expect(response.body).to include("2/2")
+    end
+
+    it "shows a partial refund badge without do-not-ship" do
+      pkg = create(:package, shopify_store: store, aasm_state: "pending_review", number: 502)
+      create(:package_item, package: pkg, sku: "WP-1", quantity: 3, refunded_quantity: 1)
+      sign_in user
+      get packages_path(state: "pending_review")
+      expect(response.body).to include("1/3")
+      expect(response.body).not_to include(CGI.escapeHTML(I18n.t("packages.do_not_ship")))
+    end
+  end
+
   describe "POST /packages/sync" do
     it "enqueues a sync job for the selected store and redirects with a notice" do
       store # ensure exists
