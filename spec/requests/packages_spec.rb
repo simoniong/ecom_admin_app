@@ -880,4 +880,57 @@ RSpec.describe "Packages", type: :request do
       expect(response).to have_http_status(:not_found)
     end
   end
+
+  describe "readiness + cancel display" do
+    it "shows the logistics blocker for an incomplete pending_process package" do
+      order = create(:order, customer: customer, shopify_store: store, name: "PKS#8001")
+      pkg = create(:package, shopify_store: store, order: order, aasm_state: "pending_process", number: 80,
+                    shipping_address_snapshot: {})
+      create(:package_item, package: pkg, sku: "SKU-INCOMPLETE", title: "Widget", quantity: 1)
+
+      get package_path(id: pkg.id), headers: { "Turbo-Frame" => "package-modal" }
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include(CGI.escapeHTML(I18n.t("packages.blockers.logistics")))
+    end
+
+    it "shows the ready affordance (and not the blocked title) for a complete pending_process package" do
+      logistics_account = create(:logistics_account, company: company)
+      channel = create(:logistics_channel, logistics_account: logistics_account, name: "DHL Express", product_shortname: "DHL")
+      order = create(:order, customer: customer, shopify_store: store, name: "PKS#8002")
+      pkg = create(:package, shopify_store: store, order: order, aasm_state: "pending_process", number: 81,
+                    logistics_channel: channel,
+                    shipping_address_snapshot: { "name" => "Jane Doe", "country_code" => "US", "address1" => "1 Main St", "city" => "Springfield" })
+      create(:package_item, package: pkg, sku: "SKU-COMPLETE", title: "Widget", quantity: 1,
+             customs_name_zh: "小工具", customs_name_en: "Widget", declared_value_usd: 9.99, customs_weight_grams: 100)
+
+      get package_path(id: pkg.id), headers: { "Turbo-Frame" => "package-modal" }
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include(CGI.escapeHTML(I18n.t("packages.readiness.ready")))
+      expect(response.body).not_to include(CGI.escapeHTML(I18n.t("packages.readiness.blocked_title")))
+    end
+
+    it "shows the cancelled-order badge on the list for a cancelled order" do
+      order = create(:order, customer: customer, shopify_store: store, name: "PKS#8003",
+                      shopify_data: { "cancelled_at" => "2026-07-20T00:00:00Z" }, financial_status: "paid")
+      create(:package, shopify_store: store, order: order, aasm_state: "pending_review", number: 82)
+
+      get packages_path(state: "pending_review")
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include(CGI.escapeHTML(I18n.t("packages.order_cancelled")))
+    end
+
+    it "does not show the blocked title for a non-pending_process package" do
+      order = create(:order, customer: customer, shopify_store: store, name: "PKS#8004")
+      pkg = create(:package, shopify_store: store, order: order, aasm_state: "pending_review", number: 83,
+                    shipping_address_snapshot: {})
+
+      get package_path(id: pkg.id), headers: { "Turbo-Frame" => "package-modal" }
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).not_to include(CGI.escapeHTML(I18n.t("packages.readiness.blocked_title")))
+    end
+  end
 end

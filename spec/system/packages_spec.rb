@@ -224,4 +224,36 @@ RSpec.describe "Packages UI", type: :system do
       expect(review_package.reload.note).to eq("Fragile, pack with extra padding")
     end
   end
+
+  describe "readiness + cancel display" do
+    it "shows the blockers panel for an incomplete pending_process package" do
+      order = create(:order, customer: customer, shopify_store: store, name: "PKS#3090")
+      pkg = create(:package, shopify_store: store, order: order, aasm_state: "pending_process", number: 90,
+                   shipping_address_snapshot: {})
+      create(:package_item, package: pkg, sku: "SKU-BLOCKED", title: "Widget", quantity: 1)
+
+      visit packages_path(state: "pending_process")
+      click_link pkg.package_code
+
+      within("[data-modal-target='dialog']") do
+        expect(page).to have_content(I18n.t("packages.readiness.blocked_title"))
+        expect(page).to have_content(I18n.t("packages.blockers.logistics"))
+      end
+    end
+
+    it "shows the cancelled-order warning on the list row and inside the modal" do
+      order = create(:order, customer: customer, shopify_store: store, name: "PKS#3091",
+                      shopify_data: { "cancelled_at" => "2026-07-20T00:00:00Z" }, financial_status: "paid")
+      pkg = create(:package, shopify_store: store, order: order, aasm_state: "pending_review", number: 91)
+
+      visit packages_path(state: "pending_review")
+      expect(page).to have_content(I18n.t("packages.order_cancelled"))
+
+      click_link pkg.package_code
+
+      within("[data-modal-target='dialog']") do
+        expect(page).to have_content(I18n.t("packages.order_cancelled"))
+      end
+    end
+  end
 end

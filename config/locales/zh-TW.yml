@@ -654,6 +654,9 @@
       address: "收件地址不完整"
       logistics: "未分配物流渠道"
       customs: "SKU %{sku} 報關資訊不完整"
+    readiness:
+      blocked_title: "尚未可出貨"
+      ready: "可申請運單號"
     order_cancelled: "訂單已取消"
     detail_title: "包裹 %{code} 詳情"
     back_to_list: "返回包裹列表"

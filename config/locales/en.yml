@@ -656,6 +656,9 @@ en:
       address: "Shipping address incomplete"
       logistics: "No logistics channel assigned"
       customs: "SKU %{sku} missing customs info"
+    readiness:
+      blocked_title: "Not ready to ship"
+      ready: "Ready to apply for tracking"
     order_cancelled: "Order cancelled"
     detail_title: "Package %{code} detail"
     back_to_list: "Back to packages list"
