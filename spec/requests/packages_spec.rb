@@ -250,4 +250,28 @@ RSpec.describe "Packages", type: :request do
       end
     end
   end
+
+  describe "POST /packages/sync" do
+    it "enqueues a sync job for the selected store and redirects with a notice" do
+      store # ensure exists
+
+      expect {
+        post sync_packages_path
+      }.to have_enqueued_job(SyncAllShopifyOrdersJob).with(store.id)
+
+      expect(response).to redirect_to(packages_path)
+      follow_redirect!
+      expect(response.body).to include(I18n.t("packages.sync_enqueued"))
+    end
+
+    it "denies a member without any packing permission" do
+      member = create(:user)
+      create(:membership, user: member, company: company, role: :member, permissions: [ "orders" ])
+      sign_out user
+      sign_in member
+
+      post sync_packages_path
+      expect(response).to redirect_to(authenticated_root_path)
+    end
+  end
 end

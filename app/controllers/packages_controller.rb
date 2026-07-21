@@ -16,6 +16,12 @@ class PackagesController < AdminController
                      .offset((@page - 1) * PER_PAGE).limit(PER_PAGE)
   end
 
+  def sync
+    stores = current_shopify_store ? [ current_shopify_store ] : visible_shopify_stores
+    stores.each { |s| SyncAllShopifyOrdersJob.perform_later(s.id) }
+    redirect_back fallback_location: packages_path, notice: t("packages.sync_enqueued")
+  end
+
   private
 
   # Overrides AdminController#authorize_page! (a before_action referenced by

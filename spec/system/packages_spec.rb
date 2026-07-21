@@ -51,4 +51,15 @@ RSpec.describe "Packages UI", type: :system do
       end
     end
   end
+
+  describe "sync orders button" do
+    it "is visible on the packing list and shows a flash notice when clicked" do
+      visit packages_path
+
+      expect(page).to have_button(I18n.t("packages.sync_orders"))
+      click_button I18n.t("packages.sync_orders")
+
+      expect(page).to have_content(I18n.t("packages.sync_enqueued"))
+    end
+  end
 end

@@ -618,6 +618,8 @@
       variance_pct: "差异 %"
   packages:
     title: "打包管理"
+    sync_orders: "同步订单"
+    sync_enqueued: "已排程当前店铺的订单同步。"
     states:
       pending_review: "待审核"
       pending_process: "待处理"
