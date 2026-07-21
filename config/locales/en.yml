@@ -716,6 +716,9 @@ en:
     transitioned: "Package updated."
     address_saved: "Address saved."
     item_saved: "Item saved."
+    logistics_saved: "Logistics channel saved."
+    note_saved: "Note saved."
+    invalid_channel: "That logistics channel isn't available for this company."
   products:
     title: "Products"
     no_store: "Connect a Shopify store first"

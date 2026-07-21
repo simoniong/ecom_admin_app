@@ -83,6 +83,8 @@ Rails.application.routes.draw do
         patch :transition
         patch :update_address
         patch :update_item
+        patch :update_logistics
+        patch :update_note
       end
       collection { post :sync }
     end

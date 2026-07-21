@@ -725,4 +725,159 @@ RSpec.describe "Packages", type: :request do
       end
     end
   end
+
+  describe "PATCH /packages/:id/update_logistics" do
+    def sign_in_as_member_with(permission)
+      member = create(:user)
+      create(:membership, user: member, company: company, role: :member, permissions: [ permission ])
+      sign_out user
+      sign_in member
+      member
+    end
+
+    let(:logistics_account) { create(:logistics_account, company: company) }
+    let(:channel) { create(:logistics_channel, logistics_account: logistics_account, name: "DHL Express", product_shortname: "DHL") }
+
+    it "assigns a company channel to the package" do
+      sign_in_as_member_with("package_process")
+
+      patch update_logistics_package_path(id: review_package.id), params: { logistics_channel_id: channel.id }
+
+      expect(review_package.reload.logistics_channel_id).to eq(channel.id)
+    end
+
+    it "unassigns the channel when logistics_channel_id is blank" do
+      sign_in_as_member_with("package_process")
+      review_package.update!(logistics_channel_id: channel.id)
+
+      patch update_logistics_package_path(id: review_package.id), params: { logistics_channel_id: "" }
+
+      expect(review_package.reload.logistics_channel_id).to be_nil
+    end
+
+    it "re-renders the logistics section via turbo_stream with the new value" do
+      sign_in_as_member_with("package_process")
+
+      patch update_logistics_package_path(id: review_package.id), params: { logistics_channel_id: channel.id },
+            headers: { "Accept" => "text/vnd.turbo-stream.html" }
+
+      expect(response).to have_http_status(:ok)
+      expect(response.media_type).to eq("text/vnd.turbo-stream.html")
+      expect(response.body).to include(ActionView::RecordIdentifier.dom_id(review_package, :logistics))
+      expect(response.body).to include("DHL Express")
+    end
+
+    it "redirects with a notice on a plain HTML request" do
+      sign_in_as_member_with("package_process")
+
+      patch update_logistics_package_path(id: review_package.id), params: { logistics_channel_id: channel.id }
+
+      expect(response).to redirect_to(package_path(id: review_package.id))
+      follow_redirect!
+      expect(response.body).to include(I18n.t("packages.logistics_saved"))
+    end
+
+    it "rejects another company's channel id with an alert, and does not change logistics_channel_id" do
+      sign_in_as_member_with("package_process")
+      other_user = create(:user)
+      other_company = other_user.companies.first
+      other_account = create(:logistics_account, company: other_company)
+      foreign_channel = create(:logistics_channel, logistics_account: other_account, name: "Foreign Channel")
+
+      patch update_logistics_package_path(id: review_package.id), params: { logistics_channel_id: foreign_channel.id }
+
+      expect(response).to redirect_to(package_path(id: review_package.id))
+      follow_redirect!
+      expect(response.body).to include(CGI.escapeHTML(I18n.t("packages.invalid_channel")))
+      expect(review_package.reload.logistics_channel_id).to be_nil
+    end
+
+    it "leaves an existing assignment untouched when a foreign channel id is rejected" do
+      sign_in_as_member_with("package_process")
+      review_package.update!(logistics_channel_id: channel.id)
+      other_user = create(:user)
+      other_company = other_user.companies.first
+      other_account = create(:logistics_account, company: other_company)
+      foreign_channel = create(:logistics_channel, logistics_account: other_account, name: "Foreign Channel")
+
+      patch update_logistics_package_path(id: review_package.id), params: { logistics_channel_id: foreign_channel.id }
+
+      expect(review_package.reload.logistics_channel_id).to eq(channel.id)
+    end
+
+    it "denies a member with only package_review (redirect, no_permission), and does not persist" do
+      sign_in_as_member_with("package_review")
+
+      patch update_logistics_package_path(id: review_package.id), params: { logistics_channel_id: channel.id }
+
+      expect(response).to redirect_to(packages_path)
+      follow_redirect!
+      expect(response.body).to include(CGI.escapeHTML(I18n.t("companies.no_permission")))
+      expect(review_package.reload.logistics_channel_id).to be_nil
+    end
+  end
+
+  describe "PATCH /packages/:id/update_note" do
+    def sign_in_as_member_with(permission)
+      member = create(:user)
+      create(:membership, user: member, company: company, role: :member, permissions: [ permission ])
+      sign_out user
+      sign_in member
+      member
+    end
+
+    it "persists the note" do
+      sign_in_as_member_with("package_process")
+
+      patch update_note_package_path(id: review_package.id), params: { note: "Fragile — pack with care" }
+
+      expect(review_package.reload.note).to eq("Fragile — pack with care")
+    end
+
+    it "re-renders the note section via turbo_stream with the new value" do
+      sign_in_as_member_with("package_process")
+
+      patch update_note_package_path(id: review_package.id), params: { note: "Fragile — pack with care" },
+            headers: { "Accept" => "text/vnd.turbo-stream.html" }
+
+      expect(response).to have_http_status(:ok)
+      expect(response.media_type).to eq("text/vnd.turbo-stream.html")
+      expect(response.body).to include(ActionView::RecordIdentifier.dom_id(review_package, :note))
+      expect(response.body).to include("Fragile — pack with care")
+    end
+
+    it "redirects with a notice on a plain HTML request" do
+      sign_in_as_member_with("package_process")
+
+      patch update_note_package_path(id: review_package.id), params: { note: "Handle with care" }
+
+      expect(response).to redirect_to(package_path(id: review_package.id))
+      follow_redirect!
+      expect(response.body).to include(I18n.t("packages.note_saved"))
+    end
+
+    it "denies a member with only package_review (redirect, no_permission), and does not persist" do
+      sign_in_as_member_with("package_review")
+
+      patch update_note_package_path(id: review_package.id), params: { note: "Should not save" }
+
+      expect(response).to redirect_to(packages_path)
+      follow_redirect!
+      expect(response.body).to include(CGI.escapeHTML(I18n.t("companies.no_permission")))
+      expect(review_package.reload.note).to be_nil
+    end
+
+    it "does not leak another company's package" do
+      other_user = create(:user)
+      other_company = other_user.companies.first
+      other_store = create(:shopify_store, user: other_user, company: other_company)
+      other_customer = create(:customer, shopify_store: other_store)
+      other_order = create(:order, customer: other_customer, shopify_store: other_store, name: "OTHER#7001")
+      foreign = create(:package, shopify_store: other_store, order: other_order, aasm_state: "pending_review", number: 70)
+
+      patch update_note_package_path(id: foreign.id), params: { note: "Should not save" }
+
+      expect(response).to have_http_status(:not_found)
+    end
+  end
 end

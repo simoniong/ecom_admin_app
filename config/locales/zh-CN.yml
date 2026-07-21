@@ -714,6 +714,9 @@
     transitioned: "包裹已更新。"
     address_saved: "地址已保存。"
     item_saved: "项目已保存。"
+    logistics_saved: "物流渠道已保存。"
+    note_saved: "备注已保存。"
+    invalid_channel: "该物流渠道不适用于此公司。"
   products:
     title: "产品"
     no_store: "请先连接一个 Shopify Store"

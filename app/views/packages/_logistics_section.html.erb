@@ -1,15 +1,50 @@
-<div id="<%= dom_id(package, :logistics) %>" class="space-y-4">
+<div id="<%= dom_id(package, :logistics) %>" class="space-y-4" data-controller="edit-toggle">
   <div class="flex items-center justify-between">
     <h4 class="text-sm font-semibold text-gray-900"><%= t("packages.tabs.logistics") %></h4>
-    <button type="button" disabled
-            class="text-xs text-gray-400 border border-gray-200 rounded px-2 py-1 cursor-not-allowed">
-      <%= t("packages.edit") %>
-    </button>
+    <% if current_membership&.package_process? %>
+      <button type="button" data-action="click->edit-toggle#edit"
+              class="text-xs text-blue-600 border border-blue-200 rounded px-2 py-1 hover:bg-blue-50">
+        <%= t("packages.edit") %>
+      </button>
+    <% else %>
+      <button type="button" disabled
+              class="text-xs text-gray-400 border border-gray-200 rounded px-2 py-1 cursor-not-allowed">
+        <%= t("packages.edit") %>
+      </button>
+    <% end %>
   </div>
-  <dl class="text-sm">
+
+  <dl data-edit-toggle-target="view" class="text-sm">
     <dt class="text-xs text-gray-500"><%= t("packages.logistics_fields.channel") %></dt>
     <dd class="text-gray-900">
       <%= package.logistics_channel&.name || t("packages.logistics_fields.none") %>
     </dd>
   </dl>
+
+  <%= form_with url: update_logistics_package_path(id: package.id), method: :patch,
+        data: { turbo_frame: "package-modal", "edit-toggle-target": "form" },
+        class: "hidden space-y-4" do %>
+    <div>
+      <label class="block text-xs text-gray-500 mb-1">
+        <%= t("packages.logistics_fields.channel") %>
+      </label>
+      <select name="logistics_channel_id" class="w-full border border-gray-300 rounded px-2 py-1 text-sm">
+        <option value=""><%= t("packages.logistics_fields.none") %></option>
+        <% company_logistics_channels.each do |c| %>
+          <option value="<%= c.id %>" <%= "selected" if package.logistics_channel_id == c.id %>>
+            <%= "#{c.name} — #{c.product_shortname}" %>
+          </option>
+        <% end %>
+      </select>
+    </div>
+    <div class="flex items-center gap-2">
+      <button type="submit" class="px-3 py-1.5 bg-blue-600 text-white text-xs rounded hover:bg-blue-700">
+        <%= t("packages.save") %>
+      </button>
+      <button type="button" data-action="click->edit-toggle#cancel"
+              class="px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded hover:bg-gray-50">
+        <%= t("packages.cancel") %>
+      </button>
+    </div>
+  <% end %>
 </div>

@@ -177,4 +177,51 @@ RSpec.describe "Packages UI", type: :system do
       expect(item.customs_complete?).to be(true)
     end
   end
+
+  describe "assigning a logistics channel in the detail modal" do
+    let!(:logistics_account) { create(:logistics_account, company: company) }
+    let!(:channel) { create(:logistics_channel, logistics_account: logistics_account, name: "DHL Express", product_shortname: "DHL") }
+
+    it "picks a channel, saves, and reflects the new value in the section and tab" do
+      visit packages_path
+      click_link review_package.package_code
+
+      within("[data-modal-target='dialog']") do
+        click_button I18n.t("packages.tabs.logistics")
+      end
+
+      expect(page).to have_content(I18n.t("packages.logistics_fields.none"))
+
+      within("[data-modal-target='dialog']") do
+        click_button I18n.t("packages.edit")
+        select "DHL Express — DHL", from: "logistics_channel_id"
+        click_button I18n.t("packages.save")
+      end
+
+      expect(page).to have_content("DHL Express")
+      expect(page).to have_no_content(I18n.t("packages.logistics_fields.none"))
+
+      expect(review_package.reload.logistics_channel_id).to eq(channel.id)
+    end
+  end
+
+  describe "editing the note in the detail modal" do
+    it "toggles to the edit form, saves, and persists the new note" do
+      visit packages_path
+      click_link review_package.package_code
+
+      within("[data-modal-target='dialog']") do
+        click_button I18n.t("packages.tabs.note")
+        expect(page).to have_content(I18n.t("packages.note_fields.none"))
+
+        click_button I18n.t("packages.edit")
+        fill_in "note", with: "Fragile, pack with extra padding"
+        click_button I18n.t("packages.save")
+
+        expect(page).to have_content("Fragile, pack with extra padding")
+      end
+
+      expect(review_package.reload.note).to eq("Fragile, pack with extra padding")
+    end
+  end
 end

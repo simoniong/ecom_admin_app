@@ -11,7 +11,7 @@ class PackagesController < AdminController
   # stale prior value) so address_complete?/tracking_blockers read cleanly.
   ADDRESS_KEYS = %w[name phone address1 address2 city province zip country country_code company tax_id].freeze
 
-  before_action :set_package, only: [ :show, :transition, :update_address, :update_item ]
+  before_action :set_package, only: [ :show, :transition, :update_address, :update_item, :update_logistics, :update_note ]
 
   def index
     @state = STATES.include?(params[:state]) ? params[:state] : "pending_review"
@@ -112,6 +112,42 @@ class PackagesController < AdminController
     end
   end
 
+  # Assign/unassign the package's logistics channel (gated on package_process,
+  # same as update_address/update_item). Only channels belonging to the
+  # current company's raydo logistics account are assignable — company_
+  # logistics_channels enforces that scoping, so passing another company's
+  # channel id is rejected with an alert rather than silently cross-wiring
+  # the package to a foreign channel (set_package already keeps the PACKAGE
+  # itself company-scoped; this guard is specifically for the channel id in
+  # params, which is a separate record with its own company ownership).
+  def update_logistics
+    return redirect_to(packages_path, alert: t("companies.no_permission")) unless current_membership&.package_process?
+
+    channel_id = params[:logistics_channel_id].presence
+    channel = channel_id && company_logistics_channels.find_by(id: channel_id)
+    if channel_id && channel.nil?
+      return redirect_to(package_path(id: @package.id), alert: t("packages.invalid_channel"))
+    end
+
+    @package.update!(logistics_channel_id: channel&.id)
+    respond_to do |format|
+      format.turbo_stream { render :update_logistics }
+      format.html { redirect_to package_path(id: @package.id), notice: t("packages.logistics_saved") }
+    end
+  end
+
+  # Manual note edit (gated on package_process, same as the other manual
+  # edit actions in this controller).
+  def update_note
+    return redirect_to(packages_path, alert: t("companies.no_permission")) unless current_membership&.package_process?
+
+    @package.update!(note: params[:note].to_s)
+    respond_to do |format|
+      format.turbo_stream { render :update_note }
+      format.html { redirect_to package_path(id: @package.id), notice: t("packages.note_saved") }
+    end
+  end
+
   private
 
   # Explicit dispatch (rather than @package.public_send("#{event}!")) so a
@@ -152,6 +188,15 @@ class PackagesController < AdminController
       order: [ :customer, :order_line_items ]
     ).find(params[:id])
   end
+
+  # Cross-company safety: only this company's raydo channels are assignable
+  # to a package via update_logistics — used both to populate the edit
+  # form's <select> and to validate a submitted logistics_channel_id.
+  def company_logistics_channels
+    account = current_company.logistics_accounts.find_by(provider: "raydo")
+    account ? account.logistics_channels.order(:name) : LogisticsChannel.none
+  end
+  helper_method :company_logistics_channels
 
   # Overrides AdminController#authorize_page! (a before_action referenced by
   # symbol, so this subclass definition is what actually runs) to gate on ANY
