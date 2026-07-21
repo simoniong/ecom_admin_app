@@ -4,7 +4,7 @@ class Package < ApplicationRecord
   belongs_to :shopify_store
   belongs_to :order
   belongs_to :logistics_channel, optional: true
-  has_many :package_items, dependent: :destroy
+  has_many :package_items, inverse_of: :package, dependent: :destroy
 
   validates :number, presence: true, uniqueness: { scope: :shopify_store_id }
   validates :application_status, inclusion: { in: %w[none pending succeeded failed] }

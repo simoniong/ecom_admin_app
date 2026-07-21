@@ -1,5 +1,5 @@
 class PackageItem < ApplicationRecord
-  belongs_to :package
+  belongs_to :package, inverse_of: :package_items
   belongs_to :product_variant, optional: true
   belongs_to :order_line_item, optional: true
 

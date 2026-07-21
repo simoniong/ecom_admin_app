@@ -102,14 +102,10 @@ class PackagesController < AdminController
 
     @item = @package.package_items.find(params[:item_id])
     @item.update!(customs_item_params.merge(customs_overridden: true))
-    # set_package's #includes eager-loads :package_items, but the collection
-    # association here has no explicit inverse_of, so the `find` above always
-    # hits the DB for a fresh object rather than reusing the cached target —
-    # @item is therefore a DIFFERENT in-memory object than the (stale) one
-    # still sitting in @package.package_items' loaded array. Reset it so the
-    # customs_status_badge partial's Package#customs_complete? (rendered
-    # below) sees the just-updated item instead of stale pre-update data.
-    @package.package_items.reset
+    # `Package#package_items` declares inverse_of, so the `find` above reuses
+    # the eager-loaded (set_package #includes) target object — the just-updated
+    # item is the same instance the customs_status_badge partial reads below,
+    # so no reset/re-query is needed for a fresh completeness check.
     respond_to do |format|
       format.turbo_stream { render :update_item }
       format.html { redirect_to package_path(id: @package.id), notice: t("packages.item_saved") }
