@@ -79,7 +79,10 @@ Rails.application.routes.draw do
       end
     end
     resources :packages, only: [ :index, :show ] do
-      member { patch :transition }
+      member do
+        patch :transition
+        patch :update_address
+      end
       collection { post :sync }
     end
     resources :products, only: [ :index ]

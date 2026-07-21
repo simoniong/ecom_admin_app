@@ -682,7 +682,9 @@ en:
       province: "Province/State"
       zip: "Postal Code"
       country: "Country"
+      country_code: "Country Code"
       phone: "Phone"
+      tax_id: "Tax ID"
       incomplete: "Address incomplete"
     customs_fields:
       name_zh: "Chinese Name"
@@ -712,6 +714,7 @@ en:
     invalid_action: "Unknown action."
     invalid_transition: "That action isn't available for this package's current state."
     transitioned: "Package updated."
+    address_saved: "Address saved."
   products:
     title: "Products"
     no_store: "Connect a Shopify store first"

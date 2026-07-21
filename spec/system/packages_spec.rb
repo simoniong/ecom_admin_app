@@ -120,4 +120,32 @@ RSpec.describe "Packages UI", type: :system do
       expect(review_package.held_from).to eq("pending_process")
     end
   end
+
+  describe "editing the shipping address in the detail modal" do
+    it "toggles to the edit form, saves, and shows the new value with the incomplete badge cleared" do
+      visit packages_path
+      click_link review_package.package_code
+
+      within("[data-modal-target='dialog']") do
+        expect(page).to have_content(I18n.t("packages.address_fields.incomplete"))
+
+        click_button I18n.t("packages.edit")
+        fill_in "address[name]", with: "Jane Doe"
+        fill_in "address[address1]", with: "1 Main St"
+        fill_in "address[city]", with: "Springfield"
+        fill_in "address[country_code]", with: "US"
+        fill_in "address[country]", with: "United States"
+        click_button I18n.t("packages.save")
+
+        expect(page).to have_content("Jane Doe")
+        expect(page).to have_content("1 Main St")
+        expect(page).to have_content("Springfield")
+        expect(page).to have_no_content(I18n.t("packages.address_fields.incomplete"))
+      end
+
+      review_package.reload
+      expect(review_package.address_overridden).to be(true)
+      expect(review_package.address_complete?).to be(true)
+    end
+  end
 end

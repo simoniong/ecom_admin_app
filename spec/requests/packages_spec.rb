@@ -483,4 +483,115 @@ RSpec.describe "Packages", type: :request do
       end
     end
   end
+
+  describe "PATCH /packages/:id/update_address" do
+    def sign_in_as_member_with(permission)
+      member = create(:user)
+      create(:membership, user: member, company: company, role: :member, permissions: [ permission ])
+      sign_out user
+      sign_in member
+      member
+    end
+
+    let(:address_params) do
+      {
+        name: "Jane Doe", phone: "555-1234", address1: "1 Main St", address2: "Apt 2",
+        city: "Springfield", province: "IL", zip: "62704", country: "United States",
+        country_code: "US", company: "Acme Inc", tax_id: "TX-123"
+      }
+    end
+
+    it "lets a member with package_process persist the snapshot and set address_overridden" do
+      sign_in_as_member_with("package_process")
+
+      patch update_address_package_path(id: review_package.id), params: { address: address_params }
+
+      review_package.reload
+      expect(review_package.address_overridden).to be(true)
+      expect(review_package.shipping_address_snapshot["name"]).to eq("Jane Doe")
+      expect(review_package.shipping_address_snapshot["address1"]).to eq("1 Main St")
+      expect(review_package.shipping_address_snapshot["city"]).to eq("Springfield")
+      expect(review_package.shipping_address_snapshot["country_code"]).to eq("US")
+      expect(review_package.shipping_address_snapshot["tax_id"]).to eq("TX-123")
+    end
+
+    it "re-renders the address section via turbo_stream with the new values" do
+      sign_in_as_member_with("package_process")
+
+      patch update_address_package_path(id: review_package.id), params: { address: address_params },
+            headers: { "Accept" => "text/vnd.turbo-stream.html" }
+
+      expect(response).to have_http_status(:ok)
+      expect(response.media_type).to eq("text/vnd.turbo-stream.html")
+      expect(response.body).to include(ActionView::RecordIdentifier.dom_id(review_package, :address))
+      expect(response.body).to include("Jane Doe")
+    end
+
+    it "redirects with a notice on a plain HTML request" do
+      sign_in_as_member_with("package_process")
+
+      patch update_address_package_path(id: review_package.id), params: { address: address_params }
+
+      expect(response).to redirect_to(package_path(id: review_package.id))
+      follow_redirect!
+      expect(response.body).to include(I18n.t("packages.address_saved"))
+    end
+
+    it "saves a partial address without enforcing required-together fields" do
+      sign_in_as_member_with("package_process")
+
+      patch update_address_package_path(id: review_package.id), params: { address: { name: "Only Name" } }
+
+      review_package.reload
+      expect(review_package.address_overridden).to be(true)
+      expect(review_package.shipping_address_snapshot["name"]).to eq("Only Name")
+      expect(review_package.shipping_address_snapshot["city"]).to eq("")
+    end
+
+    it "denies a member with only package_review (redirect, no_permission), and does not persist" do
+      sign_in_as_member_with("package_review")
+
+      patch update_address_package_path(id: review_package.id), params: { address: address_params }
+
+      expect(response).to redirect_to(packages_path)
+      follow_redirect!
+      expect(response.body).to include(CGI.escapeHTML(I18n.t("companies.no_permission")))
+      expect(review_package.reload.address_overridden).to be(false)
+    end
+
+    it "does not leak another company's package" do
+      other_user = create(:user)
+      other_company = other_user.companies.first
+      other_store = create(:shopify_store, user: other_user, company: other_company)
+      other_customer = create(:customer, shopify_store: other_store)
+      other_order = create(:order, customer: other_customer, shopify_store: other_store, name: "OTHER#5001")
+      foreign = create(:package, shopify_store: other_store, order: other_order, aasm_state: "pending_review", number: 50)
+
+      patch update_address_package_path(id: foreign.id), params: { address: address_params }
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    describe "integration with PackageAutoBuilder re-sync (proves the override flag wiring)" do
+      it "preserves the manually-edited address after a later sync with different order data" do
+        sign_in_as_member_with("package_process")
+        order = review_package.order
+        order.update!(shopify_data: order.shopify_data.merge(
+          "shipping_address" => { "city" => "FROM_SHOPIFY", "name" => "Shopify Name" }
+        ))
+
+        patch update_address_package_path(id: review_package.id), params: { address: address_params }
+        expect(review_package.reload.address_overridden).to be(true)
+
+        order.update!(shopify_data: order.shopify_data.merge(
+          "shipping_address" => { "city" => "DIFFERENT_CITY", "name" => "Different Name" }
+        ))
+        PackageAutoBuilder.new(order.reload).call
+
+        review_package.reload
+        expect(review_package.shipping_address_snapshot["city"]).to eq("Springfield")
+        expect(review_package.shipping_address_snapshot["name"]).to eq("Jane Doe")
+      end
+    end
+  end
 end

@@ -680,7 +680,9 @@
       province: "省/州"
       zip: "郵遞區號"
       country: "國家"
+      country_code: "國家代碼"
       phone: "電話"
+      tax_id: "稅號"
       incomplete: "地址不完整"
     customs_fields:
       name_zh: "中文品名"
@@ -710,6 +712,7 @@
     invalid_action: "未知操作。"
     invalid_transition: "該操作不適用於包裹目前的狀態。"
     transitioned: "包裹已更新。"
+    address_saved: "地址已儲存。"
   products:
     title: "產品"
     no_store: "請先連結一個 Shopify Store"

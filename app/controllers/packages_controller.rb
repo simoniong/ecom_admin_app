@@ -5,7 +5,13 @@ class PackagesController < AdminController
   REVIEW_EVENTS  = %w[submit_review back_to_review].freeze
   PROCESS_EVENTS = %w[hold unhold back_to_process].freeze
 
-  before_action :set_package, only: [ :show, :transition ]
+  # Shopify address keys this app persists on the snapshot. Full replace on
+  # every save (rather than a merge) is fine — the edit form always submits
+  # every key, and blank optionals should store "" (not silently keep a
+  # stale prior value) so address_complete?/tracking_blockers read cleanly.
+  ADDRESS_KEYS = %w[name phone address1 address2 city province zip country country_code company tax_id].freeze
+
+  before_action :set_package, only: [ :show, :transition, :update_address ]
 
   def index
     @state = STATES.include?(params[:state]) ? params[:state] : "pending_review"
@@ -58,6 +64,25 @@ class PackagesController < AdminController
     respond_to do |format|
       format.turbo_stream { render turbo_stream: turbo_stream.replace("package-modal", partial: "packages/modal", locals: { package: @package.reload }), status: :unprocessable_entity }
       format.html { redirect_to packages_path, alert: t("packages.invalid_transition") }
+    end
+  end
+
+  # Manual address edit/save (gated on package_process, same as the hold/
+  # unhold process actions). Setting address_overridden: true here is the
+  # entire point of this action — PackageAutoBuilder#smart_update already
+  # skips re-copying the Shopify shipping_address onto the snapshot when
+  # this flag is set, so a human edit survives the order's next sync.
+  # Editing does NOT enforce required-together validation: a partial save
+  # is allowed to persist freely (completeness is only ever read via
+  # Package#ready_for_tracking?/address_complete?, never enforced here).
+  def update_address
+    return redirect_to(packages_path, alert: t("companies.no_permission")) unless current_membership&.package_process?
+
+    snapshot = ADDRESS_KEYS.index_with { |k| params.dig(:address, k).to_s }
+    @package.update!(shipping_address_snapshot: snapshot, address_overridden: true)
+    respond_to do |format|
+      format.turbo_stream { render :update_address }
+      format.html { redirect_to package_path(id: @package.id), notice: t("packages.address_saved") }
     end
   end
 
