@@ -103,4 +103,16 @@ class Package < ApplicationRecord
     # the same way _package_row.html.erb uses &.dig for the shipping address.
     order.shopify_data.to_h["cancelled_at"].present? && order.financial_status != "refunded"
   end
+
+  # All packages of this package's order (siblings included), lowest number
+  # first. Used by the split/merge UI to group and navigate boxes of one order.
+  def order_packages
+    shopify_store.packages.where(order_id: order_id).order(:number)
+  end
+
+  # True while the order is folded into multiple boxes. Auto-sync is frozen in
+  # this state (see PackageAutoBuilder#do_call); merging back to one resumes it.
+  def split?
+    order_packages.count > 1
+  end
 end
