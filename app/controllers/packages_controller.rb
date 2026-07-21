@@ -11,7 +11,7 @@ class PackagesController < AdminController
   # stale prior value) so address_complete?/tracking_blockers read cleanly.
   ADDRESS_KEYS = %w[name phone address1 address2 city province zip country country_code company tax_id].freeze
 
-  before_action :set_package, only: [ :show, :transition, :update_address ]
+  before_action :set_package, only: [ :show, :transition, :update_address, :update_item ]
 
   def index
     @state = STATES.include?(params[:state]) ? params[:state] : "pending_review"
@@ -86,6 +86,36 @@ class PackagesController < AdminController
     end
   end
 
+  # Manual per-item customs edit (gated on package_process, same as
+  # update_address). Setting customs_overridden: true is the entire point of
+  # this action — PackageAutoBuilder#sync_items already skips re-copying the
+  # product_variant's customs snapshot onto an item with this flag set, so a
+  # human edit survives the order's next sync (see smart_update/sync_items).
+  # Editing does NOT enforce required-together validation here — a partial
+  # save is allowed to persist freely (completeness is only ever read via
+  # Package#customs_complete?/PackageItem#customs_complete?, never enforced
+  # on this write path). @item is looked up scoped to @package (which is
+  # itself scoped to scoped_packages), so an item_id belonging to another
+  # package can never be edited through this action.
+  def update_item
+    return redirect_to(packages_path, alert: t("companies.no_permission")) unless current_membership&.package_process?
+
+    @item = @package.package_items.find(params[:item_id])
+    @item.update!(customs_item_params.merge(customs_overridden: true))
+    # set_package's #includes eager-loads :package_items, but the collection
+    # association here has no explicit inverse_of, so the `find` above always
+    # hits the DB for a fresh object rather than reusing the cached target —
+    # @item is therefore a DIFFERENT in-memory object than the (stale) one
+    # still sitting in @package.package_items' loaded array. Reset it so the
+    # customs_status_badge partial's Package#customs_complete? (rendered
+    # below) sees the just-updated item instead of stale pre-update data.
+    @package.package_items.reset
+    respond_to do |format|
+      format.turbo_stream { render :update_item }
+      format.html { redirect_to package_path(id: @package.id), notice: t("packages.item_saved") }
+    end
+  end
+
   private
 
   # Explicit dispatch (rather than @package.public_send("#{event}!")) so a
@@ -107,6 +137,12 @@ class PackagesController < AdminController
     return false unless m
 
     REVIEW_EVENTS.include?(event) ? m.package_review? : m.package_process?
+  end
+
+  def customs_item_params
+    params.require(:package_item).permit(
+      :customs_name_zh, :customs_name_en, :declared_value_usd, :hs_code, :import_hs_code, :customs_weight_grams
+    )
   end
 
   # scoped_packages.find raises ActiveRecord::RecordNotFound for a package

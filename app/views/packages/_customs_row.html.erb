@@ -1,0 +1,131 @@
+<%# Per-item customs edit: all 6 customs fields submit together in a single
+    PATCH via the row-edit Stimulus controller (see
+    app/javascript/controllers/row_edit_controller.js — reused unchanged from
+    the product_customs page; see app/views/product_customs/_row.html.erb for
+    the pattern this mirrors). Saving always sets customs_overridden: true on
+    the item server-side (PackagesController#update_item), which is what
+    makes PackageAutoBuilder#sync_items preserve this item's customs across
+    the order's next re-sync. Editing does NOT enforce required-together
+    validation — a partial save persists freely; completeness is only ever
+    read via PackageItem#customs_complete?/Package#customs_complete?.
+
+    Editing is gated on package_process (same as the address section): a
+    member without it sees a read-only row with a disabled Edit button,
+    identical to Task 3's original rendering. %>
+<% editable = current_membership&.package_process? %>
+<tr id="<%= dom_id(item) %>" class="border-b border-gray-200 align-top"
+    <% if editable %>
+      data-controller="row-edit"
+      data-row-edit-url-value="<%= update_item_package_path(id: package.id, item_id: item.id) %>"
+    <% end %>>
+  <td class="px-2 py-2">
+    <div class="text-sm font-medium text-gray-900">
+      <span class="font-mono text-xs text-gray-500"><%= item.sku.presence || "—" %></span>
+      <%= item.title %>
+    </div>
+    <% if item.refunded_quantity.positive? %>
+      <span class="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded text-[10px] font-medium <%= item.fully_refunded? ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800' %>">
+        <%= t("packages.item_refunded", n: item.refunded_quantity, total: item.quantity) %><% if item.fully_refunded? %> · <%= t("packages.do_not_ship") %><% end %>
+      </span>
+    <% end %>
+  </td>
+
+  <% if editable %>
+    <td class="px-2 py-2">
+      <div class="grid grid-cols-2 gap-2">
+        <input type="text"
+               name="package_item[customs_name_zh]"
+               value="<%= item.customs_name_zh %>"
+               data-row-edit-target="field"
+               aria-label="<%= t("packages.customs_fields.name_zh") %>"
+               placeholder="<%= t("packages.customs_fields.name_zh") %>"
+               class="w-full border border-gray-300 rounded px-2 py-1 text-sm">
+        <input type="text"
+               name="package_item[customs_name_en]"
+               value="<%= item.customs_name_en %>"
+               data-row-edit-target="field"
+               aria-label="<%= t("packages.customs_fields.name_en") %>"
+               placeholder="<%= t("packages.customs_fields.name_en") %>"
+               class="w-full border border-gray-300 rounded px-2 py-1 text-sm">
+        <input type="number" step="0.01" min="0"
+               name="package_item[declared_value_usd]"
+               value="<%= item.declared_value_usd %>"
+               data-row-edit-target="field"
+               aria-label="<%= t("packages.customs_fields.declared_value") %>"
+               placeholder="<%= t("packages.customs_fields.declared_value") %>"
+               class="w-full border border-gray-300 rounded px-2 py-1 text-sm">
+        <input type="number" step="0.001" min="0"
+               name="package_item[customs_weight_grams]"
+               value="<%= item.customs_weight_grams %>"
+               data-row-edit-target="field"
+               aria-label="<%= t("packages.customs_fields.weight") %>"
+               placeholder="<%= t("packages.customs_fields.weight") %>"
+               class="w-full border border-gray-300 rounded px-2 py-1 text-sm">
+        <input type="text"
+               name="package_item[hs_code]"
+               value="<%= item.hs_code %>"
+               data-row-edit-target="field"
+               aria-label="<%= t("packages.customs_fields.hs_code") %>"
+               placeholder="<%= t("packages.customs_fields.hs_code") %>"
+               class="w-full border border-gray-300 rounded px-2 py-1 text-sm">
+        <input type="text"
+               name="package_item[import_hs_code]"
+               value="<%= item.import_hs_code %>"
+               data-row-edit-target="field"
+               aria-label="<%= t("packages.customs_fields.import_hs_code") %>"
+               placeholder="<%= t("packages.customs_fields.import_hs_code") %>"
+               class="w-full border border-gray-300 rounded px-2 py-1 text-sm">
+      </div>
+      <div class="mt-2 flex items-center gap-2">
+        <% unless item.customs_complete? %>
+          <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-800">
+            <%= t("packages.customs_fields.incomplete") %>
+          </span>
+        <% end %>
+        <button type="button"
+                data-action="click->row-edit#save"
+                class="px-3 py-1 text-xs font-medium bg-blue-600 text-white rounded hover:bg-blue-700">
+          <%= t("packages.save") %>
+        </button>
+      </div>
+    </td>
+  <% else %>
+    <td class="px-2 py-2">
+      <dl class="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+        <div>
+          <dt class="text-xs text-gray-500"><%= t("packages.customs_fields.name_zh") %></dt>
+          <dd class="text-gray-900"><%= item.customs_name_zh.presence || "—" %></dd>
+        </div>
+        <div>
+          <dt class="text-xs text-gray-500"><%= t("packages.customs_fields.name_en") %></dt>
+          <dd class="text-gray-900"><%= item.customs_name_en.presence || "—" %></dd>
+        </div>
+        <div>
+          <dt class="text-xs text-gray-500"><%= t("packages.customs_fields.declared_value") %></dt>
+          <dd class="text-gray-900"><%= item.declared_value_usd.presence || "—" %></dd>
+        </div>
+        <div>
+          <dt class="text-xs text-gray-500"><%= t("packages.customs_fields.weight") %></dt>
+          <dd class="text-gray-900"><%= item.customs_weight_grams.presence || "—" %></dd>
+        </div>
+        <div>
+          <dt class="text-xs text-gray-500"><%= t("packages.customs_fields.hs_code") %></dt>
+          <dd class="text-gray-900"><%= item.hs_code.presence || "—" %></dd>
+        </div>
+        <div>
+          <dt class="text-xs text-gray-500"><%= t("packages.customs_fields.import_hs_code") %></dt>
+          <dd class="text-gray-900"><%= item.import_hs_code.presence || "—" %></dd>
+        </div>
+      </dl>
+      <% unless item.customs_complete? %>
+        <span class="inline-flex items-center mt-2 px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-800">
+          <%= t("packages.customs_fields.incomplete") %>
+        </span>
+      <% end %>
+      <button type="button" disabled
+              class="mt-2 text-xs text-gray-400 border border-gray-200 rounded px-2 py-1 cursor-not-allowed">
+        <%= t("packages.edit") %>
+      </button>
+    </td>
+  <% end %>
+</tr>

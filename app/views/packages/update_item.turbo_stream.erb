@@ -1,0 +1,6 @@
+<%= turbo_stream.replace dom_id(@item), partial: "packages/customs_row", locals: { package: @package, item: @item } %>
+<%# Also refresh the section header's completeness badge — it's driven by
+    Package#customs_complete? across ALL items, not just the one just saved,
+    so a per-row-only replace would leave it stale (see
+    _customs_status_badge.html.erb for why this is split out). %>
+<%= turbo_stream.replace dom_id(@package, :customs_status), partial: "packages/customs_status_badge", locals: { package: @package } %>

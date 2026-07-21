@@ -713,6 +713,7 @@
     invalid_transition: "該操作不適用於包裹目前的狀態。"
     transitioned: "包裹已更新。"
     address_saved: "地址已儲存。"
+    item_saved: "項目已儲存。"
   products:
     title: "產品"
     no_store: "請先連結一個 Shopify Store"

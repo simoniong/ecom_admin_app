@@ -82,6 +82,7 @@ Rails.application.routes.draw do
       member do
         patch :transition
         patch :update_address
+        patch :update_item
       end
       collection { post :sync }
     end

@@ -148,4 +148,33 @@ RSpec.describe "Packages UI", type: :system do
       expect(review_package.address_complete?).to be(true)
     end
   end
+
+  describe "editing per-item customs in the detail modal" do
+    it "saves an item's customs fields, reflects them in the row, and clears the customs badge when all items are complete" do
+      create(:package_item, package: review_package, sku: "SKU-CUSTOMS", title: "Customs Widget", quantity: 1)
+
+      visit packages_path
+      click_link review_package.package_code
+
+      within("[data-modal-target='dialog']") do
+        click_button I18n.t("packages.tabs.customs")
+      end
+
+      expect(page).to have_content(I18n.t("packages.customs_fields.incomplete"))
+
+      find("input[name='package_item[customs_name_zh]']").set("小工具")
+      find("input[name='package_item[customs_name_en]']").set("Widget")
+      find("input[name='package_item[declared_value_usd]']").set("9.99")
+      find("input[name='package_item[customs_weight_grams]']").set("88")
+      click_button I18n.t("packages.save")
+
+      expect(page).to have_field("package_item[customs_name_zh]", with: "小工具")
+      expect(page).to have_field("package_item[customs_name_en]", with: "Widget")
+      expect(page).to have_no_content(I18n.t("packages.customs_fields.incomplete"))
+
+      item = review_package.reload.package_items.find_by(sku: "SKU-CUSTOMS")
+      expect(item.customs_overridden).to be(true)
+      expect(item.customs_complete?).to be(true)
+    end
+  end
 end

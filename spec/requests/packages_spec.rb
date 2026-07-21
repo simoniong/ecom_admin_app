@@ -594,4 +594,135 @@ RSpec.describe "Packages", type: :request do
       end
     end
   end
+
+  describe "PATCH /packages/:id/update_item" do
+    def sign_in_as_member_with(permission)
+      member = create(:user)
+      create(:membership, user: member, company: company, role: :member, permissions: [ permission ])
+      sign_out user
+      sign_in member
+      member
+    end
+
+    let!(:item) { create(:package_item, package: review_package, sku: "SKU-EDIT", title: "Editable Widget", quantity: 2) }
+
+    let(:customs_params) do
+      {
+        customs_name_zh: "小工具", customs_name_en: "Widget",
+        declared_value_usd: "12.50", customs_weight_grams: "150",
+        hs_code: "1234.56", import_hs_code: "9876.54"
+      }
+    end
+
+    it "lets a member with package_process persist the 6 customs fields and set customs_overridden" do
+      sign_in_as_member_with("package_process")
+
+      patch update_item_package_path(id: review_package.id, item_id: item.id), params: { package_item: customs_params }
+
+      item.reload
+      expect(item.customs_overridden).to be(true)
+      expect(item.customs_name_zh).to eq("小工具")
+      expect(item.customs_name_en).to eq("Widget")
+      expect(item.declared_value_usd).to eq(12.50)
+      expect(item.customs_weight_grams).to eq(150)
+      expect(item.hs_code).to eq("1234.56")
+      expect(item.import_hs_code).to eq("9876.54")
+    end
+
+    it "re-renders the item's row via turbo_stream with the new values" do
+      sign_in_as_member_with("package_process")
+
+      patch update_item_package_path(id: review_package.id, item_id: item.id),
+            params: { package_item: customs_params },
+            headers: { "Accept" => "text/vnd.turbo-stream.html" }
+
+      expect(response).to have_http_status(:ok)
+      expect(response.media_type).to eq("text/vnd.turbo-stream.html")
+      expect(response.body).to include(ActionView::RecordIdentifier.dom_id(item))
+      expect(response.body).to include("Widget")
+    end
+
+    it "redirects with a notice on a plain HTML request" do
+      sign_in_as_member_with("package_process")
+
+      patch update_item_package_path(id: review_package.id, item_id: item.id), params: { package_item: customs_params }
+
+      expect(response).to redirect_to(package_path(id: review_package.id))
+      follow_redirect!
+      expect(response.body).to include(I18n.t("packages.item_saved"))
+    end
+
+    it "saves a partial customs edit without enforcing required-together fields" do
+      sign_in_as_member_with("package_process")
+
+      patch update_item_package_path(id: review_package.id, item_id: item.id),
+            params: { package_item: { customs_name_zh: "只有中文名" } }
+
+      item.reload
+      expect(item.customs_overridden).to be(true)
+      expect(item.customs_name_zh).to eq("只有中文名")
+      expect(item.customs_name_en).to be_nil
+    end
+
+    it "denies a member with only package_review (redirect, no_permission), and does not persist" do
+      sign_in_as_member_with("package_review")
+
+      patch update_item_package_path(id: review_package.id, item_id: item.id), params: { package_item: customs_params }
+
+      expect(response).to redirect_to(packages_path)
+      follow_redirect!
+      expect(response.body).to include(CGI.escapeHTML(I18n.t("companies.no_permission")))
+      expect(item.reload.customs_overridden).to be(false)
+    end
+
+    it "does not leak another package's item (scoped to @package.package_items)" do
+      sign_in_as_member_with("package_process")
+      foreign_item = create(:package_item, package: process_package, sku: "SKU-FOREIGN")
+
+      patch update_item_package_path(id: review_package.id, item_id: foreign_item.id), params: { package_item: customs_params }
+
+      expect(response).to have_http_status(:not_found)
+      expect(foreign_item.reload.customs_overridden).to be(false)
+    end
+
+    it "does not leak another company's package" do
+      other_user = create(:user)
+      other_company = other_user.companies.first
+      other_store = create(:shopify_store, user: other_user, company: other_company)
+      other_customer = create(:customer, shopify_store: other_store)
+      other_order = create(:order, customer: other_customer, shopify_store: other_store, name: "OTHER#6001")
+      foreign_package = create(:package, shopify_store: other_store, order: other_order, aasm_state: "pending_review", number: 60)
+      foreign_item = create(:package_item, package: foreign_package, sku: "SKU-OTHER")
+
+      patch update_item_package_path(id: foreign_package.id, item_id: foreign_item.id), params: { package_item: customs_params }
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    describe "integration with PackageAutoBuilder re-sync (proves the override flag wiring)" do
+      it "preserves this item's manually-edited customs after a later sync with different variant customs" do
+        sign_in_as_member_with("package_process")
+        variant = create(:product_variant, product: create(:product, shopify_store: store),
+                          customs_name_zh: "原廠中文", customs_name_en: "Factory Name",
+                          declared_value_usd: 5.00, weight_grams: 100,
+                          hs_code: "1111.11", import_hs_code: "2222.22")
+        line_item = create(:order_line_item, order: review_package.order, product_variant: variant, quantity: 2)
+        synced_item = create(:package_item, package: review_package, product_variant: variant,
+                              order_line_item: line_item, sku: "SKU-SYNCED", quantity: 2)
+
+        patch update_item_package_path(id: review_package.id, item_id: synced_item.id), params: { package_item: customs_params }
+        expect(synced_item.reload.customs_overridden).to be(true)
+
+        variant.update!(customs_name_zh: "CHANGED_ZH", customs_name_en: "CHANGED_EN",
+                        declared_value_usd: 99.99, weight_grams: 999)
+        PackageAutoBuilder.new(review_package.order.reload).call
+
+        synced_item.reload
+        expect(synced_item.customs_name_zh).to eq("小工具")
+        expect(synced_item.customs_name_en).to eq("Widget")
+        expect(synced_item.declared_value_usd).to eq(12.50)
+        expect(synced_item.customs_weight_grams).to eq(150)
+      end
+    end
+  end
 end

@@ -715,6 +715,7 @@ en:
     invalid_transition: "That action isn't available for this package's current state."
     transitioned: "Package updated."
     address_saved: "Address saved."
+    item_saved: "Item saved."
   products:
     title: "Products"
     no_store: "Connect a Shopify store first"
