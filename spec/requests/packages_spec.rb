@@ -128,6 +128,55 @@ RSpec.describe "Packages", type: :request do
       end
     end
 
+    describe "store switcher scoping" do
+      # Codex finding 2: the packages list + sidebar counts must respect the
+      # currently-selected store (current_shopify_store), same as
+      # OrdersController#index, instead of always aggregating across every
+      # visible store.
+      let!(:store_b) { create(:shopify_store, user: user, company: company) }
+      let!(:customer_b) { create(:customer, shopify_store: store_b) }
+
+      let!(:store_b_package) do
+        order = create(:order, customer: customer_b, shopify_store: store_b, name: "PKS#STOREB")
+        create(:package, shopify_store: store_b, order: order, aasm_state: "pending_review", number: 1)
+      end
+
+      def sidebar_badge_count(body, state_label)
+        doc = Nokogiri::HTML(body)
+        link = doc.at_xpath("//a[.//span[normalize-space(text())='#{state_label}']]")
+        link.at_xpath(".//span[2]").text.strip.to_i
+      end
+
+      it "defaults to a single store (not an aggregate of all stores) when none is explicitly selected" do
+        # Packages is switcher-visible but NOT in STORE_ALL_ALLOWED_CONTROLLERS
+        # (same as Orders), so with no store_id param/session,
+        # current_shopify_store resolves to visible_shopify_stores.first
+        # rather than nil/"all" — scoped_packages must follow that store, not
+        # silently aggregate every store's packages.
+        get packages_path
+        expect(response).to have_http_status(:ok)
+        expect(response.body).to include("PKS#1001")
+        expect(response.body).not_to include("PKS#STOREB")
+        expect(sidebar_badge_count(response.body, "Pending Review")).to eq(1)
+      end
+
+      it "scopes the list and sidebar counts to the selected store" do
+        get packages_path, params: { store_id: store.id }
+        expect(response.body).to include("PKS#1001")
+        expect(response.body).not_to include("PKS#STOREB")
+        expect(sidebar_badge_count(response.body, "Pending Review")).to eq(1)
+      end
+
+      it "adds packages to STORE_SWITCHER_CONTROLLERS so the switcher persists a selection" do
+        get packages_path, params: { store_id: store_b.id }
+        expect(session[:store_id]).to eq(store_b.id)
+
+        get packages_path
+        expect(response.body).to include("PKS#STOREB")
+        expect(response.body).not_to include("PKS#1001")
+      end
+    end
+
     describe "cross-company isolation" do
       it "never shows a package that belongs to another company's store" do
         other_user = create(:user)
@@ -140,6 +189,22 @@ RSpec.describe "Packages", type: :request do
         get packages_path
         expect(response).to have_http_status(:ok)
         expect(response.body).not_to include("OTHER#9999")
+      end
+
+      it "never leaks another company's package even when its store_id is passed explicitly via the switcher" do
+        other_user = create(:user)
+        other_company = other_user.companies.first
+        other_store = create(:shopify_store, user: other_user, company: other_company)
+        other_customer = create(:customer, shopify_store: other_store)
+        other_order = create(:order, customer: other_customer, shopify_store: other_store, name: "OTHER#8888")
+        create(:package, shopify_store: other_store, order: other_order, aasm_state: "pending_review", number: 1)
+
+        # current_shopify_store resolves store_id against visible_shopify_stores
+        # (scoped to the current company), so a foreign store_id can never
+        # select a foreign store — it falls back within the current company.
+        get packages_path, params: { store_id: other_store.id }
+        expect(response).to have_http_status(:ok)
+        expect(response.body).not_to include("OTHER#8888")
       end
     end
 

@@ -29,7 +29,14 @@ class PackagesController < AdminController
     redirect_to authenticated_root_path, alert: t("companies.no_permission")
   end
 
+  # Scoped to the currently-selected store (via the store switcher) when one
+  # is chosen, else to every store the membership can see — mirrors
+  # OrdersController#index so the packages list respects the switcher the
+  # same way orders do. current_shopify_store is still derived from
+  # visible_shopify_stores, so cross-company/cross-group isolation holds
+  # either way.
   def scoped_packages
-    Package.where(shopify_store_id: visible_shopify_stores.select(:id))
+    store_ids = current_shopify_store ? [ current_shopify_store.id ] : visible_shopify_stores.select(:id)
+    Package.where(shopify_store_id: store_ids)
   end
 end

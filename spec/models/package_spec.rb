@@ -19,6 +19,21 @@ RSpec.describe Package do
     expect(dup).not_to be_valid
   end
 
+  describe "application_status" do
+    it "accepts each valid value" do
+      %w[none pending succeeded failed].each do |status|
+        pkg = build(:package, application_status: status)
+        expect(pkg).to be_valid
+      end
+    end
+
+    it "rejects a bogus value" do
+      pkg = build(:package, application_status: "bogus")
+      expect(pkg).not_to be_valid
+      expect(pkg.errors[:application_status]).to be_present
+    end
+  end
+
   describe "state machine" do
     let(:pkg) { create(:package) }
 

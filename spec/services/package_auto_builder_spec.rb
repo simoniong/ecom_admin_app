@@ -44,6 +44,23 @@ RSpec.describe PackageAutoBuilder do
     expect(store.packages.count).to eq(0)
   end
 
+  it "still refunds an existing package when packing has since been disabled" do
+    # Regression for Codex finding 1: the packing_enabled? guard must gate
+    # ONLY new-package creation, not the refund of an already-existing
+    # package. Build the package while packing is enabled, then disable
+    # packing, then fully refund the order — the existing package must
+    # still transition to refunded instead of staying stuck active.
+    described_class.new(order).call
+    pkg = store.packages.find_by(order: order)
+    expect(pkg).to be_present
+
+    store.update_columns(packing_enabled: false)
+    order.update!(financial_status: "refunded")
+    described_class.new(order).call
+
+    expect(pkg.reload).to have_state(:refunded)
+  end
+
   it "does not build for an unpaid order" do
     order.update!(financial_status: "pending")
     described_class.new(order).call
@@ -78,12 +95,17 @@ RSpec.describe PackageAutoBuilder do
     expect(pkg.reload).not_to have_state(:refunded)
   end
 
-  it "swallows a mid-build error instead of letting it propagate into order sync" do
-    allow_any_instance_of(Package).to receive(:save!).and_raise(ActiveRecord::RecordInvalid.new(Package.new))
+  it "swallows a mid-build error (a real validation failure) instead of letting it propagate into order sync" do
+    # De-mocked (Codex finding 4): instead of stubbing Package#save! to raise,
+    # pre-occupy the store's next sequence number with another package so the
+    # create! this order's build attempts makes collides with the model's
+    # REAL uniqueness validation (number scoped to shopify_store_id) —
+    # exercising the outer rescue with a genuine ActiveRecord::RecordInvalid.
+    other_order = create(:order, shopify_store: store, financial_status: "paid")
+    create(:package, shopify_store: store, order: other_order, number: store.package_number_start)
 
     expect { described_class.new(order).call }.not_to raise_error
-    expect(described_class.new(order).call).to be_nil
-    expect(store.packages.count).to eq(0)
+    expect(store.packages.find_by(order: order)).to be_nil
   end
 
   it "does not consume a sequence number when it bails inside the lock because the package already exists" do
@@ -102,9 +124,14 @@ RSpec.describe PackageAutoBuilder do
     described_class.new(order).call
     expect(store.packages.where(order: order).count).to eq(1)
 
-    # Force the in-lock existence re-check to miss (simulating a race window)
-    # so the code proceeds to create!, which must hit the unique order_id
-    # index and be rescued as a clean no-op.
+    # KEPT MOCKED (Codex finding 4): this exercises the true multi-connection
+    # race — a second process's create! reaching the DB in the narrow window
+    # AFTER this process's in-lock exists? re-check already returned false but
+    # BEFORE it inserts. That interleaving can't be produced deterministically
+    # against the real DB from a single connection/thread, and the repo's
+    # no-flaky-thread-tests rule rules out simulating it with real concurrency.
+    # Stubbing exists? to miss the (real, already-persisted) duplicate is the
+    # narrowest way to force the code down the real unique-index rescue path.
     allow(store.packages).to receive(:exists?).with(order_id: order.id).and_return(false)
 
     builder = described_class.new(order)

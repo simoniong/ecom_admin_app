@@ -7,6 +7,7 @@ class Package < ApplicationRecord
   has_many :package_items, dependent: :destroy
 
   validates :number, presence: true, uniqueness: { scope: :shopify_store_id }
+  validates :application_status, inclusion: { in: %w[none pending succeeded failed] }
 
   aasm column: :aasm_state do
     state :pending_review, initial: true

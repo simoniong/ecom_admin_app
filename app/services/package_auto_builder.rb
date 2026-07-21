@@ -9,8 +9,6 @@ class PackageAutoBuilder
   end
 
   def call
-    return unless @store&.packing_enabled?
-
     do_call
   rescue => e
     Rails.logger.error("[PackageAutoBuilder] Order##{@order.id} failed: #{e.class}: #{e.message}")
@@ -19,12 +17,19 @@ class PackageAutoBuilder
 
   private
 
+  # Refund of an EXISTING package must run regardless of packing_enabled? —
+  # a store that has since turned packing off (or a package built before it
+  # was disabled) must still see that package transition to refunded on a
+  # full refund. packing_enabled? gates ONLY new-package creation below.
   def do_call
+    return unless @store
+
     existing = @store.packages.find_by(order_id: @order.id)
     if fully_refunded?
       refund(existing) if existing
       return
     end
+    return unless @store.packing_enabled?
     return if existing
     return unless eligible?
 
