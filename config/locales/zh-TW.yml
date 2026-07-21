@@ -616,10 +616,11 @@
       refunded: "已退款"
       held: "已擱置"
     other_states: "其他"
+    held_from_label: "原狀態:%{state}"
     application_status:
       all: "全部"
       pending: "申請中"
-      success: "申請成功"
+      succeeded: "申請成功"
       failed: "申請失敗"
     columns:
       package_code: "包裹編號"

@@ -618,10 +618,11 @@ en:
       refunded: "Refunded"
       held: "Held"
     other_states: "Other"
+    held_from_label: "Original state: %{state}"
     application_status:
       all: "All"
       pending: "In Progress"
-      success: "Success"
+      succeeded: "Succeeded"
       failed: "Failed"
     columns:
       package_code: "Package"

@@ -36,5 +36,10 @@
         <%= t("packages.application_status.#{package.application_status}") %>
       </span>
     <% end %>
+    <% if package.aasm_state == "held" && package.held_from.present? %>
+      <span class="ml-1 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-50 text-yellow-700">
+        <%= t("packages.held_from_label", state: t("packages.states.#{package.held_from}")) %>
+      </span>
+    <% end %>
   </td>
 </tr>

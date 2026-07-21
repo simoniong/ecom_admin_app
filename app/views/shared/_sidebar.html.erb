@@ -174,7 +174,7 @@
         <div id="packing-menu" data-nav-group-target="menu" class="ml-4 mt-1 space-y-1 <%= packing_active ? '' : 'hidden' %>">
           <% %w[pending_review pending_process applying_tracking pending_label shipped].each do |state| %>
             <%= link_to packages_path(state: state), data: { action: "click->sidebar#close" },
-                class: "flex items-center justify-between gap-2 px-3 py-2 text-sm font-medium rounded-md #{controller_name == 'packages' && params[:state] == state ? 'bg-gray-100 text-gray-900' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'}" do %>
+                class: "flex items-center justify-between gap-2 px-3 py-2 text-sm font-medium rounded-md #{controller_name == 'packages' && (params[:state].presence || 'pending_review') == state ? 'bg-gray-100 text-gray-900' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'}" do %>
               <span><%= t("packages.states.#{state}") %></span>
               <span class="text-xs text-gray-400"><%= package_counts[state].to_i %></span>
             <% end %>
@@ -184,7 +184,7 @@
             <p class="px-3 pb-1 text-[11px] font-semibold text-gray-400 uppercase tracking-wide"><%= t("packages.other_states") %></p>
             <% %w[refunded held].each do |state| %>
               <%= link_to packages_path(state: state), data: { action: "click->sidebar#close" },
-                  class: "flex items-center justify-between gap-2 px-3 py-2 text-sm font-medium rounded-md #{controller_name == 'packages' && params[:state] == state ? 'bg-gray-100 text-gray-900' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'}" do %>
+                  class: "flex items-center justify-between gap-2 px-3 py-2 text-sm font-medium rounded-md #{controller_name == 'packages' && (params[:state].presence || 'pending_review') == state ? 'bg-gray-100 text-gray-900' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'}" do %>
                 <span><%= t("packages.states.#{state}") %></span>
                 <span class="text-xs text-gray-400"><%= package_counts[state].to_i %></span>
               <% end %>

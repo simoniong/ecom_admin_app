@@ -70,8 +70,7 @@ module ApplicationHelper
   # stores the current membership can see (same store-scoping as
   # PackagesController#scoped_packages, so a sidebar badge can never leak a
   # count from another company's store). Computed as a single grouped query
-  # here — not one query per state link — mirroring
-  # PackagesController#index's @counts.
+  # here — not one query per state link.
   def sidebar_package_counts
     return {} unless current_membership&.any_packing_permission?
 
