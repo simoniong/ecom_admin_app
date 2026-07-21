@@ -78,8 +78,15 @@ Rails.application.routes.draw do
         get  :export
       end
     end
-    resources :packages, only: [ :index ] do
-      post :sync, on: :collection
+    resources :packages, only: [ :index, :show ] do
+      member do
+        patch :transition
+        patch :update_address
+        patch :update_item
+        patch :update_logistics
+        patch :update_note
+      end
+      collection { post :sync }
     end
     resources :products, only: [ :index ]
     # Task 3 builds ProductCustomsController + its view; the route is added

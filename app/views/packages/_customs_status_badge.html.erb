@@ -1,0 +1,12 @@
+<%# Extracted so PackagesController#update_item can refresh this badge alongside
+    the edited row (see update_item.turbo_stream.erb) — otherwise, saving the
+    LAST incomplete item's customs would complete the package but leave this
+    header badge stuck showing "incomplete" until the modal is reloaded from
+    scratch, since the row-edit turbo_stream only replaces the one <tr>. %>
+<span id="<%= dom_id(package, :customs_status) %>">
+  <% unless package.customs_complete? %>
+    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+      <%= t("packages.customs_fields.incomplete") %>
+    </span>
+  <% end %>
+</span>

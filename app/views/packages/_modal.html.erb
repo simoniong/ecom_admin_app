@@ -1,0 +1,78 @@
+<%= turbo_frame_tag "package-modal" do %>
+  <div data-controller="tabs" class="flex flex-col">
+    <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+      <div>
+        <h3 class="text-base font-semibold text-gray-900">
+          <%= t("packages.detail_title", code: package.package_code) %>
+        </h3>
+        <p class="text-xs text-gray-500 mt-0.5">
+          <%= t("packages.source") %>: <%= package.order.shopify_data&.dig("source_name") || "web" %>
+        </p>
+      </div>
+      <button type="button" data-action="click->modal#close" aria-label="<%= t("packages.close") %>"
+              class="text-gray-400 hover:text-gray-600 text-xl leading-none">
+        &times;
+      </button>
+    </div>
+
+    <% if package.order_cancelled? %>
+      <div class="mx-6 mt-3 px-4 py-2 rounded-md bg-red-50 text-red-800 border border-red-200 text-sm font-medium">
+        <%= t("packages.order_cancelled") %>
+      </div>
+    <% end %>
+
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 px-6 py-3 border-b border-gray-100 text-sm">
+      <div>
+        <dt class="text-xs text-gray-500"><%= t("packages.seller") %></dt>
+        <dd class="text-gray-900"><%= package.shopify_store.display_name %></dd>
+      </div>
+      <div>
+        <dt class="text-xs text-gray-500"><%= t("packages.buyer") %></dt>
+        <dd class="text-gray-900"><%= package.order.email.presence || "—" %></dd>
+      </div>
+      <div>
+        <dt class="text-xs text-gray-500"><%= t("packages.buyer_name") %></dt>
+        <dd class="text-gray-900"><%= package.order.customer&.full_name || "—" %></dd>
+      </div>
+      <div>
+        <dt class="text-xs text-gray-500"><%= t("packages.order_total") %></dt>
+        <dd class="text-gray-900"><%= number_to_currency(package.order.total_price, unit: "#{package.order.currency} ") %></dd>
+      </div>
+    </div>
+
+    <%= render "packages/step_bar", package: package %>
+
+    <!-- Mobile horizontal tab strip -->
+    <%= render "packages/tab_strip", package: package, variant: "mobile" %>
+
+    <div class="flex flex-1 min-h-0">
+      <!-- Desktop vertical tab sidebar -->
+      <%= render "packages/tab_strip", package: package, variant: "desktop" %>
+
+      <div class="flex-1 min-w-0 px-6 py-4">
+        <div data-tabs-target="panel" data-tabs-name-param="address">
+          <%= render "packages/address_section", package: package %>
+        </div>
+        <div data-tabs-target="panel" data-tabs-name-param="customs" class="hidden">
+          <%= render "packages/customs_section", package: package %>
+        </div>
+        <div data-tabs-target="panel" data-tabs-name-param="logistics" class="hidden">
+          <%= render "packages/logistics_section", package: package %>
+        </div>
+        <div data-tabs-target="panel" data-tabs-name-param="note" class="hidden">
+          <%= render "packages/note_section", package: package %>
+        </div>
+      </div>
+    </div>
+
+    <%= render "packages/order_info", package: package %>
+
+    <%= render "packages/readiness", package: package %>
+
+    <!-- Bottom actions bar — Task 4 wires the review/hold/unhold/back_to_review
+         buttons here; later tasks (5-8) may add more to the same partial. -->
+    <div id="<%= dom_id(package, :actions) %>" class="border-t border-gray-100 px-6 py-3">
+      <%= render "packages/actions", package: package %>
+    </div>
+  </div>
+<% end %>

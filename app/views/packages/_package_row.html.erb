@@ -1,5 +1,9 @@
 <tr>
-  <td class="px-4 py-3 text-sm font-medium text-gray-900 align-top whitespace-nowrap"><%= package.package_code %></td>
+  <td class="px-4 py-3 text-sm font-medium align-top whitespace-nowrap">
+    <%= link_to package.package_code, package_path(id: package.id),
+        data: { turbo_frame: "package-modal" },
+        class: "text-blue-600 hover:underline font-medium" %>
+  </td>
   <td class="px-4 py-3 text-sm text-gray-700 align-top">
     <% if package.package_items.any? %>
       <% package.package_items.each do |item| %>
@@ -22,7 +26,11 @@
     <%= number_to_currency(package.order.total_price, unit: "#{package.order.currency} ") %>
   </td>
   <td class="px-4 py-3 text-sm text-gray-700 align-top whitespace-nowrap">
-    <% country = package.order.shopify_data&.dig("shipping_address", "country_code") %>
+    <%# Prefer the package's own address snapshot so a manual override (which
+        sets address_overridden and may change the country) shows here too;
+        fall back to the order's raw Shopify shipping address otherwise. %>
+    <% country = package.shipping_address_snapshot["country_code"].presence ||
+                 package.order.shopify_data&.dig("shipping_address", "country_code") %>
     <% if country.present? %>
       <%= parcel_country_flag(country) %> <%= parcel_country_name(country) %>
     <% else %>
@@ -44,6 +52,11 @@
     <% if package.aasm_state == "held" && package.held_from.present? %>
       <span class="ml-1 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-50 text-yellow-700">
         <%= t("packages.held_from_label", state: t("packages.states.#{package.held_from}")) %>
+      </span>
+    <% end %>
+    <% if package.order_cancelled? %>
+      <span class="ml-1 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+        <%= t("packages.order_cancelled") %>
       </span>
     <% end %>
   </td>

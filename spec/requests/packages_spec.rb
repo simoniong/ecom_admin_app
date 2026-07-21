@@ -275,6 +275,35 @@ RSpec.describe "Packages", type: :request do
     end
   end
 
+  describe "destination country on the list reflects a manual address override" do
+    def flag_for(code)
+      code.each_char.map { |c| (c.ord + 127397).chr(Encoding::UTF_8) }.join
+    end
+
+    it "shows the snapshot's country (not the raw Shopify country) once the address is overridden" do
+      order = create(:order, customer: customer, shopify_store: store, name: "PKS#7001",
+                      shopify_data: { "shipping_address" => { "country_code" => "US" } })
+      create(:package, shopify_store: store, order: order, aasm_state: "pending_review", number: 701,
+             address_overridden: true, shipping_address_snapshot: { "country_code" => "JP" })
+
+      get packages_path(state: "pending_review")
+
+      expect(response.body).to include(flag_for("JP"))
+      expect(response.body).not_to include(flag_for("US"))
+    end
+
+    it "falls back to the raw Shopify country when the snapshot has none" do
+      order = create(:order, customer: customer, shopify_store: store, name: "PKS#7002",
+                      shopify_data: { "shipping_address" => { "country_code" => "US" } })
+      create(:package, shopify_store: store, order: order, aasm_state: "pending_review", number: 702,
+             shipping_address_snapshot: {})
+
+      get packages_path(state: "pending_review")
+
+      expect(response.body).to include(flag_for("US"))
+    end
+  end
+
   describe "POST /packages/sync" do
     it "enqueues a sync job for the selected store and redirects with a notice" do
       store # ensure exists
@@ -296,6 +325,703 @@ RSpec.describe "Packages", type: :request do
 
       post sync_packages_path
       expect(response).to redirect_to(authenticated_root_path)
+    end
+  end
+
+  describe "GET /packages/:id (detail)" do
+    it "renders the package detail for a user with a packing permission" do
+      order = create(:order, customer: customer, shopify_store: store, name: "PKS#3010")
+      pkg = create(:package, shopify_store: store, order: order, aasm_state: "pending_process", number: 30)
+
+      get package_path(id: pkg.id)
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include(pkg.package_code)
+    end
+
+    it "renders each read-only section with its stable dom id" do
+      order = create(:order, customer: customer, shopify_store: store, name: "PKS#3011")
+      pkg = create(:package, shopify_store: store, order: order, aasm_state: "pending_review", number: 31,
+                    shipping_address_snapshot: { "name" => "Jane Doe", "country_code" => "US", "address1" => "1 Main St", "city" => "Springfield" },
+                    note: "Handle with care")
+      create(:package_item, package: pkg, sku: "SKU-DETAIL", title: "Widget", quantity: 2)
+
+      get package_path(id: pkg.id)
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include(ActionView::RecordIdentifier.dom_id(pkg, :address))
+      expect(response.body).to include(ActionView::RecordIdentifier.dom_id(pkg, :customs))
+      expect(response.body).to include(ActionView::RecordIdentifier.dom_id(pkg, :logistics))
+      expect(response.body).to include(ActionView::RecordIdentifier.dom_id(pkg, :note))
+      expect(response.body).to include("Jane Doe")
+      expect(response.body).to include("Handle with care")
+      expect(response.body).to include("SKU-DETAIL")
+    end
+
+    it "responds to a Turbo Frame request by rendering only the modal partial (no full layout chrome)" do
+      order = create(:order, customer: customer, shopify_store: store, name: "PKS#3012")
+      pkg = create(:package, shopify_store: store, order: order, aasm_state: "pending_review", number: 32)
+
+      get package_path(id: pkg.id), headers: { "Turbo-Frame" => "package-modal" }
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include(pkg.package_code)
+      expect(response.body).not_to include("<!DOCTYPE html>")
+    end
+
+    it "does not leak another company's package" do
+      other_user = create(:user)
+      other_company = other_user.companies.first
+      other_store = create(:shopify_store, user: other_user, company: other_company)
+      other_customer = create(:customer, shopify_store: other_store)
+      other_order = create(:order, customer: other_customer, shopify_store: other_store, name: "OTHER#3099")
+      foreign = create(:package, shopify_store: other_store, order: other_order, aasm_state: "pending_review", number: 99)
+
+      get package_path(id: foreign.id)
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "denies a member without any packing permission" do
+      member = create(:user)
+      create(:membership, user: member, company: company, role: :member, permissions: [ "orders" ])
+      sign_out user
+      sign_in member
+      order = create(:order, customer: customer, shopify_store: store, name: "PKS#3013")
+      pkg = create(:package, shopify_store: store, order: order, aasm_state: "pending_review", number: 33)
+
+      get package_path(id: pkg.id)
+
+      expect(response).to redirect_to(authenticated_root_path)
+    end
+  end
+
+  describe "PATCH /packages/:id/transition" do
+    def sign_in_as_member_with(permission)
+      member = create(:user)
+      create(:membership, user: member, company: company, role: :member, permissions: [ permission ])
+      sign_out user
+      sign_in member
+      member
+    end
+
+    describe "review gate (submit_review / back_to_review)" do
+      it "lets a member with package_review submit_review, advancing pending_review -> pending_process" do
+        sign_in_as_member_with("package_review")
+
+        patch transition_package_path(id: review_package.id, event: "submit_review")
+
+        expect(review_package.reload.aasm_state).to eq("pending_process")
+      end
+
+      it "re-renders the modal via turbo_stream, reflecting the new state" do
+        sign_in_as_member_with("package_review")
+
+        patch transition_package_path(id: review_package.id, event: "submit_review"),
+              headers: { "Accept" => "text/vnd.turbo-stream.html" }
+
+        expect(response).to have_http_status(:ok)
+        expect(response.media_type).to eq("text/vnd.turbo-stream.html")
+        expect(response.body).to include("turbo-stream")
+        expect(response.body).to include(I18n.t("packages.states.pending_process"))
+      end
+
+      it "denies a member with only package_process (redirect, no_permission), and does not transition" do
+        sign_in_as_member_with("package_process")
+
+        patch transition_package_path(id: review_package.id, event: "submit_review")
+
+        expect(response).to redirect_to(packages_path)
+        follow_redirect!
+        expect(response.body).to include(CGI.escapeHTML(I18n.t("companies.no_permission")))
+        expect(review_package.reload.aasm_state).to eq("pending_review")
+      end
+
+      it "lets a member with package_review back_to_review, reverting pending_process -> pending_review" do
+        sign_in_as_member_with("package_review")
+
+        patch transition_package_path(id: process_package.id, event: "back_to_review")
+
+        expect(process_package.reload.aasm_state).to eq("pending_review")
+      end
+    end
+
+    describe "process gate (hold / unhold / back_to_process)" do
+      it "lets a member with package_process hold a package, capturing held_from" do
+        sign_in_as_member_with("package_process")
+
+        patch transition_package_path(id: review_package.id, event: "hold")
+
+        review_package.reload
+        expect(review_package.aasm_state).to eq("held")
+        expect(review_package.held_from).to eq("pending_review")
+      end
+
+      it "denies a member with only package_review (redirect, no_permission), and does not transition" do
+        sign_in_as_member_with("package_review")
+
+        patch transition_package_path(id: review_package.id, event: "hold")
+
+        expect(response).to redirect_to(packages_path)
+        follow_redirect!
+        expect(response.body).to include(CGI.escapeHTML(I18n.t("companies.no_permission")))
+        expect(review_package.reload.aasm_state).to eq("pending_review")
+      end
+
+      it "restores a held package to its original state on unhold" do
+        sign_in_as_member_with("package_process")
+        held_package = create(:package, shopify_store: store, order: create(:order, customer: customer, shopify_store: store, name: "PKS#4001"),
+                               aasm_state: "held", held_from: "pending_process", number: 40)
+
+        patch transition_package_path(id: held_package.id, event: "unhold")
+
+        held_package.reload
+        expect(held_package.aasm_state).to eq("pending_process")
+        expect(held_package.held_from).to be_nil  # cleared and persisted (update_column)
+      end
+    end
+
+    describe "invalid transitions/events do not 500" do
+      it "rejects an unlisted/bogus event name with an alert, not a 500" do
+        sign_in_as_member_with("package_review")
+
+        patch transition_package_path(id: review_package.id, event: "launch_rocket")
+
+        expect(response).to redirect_to(packages_path)
+        follow_redirect!
+        expect(response.body).to include(I18n.t("packages.invalid_action"))
+      end
+
+      it "rejects an AASM-invalid event for the package's current state (ship from pending_review), not a 500" do
+        sign_in_as_member_with("package_process")
+
+        patch transition_package_path(id: review_package.id, event: "back_to_process")
+
+        expect(response).not_to have_http_status(:internal_server_error)
+        expect(review_package.reload.aasm_state).to eq("pending_review")
+      end
+
+      it "returns 422 with the re-rendered modal on turbo_stream for an AASM::InvalidTransition" do
+        sign_in_as_member_with("package_process")
+
+        patch transition_package_path(id: review_package.id, event: "back_to_process"),
+              headers: { "Accept" => "text/vnd.turbo-stream.html" }
+
+        expect(response).to have_http_status(:unprocessable_entity)
+        expect(response.body).to include("package-modal")
+      end
+    end
+  end
+
+  describe "PATCH /packages/:id/update_address" do
+    def sign_in_as_member_with(permission)
+      member = create(:user)
+      create(:membership, user: member, company: company, role: :member, permissions: [ permission ])
+      sign_out user
+      sign_in member
+      member
+    end
+
+    let(:address_params) do
+      {
+        name: "Jane Doe", phone: "555-1234", address1: "1 Main St", address2: "Apt 2",
+        city: "Springfield", province: "IL", zip: "62704", country: "United States",
+        country_code: "US", company: "Acme Inc", tax_id: "TX-123"
+      }
+    end
+
+    it "lets a member with package_process persist the snapshot and set address_overridden" do
+      sign_in_as_member_with("package_process")
+
+      patch update_address_package_path(id: review_package.id), params: { address: address_params }
+
+      review_package.reload
+      expect(review_package.address_overridden).to be(true)
+      expect(review_package.shipping_address_snapshot["name"]).to eq("Jane Doe")
+      expect(review_package.shipping_address_snapshot["address1"]).to eq("1 Main St")
+      expect(review_package.shipping_address_snapshot["city"]).to eq("Springfield")
+      expect(review_package.shipping_address_snapshot["country_code"]).to eq("US")
+      expect(review_package.shipping_address_snapshot["tax_id"]).to eq("TX-123")
+    end
+
+    it "re-renders the address section via turbo_stream with the new values" do
+      sign_in_as_member_with("package_process")
+
+      patch update_address_package_path(id: review_package.id), params: { address: address_params },
+            headers: { "Accept" => "text/vnd.turbo-stream.html" }
+
+      expect(response).to have_http_status(:ok)
+      expect(response.media_type).to eq("text/vnd.turbo-stream.html")
+      expect(response.body).to include(ActionView::RecordIdentifier.dom_id(review_package, :address))
+      expect(response.body).to include("Jane Doe")
+    end
+
+    it "also refreshes the tab strips and readiness panel in the same turbo_stream" do
+      sign_in_as_member_with("package_process")
+
+      patch update_address_package_path(id: review_package.id), params: { address: address_params },
+            headers: { "Accept" => "text/vnd.turbo-stream.html" }
+
+      expect(response.body).to include(ActionView::RecordIdentifier.dom_id(review_package, :tab_strip_mobile))
+      expect(response.body).to include(ActionView::RecordIdentifier.dom_id(review_package, :tab_strip_desktop))
+      expect(response.body).to include(ActionView::RecordIdentifier.dom_id(review_package, :readiness))
+    end
+
+    it "redirects with a notice on a plain HTML request" do
+      sign_in_as_member_with("package_process")
+
+      patch update_address_package_path(id: review_package.id), params: { address: address_params }
+
+      expect(response).to redirect_to(package_path(id: review_package.id))
+      follow_redirect!
+      expect(response.body).to include(I18n.t("packages.address_saved"))
+    end
+
+    it "saves a partial address without enforcing required-together fields" do
+      sign_in_as_member_with("package_process")
+
+      patch update_address_package_path(id: review_package.id), params: { address: { name: "Only Name" } }
+
+      review_package.reload
+      expect(review_package.address_overridden).to be(true)
+      expect(review_package.shipping_address_snapshot["name"]).to eq("Only Name")
+      expect(review_package.shipping_address_snapshot["city"]).to eq("")
+    end
+
+    it "denies a member with only package_review (redirect, no_permission), and does not persist" do
+      sign_in_as_member_with("package_review")
+
+      patch update_address_package_path(id: review_package.id), params: { address: address_params }
+
+      expect(response).to redirect_to(packages_path)
+      follow_redirect!
+      expect(response.body).to include(CGI.escapeHTML(I18n.t("companies.no_permission")))
+      expect(review_package.reload.address_overridden).to be(false)
+    end
+
+    it "does not leak another company's package" do
+      other_user = create(:user)
+      other_company = other_user.companies.first
+      other_store = create(:shopify_store, user: other_user, company: other_company)
+      other_customer = create(:customer, shopify_store: other_store)
+      other_order = create(:order, customer: other_customer, shopify_store: other_store, name: "OTHER#5001")
+      foreign = create(:package, shopify_store: other_store, order: other_order, aasm_state: "pending_review", number: 50)
+
+      patch update_address_package_path(id: foreign.id), params: { address: address_params }
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    describe "integration with PackageAutoBuilder re-sync (proves the override flag wiring)" do
+      it "preserves the manually-edited address after a later sync with different order data" do
+        sign_in_as_member_with("package_process")
+        order = review_package.order
+        order.update!(shopify_data: order.shopify_data.merge(
+          "shipping_address" => { "city" => "FROM_SHOPIFY", "name" => "Shopify Name" }
+        ))
+
+        patch update_address_package_path(id: review_package.id), params: { address: address_params }
+        expect(review_package.reload.address_overridden).to be(true)
+
+        order.update!(shopify_data: order.shopify_data.merge(
+          "shipping_address" => { "city" => "DIFFERENT_CITY", "name" => "Different Name" }
+        ))
+        PackageAutoBuilder.new(order.reload).call
+
+        review_package.reload
+        expect(review_package.shipping_address_snapshot["city"]).to eq("Springfield")
+        expect(review_package.shipping_address_snapshot["name"]).to eq("Jane Doe")
+      end
+    end
+  end
+
+  describe "PATCH /packages/:id/update_item" do
+    def sign_in_as_member_with(permission)
+      member = create(:user)
+      create(:membership, user: member, company: company, role: :member, permissions: [ permission ])
+      sign_out user
+      sign_in member
+      member
+    end
+
+    let!(:item) { create(:package_item, package: review_package, sku: "SKU-EDIT", title: "Editable Widget", quantity: 2) }
+
+    let(:customs_params) do
+      {
+        customs_name_zh: "小工具", customs_name_en: "Widget",
+        declared_value_usd: "12.50", customs_weight_grams: "150",
+        hs_code: "1234.56", import_hs_code: "9876.54"
+      }
+    end
+
+    it "lets a member with package_process persist the 6 customs fields and set customs_overridden" do
+      sign_in_as_member_with("package_process")
+
+      patch update_item_package_path(id: review_package.id, item_id: item.id), params: { package_item: customs_params }
+
+      item.reload
+      expect(item.customs_overridden).to be(true)
+      expect(item.customs_name_zh).to eq("小工具")
+      expect(item.customs_name_en).to eq("Widget")
+      expect(item.declared_value_usd).to eq(12.50)
+      expect(item.customs_weight_grams).to eq(150)
+      expect(item.hs_code).to eq("1234.56")
+      expect(item.import_hs_code).to eq("9876.54")
+    end
+
+    it "re-renders the item's row via turbo_stream with the new values" do
+      sign_in_as_member_with("package_process")
+
+      patch update_item_package_path(id: review_package.id, item_id: item.id),
+            params: { package_item: customs_params },
+            headers: { "Accept" => "text/vnd.turbo-stream.html" }
+
+      expect(response).to have_http_status(:ok)
+      expect(response.media_type).to eq("text/vnd.turbo-stream.html")
+      expect(response.body).to include(ActionView::RecordIdentifier.dom_id(item))
+      expect(response.body).to include("Widget")
+    end
+
+    it "redirects with a notice on a plain HTML request" do
+      sign_in_as_member_with("package_process")
+
+      patch update_item_package_path(id: review_package.id, item_id: item.id), params: { package_item: customs_params }
+
+      expect(response).to redirect_to(package_path(id: review_package.id))
+      follow_redirect!
+      expect(response.body).to include(I18n.t("packages.item_saved"))
+    end
+
+    it "saves a partial customs edit without enforcing required-together fields" do
+      sign_in_as_member_with("package_process")
+
+      patch update_item_package_path(id: review_package.id, item_id: item.id),
+            params: { package_item: { customs_name_zh: "只有中文名" } }
+
+      item.reload
+      expect(item.customs_overridden).to be(true)
+      expect(item.customs_name_zh).to eq("只有中文名")
+      expect(item.customs_name_en).to be_nil
+    end
+
+    it "rejects a negative declared value with 422 (re-renders the row) instead of 500ing, and does not persist" do
+      sign_in_as_member_with("package_process")
+
+      patch update_item_package_path(id: review_package.id, item_id: item.id),
+            params: { package_item: customs_params.merge(declared_value_usd: "-1") },
+            headers: { "Accept" => "text/vnd.turbo-stream.html" }
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.media_type).to eq("text/vnd.turbo-stream.html")
+      expect(response.body).to include(ActionView::RecordIdentifier.dom_id(item))
+      item.reload
+      expect(item.declared_value_usd).to be_nil
+      expect(item.customs_overridden).to be(false)
+    end
+
+    it "refreshes the package-wide indicators (customs badge, tab strips, readiness) in the same successful stream" do
+      sign_in_as_member_with("package_process")
+
+      patch update_item_package_path(id: review_package.id, item_id: item.id),
+            params: { package_item: customs_params },
+            headers: { "Accept" => "text/vnd.turbo-stream.html" }
+
+      expect(response.body).to include(ActionView::RecordIdentifier.dom_id(review_package, :customs_status))
+      expect(response.body).to include(ActionView::RecordIdentifier.dom_id(review_package, :tab_strip_mobile))
+      expect(response.body).to include(ActionView::RecordIdentifier.dom_id(review_package, :tab_strip_desktop))
+      expect(response.body).to include(ActionView::RecordIdentifier.dom_id(review_package, :readiness))
+    end
+
+    it "does NOT refresh the package-wide indicators on a failed (422) save (DB unchanged)" do
+      sign_in_as_member_with("package_process")
+
+      patch update_item_package_path(id: review_package.id, item_id: item.id),
+            params: { package_item: customs_params.merge(customs_weight_grams: "-5") },
+            headers: { "Accept" => "text/vnd.turbo-stream.html" }
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.body).not_to include(ActionView::RecordIdentifier.dom_id(review_package, :readiness))
+    end
+
+    it "denies a member with only package_review (redirect, no_permission), and does not persist" do
+      sign_in_as_member_with("package_review")
+
+      patch update_item_package_path(id: review_package.id, item_id: item.id), params: { package_item: customs_params }
+
+      expect(response).to redirect_to(packages_path)
+      follow_redirect!
+      expect(response.body).to include(CGI.escapeHTML(I18n.t("companies.no_permission")))
+      expect(item.reload.customs_overridden).to be(false)
+    end
+
+    it "does not leak another package's item (scoped to @package.package_items)" do
+      sign_in_as_member_with("package_process")
+      foreign_item = create(:package_item, package: process_package, sku: "SKU-FOREIGN")
+
+      patch update_item_package_path(id: review_package.id, item_id: foreign_item.id), params: { package_item: customs_params }
+
+      expect(response).to have_http_status(:not_found)
+      expect(foreign_item.reload.customs_overridden).to be(false)
+    end
+
+    it "does not leak another company's package" do
+      other_user = create(:user)
+      other_company = other_user.companies.first
+      other_store = create(:shopify_store, user: other_user, company: other_company)
+      other_customer = create(:customer, shopify_store: other_store)
+      other_order = create(:order, customer: other_customer, shopify_store: other_store, name: "OTHER#6001")
+      foreign_package = create(:package, shopify_store: other_store, order: other_order, aasm_state: "pending_review", number: 60)
+      foreign_item = create(:package_item, package: foreign_package, sku: "SKU-OTHER")
+
+      patch update_item_package_path(id: foreign_package.id, item_id: foreign_item.id), params: { package_item: customs_params }
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    describe "integration with PackageAutoBuilder re-sync (proves the override flag wiring)" do
+      it "preserves this item's manually-edited customs after a later sync with different variant customs" do
+        sign_in_as_member_with("package_process")
+        variant = create(:product_variant, product: create(:product, shopify_store: store),
+                          customs_name_zh: "原廠中文", customs_name_en: "Factory Name",
+                          declared_value_usd: 5.00, weight_grams: 100,
+                          hs_code: "1111.11", import_hs_code: "2222.22")
+        line_item = create(:order_line_item, order: review_package.order, product_variant: variant, quantity: 2)
+        synced_item = create(:package_item, package: review_package, product_variant: variant,
+                              order_line_item: line_item, sku: "SKU-SYNCED", quantity: 2)
+
+        patch update_item_package_path(id: review_package.id, item_id: synced_item.id), params: { package_item: customs_params }
+        expect(synced_item.reload.customs_overridden).to be(true)
+
+        variant.update!(customs_name_zh: "CHANGED_ZH", customs_name_en: "CHANGED_EN",
+                        declared_value_usd: 99.99, weight_grams: 999)
+        PackageAutoBuilder.new(review_package.order.reload).call
+
+        synced_item.reload
+        expect(synced_item.customs_name_zh).to eq("小工具")
+        expect(synced_item.customs_name_en).to eq("Widget")
+        expect(synced_item.declared_value_usd).to eq(12.50)
+        expect(synced_item.customs_weight_grams).to eq(150)
+      end
+    end
+  end
+
+  describe "PATCH /packages/:id/update_logistics" do
+    def sign_in_as_member_with(permission)
+      member = create(:user)
+      create(:membership, user: member, company: company, role: :member, permissions: [ permission ])
+      sign_out user
+      sign_in member
+      member
+    end
+
+    let(:logistics_account) { create(:logistics_account, company: company) }
+    let(:channel) { create(:logistics_channel, logistics_account: logistics_account, name: "DHL Express", product_shortname: "DHL") }
+
+    it "assigns a company channel to the package" do
+      sign_in_as_member_with("package_process")
+
+      patch update_logistics_package_path(id: review_package.id), params: { logistics_channel_id: channel.id }
+
+      expect(review_package.reload.logistics_channel_id).to eq(channel.id)
+    end
+
+    it "unassigns the channel when logistics_channel_id is blank" do
+      sign_in_as_member_with("package_process")
+      review_package.update!(logistics_channel_id: channel.id)
+
+      patch update_logistics_package_path(id: review_package.id), params: { logistics_channel_id: "" }
+
+      expect(review_package.reload.logistics_channel_id).to be_nil
+    end
+
+    it "refreshes the tab strips and readiness panel in the same turbo_stream (no modal reopen needed)" do
+      sign_in_as_member_with("package_process")
+
+      patch update_logistics_package_path(id: process_package.id), params: { logistics_channel_id: channel.id },
+            headers: { "Accept" => "text/vnd.turbo-stream.html" }
+
+      expect(response.media_type).to eq("text/vnd.turbo-stream.html")
+      expect(response.body).to include(ActionView::RecordIdentifier.dom_id(process_package, :tab_strip_mobile))
+      expect(response.body).to include(ActionView::RecordIdentifier.dom_id(process_package, :tab_strip_desktop))
+      expect(response.body).to include(ActionView::RecordIdentifier.dom_id(process_package, :readiness))
+    end
+
+    it "re-renders the logistics section via turbo_stream with the new value" do
+      sign_in_as_member_with("package_process")
+
+      patch update_logistics_package_path(id: review_package.id), params: { logistics_channel_id: channel.id },
+            headers: { "Accept" => "text/vnd.turbo-stream.html" }
+
+      expect(response).to have_http_status(:ok)
+      expect(response.media_type).to eq("text/vnd.turbo-stream.html")
+      expect(response.body).to include(ActionView::RecordIdentifier.dom_id(review_package, :logistics))
+      expect(response.body).to include("DHL Express")
+    end
+
+    it "redirects with a notice on a plain HTML request" do
+      sign_in_as_member_with("package_process")
+
+      patch update_logistics_package_path(id: review_package.id), params: { logistics_channel_id: channel.id }
+
+      expect(response).to redirect_to(package_path(id: review_package.id))
+      follow_redirect!
+      expect(response.body).to include(I18n.t("packages.logistics_saved"))
+    end
+
+    it "rejects another company's channel id with an alert, and does not change logistics_channel_id" do
+      sign_in_as_member_with("package_process")
+      other_user = create(:user)
+      other_company = other_user.companies.first
+      other_account = create(:logistics_account, company: other_company)
+      foreign_channel = create(:logistics_channel, logistics_account: other_account, name: "Foreign Channel")
+
+      patch update_logistics_package_path(id: review_package.id), params: { logistics_channel_id: foreign_channel.id }
+
+      expect(response).to redirect_to(package_path(id: review_package.id))
+      follow_redirect!
+      expect(response.body).to include(CGI.escapeHTML(I18n.t("packages.invalid_channel")))
+      expect(review_package.reload.logistics_channel_id).to be_nil
+    end
+
+    it "leaves an existing assignment untouched when a foreign channel id is rejected" do
+      sign_in_as_member_with("package_process")
+      review_package.update!(logistics_channel_id: channel.id)
+      other_user = create(:user)
+      other_company = other_user.companies.first
+      other_account = create(:logistics_account, company: other_company)
+      foreign_channel = create(:logistics_channel, logistics_account: other_account, name: "Foreign Channel")
+
+      patch update_logistics_package_path(id: review_package.id), params: { logistics_channel_id: foreign_channel.id }
+
+      expect(review_package.reload.logistics_channel_id).to eq(channel.id)
+    end
+
+    it "denies a member with only package_review (redirect, no_permission), and does not persist" do
+      sign_in_as_member_with("package_review")
+
+      patch update_logistics_package_path(id: review_package.id), params: { logistics_channel_id: channel.id }
+
+      expect(response).to redirect_to(packages_path)
+      follow_redirect!
+      expect(response.body).to include(CGI.escapeHTML(I18n.t("companies.no_permission")))
+      expect(review_package.reload.logistics_channel_id).to be_nil
+    end
+  end
+
+  describe "PATCH /packages/:id/update_note" do
+    def sign_in_as_member_with(permission)
+      member = create(:user)
+      create(:membership, user: member, company: company, role: :member, permissions: [ permission ])
+      sign_out user
+      sign_in member
+      member
+    end
+
+    it "persists the note" do
+      sign_in_as_member_with("package_process")
+
+      patch update_note_package_path(id: review_package.id), params: { note: "Fragile — pack with care" }
+
+      expect(review_package.reload.note).to eq("Fragile — pack with care")
+    end
+
+    it "re-renders the note section via turbo_stream with the new value" do
+      sign_in_as_member_with("package_process")
+
+      patch update_note_package_path(id: review_package.id), params: { note: "Fragile — pack with care" },
+            headers: { "Accept" => "text/vnd.turbo-stream.html" }
+
+      expect(response).to have_http_status(:ok)
+      expect(response.media_type).to eq("text/vnd.turbo-stream.html")
+      expect(response.body).to include(ActionView::RecordIdentifier.dom_id(review_package, :note))
+      expect(response.body).to include("Fragile — pack with care")
+    end
+
+    it "redirects with a notice on a plain HTML request" do
+      sign_in_as_member_with("package_process")
+
+      patch update_note_package_path(id: review_package.id), params: { note: "Handle with care" }
+
+      expect(response).to redirect_to(package_path(id: review_package.id))
+      follow_redirect!
+      expect(response.body).to include(I18n.t("packages.note_saved"))
+    end
+
+    it "denies a member with only package_review (redirect, no_permission), and does not persist" do
+      sign_in_as_member_with("package_review")
+
+      patch update_note_package_path(id: review_package.id), params: { note: "Should not save" }
+
+      expect(response).to redirect_to(packages_path)
+      follow_redirect!
+      expect(response.body).to include(CGI.escapeHTML(I18n.t("companies.no_permission")))
+      expect(review_package.reload.note).to be_nil
+    end
+
+    it "does not leak another company's package" do
+      other_user = create(:user)
+      other_company = other_user.companies.first
+      other_store = create(:shopify_store, user: other_user, company: other_company)
+      other_customer = create(:customer, shopify_store: other_store)
+      other_order = create(:order, customer: other_customer, shopify_store: other_store, name: "OTHER#7001")
+      foreign = create(:package, shopify_store: other_store, order: other_order, aasm_state: "pending_review", number: 70)
+
+      patch update_note_package_path(id: foreign.id), params: { note: "Should not save" }
+
+      expect(response).to have_http_status(:not_found)
+    end
+  end
+
+  describe "readiness + cancel display" do
+    it "shows the logistics blocker for an incomplete pending_process package" do
+      order = create(:order, customer: customer, shopify_store: store, name: "PKS#8001")
+      pkg = create(:package, shopify_store: store, order: order, aasm_state: "pending_process", number: 80,
+                    shipping_address_snapshot: {})
+      create(:package_item, package: pkg, sku: "SKU-INCOMPLETE", title: "Widget", quantity: 1)
+
+      get package_path(id: pkg.id), headers: { "Turbo-Frame" => "package-modal" }
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include(CGI.escapeHTML(I18n.t("packages.blockers.logistics")))
+    end
+
+    it "shows the ready affordance (and not the blocked title) for a complete pending_process package" do
+      logistics_account = create(:logistics_account, company: company)
+      channel = create(:logistics_channel, logistics_account: logistics_account, name: "DHL Express", product_shortname: "DHL")
+      order = create(:order, customer: customer, shopify_store: store, name: "PKS#8002")
+      pkg = create(:package, shopify_store: store, order: order, aasm_state: "pending_process", number: 81,
+                    logistics_channel: channel,
+                    shipping_address_snapshot: { "name" => "Jane Doe", "country_code" => "US", "address1" => "1 Main St", "city" => "Springfield" })
+      create(:package_item, package: pkg, sku: "SKU-COMPLETE", title: "Widget", quantity: 1,
+             customs_name_zh: "小工具", customs_name_en: "Widget", declared_value_usd: 9.99, customs_weight_grams: 100)
+
+      get package_path(id: pkg.id), headers: { "Turbo-Frame" => "package-modal" }
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include(CGI.escapeHTML(I18n.t("packages.readiness.ready")))
+      expect(response.body).not_to include(CGI.escapeHTML(I18n.t("packages.readiness.blocked_title")))
+    end
+
+    it "shows the cancelled-order badge on the list for a cancelled order" do
+      order = create(:order, customer: customer, shopify_store: store, name: "PKS#8003",
+                      shopify_data: { "cancelled_at" => "2026-07-20T00:00:00Z" }, financial_status: "paid")
+      create(:package, shopify_store: store, order: order, aasm_state: "pending_review", number: 82)
+
+      get packages_path(state: "pending_review")
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include(CGI.escapeHTML(I18n.t("packages.order_cancelled")))
+    end
+
+    it "does not show the blocked title for a non-pending_process package" do
+      order = create(:order, customer: customer, shopify_store: store, name: "PKS#8004")
+      pkg = create(:package, shopify_store: store, order: order, aasm_state: "pending_review", number: 83,
+                    shipping_address_snapshot: {})
+
+      get package_path(id: pkg.id), headers: { "Turbo-Frame" => "package-modal" }
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).not_to include(CGI.escapeHTML(I18n.t("packages.readiness.blocked_title")))
     end
   end
 end

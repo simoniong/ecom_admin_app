@@ -75,6 +75,26 @@ RSpec.describe Membership, type: :model do
     end
   end
 
+  describe "fine-grained packing permissions" do
+    let(:company) { create(:company) }
+
+    it "package_review? is true for owner, for a member with the perm, false otherwise" do
+      expect(create(:membership, company: company, role: :owner).package_review?).to be(true)
+      m = create(:membership, company: company, role: :member, permissions: [ "package_review" ], group: create(:group, company: company))
+      expect(m.package_review?).to be(true)
+      m2 = create(:membership, company: company, role: :member, permissions: [ "package_process" ], group: create(:group, company: company))
+      expect(m2.package_review?).to be(false)
+    end
+
+    it "package_process? mirrors it for the process permission" do
+      expect(create(:membership, company: company, role: :owner).package_process?).to be(true)
+      m = create(:membership, company: company, role: :member, permissions: [ "package_process" ], group: create(:group, company: company))
+      expect(m.package_process?).to be(true)
+      m2 = create(:membership, company: company, role: :member, permissions: [ "package_review" ], group: create(:group, company: company))
+      expect(m2.package_process?).to be(false)
+    end
+  end
+
   describe "group assignment rules" do
     let(:company) { create(:company) }
     let(:user) { create(:user) }

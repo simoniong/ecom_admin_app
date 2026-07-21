@@ -30,6 +30,14 @@ class Membership < ApplicationRecord
     owner? || PACKING_PERMISSIONS.any? { |p| permissions.include?(p) }
   end
 
+  def package_review?
+    owner? || permissions.include?("package_review")
+  end
+
+  def package_process?
+    owner? || permissions.include?("package_process")
+  end
+
   private
 
   def owner_must_have_no_group

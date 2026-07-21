@@ -1,0 +1,6 @@
+<%= turbo_stream.replace dom_id(@package, :logistics), partial: "packages/logistics_section", locals: { package: @package } %>
+<%# Refresh the aggregate indicators — assigning a channel here immediately
+    ticks the Logistics tab-check and can flip the readiness panel to "ready". %>
+<%= turbo_stream.replace dom_id(@package, :tab_strip_mobile), partial: "packages/tab_strip", locals: { package: @package, variant: "mobile" } %>
+<%= turbo_stream.replace dom_id(@package, :tab_strip_desktop), partial: "packages/tab_strip", locals: { package: @package, variant: "desktop" } %>
+<%= turbo_stream.replace dom_id(@package, :readiness), partial: "packages/readiness", locals: { package: @package } %>
