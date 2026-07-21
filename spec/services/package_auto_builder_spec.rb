@@ -280,6 +280,20 @@ RSpec.describe PackageAutoBuilder do
       expect(pkg.reload.package_items.first.customs_name_en).to eq("MANUAL")
     end
 
+    it "still updates quantity and refunded_quantity even when customs is overridden" do
+      pkg = build!
+      pkg.package_items.first.update!(customs_overridden: true, customs_name_en: "MANUAL")
+      order.order_line_items.first.update!(quantity: 5)
+      order.update!(shopify_data: order.shopify_data.merge(
+        "refunds" => [ { "refund_line_items" => [ { "line_item_id" => 7001, "quantity" => 2 } ] } ]
+      ))
+      described_class.new(order).call
+      item = pkg.reload.package_items.first
+      expect(item.customs_name_en).to eq("MANUAL")   # customs section preserved
+      expect(item.quantity).to eq(5)                  # quantity still refreshed
+      expect(item.refunded_quantity).to eq(2)         # refund still refreshed
+    end
+
     it "marks refunded_quantity from the order's refunds (partial)" do
       pkg = build!
       order.update!(shopify_data: order.shopify_data.merge(
