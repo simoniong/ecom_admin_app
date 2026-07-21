@@ -601,6 +601,11 @@ RSpec.describe SyncAllOrdersService do
 
     before do
       store.update!(packing_enabled: true, package_prefix: "XMBDE", package_number_start: 2013094)
+      # The paid order below was placed 2026-03-20; enabling packing stamps
+      # packing_enabled_at to Time.current, which would make the order predate
+      # the no-backfill boundary. Push the boundary into the past so these
+      # integration orders qualify (they represent orders placed after enabling).
+      store.update_columns(packing_enabled_at: 1.year.ago)
       allow(shopify_service).to receive(:fetch_fulfillments).and_return([])
     end
 
