@@ -29,8 +29,13 @@ class PackageAutoBuilder
       refund(existing) if existing
       return
     end
+
+    if existing
+      smart_update(existing) unless existing.refunded?
+      return
+    end
+
     return unless @store.packing_enabled?
-    return if existing
     return unless eligible?
 
     build_package
@@ -98,6 +103,44 @@ class PackageAutoBuilder
   rescue ActiveRecord::RecordNotUnique
     # A concurrent sync already built it; safe to ignore (order_id is unique).
     nil
+  end
+
+  # Re-sync an existing, non-terminal package's snapshots from the latest order
+  # data, honoring per-section override flags (2B-2's edits set them). Item
+  # refunds are marked, never deleted.
+  def smart_update(package)
+    package.with_lock do
+      unless package.address_overridden
+        package.update!(shipping_address_snapshot: @order.shopify_data["shipping_address"] || {})
+      end
+      sync_items(package)
+    end
+  end
+
+  def sync_items(package)
+    refunds = refunded_quantities
+    existing_by_li = package.package_items.index_by(&:order_line_item_id)
+
+    @order.order_line_items.find_each do |li|
+      item = existing_by_li[li.id]
+      refunded = refunds[li.shopify_line_item_id] || 0
+      if item
+        attrs = { quantity: li.quantity, refunded_quantity: refunded }
+        attrs.merge!(customs_attributes_for(li)) unless item.customs_overridden
+        item.update!(attrs)
+      else
+        package.package_items.create!(
+          customs_attributes_for(li).merge(
+            product_variant_id: li.product_variant_id,
+            order_line_item_id: li.id,
+            sku: li.sku_at_sale,
+            title: li.title_at_sale,
+            quantity: li.quantity,
+            refunded_quantity: refunded
+          )
+        )
+      end
+    end
   end
 
   # Customs snapshot copied from the line item's product_variant (nil-safe).

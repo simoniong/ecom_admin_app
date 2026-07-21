@@ -219,4 +219,106 @@ RSpec.describe PackageAutoBuilder do
       expect(pkg.reload).to have_state(:refunded)
     end
   end
+
+  describe "smart re-sync of an existing package" do
+    let(:store) { create(:shopify_store, packing_enabled: true, package_prefix: "XMBDE", package_number_start: 1) }
+    before { store.update_columns(packing_enabled_at: 1.year.ago) }
+    let(:variant) { create(:product_variant, customs_name_en: "Blocks", declared_value_usd: 5, weight_grams: 100) }
+    let(:order) do
+      o = create(:order, shopify_store: store, financial_status: "paid", ordered_at: Time.current,
+                 shopify_data: { "shipping_address" => { "city" => "NYC", "country_code" => "US" } })
+      create(:order_line_item, order: o, product_variant: variant, shopify_line_item_id: 7001, sku_at_sale: "WP-1", title_at_sale: "Puzzle", quantity: 2)
+      o
+    end
+
+    def build!
+      described_class.new(order).call
+      store.packages.find_by(order: order)
+    end
+
+    it "refreshes the address snapshot when not overridden" do
+      pkg = build!
+      order.update!(shopify_data: order.shopify_data.merge("shipping_address" => { "city" => "LA", "country_code" => "US" }))
+      described_class.new(order).call
+      expect(pkg.reload.shipping_address_snapshot["city"]).to eq("LA")
+    end
+
+    it "preserves an overridden address on re-sync" do
+      pkg = build!
+      pkg.update!(address_overridden: true, shipping_address_snapshot: { "city" => "MANUAL" })
+      order.update!(shopify_data: order.shopify_data.merge("shipping_address" => { "city" => "LA" }))
+      described_class.new(order).call
+      expect(pkg.reload.shipping_address_snapshot["city"]).to eq("MANUAL")
+    end
+
+    it "updates an item's quantity when the order line item quantity changes" do
+      pkg = build!
+      order.order_line_items.first.update!(quantity: 5)
+      described_class.new(order).call
+      expect(pkg.reload.package_items.first.quantity).to eq(5)
+    end
+
+    it "adds a package_item for a newly-added order line item" do
+      pkg = build!
+      create(:order_line_item, order: order, shopify_line_item_id: 7002, sku_at_sale: "WP-2", title_at_sale: "Puzzle 2", quantity: 1)
+      described_class.new(order).call
+      expect(pkg.reload.package_items.pluck(:sku)).to contain_exactly("WP-1", "WP-2")
+    end
+
+    it "refreshes customs from the variant when not overridden" do
+      pkg = build!
+      variant.update!(customs_name_en: "Renamed")
+      described_class.new(order).call
+      expect(pkg.reload.package_items.first.customs_name_en).to eq("Renamed")
+    end
+
+    it "preserves overridden customs on re-sync" do
+      pkg = build!
+      pkg.package_items.first.update!(customs_overridden: true, customs_name_en: "MANUAL")
+      variant.update!(customs_name_en: "Renamed")
+      described_class.new(order).call
+      expect(pkg.reload.package_items.first.customs_name_en).to eq("MANUAL")
+    end
+
+    it "marks refunded_quantity from the order's refunds (partial)" do
+      pkg = build!
+      order.update!(shopify_data: order.shopify_data.merge(
+        "refunds" => [ { "refund_line_items" => [ { "line_item_id" => 7001, "quantity" => 1 } ] } ]
+      ))
+      described_class.new(order).call
+      item = pkg.reload.package_items.first
+      expect(item.refunded_quantity).to eq(1)
+      expect(item.fully_refunded?).to be(false)
+    end
+
+    it "flags a fully-refunded item without deleting it" do
+      pkg = build!
+      order.update!(shopify_data: order.shopify_data.merge(
+        "refunds" => [ { "refund_line_items" => [ { "line_item_id" => 7001, "quantity" => 2 } ] } ]
+      ))
+      described_class.new(order).call
+      item = pkg.reload.package_items.first
+      expect(item.refunded_quantity).to eq(2)
+      expect(item.fully_refunded?).to be(true)
+      expect(pkg.package_items.count).to eq(1)  # not deleted
+    end
+
+    it "recomputes refunded_quantity (does not accumulate) across syncs" do
+      pkg = build!
+      order.update!(shopify_data: order.shopify_data.merge("refunds" => [ { "refund_line_items" => [ { "line_item_id" => 7001, "quantity" => 1 } ] } ]))
+      described_class.new(order).call
+      described_class.new(order).call  # same refund again
+      expect(pkg.reload.package_items.first.refunded_quantity).to eq(1)
+    end
+
+    it "does not smart-update a refunded (terminal) package" do
+      pkg = build!
+      order.update!(financial_status: "refunded")
+      described_class.new(order).call  # transitions to refunded
+      order.update!(financial_status: "paid", shopify_data: order.shopify_data.merge("shipping_address" => { "city" => "LA" }))
+      described_class.new(order).call
+      expect(pkg.reload).to have_state(:refunded)
+      expect(pkg.shipping_address_snapshot["city"]).not_to eq("LA")
+    end
+  end
 end
