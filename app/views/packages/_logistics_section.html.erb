@@ -1,0 +1,15 @@
+<div id="<%= dom_id(package, :logistics) %>" class="space-y-4">
+  <div class="flex items-center justify-between">
+    <h4 class="text-sm font-semibold text-gray-900"><%= t("packages.tabs.logistics") %></h4>
+    <button type="button" disabled
+            class="text-xs text-gray-400 border border-gray-200 rounded px-2 py-1 cursor-not-allowed">
+      <%= t("packages.edit") %>
+    </button>
+  </div>
+  <dl class="text-sm">
+    <dt class="text-xs text-gray-500"><%= t("packages.logistics_fields.channel") %></dt>
+    <dd class="text-gray-900">
+      <%= package.logistics_channel&.name || t("packages.logistics_fields.none") %>
+    </dd>
+  </dl>
+</div>

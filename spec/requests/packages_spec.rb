@@ -298,4 +298,72 @@ RSpec.describe "Packages", type: :request do
       expect(response).to redirect_to(authenticated_root_path)
     end
   end
+
+  describe "GET /packages/:id (detail)" do
+    it "renders the package detail for a user with a packing permission" do
+      order = create(:order, customer: customer, shopify_store: store, name: "PKS#3010")
+      pkg = create(:package, shopify_store: store, order: order, aasm_state: "pending_process", number: 30)
+
+      get package_path(id: pkg.id)
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include(pkg.package_code)
+    end
+
+    it "renders each read-only section with its stable dom id" do
+      order = create(:order, customer: customer, shopify_store: store, name: "PKS#3011")
+      pkg = create(:package, shopify_store: store, order: order, aasm_state: "pending_review", number: 31,
+                    shipping_address_snapshot: { "name" => "Jane Doe", "country_code" => "US", "address1" => "1 Main St", "city" => "Springfield" },
+                    note: "Handle with care")
+      create(:package_item, package: pkg, sku: "SKU-DETAIL", title: "Widget", quantity: 2)
+
+      get package_path(id: pkg.id)
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include(ActionView::RecordIdentifier.dom_id(pkg, :address))
+      expect(response.body).to include(ActionView::RecordIdentifier.dom_id(pkg, :customs))
+      expect(response.body).to include(ActionView::RecordIdentifier.dom_id(pkg, :logistics))
+      expect(response.body).to include(ActionView::RecordIdentifier.dom_id(pkg, :note))
+      expect(response.body).to include("Jane Doe")
+      expect(response.body).to include("Handle with care")
+      expect(response.body).to include("SKU-DETAIL")
+    end
+
+    it "responds to a Turbo Frame request by rendering only the modal partial (no full layout chrome)" do
+      order = create(:order, customer: customer, shopify_store: store, name: "PKS#3012")
+      pkg = create(:package, shopify_store: store, order: order, aasm_state: "pending_review", number: 32)
+
+      get package_path(id: pkg.id), headers: { "Turbo-Frame" => "package-modal" }
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include(pkg.package_code)
+      expect(response.body).not_to include("<!DOCTYPE html>")
+    end
+
+    it "does not leak another company's package" do
+      other_user = create(:user)
+      other_company = other_user.companies.first
+      other_store = create(:shopify_store, user: other_user, company: other_company)
+      other_customer = create(:customer, shopify_store: other_store)
+      other_order = create(:order, customer: other_customer, shopify_store: other_store, name: "OTHER#3099")
+      foreign = create(:package, shopify_store: other_store, order: other_order, aasm_state: "pending_review", number: 99)
+
+      get package_path(id: foreign.id)
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "denies a member without any packing permission" do
+      member = create(:user)
+      create(:membership, user: member, company: company, role: :member, permissions: [ "orders" ])
+      sign_out user
+      sign_in member
+      order = create(:order, customer: customer, shopify_store: store, name: "PKS#3013")
+      pkg = create(:package, shopify_store: store, order: order, aasm_state: "pending_review", number: 33)
+
+      get package_path(id: pkg.id)
+
+      expect(response).to redirect_to(authenticated_root_path)
+    end
+  end
 end

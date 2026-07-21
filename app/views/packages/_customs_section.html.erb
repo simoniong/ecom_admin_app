@@ -1,0 +1,64 @@
+<div id="<%= dom_id(package, :customs) %>" class="space-y-4">
+  <div class="flex items-center justify-between">
+    <h4 class="text-sm font-semibold text-gray-900"><%= t("packages.tabs.customs") %></h4>
+    <% unless package.customs_complete? %>
+      <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+        <%= t("packages.customs_fields.incomplete") %>
+      </span>
+    <% end %>
+  </div>
+
+  <% if package.package_items.empty? %>
+    <p class="text-sm text-gray-400"><%= t("packages.order_info.no_items") %></p>
+  <% else %>
+    <div class="space-y-3">
+      <% package.package_items.each do |item| %>
+        <div class="border border-gray-200 rounded-lg p-3">
+          <div class="flex items-center justify-between mb-2">
+            <div class="text-sm font-medium text-gray-900">
+              <span class="font-mono text-xs text-gray-500"><%= item.sku.presence || "—" %></span>
+              <%= item.title %>
+            </div>
+            <div class="flex items-center gap-2">
+              <% if item.refunded_quantity.positive? %>
+                <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium <%= item.fully_refunded? ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800' %>">
+                  <%= t("packages.item_refunded", n: item.refunded_quantity, total: item.quantity) %><% if item.fully_refunded? %> · <%= t("packages.do_not_ship") %><% end %>
+                </span>
+              <% end %>
+              <button type="button" disabled
+                      class="text-xs text-gray-400 border border-gray-200 rounded px-2 py-1 cursor-not-allowed">
+                <%= t("packages.edit") %>
+              </button>
+            </div>
+          </div>
+          <dl class="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-1 text-sm">
+            <div>
+              <dt class="text-xs text-gray-500"><%= t("packages.customs_fields.name_zh") %></dt>
+              <dd class="text-gray-900"><%= item.customs_name_zh.presence || "—" %></dd>
+            </div>
+            <div>
+              <dt class="text-xs text-gray-500"><%= t("packages.customs_fields.name_en") %></dt>
+              <dd class="text-gray-900"><%= item.customs_name_en.presence || "—" %></dd>
+            </div>
+            <div>
+              <dt class="text-xs text-gray-500"><%= t("packages.customs_fields.declared_value") %></dt>
+              <dd class="text-gray-900"><%= item.declared_value_usd.presence || "—" %></dd>
+            </div>
+            <div>
+              <dt class="text-xs text-gray-500"><%= t("packages.customs_fields.weight") %></dt>
+              <dd class="text-gray-900"><%= item.customs_weight_grams.presence || "—" %></dd>
+            </div>
+            <div>
+              <dt class="text-xs text-gray-500"><%= t("packages.customs_fields.hs_code") %></dt>
+              <dd class="text-gray-900"><%= item.hs_code.presence || "—" %></dd>
+            </div>
+            <div>
+              <dt class="text-xs text-gray-500"><%= t("packages.customs_fields.import_hs_code") %></dt>
+              <dd class="text-gray-900"><%= item.import_hs_code.presence || "—" %></dd>
+            </div>
+          </dl>
+        </div>
+      <% end %>
+    </div>
+  <% end %>
+</div>

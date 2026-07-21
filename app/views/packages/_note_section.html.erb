@@ -1,0 +1,12 @@
+<div id="<%= dom_id(package, :note) %>" class="space-y-4">
+  <div class="flex items-center justify-between">
+    <h4 class="text-sm font-semibold text-gray-900"><%= t("packages.tabs.note") %></h4>
+    <button type="button" disabled
+            class="text-xs text-gray-400 border border-gray-200 rounded px-2 py-1 cursor-not-allowed">
+      <%= t("packages.edit") %>
+    </button>
+  </div>
+  <p class="text-sm text-gray-900 whitespace-pre-wrap">
+    <%= package.note.presence || t("packages.note_fields.none") %>
+  </p>
+</div>

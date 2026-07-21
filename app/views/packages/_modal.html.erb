@@ -1,0 +1,81 @@
+<%= turbo_frame_tag "package-modal" do %>
+  <div data-controller="tabs" class="flex flex-col">
+    <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+      <div>
+        <h3 class="text-base font-semibold text-gray-900">
+          <%= t("packages.detail_title", code: package.package_code) %>
+        </h3>
+        <p class="text-xs text-gray-500 mt-0.5">
+          <%= t("packages.source") %>: <%= package.order.shopify_data&.dig("source_name") || "web" %>
+        </p>
+      </div>
+      <button type="button" data-action="click->modal#close" aria-label="<%= t("packages.close") %>"
+              class="text-gray-400 hover:text-gray-600 text-xl leading-none">
+        &times;
+      </button>
+    </div>
+
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 px-6 py-3 border-b border-gray-100 text-sm">
+      <div>
+        <dt class="text-xs text-gray-500"><%= t("packages.seller") %></dt>
+        <dd class="text-gray-900"><%= package.shopify_store.display_name %></dd>
+      </div>
+      <div>
+        <dt class="text-xs text-gray-500"><%= t("packages.buyer") %></dt>
+        <dd class="text-gray-900"><%= package.order.email.presence || "—" %></dd>
+      </div>
+      <div>
+        <dt class="text-xs text-gray-500"><%= t("packages.buyer_name") %></dt>
+        <dd class="text-gray-900"><%= package.order.customer&.full_name || "—" %></dd>
+      </div>
+      <div>
+        <dt class="text-xs text-gray-500"><%= t("packages.order_total") %></dt>
+        <dd class="text-gray-900"><%= number_to_currency(package.order.total_price, unit: "#{package.order.currency} ") %></dd>
+      </div>
+    </div>
+
+    <%= render "packages/step_bar", package: package %>
+
+    <!-- Mobile horizontal tab strip -->
+    <div class="flex md:hidden overflow-x-auto gap-1 px-4 py-2 border-b border-gray-100">
+      <% %w[address customs logistics note].each do |name| %>
+        <button type="button" data-tabs-target="tab" data-action="click->tabs#select" data-tabs-name-param="<%= name %>"
+                class="shrink-0 px-3 py-1.5 rounded-md text-xs font-medium text-gray-500">
+          <%= t("packages.tabs.#{name}") %>
+        </button>
+      <% end %>
+    </div>
+
+    <div class="flex flex-1 min-h-0">
+      <!-- Desktop vertical tab sidebar -->
+      <div class="hidden md:flex md:flex-col md:w-40 shrink-0 border-r border-gray-100 py-3">
+        <% %w[address customs logistics note].each do |name| %>
+          <button type="button" data-tabs-target="tab" data-action="click->tabs#select" data-tabs-name-param="<%= name %>"
+                  class="text-left px-4 py-2 text-sm font-medium text-gray-500">
+            <%= t("packages.tabs.#{name}") %>
+          </button>
+        <% end %>
+      </div>
+
+      <div class="flex-1 min-w-0 px-6 py-4">
+        <div data-tabs-target="panel" data-tabs-name-param="address">
+          <%= render "packages/address_section", package: package %>
+        </div>
+        <div data-tabs-target="panel" data-tabs-name-param="customs" class="hidden">
+          <%= render "packages/customs_section", package: package %>
+        </div>
+        <div data-tabs-target="panel" data-tabs-name-param="logistics" class="hidden">
+          <%= render "packages/logistics_section", package: package %>
+        </div>
+        <div data-tabs-target="panel" data-tabs-name-param="note" class="hidden">
+          <%= render "packages/note_section", package: package %>
+        </div>
+      </div>
+    </div>
+
+    <%= render "packages/order_info", package: package %>
+
+    <!-- Bottom actions placeholder — Tasks 4-8 wire the state-transition buttons here -->
+    <div id="<%= dom_id(package, :actions) %>" class="border-t border-gray-100 px-6 py-3"></div>
+  </div>
+<% end %>

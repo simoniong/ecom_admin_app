@@ -73,4 +73,28 @@ RSpec.describe "Packages UI", type: :system do
       expect(page).to have_content(I18n.t("packages.sync_enqueued"))
     end
   end
+
+  describe "package detail modal" do
+    it "opens from the list, switches tabs, and closes" do
+      create(:package_item, package: review_package, sku: "SKU-MODAL", title: "Modal Widget", quantity: 1)
+
+      visit packages_path
+      click_link review_package.package_code
+
+      expect(page).to have_css("[data-modal-target='dialog']", visible: :visible)
+      expect(page).to have_content(I18n.t("packages.detail_title", code: review_package.package_code))
+      expect(page).to have_content(I18n.t("packages.states.pending_review"))
+      expect(page).to have_content(I18n.t("packages.tabs.address"))
+      expect(page).to have_content("SKU-MODAL")
+
+      within("[data-modal-target='dialog']") do
+        click_button I18n.t("packages.tabs.customs")
+      end
+      expect(page).to have_css("##{ActionView::RecordIdentifier.dom_id(review_package, :customs)}", visible: :visible)
+      expect(page).to have_no_css("##{ActionView::RecordIdentifier.dom_id(review_package, :address)}", visible: :visible)
+
+      find("[data-modal-target='dialog'] button[aria-label='#{I18n.t('packages.close')}']").click
+      expect(page).to have_css("[data-modal-target='dialog']", visible: :hidden)
+    end
+  end
 end

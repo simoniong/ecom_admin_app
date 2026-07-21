@@ -78,7 +78,7 @@ Rails.application.routes.draw do
         get  :export
       end
     end
-    resources :packages, only: [ :index ] do
+    resources :packages, only: [ :index, :show ] do
       post :sync, on: :collection
     end
     resources :products, only: [ :index ]

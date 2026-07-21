@@ -1,5 +1,9 @@
 <tr>
-  <td class="px-4 py-3 text-sm font-medium text-gray-900 align-top whitespace-nowrap"><%= package.package_code %></td>
+  <td class="px-4 py-3 text-sm font-medium align-top whitespace-nowrap">
+    <%= link_to package.package_code, package_path(id: package.id),
+        data: { turbo_frame: "package-modal" },
+        class: "text-blue-600 hover:underline font-medium" %>
+  </td>
   <td class="px-4 py-3 text-sm text-gray-700 align-top">
     <% if package.package_items.any? %>
       <% package.package_items.each do |item| %>

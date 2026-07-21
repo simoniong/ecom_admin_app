@@ -1,0 +1,26 @@
+<%
+  address = package.shipping_address_snapshot || {}
+  fields = %w[name company address1 address2 city province zip country phone]
+%>
+<div id="<%= dom_id(package, :address) %>" class="space-y-4">
+  <div class="flex items-center justify-between">
+    <h4 class="text-sm font-semibold text-gray-900"><%= t("packages.tabs.address") %></h4>
+    <% unless package.address_complete? %>
+      <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+        <%= t("packages.address_fields.incomplete") %>
+      </span>
+    <% end %>
+    <button type="button" disabled
+            class="text-xs text-gray-400 border border-gray-200 rounded px-2 py-1 cursor-not-allowed">
+      <%= t("packages.edit") %>
+    </button>
+  </div>
+  <dl class="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
+    <% fields.each do |field| %>
+      <div>
+        <dt class="text-xs text-gray-500"><%= t("packages.address_fields.#{field}") %></dt>
+        <dd class="text-gray-900"><%= address[field].presence || "—" %></dd>
+      </div>
+    <% end %>
+  </dl>
+</div>

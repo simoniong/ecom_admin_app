@@ -1,0 +1,22 @@
+<%# Direct/non-frame visit to a package's detail URL (e.g. a bookmarked or
+    shared link). turbo_frame_request? is false here, so PackagesController#show
+    fell through to this template instead of rendering just the "_modal"
+    partial. The wrapper below is the same modal chrome the list page mounts,
+    but rendered already-open (no "hidden" class) so it's correct on its own
+    regardless of whether the browser also fires turbo:frame-load — this page
+    has no list behind it for the frame-load listener to react to. %>
+<div class="p-6">
+  <%= link_to t("packages.back_to_list"), packages_path, class: "text-sm text-blue-600 hover:underline" %>
+</div>
+
+<div data-controller="modal" data-modal-target="dialog"
+     data-action="turbo:frame-load@window->modal#open"
+     class="fixed inset-0 z-50">
+  <div data-modal-target="backdrop" data-action="click->modal#backdropClick"
+       class="fixed inset-0 bg-black/50"></div>
+  <div class="fixed inset-0 flex items-start justify-center pt-[6vh] px-4 pointer-events-none">
+    <div class="bg-white rounded-xl shadow-2xl w-full max-w-5xl max-h-[88vh] overflow-y-auto pointer-events-auto">
+      <%= render "modal", package: @package %>
+    </div>
+  </div>
+</div>

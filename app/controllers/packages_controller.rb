@@ -3,6 +3,8 @@ class PackagesController < AdminController
   STATES = %w[pending_review pending_process applying_tracking pending_label shipped refunded held].freeze
   APPLICATION_STATUSES = %w[pending succeeded failed].freeze
 
+  before_action :set_package, only: :show
+
   def index
     @state = STATES.include?(params[:state]) ? params[:state] : "pending_review"
     scope = scoped_packages.where(aasm_state: @state)
@@ -22,7 +24,24 @@ class PackagesController < AdminController
     redirect_back fallback_location: packages_path, notice: t("packages.sync_enqueued")
   end
 
+  # Turbo Frame request (from the list's package_code link) renders just the
+  # "_modal" partial into <turbo-frame id="package-modal">. A direct/non-frame
+  # GET renders show.html.erb, which wraps that same partial in the frame tag
+  # so the URL is also visitable on its own (e.g. a bookmark or shared link).
+  def show
+    render partial: "modal", locals: { package: @package } if turbo_frame_request?
+  end
+
   private
+
+  # scoped_packages.find raises ActiveRecord::RecordNotFound for a package
+  # belonging to another company/store — no rescue_from is defined anywhere
+  # in this app's controller chain, so it propagates to Rails' default
+  # exception handling (404 in production; the same 404 rendering in test,
+  # since config.action_dispatch.show_exceptions = :rescuable there).
+  def set_package
+    @package = scoped_packages.includes(:order, :package_items, :logistics_channel, :shopify_store).find(params[:id])
+  end
 
   # Overrides AdminController#authorize_page! (a before_action referenced by
   # symbol, so this subclass definition is what actually runs) to gate on ANY
