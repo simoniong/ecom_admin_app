@@ -578,4 +578,57 @@ RSpec.describe SyncAllOrdersService do
       expect(order.actual_shipping_cost).to be_nil
     end
   end
+
+  describe "package auto-build integration" do
+    let(:shopify_customer) do
+      { "id" => 100, "email" => "buyer@example.com", "first_name" => "Jane", "last_name" => "Buyer" }
+    end
+
+    let(:shopify_order_paid) do
+      {
+        "id" => 200, "email" => "buyer@example.com", "name" => "#1001",
+        "total_price" => "49.99", "currency" => "USD",
+        "financial_status" => "paid", "fulfillment_status" => "unfulfilled",
+        "created_at" => "2026-03-20",
+        "customer" => shopify_customer,
+        "line_items" => [
+          { "id" => 6001, "variant_id" => nil, "sku" => "WP10155-L", "title" => "Puzzle",
+            "quantity" => 2, "price" => "29.00" }
+        ],
+        "fulfillments" => []
+      }
+    end
+
+    before do
+      store.update!(packing_enabled: true, package_prefix: "XMBDE", package_number_start: 2013094)
+      allow(shopify_service).to receive(:fetch_fulfillments).and_return([])
+    end
+
+    it "creates a pending_review package when sync_single_order processes a paid order on a packing-enabled store" do
+      expect { service.sync_single_order(shopify_order_paid) }
+        .to change { store.packages.count }.from(0).to(1)
+
+      order = Order.find_by(shopify_order_id: 200)
+      pkg = store.packages.find_by(order: order)
+      expect(pkg).to have_state(:pending_review)
+      expect(pkg.package_items.pluck(:sku, :quantity)).to contain_exactly([ "WP10155-L", 2 ])
+    end
+
+    it "transitions the package to refunded when a later sync detects the order is fully refunded" do
+      service.sync_single_order(shopify_order_paid)
+      order = Order.find_by(shopify_order_id: 200)
+      pkg = store.packages.find_by(order: order)
+
+      refunded_order = shopify_order_paid.merge("financial_status" => "refunded")
+      service.sync_single_order(refunded_order)
+
+      expect(pkg.reload).to have_state(:refunded)
+    end
+
+    it "does not build a package when packing is disabled on the store" do
+      store.update_columns(packing_enabled: false)
+
+      expect { service.sync_single_order(shopify_order_paid) }.not_to change { store.packages.count }
+    end
+  end
 end
