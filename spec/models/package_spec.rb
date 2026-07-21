@@ -182,4 +182,15 @@ RSpec.describe Package do
       expect(pkg.order_cancelled?).to be(false)
     end
   end
+
+  describe "one order → many packages" do
+    it "allows two packages to share the same order_id" do
+      store = create(:shopify_store)
+      order = create(:order, shopify_store: store)
+      create(:package, shopify_store: store, order: order, number: 1)
+      second = build(:package, shopify_store: store, order: order, number: 2)
+      expect(second.save).to be(true)
+      expect(store.packages.where(order_id: order.id).count).to eq(2)
+    end
+  end
 end
