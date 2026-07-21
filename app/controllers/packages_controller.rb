@@ -40,7 +40,10 @@ class PackagesController < AdminController
   # exception handling (404 in production; the same 404 rendering in test,
   # since config.action_dispatch.show_exceptions = :rescuable there).
   def set_package
-    @package = scoped_packages.includes(:order, :package_items, :logistics_channel, :shopify_store).find(params[:id])
+    @package = scoped_packages.includes(
+      :package_items, :logistics_channel, :shopify_store,
+      order: [ :customer, :order_line_items ]
+    ).find(params[:id])
   end
 
   # Overrides AdminController#authorize_page! (a before_action referenced by
