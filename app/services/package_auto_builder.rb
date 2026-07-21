@@ -113,7 +113,10 @@ class PackageAutoBuilder
       end
     end
   rescue ActiveRecord::RecordNotUnique
-    # A concurrent sync already built it; safe to ignore (order_id is unique).
+    # A concurrent sync already built it; safe to ignore. The order_id unique
+    # index was dropped — the only unique index this can still trip is
+    # shopify_store_id + number, which the @store.with_lock above already
+    # serializes against.
     nil
   end
 

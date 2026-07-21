@@ -18,6 +18,17 @@ class PackageSplitter
 
     new_packages = []
     @store.with_lock do
+      # Lock the source package row too: PackageAutoBuilder#smart_update only
+      # locks the package (not the store), so without this a concurrent
+      # smart_update could read/write stale source-item quantities between
+      # here and apply_source_remainders. Re-read the items fresh under the
+      # lock. store->package lock ordering is safe here: smart_update locks
+      # only the package, build_package locks only the store, and merge
+      # locks only the survivor package — no path locks package-then-store.
+      @source.lock!
+      @source.package_items.reload
+      @source_items_by_li = nil
+
       box_count.times do |box_idx|
         pkg = build_box(box_idx)
         new_packages << pkg if pkg

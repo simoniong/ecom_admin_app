@@ -1067,6 +1067,20 @@ RSpec.describe "Packages", type: :request do
       expect(response).to have_http_status(:found)
       expect(store.packages.where(order_id: order.id).count).to eq(2)
     end
+
+    it "rejects merging a non-pending_process package" do
+      survivor.update!(aasm_state: "pending_review")
+      post merge_package_path(id: survivor.id)
+      expect(response).to have_http_status(:found) # redirect with alert
+      expect(store.packages.where(order_id: order.id).count).to eq(2)
+    end
+
+    it "404s for a package of another company" do
+      stranger = create(:user)
+      sign_in stranger
+      post merge_package_path(id: other.id)
+      expect(response).to have_http_status(:not_found)
+    end
   end
 
   describe "readiness + cancel display" do
