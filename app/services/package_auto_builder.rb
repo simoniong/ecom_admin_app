@@ -40,7 +40,20 @@ class PackageAutoBuilder
   end
 
   def eligible?
-    PAID_STATUSES.include?(@order.financial_status) && !cancelled?
+    PAID_STATUSES.include?(@order.financial_status) && !cancelled? && not_backfill?
+  end
+
+  # No-backfill guard: only build packages for orders placed at/after the
+  # moment packing was switched on for this store. Without this, enabling
+  # packing on an already-synced store would build packages for the store's
+  # entire eligible order history on the next sync (see design doc: "只對開關
+  # 打開後、新同步進來的訂單建包裹...不回溯既有舊訂單;歷史 backfill 是 Phase 4").
+  # Deliberately NOT applied to the refund path (fully_refunded? in do_call) —
+  # a refund on any existing package, however old, must still transition it.
+  def not_backfill?
+    @store.packing_enabled_at.present? &&
+      @order.ordered_at.present? &&
+      @order.ordered_at >= @store.packing_enabled_at
   end
 
   def refund(package)

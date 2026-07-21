@@ -59,6 +59,14 @@ RSpec.describe Package do
       expect(pkg).not_to allow_event(:submit_review)
     end
 
+    it "can refund from held" do
+      pkg.submit_review!
+      pkg.hold!
+      expect(pkg).to have_state(:held)
+      pkg.refund!
+      expect(pkg).to have_state(:refunded)
+    end
+
     it "can back_to_process from applying_tracking" do
       pkg.submit_review!; pkg.apply_tracking!
       pkg.back_to_process!

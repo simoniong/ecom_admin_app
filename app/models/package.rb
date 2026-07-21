@@ -47,7 +47,7 @@ class Package < ApplicationRecord
       after { self.held_from = nil }
     end
     event :refund do
-      transitions from: [ :pending_review, :pending_process, :applying_tracking, :pending_label, :shipped ], to: :refunded
+      transitions from: [ :pending_review, :pending_process, :applying_tracking, :pending_label, :shipped, :held ], to: :refunded
     end
   end
 

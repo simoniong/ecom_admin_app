@@ -119,6 +119,13 @@ RSpec.describe "Packages", type: :request do
         expect(response.body).to include("PKS#2002")
         expect(response.body).not_to include("PKS#2001")
       end
+
+      it "ignores an application_status value outside the whitelist and shows every package" do
+        get packages_path, params: { state: "applying_tracking", application_status: "'; DROP TABLE packages; --" }
+        expect(response).to have_http_status(:ok)
+        expect(response.body).to include("PKS#2001")
+        expect(response.body).to include("PKS#2002")
+      end
     end
 
     describe "cross-company isolation" do

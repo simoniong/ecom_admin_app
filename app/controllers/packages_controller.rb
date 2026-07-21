@@ -6,7 +6,7 @@ class PackagesController < AdminController
   def index
     @state = STATES.include?(params[:state]) ? params[:state] : "pending_review"
     scope = scoped_packages.where(aasm_state: @state)
-    scope = scope.where(application_status: params[:application_status]) if @state == "applying_tracking" && params[:application_status].present?
+    scope = scope.where(application_status: params[:application_status]) if @state == "applying_tracking" && APPLICATION_STATUSES.include?(params[:application_status])
     @page = [ params[:page].to_i, 1 ].max
     @total_count = scope.count
     @total_pages = (@total_count.to_f / PER_PAGE).ceil

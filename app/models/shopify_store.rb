@@ -28,6 +28,8 @@ class ShopifyStore < ApplicationRecord
   validates :package_number_start, numericality: { only_integer: true, greater_than: 0 }, allow_nil: true
   validate :packing_identity_locked_once_used
 
+  before_save :set_packing_enabled_at, if: -> { will_save_change_to_packing_enabled? && packing_enabled? }
+
   def active_timezone
     ActiveSupport::TimeZone[timezone] || ActiveSupport::TimeZone["UTC"]
   end
@@ -48,6 +50,15 @@ class ShopifyStore < ApplicationRecord
   end
 
   private
+
+  # Stamps the moment packing is turned ON so PackageAutoBuilder can refuse
+  # to backfill packages for orders that existed/were placed before the
+  # switch was flipped. Only set on the false->true transition; toggling
+  # off and back on again re-stamps it (each enable is treated as a fresh
+  # "clean start" boundary), and turning off never clears it.
+  def set_packing_enabled_at
+    self.packing_enabled_at = Time.current
+  end
 
   def packing_identity_locked_once_used
     return unless persisted? && packing_settings_locked?

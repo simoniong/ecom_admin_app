@@ -217,6 +217,37 @@ RSpec.describe ShopifyStore, type: :model do
       store.reload.name = "Renamed"
       expect(store).to be_valid
     end
+
+    describe "#packing_enabled_at" do
+      it "is nil by default" do
+        expect(store.packing_enabled_at).to be_nil
+      end
+
+      it "is set when packing_enabled transitions from false to true" do
+        travel_to Time.zone.parse("2026-07-21 10:00:00") do
+          store.update!(packing_enabled: true, package_prefix: "XMBDE", package_number_start: 1)
+        end
+        expect(store.packing_enabled_at).to eq(Time.zone.parse("2026-07-21 10:00:00"))
+      end
+
+      it "is not moved by an unrelated save once already set" do
+        store.update!(packing_enabled: true, package_prefix: "XMBDE", package_number_start: 1)
+        original = store.packing_enabled_at
+
+        travel_to(1.day.from_now) { store.update!(name: "Renamed") }
+
+        expect(store.reload.packing_enabled_at).to be_within(1.second).of(original)
+      end
+
+      it "is not moved by re-saving with packing_enabled already true" do
+        store.update!(packing_enabled: true, package_prefix: "XMBDE", package_number_start: 1)
+        original = store.packing_enabled_at
+
+        travel_to(1.day.from_now) { store.update!(package_number_start: 2) }
+
+        expect(store.reload.packing_enabled_at).to be_within(1.second).of(original)
+      end
+    end
   end
 
   describe "#short_name" do
