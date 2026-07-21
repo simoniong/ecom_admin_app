@@ -287,4 +287,82 @@ RSpec.describe "Packages UI", type: :system do
       end
     end
   end
+
+  describe "折包 / 合併" do
+    let(:split_order) { create(:order, customer: customer, shopify_store: store, name: "PKS#SPLIT1") }
+    let(:oli) { create(:order_line_item, order: split_order) }
+    let!(:source_pkg) do
+      pkg = create(:package, shopify_store: store, order: split_order, number: 700, aasm_state: "pending_process")
+      create(:package_item, package: pkg, order_line_item: oli, sku: "SPLITSKU", title: "Splittable", quantity: 3)
+      pkg
+    end
+
+    before do
+      # PackageSplitter mints new box numbers from the store's packing
+      # sequence; the factory-built store doesn't set these by default (see
+      # spec/services/package_splitter_spec.rb for the same setup).
+      store.update_columns(package_number_start: 2013094, package_number_seq: 2013094)
+    end
+
+    it "folds a package into a new sibling box via the matrix dialog" do
+      visit packages_path(state: "pending_process")
+      click_link source_pkg.package_code
+      expect(page).to have_button(I18n.t("packages.split.button"))
+
+      click_button I18n.t("packages.split.button")
+      expect(page).to have_content(I18n.t("packages.split.title"))
+
+      # allocate 1 unit to box 2; submit becomes enabled
+      fill_in_first_box_input("1")
+      # Both the dialog-opener button and the submit button are labeled
+      # "Split" (packages.split.button / packages.split.submit share the
+      # same copy), so scope to the dialog to avoid an ambiguous match —
+      # the opener button is a sibling of, not inside, the dialog container.
+      within("[data-split-target='dialog']") { click_button I18n.t("packages.split.submit") }
+
+      # after split: the siblings strip's wrapper div (dom_id(package,
+      # :siblings_strip)) always renders — its content, gated on
+      # package.split?, is what actually proves the split happened. Wait on
+      # the frozen notice (only shown once split) before hitting the DB, so
+      # the count/content checks below don't race the turbo_stream response.
+      expect(page).to have_content(I18n.t("packages.frozen_notice"))
+      expect(store.packages.where(order_id: split_order.id).count).to eq(2)
+
+      new_box = store.packages.where(order_id: split_order.id).where.not(id: source_pkg.id).sole
+      expect(page).to have_content(new_box.package_code)
+    end
+
+    it "disables submit when a box is empty (no allocation)" do
+      visit packages_path(state: "pending_process")
+      click_link source_pkg.package_code
+      click_button I18n.t("packages.split.button")
+      expect(page).to have_button(I18n.t("packages.split.submit"), disabled: true)
+    end
+
+    it "merges split boxes back into one and shows the survivor" do
+      other = create(:package, shopify_store: store, order: split_order, number: 701, aasm_state: "pending_process")
+      create(:package_item, package: other, order_line_item: oli, sku: "SPLITSKU", quantity: 1)
+      source_pkg.package_items.first.update!(quantity: 2)
+
+      visit packages_path(state: "pending_process")
+      click_link source_pkg.package_code
+      expect(page).to have_content(I18n.t("packages.frozen_notice"))
+
+      accept_confirm { click_button I18n.t("packages.merge.button") }
+
+      # Wait for the turbo_stream response (modal replaced with the reloaded
+      # survivor, frozen notice gone since split? is now false) before
+      # asserting on the DB — otherwise the count/quantity checks below can
+      # race the async merge request.
+      expect(page).to have_no_content(I18n.t("packages.frozen_notice"))
+
+      expect(store.packages.where(order_id: split_order.id).count).to eq(1)
+      expect(source_pkg.reload.package_items.sum(:quantity)).to eq(3)
+    end
+  end
+end
+
+# Fills the first box's number input for the first item row.
+def fill_in_first_box_input(value)
+  first("input[name^='allocations']").set(value)
 end
