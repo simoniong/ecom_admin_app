@@ -18,4 +18,51 @@ RSpec.describe Package do
     dup = build(:package, shopify_store: store, number: 5)
     expect(dup).not_to be_valid
   end
+
+  describe "state machine" do
+    let(:pkg) { create(:package) }
+
+    it "starts in pending_review" do
+      expect(pkg).to have_state(:pending_review)  # aasm rspec matcher
+    end
+
+    it "walks the happy path review→process→applying→label→shipped" do
+      pkg.submit_review!
+      expect(pkg).to have_state(:pending_process)
+      pkg.apply_tracking!
+      expect(pkg).to have_state(:applying_tracking)
+      pkg.to_label!
+      expect(pkg).to have_state(:pending_label)
+      pkg.ship!
+      expect(pkg).to have_state(:shipped)
+    end
+
+    it "rejects skipping states" do
+      expect(pkg).not_to allow_event(:ship)
+      expect { pkg.ship! }.to raise_error(AASM::InvalidTransition)
+    end
+
+    it "records held_from on hold and restores it on unhold" do
+      pkg.submit_review!  # now pending_process
+      pkg.hold!
+      expect(pkg).to have_state(:held)
+      expect(pkg.held_from).to eq("pending_process")
+      pkg.unhold!
+      expect(pkg).to have_state(:pending_process)
+      expect(pkg.held_from).to be_nil
+    end
+
+    it "can refund from any active state including shipped, and refund is terminal" do
+      pkg.submit_review!; pkg.apply_tracking!; pkg.to_label!; pkg.ship!
+      pkg.refund!
+      expect(pkg).to have_state(:refunded)
+      expect(pkg).not_to allow_event(:submit_review)
+    end
+
+    it "can back_to_process from applying_tracking" do
+      pkg.submit_review!; pkg.apply_tracking!
+      pkg.back_to_process!
+      expect(pkg).to have_state(:pending_process)
+    end
+  end
 end
