@@ -64,5 +64,19 @@ RSpec.describe Package do
       pkg.back_to_process!
       expect(pkg).to have_state(:pending_process)
     end
+
+    it "can back_to_review from pending_process" do
+      pkg.submit_review!
+      pkg.back_to_review!
+      expect(pkg).to have_state(:pending_review)
+    end
+
+    it "raises rather than misrouting when unhold has no matching held_from" do
+      pkg.submit_review!
+      pkg.hold!
+      pkg.update_columns(held_from: nil) # corrupt the origin so no guard matches
+      expect { pkg.unhold! }.to raise_error(AASM::InvalidTransition)
+      expect(pkg.reload).to have_state(:held)
+    end
   end
 end
