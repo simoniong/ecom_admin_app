@@ -24,6 +24,10 @@
           attributes:
             trustpilot_bcc_email:
               invalid_trustpilot_address: "必須是結尾為 @invite.trustpilot.com 的 Trustpilot 邀請信箱。"
+            package_prefix:
+              locked_after_first_package: "產生第一個包裹後即無法變更"
+            package_number_start:
+              locked_after_first_package: "產生第一個包裹後即無法變更"
   errors:
     messages:
       required_when_company_has_groups: "公司已有部門，必須指定所屬部門"

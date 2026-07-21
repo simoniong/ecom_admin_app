@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_20_092412) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_21_130001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -551,6 +551,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_20_092412) do
     t.datetime "installed_at"
     t.string "name"
     t.datetime "orders_synced_at"
+    t.integer "package_number_seq"
+    t.integer "package_number_start"
+    t.string "package_prefix"
+    t.boolean "packing_enabled", default: false, null: false
     t.datetime "products_synced_at"
     t.string "scopes"
     t.string "shop_domain", null: false

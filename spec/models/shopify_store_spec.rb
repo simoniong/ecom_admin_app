@@ -184,6 +184,41 @@ RSpec.describe ShopifyStore, type: :model do
     end
   end
 
+  describe "packing settings" do
+    let(:store) { create(:shopify_store) }
+
+    it "defaults packing_enabled to false" do
+      expect(store.packing_enabled).to be(false)
+    end
+
+    it "requires prefix and start number when enabling packing" do
+      store.packing_enabled = true
+      expect(store).not_to be_valid
+      expect(store.errors[:package_prefix]).to be_present
+      expect(store.errors[:package_number_start]).to be_present
+    end
+
+    it "is valid when enabling with prefix and start" do
+      store.assign_attributes(packing_enabled: true, package_prefix: "XMBDE", package_number_start: 2013094)
+      expect(store).to be_valid
+    end
+
+    it "locks prefix/start once a package exists" do
+      store.update!(packing_enabled: true, package_prefix: "XMBDE", package_number_start: 2013094)
+      create(:package, shopify_store: store)
+      store.reload.package_prefix = "OTHER"
+      expect(store).not_to be_valid
+      expect(store.errors[:package_prefix]).to be_present
+    end
+
+    it "does not lock other fields once a package exists" do
+      store.update!(packing_enabled: true, package_prefix: "XMBDE", package_number_start: 1)
+      create(:package, shopify_store: store)
+      store.reload.name = "Renamed"
+      expect(store).to be_valid
+    end
+  end
+
   describe "#short_name" do
     it "returns the Shopify shop name when present" do
       store.update!(name: "Paint Kit Studio", shop_domain: "paint-kit.myshopify.com")
