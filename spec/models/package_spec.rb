@@ -73,6 +73,7 @@ RSpec.describe Package do
       pkg.unhold!
       expect(pkg).to have_state(:pending_process)
       expect(pkg.held_from).to be_nil
+      expect(pkg.reload.held_from).to be_nil  # persisted, not just in-memory
     end
 
     it "can refund from any active state including shipped, and refund is terminal" do

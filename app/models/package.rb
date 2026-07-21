@@ -45,7 +45,10 @@ class Package < ApplicationRecord
       transitions from: :held, to: :pending_process, guard: -> { held_from == "pending_process" }
       transitions from: :held, to: :applying_tracking, guard: -> { held_from == "applying_tracking" }
       transitions from: :held, to: :pending_label, guard: -> { held_from == "pending_label" }
-      after { self.held_from = nil }
+      # AASM's `after` runs post-save, so `self.held_from = nil` alone would only
+      # mutate memory and leave the DB row stale. Guards above route on held_from,
+      # so it must NOT be cleared before the transition — persist it directly here.
+      after { update_column(:held_from, nil) }
     end
     event :refund do
       transitions from: [ :pending_review, :pending_process, :applying_tracking, :pending_label, :shipped, :held ], to: :refunded

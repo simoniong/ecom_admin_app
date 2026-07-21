@@ -446,13 +446,9 @@ RSpec.describe "Packages", type: :request do
 
         patch transition_package_path(id: held_package.id, event: "unhold")
 
-        # Note: Package#unhold!'s `after { self.held_from = nil }` runs after
-        # AASM's own persistence save, so held_from itself is only cleared on
-        # the in-memory object, not in the DB (pre-existing behavior from the
-        # Phase 2A AASM state machine, not introduced here) — harmless today
-        # since held_from is only ever displayed while aasm_state == "held".
-        # What matters for this task is that the state itself is restored.
-        expect(held_package.reload.aasm_state).to eq("pending_process")
+        held_package.reload
+        expect(held_package.aasm_state).to eq("pending_process")
+        expect(held_package.held_from).to be_nil  # cleared and persisted (update_column)
       end
     end
 
