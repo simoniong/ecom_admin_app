@@ -618,6 +618,8 @@
       variance_pct: "差异 %"
   packages:
     title: "打包管理"
+    sync_orders: "同步订单"
+    sync_enqueued: "已排程当前店铺的订单同步。"
     states:
       pending_review: "待审核"
       pending_process: "待处理"
@@ -628,6 +630,8 @@
       held: "已搁置"
     other_states: "其他"
     held_from_label: "原状态:%{state}"
+    item_refunded: "已退款 %{n}/%{total}"
+    do_not_ship: "勿发"
     application_status:
       all: "全部"
       pending: "申请中"

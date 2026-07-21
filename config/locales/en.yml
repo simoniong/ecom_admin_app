@@ -620,6 +620,8 @@ en:
       variance_pct: "Variance %"
   packages:
     title: "Packing"
+    sync_orders: "Sync orders"
+    sync_enqueued: "Order sync queued for the selected store."
     states:
       pending_review: "Pending Review"
       pending_process: "Pending Process"
@@ -630,6 +632,8 @@ en:
       held: "Held"
     other_states: "Other"
     held_from_label: "Original state: %{state}"
+    item_refunded: "Refunded %{n}/%{total}"
+    do_not_ship: "Do not ship"
     application_status:
       all: "All"
       pending: "In Progress"

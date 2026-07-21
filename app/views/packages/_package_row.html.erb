@@ -7,6 +7,11 @@
           <span class="font-mono text-xs text-gray-500"><%= item.sku.presence || "—" %></span>
           <span class="text-gray-400">&times;<%= item.quantity %></span>
           <span class="text-gray-700"><%= item.title %></span>
+          <% if item.refunded_quantity.positive? %>
+            <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium <%= item.fully_refunded? ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800' %>">
+              <%= t("packages.item_refunded", n: item.refunded_quantity, total: item.quantity) %><% if item.fully_refunded? %> · <%= t("packages.do_not_ship") %><% end %>
+            </span>
+          <% end %>
         </div>
       <% end %>
     <% else %>

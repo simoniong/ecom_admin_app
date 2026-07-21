@@ -139,6 +139,47 @@ RSpec.describe PackageAutoBuilder do
     expect(Package.count).to eq(1)
   end
 
+  describe "build-time snapshots" do
+    let(:store) { create(:shopify_store, packing_enabled: true, package_prefix: "XMBDE", package_number_start: 2013094) }
+    before { store.update_columns(packing_enabled_at: 1.year.ago) }
+
+    let(:variant) { create(:product_variant, customs_name_zh: "積木", customs_name_en: "Blocks", declared_value_usd: 5, hs_code: "9503", import_hs_code: "9503.00", weight_grams: 250) }
+    let(:order) do
+      o = create(:order, shopify_store: store, financial_status: "paid", ordered_at: Time.current,
+                 shopify_data: { "shipping_address" => { "name" => "Jane", "address1" => "1 Main St", "city" => "NYC", "zip" => "10001", "country_code" => "US" } })
+      create(:order_line_item, order: o, product_variant: variant, sku_at_sale: "WP-1", title_at_sale: "Puzzle", quantity: 2)
+      o
+    end
+
+    it "snapshots the order's shipping address onto the package" do
+      described_class.new(order).call
+      pkg = store.packages.find_by(order: order)
+      expect(pkg.shipping_address_snapshot["city"]).to eq("NYC")
+      expect(pkg.shipping_address_snapshot["country_code"]).to eq("US")
+      expect(pkg.address_overridden).to be(false)
+    end
+
+    it "snapshots the variant's customs info onto each package_item" do
+      described_class.new(order).call
+      item = store.packages.find_by(order: order).package_items.first
+      expect(item.customs_name_zh).to eq("積木")
+      expect(item.customs_name_en).to eq("Blocks")
+      expect(item.declared_value_usd).to eq(5)
+      expect(item.hs_code).to eq("9503")
+      expect(item.import_hs_code).to eq("9503.00")
+      expect(item.customs_weight_grams).to eq(250)
+      expect(item.customs_overridden).to be(false)
+      expect(item.refunded_quantity).to eq(0)
+    end
+
+    it "leaves customs nil when the line item has no product_variant" do
+      order.order_line_items.first.update!(product_variant: nil)
+      described_class.new(order).call
+      item = store.packages.find_by(order: order).package_items.first
+      expect(item.customs_name_zh).to be_nil
+    end
+  end
+
   describe "no-backfill guard (packing_enabled_at)" do
     # Regression coverage for the finding: enabling packing on an
     # already-synced store must NOT retroactively build packages for orders
@@ -176,6 +217,156 @@ RSpec.describe PackageAutoBuilder do
       described_class.new(old_order).call
 
       expect(pkg.reload).to have_state(:refunded)
+    end
+  end
+
+  describe "smart re-sync of an existing package" do
+    let(:store) { create(:shopify_store, packing_enabled: true, package_prefix: "XMBDE", package_number_start: 1) }
+    before { store.update_columns(packing_enabled_at: 1.year.ago) }
+    let(:variant) { create(:product_variant, customs_name_en: "Blocks", declared_value_usd: 5, weight_grams: 100) }
+    let(:order) do
+      o = create(:order, shopify_store: store, financial_status: "paid", ordered_at: Time.current,
+                 shopify_data: { "shipping_address" => { "city" => "NYC", "country_code" => "US" } })
+      create(:order_line_item, order: o, product_variant: variant, shopify_line_item_id: 7001, sku_at_sale: "WP-1", title_at_sale: "Puzzle", quantity: 2)
+      o
+    end
+
+    def build!
+      described_class.new(order).call
+      store.packages.find_by(order: order)
+    end
+
+    it "refreshes the address snapshot when not overridden" do
+      pkg = build!
+      order.update!(shopify_data: order.shopify_data.merge("shipping_address" => { "city" => "LA", "country_code" => "US" }))
+      described_class.new(order).call
+      expect(pkg.reload.shipping_address_snapshot["city"]).to eq("LA")
+    end
+
+    it "preserves an overridden address on re-sync" do
+      pkg = build!
+      pkg.update!(address_overridden: true, shipping_address_snapshot: { "city" => "MANUAL" })
+      order.update!(shopify_data: order.shopify_data.merge("shipping_address" => { "city" => "LA" }))
+      described_class.new(order).call
+      expect(pkg.reload.shipping_address_snapshot["city"]).to eq("MANUAL")
+    end
+
+    it "updates an item's quantity when the order line item quantity changes" do
+      pkg = build!
+      order.order_line_items.first.update!(quantity: 5)
+      described_class.new(order).call
+      expect(pkg.reload.package_items.first.quantity).to eq(5)
+    end
+
+    it "adds a package_item for a newly-added order line item" do
+      pkg = build!
+      create(:order_line_item, order: order, shopify_line_item_id: 7002, sku_at_sale: "WP-2", title_at_sale: "Puzzle 2", quantity: 1)
+      described_class.new(order).call
+      expect(pkg.reload.package_items.pluck(:sku)).to contain_exactly("WP-1", "WP-2")
+    end
+
+    it "refreshes customs from the variant when not overridden" do
+      pkg = build!
+      variant.update!(customs_name_en: "Renamed")
+      described_class.new(order).call
+      expect(pkg.reload.package_items.first.customs_name_en).to eq("Renamed")
+    end
+
+    it "preserves overridden customs on re-sync" do
+      pkg = build!
+      pkg.package_items.first.update!(customs_overridden: true, customs_name_en: "MANUAL")
+      variant.update!(customs_name_en: "Renamed")
+      described_class.new(order).call
+      expect(pkg.reload.package_items.first.customs_name_en).to eq("MANUAL")
+    end
+
+    it "still updates quantity and refunded_quantity even when customs is overridden" do
+      pkg = build!
+      pkg.package_items.first.update!(customs_overridden: true, customs_name_en: "MANUAL")
+      order.order_line_items.first.update!(quantity: 5)
+      order.update!(shopify_data: order.shopify_data.merge(
+        "refunds" => [ { "refund_line_items" => [ { "line_item_id" => 7001, "quantity" => 2 } ] } ]
+      ))
+      described_class.new(order).call
+      item = pkg.reload.package_items.first
+      expect(item.customs_name_en).to eq("MANUAL")   # customs section preserved
+      expect(item.quantity).to eq(5)                  # quantity still refreshed
+      expect(item.refunded_quantity).to eq(2)         # refund still refreshed
+    end
+
+    it "marks refunded_quantity from the order's refunds (partial)" do
+      pkg = build!
+      order.update!(shopify_data: order.shopify_data.merge(
+        "refunds" => [ { "refund_line_items" => [ { "line_item_id" => 7001, "quantity" => 1 } ] } ]
+      ))
+      described_class.new(order).call
+      item = pkg.reload.package_items.first
+      expect(item.refunded_quantity).to eq(1)
+      expect(item.fully_refunded?).to be(false)
+    end
+
+    it "flags a fully-refunded item without deleting it" do
+      pkg = build!
+      order.update!(shopify_data: order.shopify_data.merge(
+        "refunds" => [ { "refund_line_items" => [ { "line_item_id" => 7001, "quantity" => 2 } ] } ]
+      ))
+      described_class.new(order).call
+      item = pkg.reload.package_items.first
+      expect(item.refunded_quantity).to eq(2)
+      expect(item.fully_refunded?).to be(true)
+      expect(pkg.package_items.count).to eq(1)  # not deleted
+    end
+
+    it "recomputes refunded_quantity (does not accumulate) across syncs" do
+      pkg = build!
+      order.update!(shopify_data: order.shopify_data.merge("refunds" => [ { "refund_line_items" => [ { "line_item_id" => 7001, "quantity" => 1 } ] } ]))
+      described_class.new(order).call
+      described_class.new(order).call  # same refund again
+      expect(pkg.reload.package_items.first.refunded_quantity).to eq(1)
+    end
+
+    it "matches a refund whose line_item_id arrives as a string (Codex finding 1: normalize to Integer)" do
+      pkg = build!
+      order.update!(shopify_data: order.shopify_data.merge(
+        "refunds" => [ { "refund_line_items" => [ { "line_item_id" => "7001", "quantity" => 1 } ] } ]
+      ))
+      described_class.new(order).call
+      item = pkg.reload.package_items.first
+      expect(item.refunded_quantity).to eq(1)
+    end
+
+    it "does not abort the sync on a malformed refunds payload — bad entries are skipped, valid ones still counted, and the rest of the sync still applies (Codex finding 2)" do
+      pkg = build!
+      # Concurrent change that must still apply even though the refunds
+      # payload below contains garbage entries.
+      # "garbage"/"nope" (Strings) plus nil entries: the nils are what actually
+      # raise NoMethodError pre-fix (String#[] happens to no-op on a missing
+      # substring key, but nil has no #[] at all) — this is the shape that
+      # demonstrates the guard, not just documents the literal example.
+      order.update!(shopify_data: order.shopify_data.merge(
+        "shipping_address" => { "city" => "LA", "country_code" => "US" },
+        "refunds" => [
+          "garbage",
+          nil,
+          { "refund_line_items" => [ "nope", nil, { "line_item_id" => 7001, "quantity" => 1 } ] }
+        ]
+      ))
+
+      expect { described_class.new(order).call }.not_to raise_error
+
+      pkg.reload
+      expect(pkg.shipping_address_snapshot["city"]).to eq("LA")
+      expect(pkg.package_items.first.refunded_quantity).to eq(1)
+    end
+
+    it "does not smart-update a refunded (terminal) package" do
+      pkg = build!
+      order.update!(financial_status: "refunded")
+      described_class.new(order).call  # transitions to refunded
+      order.update!(financial_status: "paid", shopify_data: order.shopify_data.merge("shipping_address" => { "city" => "LA" }))
+      described_class.new(order).call
+      expect(pkg.reload).to have_state(:refunded)
+      expect(pkg.shipping_address_snapshot["city"]).not_to eq("LA")
     end
   end
 end

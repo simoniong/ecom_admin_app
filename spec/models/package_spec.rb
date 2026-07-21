@@ -19,6 +19,14 @@ RSpec.describe Package do
     expect(dup).not_to be_valid
   end
 
+  describe "snapshot fields" do
+    it "defaults shipping_address_snapshot to {} and address_overridden to false" do
+      pkg = create(:package)
+      expect(pkg.shipping_address_snapshot).to eq({})
+      expect(pkg.address_overridden).to be(false)
+    end
+  end
+
   describe "application_status" do
     it "accepts each valid value" do
       %w[none pending succeeded failed].each do |status|

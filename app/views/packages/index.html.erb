@@ -4,6 +4,8 @@
       <%= t("packages.title") %>
       <span class="text-base font-normal text-gray-500">&middot; <%= t("packages.states.#{@state}") %></span>
     </h1>
+    <%= button_to t("packages.sync_orders"), sync_packages_path, method: :post,
+        class: "px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700" %>
   </div>
 
   <% if @state == "applying_tracking" %>
