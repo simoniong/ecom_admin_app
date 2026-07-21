@@ -9,4 +9,10 @@ class PackageItem < ApplicationRecord
   def fully_refunded?
     refunded_quantity >= quantity
   end
+
+  # The 4 customs fields required before a package can advance to tracking.
+  def customs_complete?
+    customs_name_zh.present? && customs_name_en.present? &&
+      declared_value_usd.present? && customs_weight_grams.present?
+  end
 end

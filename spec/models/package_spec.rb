@@ -154,6 +154,7 @@ RSpec.describe Package do
       pkg = complete_package
       create(:package_item, package: pkg, sku: "B", quantity: 1, refunded_quantity: 1)  # fully refunded, no customs
       expect(pkg.ready_for_tracking?).to be(true)
+      expect(pkg.tracking_blockers).to be_empty
     end
   end
 
