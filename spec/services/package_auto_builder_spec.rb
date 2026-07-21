@@ -325,6 +325,40 @@ RSpec.describe PackageAutoBuilder do
       expect(pkg.reload.package_items.first.refunded_quantity).to eq(1)
     end
 
+    it "matches a refund whose line_item_id arrives as a string (Codex finding 1: normalize to Integer)" do
+      pkg = build!
+      order.update!(shopify_data: order.shopify_data.merge(
+        "refunds" => [ { "refund_line_items" => [ { "line_item_id" => "7001", "quantity" => 1 } ] } ]
+      ))
+      described_class.new(order).call
+      item = pkg.reload.package_items.first
+      expect(item.refunded_quantity).to eq(1)
+    end
+
+    it "does not abort the sync on a malformed refunds payload — bad entries are skipped, valid ones still counted, and the rest of the sync still applies (Codex finding 2)" do
+      pkg = build!
+      # Concurrent change that must still apply even though the refunds
+      # payload below contains garbage entries.
+      # "garbage"/"nope" (Strings) plus nil entries: the nils are what actually
+      # raise NoMethodError pre-fix (String#[] happens to no-op on a missing
+      # substring key, but nil has no #[] at all) — this is the shape that
+      # demonstrates the guard, not just documents the literal example.
+      order.update!(shopify_data: order.shopify_data.merge(
+        "shipping_address" => { "city" => "LA", "country_code" => "US" },
+        "refunds" => [
+          "garbage",
+          nil,
+          { "refund_line_items" => [ "nope", nil, { "line_item_id" => 7001, "quantity" => 1 } ] }
+        ]
+      ))
+
+      expect { described_class.new(order).call }.not_to raise_error
+
+      pkg.reload
+      expect(pkg.shipping_address_snapshot["city"]).to eq("LA")
+      expect(pkg.package_items.first.refunded_quantity).to eq(1)
+    end
+
     it "does not smart-update a refunded (terminal) package" do
       pkg = build!
       order.update!(financial_status: "refunded")

@@ -87,7 +87,7 @@ class PackageAutoBuilder
         shipping_address_snapshot: @order.shopify_data["shipping_address"] || {}
       )
       refunds = refunded_quantities # { shopify_line_item_id => qty }
-      @order.order_line_items.find_each do |li|
+      @order.order_line_items.includes(:product_variant).find_each do |li|
         package.package_items.create!(
           customs_attributes_for(li).merge(
             product_variant_id: li.product_variant_id,
@@ -121,7 +121,7 @@ class PackageAutoBuilder
     refunds = refunded_quantities
     existing_by_li = package.package_items.index_by(&:order_line_item_id)
 
-    @order.order_line_items.find_each do |li|
+    @order.order_line_items.includes(:product_variant).find_each do |li|
       item = existing_by_li[li.id]
       refunded = refunds[li.shopify_line_item_id] || 0
       if item
@@ -163,9 +163,15 @@ class PackageAutoBuilder
   def refunded_quantities
     result = Hash.new(0)
     Array(@order.shopify_data["refunds"]).each do |refund|
+      next unless refund.is_a?(Hash)
+
       Array(refund["refund_line_items"]).each do |rli|
-        lid = rli["line_item_id"]
-        result[lid] += rli["quantity"].to_i if lid
+        next unless rli.is_a?(Hash)
+
+        lid = Integer(rli["line_item_id"], exception: false)
+        next unless lid
+
+        result[lid] += rli["quantity"].to_i
       end
     end
     result
