@@ -68,4 +68,38 @@ RSpec.describe PackageAutoBuilder do
     described_class.new(order).call
     expect(pkg.reload).not_to have_state(:refunded)
   end
+
+  it "swallows a mid-build error instead of letting it propagate into order sync" do
+    allow_any_instance_of(Package).to receive(:save!).and_raise(ActiveRecord::RecordInvalid.new(Package.new))
+
+    expect { described_class.new(order).call }.not_to raise_error
+    expect(described_class.new(order).call).to be_nil
+    expect(store.packages.count).to eq(0)
+  end
+
+  it "does not consume a sequence number when it bails inside the lock because the package already exists" do
+    described_class.new(order).call
+    expect(store.reload.package_number_seq).to eq(2013095)
+
+    # Call build_package directly (bypassing do_call's outer fast-path
+    # check) to prove the authoritative in-lock re-check on its own sees
+    # the already-built package and bails WITHOUT bumping the sequence —
+    # this is what protects against the same-order concurrent race.
+    expect { described_class.new(order).send(:build_package) }.not_to change { store.reload.package_number_seq }
+    expect(store.packages.where(order: order).count).to eq(1)
+  end
+
+  it "does not raise and does not create a duplicate when create! collides with an already-built package (RecordNotUnique)" do
+    described_class.new(order).call
+    expect(store.packages.where(order: order).count).to eq(1)
+
+    # Force the in-lock existence re-check to miss (simulating a race window)
+    # so the code proceeds to create!, which must hit the unique order_id
+    # index and be rescued as a clean no-op.
+    allow(store.packages).to receive(:exists?).with(order_id: order.id).and_return(false)
+
+    builder = described_class.new(order)
+    expect { builder.send(:build_package) }.not_to raise_error
+    expect(Package.count).to eq(1)
+  end
 end
