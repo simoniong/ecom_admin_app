@@ -74,4 +74,34 @@ RSpec.describe PackageMerger do
     described_class.new(survivor).call
     expect(store.packages.where(order_id: order.id).pluck(:aasm_state)).to contain_exactly("pending_process", "held")
   end
+
+  it "sums a line item across 3+ siblings without stale double-counting (reload safeguard)" do
+    survivor = box(10) # lowest number → survivor; note: box() gives survivor no item for oli_a yet
+    b = box(11)
+    c = box(12)
+    create(:package_item, package: b, order_line_item: oli_a, sku: "A", quantity: 2, refunded_quantity: 0)
+    create(:package_item, package: c, order_line_item: oli_a, sku: "A", quantity: 3, refunded_quantity: 1)
+
+    described_class.new(survivor).call
+
+    expect(store.packages.where(order_id: order.id).count).to eq(1)
+    items = survivor.reload.package_items.where(order_line_item_id: oli_a.id)
+    expect(items.count).to eq(1)                # NOT two separate A items
+    expect([ items.first.quantity, items.first.refunded_quantity ]).to eq([ 5, 1 ])
+  end
+
+  it "is a no-op returning the lone box unchanged when there is nothing to merge" do
+    only = box(10)
+    expect(described_class.new(only).call).to eq(only)
+    expect(store.packages.where(order_id: order.id).count).to eq(1)
+  end
+
+  describe "#conflict?" do
+    it "is true when one sibling has a channel and another has none" do
+      channel = create(:logistics_channel)
+      s = box(10, channel_id: channel.id)
+      box(11, channel_id: nil)
+      expect(described_class.new(s).conflict?).to be(true)
+    end
+  end
 end
