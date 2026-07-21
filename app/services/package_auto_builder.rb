@@ -76,19 +76,55 @@ class PackageAutoBuilder
 
       seq = @store.package_number_seq || @store.package_number_start
       @store.update!(package_number_seq: seq + 1)
-      package = @store.packages.create!(order: @order, number: seq)
+      package = @store.packages.create!(
+        order: @order,
+        number: seq,
+        shipping_address_snapshot: @order.shopify_data["shipping_address"] || {}
+      )
+      refunds = refunded_quantities # { shopify_line_item_id => qty }
       @order.order_line_items.find_each do |li|
         package.package_items.create!(
-          product_variant_id: li.product_variant_id,
-          order_line_item_id: li.id,
-          sku: li.sku_at_sale,
-          title: li.title_at_sale,
-          quantity: li.quantity
+          customs_attributes_for(li).merge(
+            product_variant_id: li.product_variant_id,
+            order_line_item_id: li.id,
+            sku: li.sku_at_sale,
+            title: li.title_at_sale,
+            quantity: li.quantity,
+            refunded_quantity: refunds[li.shopify_line_item_id] || 0
+          )
         )
       end
     end
   rescue ActiveRecord::RecordNotUnique
     # A concurrent sync already built it; safe to ignore (order_id is unique).
     nil
+  end
+
+  # Customs snapshot copied from the line item's product_variant (nil-safe).
+  def customs_attributes_for(line_item)
+    v = line_item.product_variant
+    return {} unless v
+
+    {
+      customs_name_zh: v.customs_name_zh,
+      customs_name_en: v.customs_name_en,
+      declared_value_usd: v.declared_value_usd,
+      hs_code: v.hs_code,
+      import_hs_code: v.import_hs_code,
+      customs_weight_grams: v.weight_grams
+    }
+  end
+
+  # Sum of refunded/cancelled units per shopify_line_item_id, from the order's
+  # Shopify payload. { shopify_line_item_id (Integer) => refunded_qty (Integer) }
+  def refunded_quantities
+    result = Hash.new(0)
+    Array(@order.shopify_data["refunds"]).each do |refund|
+      Array(refund["refund_line_items"]).each do |rli|
+        lid = rli["line_item_id"]
+        result[lid] += rli["quantity"].to_i if lid
+      end
+    end
+    result
   end
 end

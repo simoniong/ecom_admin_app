@@ -139,6 +139,47 @@ RSpec.describe PackageAutoBuilder do
     expect(Package.count).to eq(1)
   end
 
+  describe "build-time snapshots" do
+    let(:store) { create(:shopify_store, packing_enabled: true, package_prefix: "XMBDE", package_number_start: 2013094) }
+    before { store.update_columns(packing_enabled_at: 1.year.ago) }
+
+    let(:variant) { create(:product_variant, customs_name_zh: "積木", customs_name_en: "Blocks", declared_value_usd: 5, hs_code: "9503", import_hs_code: "9503.00", weight_grams: 250) }
+    let(:order) do
+      o = create(:order, shopify_store: store, financial_status: "paid", ordered_at: Time.current,
+                 shopify_data: { "shipping_address" => { "name" => "Jane", "address1" => "1 Main St", "city" => "NYC", "zip" => "10001", "country_code" => "US" } })
+      create(:order_line_item, order: o, product_variant: variant, sku_at_sale: "WP-1", title_at_sale: "Puzzle", quantity: 2)
+      o
+    end
+
+    it "snapshots the order's shipping address onto the package" do
+      described_class.new(order).call
+      pkg = store.packages.find_by(order: order)
+      expect(pkg.shipping_address_snapshot["city"]).to eq("NYC")
+      expect(pkg.shipping_address_snapshot["country_code"]).to eq("US")
+      expect(pkg.address_overridden).to be(false)
+    end
+
+    it "snapshots the variant's customs info onto each package_item" do
+      described_class.new(order).call
+      item = store.packages.find_by(order: order).package_items.first
+      expect(item.customs_name_zh).to eq("積木")
+      expect(item.customs_name_en).to eq("Blocks")
+      expect(item.declared_value_usd).to eq(5)
+      expect(item.hs_code).to eq("9503")
+      expect(item.import_hs_code).to eq("9503.00")
+      expect(item.customs_weight_grams).to eq(250)
+      expect(item.customs_overridden).to be(false)
+      expect(item.refunded_quantity).to eq(0)
+    end
+
+    it "leaves customs nil when the line item has no product_variant" do
+      order.order_line_items.first.update!(product_variant: nil)
+      described_class.new(order).call
+      item = store.packages.find_by(order: order).package_items.first
+      expect(item.customs_name_zh).to be_nil
+    end
+  end
+
   describe "no-backfill guard (packing_enabled_at)" do
     # Regression coverage for the finding: enabling packing on an
     # already-synced store must NOT retroactively build packages for orders
