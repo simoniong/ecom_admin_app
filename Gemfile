@@ -36,7 +36,7 @@ gem "shopify_api", "~> 14.0"
 gem "httparty", "~> 0.22"
 
 # Excel export
-gem "caxlsx", "~> 4.1"
+gem "caxlsx", "~> 4.5"
 
 # Read .xlsx carrier bills (caxlsx only writes; it cannot read)
 gem "roo", "~> 2.10"
