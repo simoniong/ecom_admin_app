@@ -21,7 +21,7 @@
 
   <% bulk = (@state == "pending_process") %>
   <%= form_with url: apply_tracking_bulk_packages_path, method: :post,
-        data: (bulk ? { controller: "package_bulk" } : {}), html: { id: "packages-bulk-form" } do %>
+        data: (bulk ? { controller: "package-bulk" } : {}), html: { id: "packages-bulk-form" } do %>
     <% if bulk %>
       <div data-package-bulk-target="bar" class="hidden mb-3 flex items-center gap-3 px-4 py-2 bg-indigo-50 border border-indigo-200 rounded">
         <span class="text-sm text-indigo-800"><%= t("packages.apply.bulk_button") %> · <span data-package-bulk-target="count">0</span></span>
@@ -34,7 +34,7 @@
           <thead class="bg-gray-50">
             <tr>
               <% if bulk %>
-                <th class="px-4 py-3"><input type="checkbox" data-action="change->package_bulk#toggleAll" data-package-bulk-target="all"></th>
+                <th class="px-4 py-3"><input type="checkbox" data-action="change->package-bulk#toggleAll" data-package-bulk-target="all"></th>
               <% end %>
               <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase"><%= t("packages.columns.package_code") %></th>
               <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase"><%= t("packages.columns.items") %></th>

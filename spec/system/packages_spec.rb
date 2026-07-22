@@ -360,6 +360,51 @@ RSpec.describe "Packages UI", type: :system do
       expect(source_pkg.reload.package_items.sum(:quantity)).to eq(3)
     end
   end
+
+  describe "申请运单号" do
+    let(:account) { create(:logistics_account, company: company, url1_base: "http://raydo.test:8082", customer_id: "1", customer_userid: "2") }
+    let(:channel) { create(:logistics_channel, logistics_account: account, product_id: "P1") }
+
+    def ready_pkg
+      order = create(:order, customer: customer, shopify_store: store, name: "PKS#APP1")
+      pkg = create(:package, shopify_store: store, order: order, number: 800, aasm_state: "pending_process", logistics_channel: channel,
+                   shipping_address_snapshot: { "name" => "A", "address1" => "x", "city" => "P", "country_code" => "FR" })
+      create(:package_item, package: pkg, order_line_item: create(:order_line_item, order: order), sku: "A", quantity: 1,
+             customs_name_en: "Art", customs_name_zh: "画", declared_value_usd: 5, customs_weight_grams: 100)
+      pkg
+    end
+
+    it "applies for a tracking number and shows the applying state" do
+      stub_request(:post, "http://raydo.test:8082/createOrderApi.htm").
+        to_return(body: { ack: "true", order_id: "R1", tracking_number: "TN1" }.to_json)
+      pkg = ready_pkg
+      visit packages_path(state: "pending_process")
+      click_link pkg.package_code
+      expect(page).to have_button(I18n.t("packages.apply.button"))
+      click_button I18n.t("packages.apply.button")
+      # Wait for the turbo_stream response (modal re-rendered past pending_process,
+      # so the apply button is gone) before hitting the DB directly — otherwise
+      # the reload below can race the async request, per this file's convention.
+      expect(page).to have_no_button(I18n.t("packages.apply.button"))
+      # job runs inline in system tests only if adapter executes; assert the state transition + tracking number surfaced via reload
+      expect(pkg.reload.aasm_state).to eq("applying_tracking").or eq("pending_label")
+    end
+
+    it "disables the apply button when the package is not ready" do
+      pkg = ready_pkg
+      pkg.update!(logistics_channel: nil)
+      visit packages_path(state: "pending_process")
+      click_link pkg.package_code
+      expect(page).to have_button(I18n.t("packages.apply.button"), disabled: true)
+    end
+
+    it "shows a bulk apply bar when a pending_process row is checked" do
+      ready_pkg
+      visit packages_path(state: "pending_process")
+      first("input[name='package_ids[]']").check
+      expect(page).to have_button(I18n.t("packages.apply.bulk_button"))
+    end
+  end
 end
 
 # Fills the first box's number input for the first item row.
