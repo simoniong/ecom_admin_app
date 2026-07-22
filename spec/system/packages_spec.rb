@@ -429,6 +429,50 @@ RSpec.describe "Packages UI", type: :system do
       expect(page).to have_button(I18n.t("packages.label.bulk_button"))
     end
   end
+
+  describe "發貨" do
+    let(:account) { create(:logistics_account, company: company, url1_base: "http://raydo.test:8082", url2_base: "http://raydo.test:8089", customer_id: "1", customer_userid: "2") }
+    let(:channel) { create(:logistics_channel, logistics_account: account, product_id: "P1") }
+    def pl_pkg(number: 900)
+      order = create(:order, customer: customer, shopify_store: store, name: "PKS#S#{number}")
+      create(:package, shopify_store: store, order: order, number: number, aasm_state: "pending_label", logistics_channel: channel, raydo_order_id: "R#{number}", tracking_number: "TN#{number}")
+    end
+
+    it "ships a package (test mode) and moves it out of pending_label" do
+      store.update!(shipping_sync_enabled: false)
+      pkg = pl_pkg
+      visit packages_path(state: "pending_label")
+      click_link pkg.package_code
+
+      # Scoped to the dialog: "Ship" (packages.ship.button, en locale) is a
+      # plain substring of the ever-present sidebar nav item "Shipping"
+      # (nav.shipping), which renders on every page load — long before the
+      # Turbo Frame modal content (with the real Ship button) arrives.
+      # Unscoped have_button/click_button would be satisfied early by that
+      # sidebar match (a false positive Capybara can't distinguish from the
+      # real button), so the click lands on a covered, unrelated element.
+      # Scoping to the dialog excludes the sidebar entirely and matches this
+      # file's existing convention for modal actions.
+      within("[data-modal-target='dialog']") do
+        expect(page).to have_button(I18n.t("packages.ship.button"))
+        click_button I18n.t("packages.ship.button")
+
+        # Wait for the turbo_stream response (modal replaced with the reloaded
+        # package, past pending_label so the Ship button is gone) before
+        # hitting the DB directly — otherwise the reload below can race the
+        # request, per this file's convention.
+        expect(page).to have_no_button(I18n.t("packages.ship.button"))
+      end
+      expect(pkg.reload).to have_state(:shipped)
+    end
+
+    it "shows the bulk ship button when a pending_label row is checked" do
+      pl_pkg
+      visit packages_path(state: "pending_label")
+      first("input[name='package_ids[]']").check
+      expect(page).to have_button(I18n.t("packages.ship.bulk_button"))
+    end
+  end
 end
 
 # Fills the first box's number input for the first item row.
