@@ -32,6 +32,13 @@ RSpec.describe "ShopifyOauth", type: :request do
       expect(session[:shopify_pending_shop]).to eq("test.myshopify.com")
     end
 
+    it "requests the fulfillment write scope in the authorize redirect" do
+      sign_in user
+      post shopify_auth_path, params: auth_params
+      expect(response).to have_http_status(:redirect)
+      expect(response.location).to include("write_merchant_managed_fulfillment_orders")
+    end
+
     it "rejects an invalid shop domain" do
       sign_in user
       post shopify_auth_path, params: auth_params(shop: "invalid-domain.com")
