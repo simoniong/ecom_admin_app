@@ -243,7 +243,12 @@ class PackagesController < AdminController
   end
 
   # Bulk apply from the pending_process list. Ready packages are applied +
-  # enqueued; not-ready ones are skipped and reported.
+  # enqueued; not-ready ones are skipped and reported. Per-package isolation
+  # (mirrors PollTrackingNumbersJob#perform) so a package whose state raced
+  # between the scope query above and the apply_tracking! bang below (raising
+  # AASM::InvalidTransition) — or one that fails its update! (ActiveRecord::
+  # ActiveRecordError) — is counted as skipped rather than aborting the rest
+  # of the batch.
   def apply_tracking_bulk
     return redirect_to(packages_path, alert: t("companies.no_permission")) unless current_membership&.package_process?
 
@@ -253,8 +258,13 @@ class PackagesController < AdminController
     skipped = 0
     candidates.find_each do |package|
       if package.ready_for_tracking?
-        start_application!(package)
-        applied += 1
+        begin
+          start_application!(package)
+          applied += 1
+        rescue AASM::InvalidTransition, ActiveRecord::ActiveRecordError => e
+          Rails.logger.warn("[ApplyBulk] Package##{package.id}: #{e.class}: #{e.message}")
+          skipped += 1
+        end
       else
         skipped += 1
       end

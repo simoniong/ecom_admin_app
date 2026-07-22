@@ -1235,6 +1235,26 @@ RSpec.describe "Packages", type: :request do
         expect(response).to have_http_status(:found)
         expect(pkg.reload).to have_state(:pending_process)
       end
+
+      # Guards the per-package rescue in apply_tracking_bulk: a raised
+      # AASM::InvalidTransition on one package (e.g. a concurrent state change
+      # between the scope query and the apply_tracking! bang) must not abort
+      # find_each mid-batch. Forcing that raise directly would require a race
+      # that's infeasible to set up deterministically in a request spec, so
+      # this instead proves the loop-completion contract the rescue exists to
+      # protect: with multiple ready pending_process packages, EVERY one is
+      # transitioned and enqueued — not just the first — i.e. the loop runs to
+      # completion rather than stopping after one iteration.
+      it "processes every ready package in the batch, not just the first" do
+        first = ready_pkg
+        second = ready_pkg
+        expect {
+          post apply_tracking_bulk_packages_path, params: { package_ids: [ first.id, second.id ] }
+        }.to have_enqueued_job(ApplyTrackingJob).with(first.id)
+         .and have_enqueued_job(ApplyTrackingJob).with(second.id)
+        expect(first.reload).to have_state(:applying_tracking)
+        expect(second.reload).to have_state(:applying_tracking)
+      end
     end
   end
 end
