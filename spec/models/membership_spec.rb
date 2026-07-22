@@ -93,6 +93,14 @@ RSpec.describe Membership, type: :model do
       m2 = create(:membership, company: company, role: :member, permissions: [ "package_review" ], group: create(:group, company: company))
       expect(m2.package_process?).to be(false)
     end
+
+    it "package_shipping? is true for owner, for a member with the perm, false otherwise" do
+      expect(create(:membership, company: company, role: :owner).package_shipping?).to be(true)
+      m = create(:membership, :member_with_group, company: company, user: create(:user), permissions: [ "package_shipping" ])
+      expect(m.package_shipping?).to be(true)
+      m2 = create(:membership, :member_with_group, company: company, user: create(:user), permissions: [ "package_process" ])
+      expect(m2.package_shipping?).to be(false)
+    end
   end
 
   describe "group assignment rules" do
