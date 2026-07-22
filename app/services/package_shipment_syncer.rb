@@ -39,7 +39,13 @@ class PackageShipmentSyncer
 
     # register raises only on a real API/transport error; an already-registered
     # number returns 200 (rejected dedupe) and does NOT raise → treat as success.
-    TrackingService.new(api_key: @company.tracking_api_key).register([ @package.tracking_number ])
+    # The raised message can embed the raw 17Track response body, so it must not
+    # propagate as-is: re-raise class-only so it stays safe for ship_sync_message.
+    begin
+      TrackingService.new(api_key: @company.tracking_api_key).register([ @package.tracking_number ])
+    rescue => e
+      raise "17track register failed (#{e.class})"
+    end
     @package.update!(tracking_registered_at: Time.current)
   end
 

@@ -94,6 +94,17 @@ RSpec.describe PackageShipmentSyncer do
     expect(p.reload.tracking_registered_at).to be_present
   end
 
+  it "sanitizes the 17track error so the raw response body does not leak into ship_sync_message" do
+    stub_raydo_ok
+    stub_request(:post, "https://api.17track.net/track/v2.4/register")
+      .to_return(status: 500, body: "SECRET_BODY_12345")
+    p = sync_pkg
+    described_class.new(p).call
+    p.reload
+    expect(p.ship_sync_status).to eq("failed")
+    expect(p.ship_sync_message).not_to include("SECRET_BODY_12345")
+  end
+
   it "skips 17track (not a failure) when company tracking is not configured" do
     store.company.update!(tracking_enabled: false, tracking_api_key: nil, tracking_mode: nil)
     stub_raydo_ok; stub_shopify_ok
