@@ -680,6 +680,7 @@ en:
         no_order: "Package has no tracking number yet, cannot print label"
         no_channel: "Package has no logistics channel assigned"
         mixed_type: "Selected packages have different label types; please select packages of the same label type"
+        mixed_account: "Selected packages use different logistics accounts"
         url2_missing: "Carrier print address (URL2) is not configured"
         failed: "Failed to fetch the label, please try again later"
     order_cancelled: "Order cancelled"

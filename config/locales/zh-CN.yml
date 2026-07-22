@@ -678,6 +678,7 @@
         no_order: "包裹尚无运单号，无法打印面单"
         no_channel: "包裹未指派物流渠道"
         mixed_type: "所选包裹的标签类型不一致，请选择同一种标签类型"
+        mixed_account: "所选包裹使用了不同的物流账号"
         url2_missing: "尚未配置货代打印地址(URL2)"
         failed: "获取面单失败，请稍后重试"
     order_cancelled: "订单已取消"

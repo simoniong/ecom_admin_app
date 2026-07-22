@@ -54,6 +54,25 @@ RSpec.describe PackageLabelPrinter do
     expect(result.error).to eq(:mixed_type)
   end
 
+  it "fails when packages span different logistics accounts" do
+    # A logistics_account is unique per (company, provider), and provider is
+    # always "raydo", so a second raydo account must live in a different
+    # company. The service itself has no company scoping (that's the
+    # controller's job), so it's legitimate to mix companies here to exercise
+    # the guard.
+    other_user = create(:user)
+    other_company = other_user.companies.first
+    other_store = create(:shopify_store, company: other_company, package_prefix: "OTHR", package_number_start: 1)
+    other_account = create(:logistics_account, company: other_company, url1_base: "http://raydo2.test:8082", url2_base: "http://raydo2.test:8089")
+    other_channel = create(:logistics_channel, logistics_account: other_account, product_id: "P1", label_print_type: "lab10_10")
+    other_order = create(:order, shopify_store: other_store)
+    other_pkg = create(:package, shopify_store: other_store, order: other_order, number: 1, aasm_state: "pending_label",
+                        logistics_channel: other_channel, raydo_order_id: "R2")
+
+    result = described_class.new([ pkg(number: 1), other_pkg ]).call
+    expect(result.error).to eq(:mixed_account)
+  end
+
   it "fails when url2_base is missing" do
     account.update!(url2_base: nil)
     expect(described_class.new([ pkg(number: 1) ]).call.error).to eq(:url2_missing)

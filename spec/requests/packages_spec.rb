@@ -1295,6 +1295,12 @@ RSpec.describe "Packages", type: :request do
         stub_request(:get, "http://raydo.test:8089/order/FastRpt/PDF_NEW.aspx").with(query: hash_including({})).to_return(status: 500, body: "e")
         get label_package_path(id: pkg.id)
         expect(response).to have_http_status(:found)
+        # The stub's raw carrier body is a single-char string ("e"), too
+        # generic to assert not_to include against an English error message —
+        # asserting the exact generic message is what actually proves the raw
+        # carrier string never reached the flash (a raw "e" surfacing would
+        # fail this eq check, since it wouldn't match the full sentence).
+        expect(flash[:alert]).to eq(I18n.t("packages.label.errors.failed"))
       end
 
       it "redirects for a non-pending_label package" do

@@ -22,6 +22,8 @@ class PackageLabelPrinter
     types = channels.map(&:label_print_type).uniq
     return failure(:mixed_type) if types.size > 1
 
+    return failure(:mixed_account) if channels.map(&:logistics_account_id).uniq.size > 1
+
     account = channels.first.logistics_account
     return failure(:url2_missing) if account.url2_base.blank?
 
