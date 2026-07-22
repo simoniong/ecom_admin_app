@@ -99,4 +99,76 @@ RSpec.describe ShopifyFulfillmentService do
     pkg.shopify_store.update!(scopes: "read_all_orders")
     expect { described_class.new(pkg).call }.to raise_error(ShopifyFulfillmentService::Error, /scope|reauth/i)
   end
+
+  it "fulfills across ALL matching open fulfillment orders when the package's items span more than one" do
+    pkg = shipped_ready_package
+    order = pkg.order
+    oli2 = create(:order_line_item, order: order, shopify_line_item_id: 6000 + 900 + 1, quantity: 1)
+    create(:package_item, package: pkg, order_line_item: oli2, sku: "B", quantity: 1, refunded_quantity: 0,
+           customs_name_en: "Art2", customs_name_zh: "画2", declared_value_usd: 5, customs_weight_grams: 50)
+
+    calls = []
+    stub_request(:post, gql).to_return do |req|
+      body = JSON.parse(req.body); calls << body
+      if body["query"].include?("fulfillments(")
+        { body: { data: { order: { fulfillments: [] } } }.to_json }
+      elsif body["query"].include?("fulfillmentOrders")
+        { body: { data: { order: { fulfillmentOrders: { edges: [
+          { node: { id: "gid://shopify/FulfillmentOrder/1", status: "OPEN",
+            lineItems: { edges: [ { node: { id: "gid://shopify/FulfillmentOrderLineItem/9", remainingQuantity: 2,
+              lineItem: { id: "gid://shopify/LineItem/#{6000 + 900}" } } } ] } } },
+          { node: { id: "gid://shopify/FulfillmentOrder/2", status: "OPEN",
+            lineItems: { edges: [ { node: { id: "gid://shopify/FulfillmentOrderLineItem/10", remainingQuantity: 1,
+              lineItem: { id: "gid://shopify/LineItem/#{6000 + 900 + 1}" } } } ] } } }
+        ] } } } }.to_json }
+      else
+        { body: { data: { fulfillmentCreate: { fulfillment: { id: "gid://shopify/Fulfillment/77" }, userErrors: [] } } }.to_json }
+      end
+    end
+
+    expect(described_class.new(pkg).call).to eq("gid://shopify/Fulfillment/77")
+    create_call = calls.find { |c| c["query"].include?("fulfillmentCreate") }
+    groups = create_call.dig("variables", "fulfillment", "lineItemsByFulfillmentOrder")
+    expect(groups.size).to eq(2)
+    expect(groups).to include(
+      { "fulfillmentOrderId" => "gid://shopify/FulfillmentOrder/1",
+        "fulfillmentOrderLineItems" => [ { "id" => "gid://shopify/FulfillmentOrderLineItem/9", "quantity" => 2 } ] },
+      { "fulfillmentOrderId" => "gid://shopify/FulfillmentOrder/2",
+        "fulfillmentOrderLineItems" => [ { "id" => "gid://shopify/FulfillmentOrderLineItem/10", "quantity" => 1 } ] }
+    )
+  end
+
+  it "raises (not a partial success) when a wanted line item matches no open fulfillment order line item" do
+    pkg = shipped_ready_package
+    order = pkg.order
+    oli2 = create(:order_line_item, order: order, shopify_line_item_id: 6000 + 900 + 1, quantity: 1)
+    create(:package_item, package: pkg, order_line_item: oli2, sku: "B", quantity: 1, refunded_quantity: 0,
+           customs_name_en: "Art2", customs_name_zh: "画2", declared_value_usd: 5, customs_weight_grams: 50)
+
+    stub_request(:post, gql).to_return do |req|
+      body = JSON.parse(req.body)
+      if body["query"].include?("fulfillments(")
+        { body: { data: { order: { fulfillments: [] } } }.to_json }
+      elsif body["query"].include?("fulfillmentOrders")
+        # Only the first line item is present on any open fulfillment order; the second is unmatched.
+        { body: { data: { order: { fulfillmentOrders: { edges: [
+          { node: { id: "gid://shopify/FulfillmentOrder/1", status: "OPEN",
+            lineItems: { edges: [ { node: { id: "gid://shopify/FulfillmentOrderLineItem/9", remainingQuantity: 2,
+              lineItem: { id: "gid://shopify/LineItem/#{6000 + 900}" } } } ] } } }
+        ] } } } }.to_json }
+      else
+        raise "should not create a partial fulfillment"
+      end
+    end
+
+    expect { described_class.new(pkg).call }.to raise_error(ShopifyFulfillmentService::Error, /could not fulfill all line items/i)
+  end
+
+  it "re-raises the actionable top-level GraphQL error message instead of masking it" do
+    pkg = shipped_ready_package
+    stub_request(:post, gql).to_return(
+      body: { errors: [ { message: "Access denied for fulfillmentOrders field" } ] }.to_json
+    )
+    expect { described_class.new(pkg).call }.to raise_error(ShopifyFulfillmentService::Error, /Access denied/)
+  end
 end

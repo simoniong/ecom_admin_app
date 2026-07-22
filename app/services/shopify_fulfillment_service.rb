@@ -22,10 +22,10 @@ class ShopifyFulfillmentService
     existing = reconcile_existing
     return existing if existing
 
-    fo = open_fulfillment_order_line_items
-    raise Error, "no open fulfillment order for this order" if fo.nil? || fo[:line_items].empty?
+    groups = open_fulfillment_order_line_item_groups
+    raise Error, "no open fulfillment order for this order" if groups.empty?
 
-    create_fulfillment(fo)
+    create_fulfillment(groups)
   end
 
   private
@@ -67,7 +67,14 @@ class ShopifyFulfillmentService
     hit && hit["id"]
   end
 
-  def open_fulfillment_order_line_items
+  # Iterates ALL open fulfillment orders for this order and accumulates one
+  # group per fulfillment order that carries any wanted line item (quantity =
+  # min(remaining wanted, remainingQuantity)). A package's shippable items can
+  # legitimately span multiple fulfillment orders (e.g. partially fulfilled
+  # order, or Shopify splitting locations) — fulfilling only the first match
+  # would silently under-ship the rest. Raises unless every wanted line item
+  # is matched for its FULL wanted quantity across the accumulated groups.
+  def open_fulfillment_order_line_item_groups
     q = <<~GQL
       query($id: ID!) {
         order(id: $id) {
@@ -79,6 +86,9 @@ class ShopifyFulfillmentService
       }
     GQL
     wanted = wanted_line_item_gids
+    matched = Hash.new(0)
+    groups = []
+
     (run(q, id: order_gid).dig("order", "fulfillmentOrders", "edges") || []).each do |edge|
       node = edge["node"]
       lines = (node.dig("lineItems", "edges") || []).filter_map do |le|
@@ -86,17 +96,28 @@ class ShopifyFulfillmentService
         gid = n.dig("lineItem", "id")
         next unless wanted.key?(gid)
 
-        qty = [ wanted[gid], n["remainingQuantity"].to_i ].min
+        remaining_wanted = wanted[gid] - matched[gid]
+        next if remaining_wanted <= 0
+
+        qty = [ remaining_wanted, n["remainingQuantity"].to_i ].min
         next if qty <= 0
 
+        matched[gid] += qty
         { id: n["id"], quantity: qty }
       end
-      return { fulfillment_order_id: node["id"], line_items: lines } if lines.any?
+      groups << { fulfillment_order_id: node["id"], line_items: lines } if lines.any?
     end
-    nil
+
+    unmatched = wanted.any? { |gid, qty| matched[gid] < qty }
+    # Only distinguish "partially matched across the open fulfillment orders
+    # we did find" from "no open fulfillment order at all" — the latter is
+    # raised by #call with a clearer message once it sees an empty groups list.
+    raise Error, "could not fulfill all line items" if unmatched && groups.any?
+
+    groups
   end
 
-  def create_fulfillment(fo)
+  def create_fulfillment(groups)
     m = <<~GQL
       mutation fulfillmentCreate($fulfillment: FulfillmentInput!) {
         fulfillmentCreate(fulfillment: $fulfillment) {
@@ -107,7 +128,7 @@ class ShopifyFulfillmentService
     GQL
     vars = {
       fulfillment: {
-        lineItemsByFulfillmentOrder: [ { fulfillmentOrderId: fo[:fulfillment_order_id], fulfillmentOrderLineItems: fo[:line_items] } ],
+        lineItemsByFulfillmentOrder: groups.map { |g| { fulfillmentOrderId: g[:fulfillment_order_id], fulfillmentOrderLineItems: g[:line_items] } },
         trackingInfo: { number: @package.tracking_number, company: @package.logistics_channel&.shopify_carrier_name, url: tracking_url },
         notifyCustomer: true
       }
@@ -128,9 +149,16 @@ class ShopifyFulfillmentService
   def run(query, **variables)
     resp = client.query(query: query, variables: variables)
     body = resp.body || {}
-    raise Error, "shopify graphql error" if (body["errors"] || []).any?
+    if (errors = body["errors"] || []).any?
+      # GraphQL's top-level error "message" is Shopify's own text (e.g. scope
+      # or field errors) — safe to surface, and often the only clue that the
+      # store is missing a required read/write scope.
+      raise Error, "shopify graphql error: #{errors.map { |e| e['message'] }.join('; ')}"
+    end
 
     body["data"] || {}
+  rescue Error
+    raise
   rescue ShopifyAPI::Errors::HttpResponseError => e
     raise Error, "shopify http error (#{e.code})"
   rescue => e

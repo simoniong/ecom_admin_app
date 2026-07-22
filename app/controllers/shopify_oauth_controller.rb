@@ -33,7 +33,7 @@ class ShopifyOauthController < AdminController
     session[:shopify_pending_client_secret] = client_secret
     session[:shopify_pending_shop] = shop
 
-    scopes = "read_products,read_customers,read_all_orders,read_fulfillments,read_analytics,write_webhooks,write_merchant_managed_fulfillment_orders"
+    scopes = "read_products,read_customers,read_all_orders,read_fulfillments,read_analytics,write_webhooks,read_merchant_managed_fulfillment_orders,write_merchant_managed_fulfillment_orders"
     redirect_uri = shopify_callback_url(locale: nil)
 
     authorize_url = "https://#{shop}/admin/oauth/authorize?" + {
