@@ -266,4 +266,15 @@ RSpec.describe ShopifyStore, type: :model do
       expect(store.short_name).to eq("paint-kit")
     end
   end
+
+  describe "#shipping_sync_enabled / #fulfillment_write_scope?" do
+    it "defaults shipping_sync_enabled to false" do
+      expect(create(:shopify_store).shipping_sync_enabled).to be(false)
+    end
+    it "detects the fulfillment write scope in scopes" do
+      expect(build(:shopify_store, scopes: "read_all_orders,write_merchant_managed_fulfillment_orders").fulfillment_write_scope?).to be(true)
+      expect(build(:shopify_store, scopes: "read_all_orders").fulfillment_write_scope?).to be(false)
+      expect(build(:shopify_store, scopes: nil).fulfillment_write_scope?).to be(false)
+    end
+  end
 end

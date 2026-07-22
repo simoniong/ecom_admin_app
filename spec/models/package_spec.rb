@@ -226,4 +226,21 @@ RSpec.describe Package do
       expect([ pkg.raydo_order_id, pkg.tracking_number, pkg.carrier, pkg.application_message, pkg.applied_at ]).to all(be_nil)
     end
   end
+
+  describe "ship_sync_status" do
+    it "defaults to none and validates inclusion" do
+      order = create(:order); pkg = create(:package, shopify_store: order.shopify_store, order: order)
+      expect(pkg.ship_sync_status).to eq("none")
+      pkg.ship_sync_status = "bogus"
+      expect(pkg).not_to be_valid
+    end
+  end
+  describe "shopify_fulfillment_id partial unique index" do
+    it "rejects a duplicate non-null shopify_fulfillment_id" do
+      o1 = create(:order); o2 = create(:order, shopify_store: o1.shopify_store)
+      create(:package, shopify_store: o1.shopify_store, order: o1, number: 1, shopify_fulfillment_id: "gid://shopify/Fulfillment/1")
+      dup = build(:package, shopify_store: o1.shopify_store, order: o2, number: 2, shopify_fulfillment_id: "gid://shopify/Fulfillment/1")
+      expect { dup.save!(validate: false) }.to raise_error(ActiveRecord::RecordNotUnique)
+    end
+  end
 end
