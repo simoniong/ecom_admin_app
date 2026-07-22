@@ -155,6 +155,21 @@ RSpec.describe FulfillmentService::Raydo do
       expect(stub).to have_been_requested
     end
 
+    it "falls back to authenticate for customer ids when the account has none" do
+      account.update!(customer_id: nil, customer_userid: nil)
+      stub_request(:get, "http://raydo.test:8082/selectAuth.htm").
+        with(query: { username: "TEST", password: "123456" }).
+        to_return(body: { customer_id: "AC1", customer_userid: "AU2", ack: "true" }.to_json,
+                  headers: { "Content-Type" => "application/json" })
+      stub = stub_request(:post, "http://raydo.test:8082/createOrderApi.htm").
+        with { |req|
+          payload = JSON.parse(CGI.unescape(req.body.sub(/\Aparam=/, "")))
+          payload["customer_id"] == "AC1" && payload["customer_userid"] == "AU2"
+        }.to_return(body: { ack: "true", order_id: "R1", tracking_number: "T1" }.to_json)
+      described_class.new(account).create_order(package)
+      expect(stub).to have_been_requested
+    end
+
     it "flags deferred when is_delay is Y" do
       stub_request(:post, "http://raydo.test:8082/createOrderApi.htm").
         to_return(body: { ack: "true", order_id: "R2", tracking_number: "", is_delay: "Y" }.to_json)
