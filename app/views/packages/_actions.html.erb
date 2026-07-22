@@ -28,4 +28,23 @@
         method: :patch, form: { data: { turbo_frame: "package-modal" } },
         class: "px-4 py-2 bg-gray-500 text-white text-sm rounded hover:bg-gray-600" %>
   <% end %>
+
+  <% if package.pending_process? && current_membership&.package_process? %>
+    <% if package.ready_for_tracking? %>
+      <%= button_to t("packages.apply.button"), apply_tracking_package_path(id: package.id),
+          method: :post, form: { data: { turbo_frame: "package-modal" } },
+          class: "px-4 py-2 bg-indigo-600 text-white text-sm rounded hover:bg-indigo-700" %>
+    <% else %>
+      <button type="button" disabled title="<%= t('packages.apply.not_ready') %>"
+              class="px-4 py-2 bg-gray-200 text-gray-400 text-sm rounded cursor-not-allowed">
+        <%= t("packages.apply.button") %>
+      </button>
+    <% end %>
+  <% end %>
+
+  <% if package.applying_tracking? && package.application_status == "failed" && current_membership&.package_process? %>
+    <%= button_to t("packages.apply.retry"), retry_tracking_package_path(id: package.id),
+        method: :post, form: { data: { turbo_frame: "package-modal" } },
+        class: "px-4 py-2 bg-amber-600 text-white text-sm rounded hover:bg-amber-700" %>
+  <% end %>
 </div>

@@ -212,4 +212,18 @@ RSpec.describe Package do
       expect(store.packages.where(order_id: order.id).count).to eq(2)
     end
   end
+
+  describe "back_to_process clears the tracking-application fields" do
+    it "resets application fields when pulled back to pending_process" do
+      pkg = create(:package)
+      pkg.update!(aasm_state: "applying_tracking", application_status: "succeeded",
+                  raydo_order_id: "R123", tracking_number: "TN999", carrier: "DHL",
+                  application_message: "x", applied_at: Time.current)
+      pkg.back_to_process!
+      pkg.reload
+      expect(pkg).to have_state(:pending_process)
+      expect(pkg.application_status).to eq("none")
+      expect([ pkg.raydo_order_id, pkg.tracking_number, pkg.carrier, pkg.application_message, pkg.applied_at ]).to all(be_nil)
+    end
+  end
 end

@@ -657,6 +657,18 @@
     readiness:
       blocked_title: "尚未可发货"
       ready: "可申请运单号"
+    apply:
+      timeout: "货代超时未出号"
+      invalid_state: "包裹当前状态不可申请运单号"
+      not_ready: "包裹尚未满足申请运单号的条件"
+      enqueued: "已提交运单号申请"
+      bulk_result: "已申请 %{applied} 个，跳过 %{skipped} 个"
+      button: "申请运单号"
+      retry: "重试"
+      pending: "申请中，等待货代出号…"
+      failed: "申请失败"
+      bulk_button: "批量申请运单号"
+      tracking_number: "运单号"
     order_cancelled: "订单已取消"
     detail_title: "包裹 %{code} 详情"
     back_to_list: "返回包裹列表"

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_21_154718) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_22_105315) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -381,15 +381,20 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_21_154718) do
   create_table "packages", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.string "aasm_state", null: false
     t.boolean "address_overridden", default: false, null: false
+    t.text "application_message"
     t.string "application_status", default: "none", null: false
+    t.datetime "applied_at"
+    t.string "carrier"
     t.datetime "created_at", null: false
     t.string "held_from"
     t.uuid "logistics_channel_id"
     t.text "note"
     t.integer "number", null: false
     t.uuid "order_id", null: false
+    t.string "raydo_order_id"
     t.jsonb "shipping_address_snapshot", default: {}, null: false
     t.uuid "shopify_store_id", null: false
+    t.string "tracking_number"
     t.datetime "updated_at", null: false
     t.index ["logistics_channel_id"], name: "index_packages_on_logistics_channel_id"
     t.index ["order_id"], name: "index_packages_on_order_id"

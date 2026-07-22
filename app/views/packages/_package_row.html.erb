@@ -1,4 +1,10 @@
 <tr>
+  <% if local_assigns[:bulk] %>
+    <td class="px-4 py-3 align-top">
+      <input type="checkbox" name="package_ids[]" value="<%= package.id %>"
+             data-package-bulk-target="checkbox" data-action="change->package-bulk#refresh">
+    </td>
+  <% end %>
   <td class="px-4 py-3 text-sm font-medium align-top whitespace-nowrap">
     <%= link_to package.package_code, package_path(id: package.id),
         data: { turbo_frame: "package-modal" },

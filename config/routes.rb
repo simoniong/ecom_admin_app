@@ -87,8 +87,13 @@ Rails.application.routes.draw do
         patch :update_note
         post :split
         post :merge
+        post :apply_tracking
+        post :retry_tracking
       end
-      collection { post :sync }
+      collection do
+        post :sync
+        post :apply_tracking_bulk
+      end
     end
     resources :products, only: [ :index ]
     # Task 3 builds ProductCustomsController + its view; the route is added

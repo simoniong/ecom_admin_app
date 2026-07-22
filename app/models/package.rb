@@ -34,6 +34,13 @@ class Package < ApplicationRecord
       transitions from: :pending_process, to: :pending_review
     end
     event :back_to_process do
+      # Pulling a package back to processing discards its tracking application
+      # (Y decision): a re-apply will create a NEW Raydo order. after runs
+      # post-save, so persist the clear directly rather than mutating memory.
+      after do
+        update_columns(application_status: "none", raydo_order_id: nil, tracking_number: nil,
+                       carrier: nil, application_message: nil, applied_at: nil)
+      end
       transitions from: [ :applying_tracking, :pending_label ], to: :pending_process
     end
     event :hold do

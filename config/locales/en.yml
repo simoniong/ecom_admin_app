@@ -659,6 +659,18 @@ en:
     readiness:
       blocked_title: "Not ready to ship"
       ready: "Ready to apply for tracking"
+    apply:
+      timeout: "Carrier did not issue a tracking number in time"
+      invalid_state: "Package is not in a state that can apply for tracking"
+      not_ready: "Package is not ready to apply for tracking"
+      enqueued: "Tracking application queued"
+      bulk_result: "Applied: %{applied}, skipped: %{skipped}"
+      button: "Apply for tracking number"
+      retry: "Retry"
+      pending: "Applying, waiting for carrier to issue a tracking number…"
+      failed: "Application failed"
+      bulk_button: "Apply for tracking numbers in bulk"
+      tracking_number: "Tracking number"
     order_cancelled: "Order cancelled"
     detail_title: "Package %{code} detail"
     back_to_list: "Back to packages list"
