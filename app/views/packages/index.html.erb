@@ -19,35 +19,48 @@
     </nav>
   <% end %>
 
-  <div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
-    <div class="overflow-x-auto">
-      <table class="min-w-full divide-y divide-gray-200">
-        <thead class="bg-gray-50">
-          <tr>
-            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase"><%= t("packages.columns.package_code") %></th>
-            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase"><%= t("packages.columns.items") %></th>
-            <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase"><%= t("packages.columns.order_total") %></th>
-            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase"><%= t("packages.columns.destination") %></th>
-            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase"><%= t("packages.columns.order_name") %></th>
-            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase"><%= t("packages.columns.created_at") %></th>
-            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase"><%= t("packages.columns.logistics_channel") %></th>
-            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase"><%= t("packages.columns.status") %></th>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-gray-100">
-          <% if @packages.empty? %>
+  <% bulk = (@state == "pending_process") %>
+  <%= form_with url: apply_tracking_bulk_packages_path, method: :post,
+        data: (bulk ? { controller: "package_bulk" } : {}), html: { id: "packages-bulk-form" } do %>
+    <% if bulk %>
+      <div data-package-bulk-target="bar" class="hidden mb-3 flex items-center gap-3 px-4 py-2 bg-indigo-50 border border-indigo-200 rounded">
+        <span class="text-sm text-indigo-800"><%= t("packages.apply.bulk_button") %> · <span data-package-bulk-target="count">0</span></span>
+        <%= submit_tag t("packages.apply.bulk_button"), class: "px-3 py-1.5 text-sm bg-indigo-600 text-white rounded hover:bg-indigo-700 cursor-pointer" %>
+      </div>
+    <% end %>
+    <div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200">
+          <thead class="bg-gray-50">
             <tr>
-              <td colspan="8" class="px-4 py-8 text-center text-sm text-gray-500"><%= t("packages.no_packages") %></td>
+              <% if bulk %>
+                <th class="px-4 py-3"><input type="checkbox" data-action="change->package_bulk#toggleAll" data-package-bulk-target="all"></th>
+              <% end %>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase"><%= t("packages.columns.package_code") %></th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase"><%= t("packages.columns.items") %></th>
+              <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase"><%= t("packages.columns.order_total") %></th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase"><%= t("packages.columns.destination") %></th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase"><%= t("packages.columns.order_name") %></th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase"><%= t("packages.columns.created_at") %></th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase"><%= t("packages.columns.logistics_channel") %></th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase"><%= t("packages.columns.status") %></th>
             </tr>
-          <% else %>
-            <% @packages.each do |package| %>
-              <%= render "packages/package_row", package: package %>
+          </thead>
+          <tbody class="divide-y divide-gray-100">
+            <% if @packages.empty? %>
+              <tr>
+                <td colspan="<%= bulk ? 9 : 8 %>" class="px-4 py-8 text-center text-sm text-gray-500"><%= t("packages.no_packages") %></td>
+              </tr>
+            <% else %>
+              <% @packages.each do |package| %>
+                <%= render "packages/package_row", package: package, bulk: bulk %>
+              <% end %>
             <% end %>
-          <% end %>
-        </tbody>
-      </table>
+          </tbody>
+        </table>
+      </div>
     </div>
-  </div>
+  <% end %>
 
   <%= render "packages/pagination", page: @page, total_pages: @total_pages, total_count: @total_count %>
 </div>
