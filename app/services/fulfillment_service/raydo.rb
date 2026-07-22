@@ -93,6 +93,19 @@ module FulfillmentService
       raise FulfillmentService::Error, "Raydo request failed (#{e.class})"
     end
 
+    # GET url1/postOrderApi.htm?customer_id=&order_customerinvoicecode=  (标记发货)
+    # Raydo does NOT document the response for this endpoint, so we are
+    # conservative: success only when the parsed body is a Hash whose ack/status
+    # indicates success. Any other (HTML error page, unparseable) → raise, so a
+    # retry never blindly repeats a possibly-successful carrier side effect.
+    def mark_shipped(order_customerinvoicecode)
+      res = get("/postOrderApi.htm", customer_id: @account.customer_id, order_customerinvoicecode: order_customerinvoicecode)
+      ok = res.is_a?(Hash) && (res["ack"].to_s == "true" || res["status"].to_s == "true" || res["status"].to_s == "200")
+      raise FulfillmentService::Error, "Raydo mark_shipped unrecognized response" unless ok
+
+      true
+    end
+
     private
 
     # Customer ids for order creation: prefer the stored ones, else authenticate.
