@@ -73,6 +73,8 @@
 
     <%= render "packages/application_status", package: package %>
 
+    <%= render "packages/ship_status", package: package %>
+
     <!-- Bottom actions bar — Task 4 wires the review/hold/unhold/back_to_review
          buttons here; later tasks (5-8) may add more to the same partial. -->
     <div id="<%= dom_id(package, :actions) %>" class="border-t border-gray-100 px-6 py-3">

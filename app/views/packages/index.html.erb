@@ -28,7 +28,12 @@
     <% if bulk %>
       <div data-package-bulk-target="bar" class="hidden mb-3 flex items-center gap-3 px-4 py-2 bg-indigo-50 border border-indigo-200 rounded">
         <span class="text-sm text-indigo-800"><%= bulk_label %> · <span data-package-bulk-target="count">0</span></span>
-        <%= submit_tag bulk_label, class: "px-3 py-1.5 text-sm bg-indigo-600 text-white rounded hover:bg-indigo-700 cursor-pointer" %>
+        <%= submit_tag bulk_label, formaction: bulk_url, formtarget: (@state == "pending_label" ? "_blank" : nil),
+              class: "px-3 py-1.5 text-sm bg-indigo-600 text-white rounded hover:bg-indigo-700 cursor-pointer" %>
+        <% if @state == "pending_label" %>
+          <%= submit_tag t("packages.ship.bulk_button"), formaction: ship_bulk_packages_path, formtarget: "_self",
+                class: "px-3 py-1.5 text-sm bg-emerald-600 text-white rounded hover:bg-emerald-700 cursor-pointer" %>
+        <% end %>
       </div>
     <% end %>
     <div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
