@@ -659,6 +659,8 @@ en:
     readiness:
       blocked_title: "Not ready to ship"
       ready: "Ready to apply for tracking"
+    apply:
+      timeout: "Carrier did not issue a tracking number in time"
     order_cancelled: "Order cancelled"
     detail_title: "Package %{code} detail"
     back_to_list: "Back to packages list"

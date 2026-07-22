@@ -5,6 +5,9 @@ production:
   tracking_refresh:
     class: TrackingRefreshJob
     schedule: every 3 hours
+  poll_tracking_numbers:
+    class: PollTrackingNumbersJob
+    schedule: every 5 minutes
   sync_ad_metrics:
     class: SyncAdMetricsJob
     schedule: every 30 minutes
@@ -37,6 +40,9 @@ development:
   tracking_refresh:
     class: TrackingRefreshJob
     schedule: every 3 hours
+  poll_tracking_numbers:
+    class: PollTrackingNumbersJob
+    schedule: every 5 minutes
   sync_ad_metrics:
     class: SyncAdMetricsJob
     schedule: every 30 minutes
