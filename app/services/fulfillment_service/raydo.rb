@@ -26,7 +26,126 @@ module FulfillmentService
       res
     end
 
+    # Grams -> Raydo weight unit. Doc doesn't state the unit; we send kg
+    # (grams / 1000). Confirm with the carrier and adjust this one constant if
+    # they expect grams.
+    WEIGHT_DIVISOR = 1000.0
+
+    CreateResult = Struct.new(:success, :order_id, :tracking_number, :deferred, :message, keyword_init: true) do
+      def success? = !!success
+      def deferred? = !!deferred
+    end
+
+    TrackResult = Struct.new(:ready, :tracking_number, :carrier, :message, keyword_init: true) do
+      def ready? = !!ready
+    end
+
+    # POST url1/createOrderApi.htm  body: param=<url-encoded JSON>
+    def create_order(package)
+      res = post("/createOrderApi.htm", param: order_payload(package).to_json)
+      res = {} unless res.is_a?(Hash)
+      success = res["ack"].to_s == "true"
+      tracking = res["tracking_number"].to_s
+      deferred = res["is_delay"].to_s == "Y" || res["product_tracknoapitype"].to_s == "3" || tracking.blank?
+      CreateResult.new(
+        success: success,
+        order_id: res["order_id"].presence,
+        tracking_number: tracking.presence,
+        deferred: deferred,
+        message: success ? nil : urldecode(res["message"])
+      )
+    end
+
+    # GET url1/getOrderTrackingNumber.htm?order_id=  -> latest-leg tracking no.
+    def get_tracking_number(order_id)
+      res = get("/getOrderTrackingNumber.htm", order_id: order_id)
+      res = {} unless res.is_a?(Hash)
+      serve = res["order_serveinvoicecode"].to_s
+      TrackResult.new(
+        ready: res["status"].to_s == "200" && serve.present?,
+        tracking_number: serve.presence,
+        carrier: res["express_type"].presence,
+        message: res["msg"].presence
+      )
+    end
+
     private
+
+    # Customer ids for order creation: prefer the stored ones, else authenticate.
+    def customer_ids
+      cid = @account.customer_id.presence
+      uid = @account.customer_userid.presence
+      return [ cid, uid ] if cid && uid
+
+      auth = authenticate
+      [ auth["customer_id"], auth["customer_userid"] ]
+    end
+
+    def order_payload(package)
+      snap = package.shipping_address_snapshot || {}
+      cid, uid = customer_ids
+      {
+        consignee_name: snap["name"],
+        consignee_companyname: snap["company"],
+        consignee_address: [ snap["address1"], snap["address2"] ].reject(&:blank?).join(" "),
+        consignee_telephone: snap["phone"],
+        country: snap["country_code"],
+        consignee_state: snap["province"],
+        consignee_city: snap["city"],
+        consignee_postcode: snap["zip"],
+        product_id: package.logistics_channel&.product_id,
+        order_customerinvoicecode: package.package_code,
+        customer_id: cid,
+        customer_userid: uid,
+        order_piece: 1,
+        weight: package_weight_kg(package),
+        orderInvoiceParam: package.shippable_items.map { |it| invoice_param(it) }
+      }.compact
+    end
+
+    def invoice_param(item)
+      {
+        invoice_title: item.customs_name_en,
+        sku: item.customs_name_zh,
+        invoice_amount: item.declared_value_usd,
+        invoice_weight: to_kg(item.customs_weight_grams),
+        invoice_pcs: item.quantity - item.refunded_quantity,
+        hs_code: item.hs_code,
+        import_hs_code: item.import_hs_code
+      }.compact
+    end
+
+    def package_weight_kg(package)
+      grams = package.shippable_items.sum { |it| it.customs_weight_grams.to_f * (it.quantity - it.refunded_quantity) }
+      grams.positive? ? (grams / WEIGHT_DIVISOR).round(3) : nil
+    end
+
+    def to_kg(grams)
+      grams.present? ? (grams.to_f / WEIGHT_DIVISOR).round(3) : nil
+    end
+
+    def urldecode(value)
+      return nil if value.blank?
+
+      CGI.unescape(value.to_s)
+    rescue ArgumentError
+      value.to_s
+    end
+
+    # POST form body (application/x-www-form-urlencoded); reuses the GBK/single-
+    # quote-tolerant parser. Same credential-safe error handling as #get.
+    def post(path, body = {})
+      raise FulfillmentService::Error, "Raydo base URL is not configured" if @account.url1_base.blank?
+
+      base = @account.url1_base.to_s.chomp("/")
+      resp = HTTParty.post("#{base}#{path}", body: body, timeout: 30)
+      raise FulfillmentService::Error, "Raydo HTTP #{resp.code}" unless resp.success?
+      parse_response(resp)
+    rescue HTTParty::Error, Net::OpenTimeout, Net::ReadTimeout, IO::TimeoutError, Timeout::Error, SocketError, SystemCallError => e
+      raise FulfillmentService::Error, "Raydo connection failed (#{e.class})"
+    rescue URI::InvalidURIError, ArgumentError => e
+      raise FulfillmentService::Error, "Raydo request failed (#{e.class})"
+    end
 
     def get(path, query = {})
       raise FulfillmentService::Error, "Raydo base URL is not configured" if @account.url1_base.blank?
