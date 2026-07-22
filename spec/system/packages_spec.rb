@@ -405,6 +405,30 @@ RSpec.describe "Packages UI", type: :system do
       expect(page).to have_button(I18n.t("packages.apply.bulk_button"))
     end
   end
+
+  describe "印面单" do
+    let(:account) { create(:logistics_account, company: company, url1_base: "http://raydo.test:8082", url2_base: "http://raydo.test:8089", customer_id: "1", customer_userid: "2") }
+    let(:channel) { create(:logistics_channel, logistics_account: account, product_id: "P1", label_print_type: "lab10_10") }
+
+    def label_pkg(number: 900)
+      order = create(:order, customer: customer, shopify_store: store, name: "PKS#L#{number}")
+      create(:package, shopify_store: store, order: order, number: number, aasm_state: "pending_label", logistics_channel: channel, raydo_order_id: "R#{number}")
+    end
+
+    it "shows the 打印面单 button on a pending_label package modal" do
+      pkg = label_pkg
+      visit packages_path(state: "pending_label")
+      click_link pkg.package_code
+      expect(page).to have_link(I18n.t("packages.label.button"), href: label_package_path(id: pkg.id))
+    end
+
+    it "shows the bulk print bar when a pending_label row is checked" do
+      label_pkg
+      visit packages_path(state: "pending_label")
+      first("input[name='package_ids[]']").check
+      expect(page).to have_button(I18n.t("packages.label.bulk_button"))
+    end
+  end
 end
 
 # Fills the first box's number input for the first item row.
