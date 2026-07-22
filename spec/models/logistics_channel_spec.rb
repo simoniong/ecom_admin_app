@@ -61,4 +61,16 @@ RSpec.describe LogisticsChannel, type: :model do
       expect(created.tracking_url_template).to eq("https://t.17track.net/en#nums=#TrackingNumber#")
     end
   end
+
+  describe "label_print_type" do
+    it "defaults to lab10_10" do
+      expect(create(:logistics_channel).label_print_type).to eq("lab10_10")
+    end
+
+    it "is required" do
+      channel = build(:logistics_channel, label_print_type: "")
+      expect(channel).not_to be_valid
+      expect(channel.errors[:label_print_type]).to be_present
+    end
+  end
 end

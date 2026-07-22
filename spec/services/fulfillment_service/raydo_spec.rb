@@ -212,4 +212,34 @@ RSpec.describe FulfillmentService::Raydo do
       expect(described_class.new(account).get_tracking_number("R123").ready?).to be(false)
     end
   end
+
+  describe "#label_pdf" do
+    let(:account) { create(:logistics_account, url1_base: "http://raydo.test:8082", url2_base: "http://raydo.test:8089") }
+
+    it "fetches the combined PDF for the given order ids and print type" do
+      stub = stub_request(:get, "http://raydo.test:8089/order/FastRpt/PDF_NEW.aspx").
+        with(query: { "PrintType" => "lab10_10", "order_id" => "R1,R2" }).
+        to_return(body: "%PDF-1.4\nlabel", headers: { "Content-Type" => "application/pdf" })
+      pdf = described_class.new(account).label_pdf([ "R1", "R2" ], "lab10_10")
+      expect(pdf).to start_with("%PDF")
+      expect(stub).to have_been_requested
+    end
+
+    it "raises when url2_base is not configured" do
+      account.update!(url2_base: nil)
+      expect { described_class.new(account).label_pdf([ "R1" ], "lab10_10") }.to raise_error(FulfillmentService::Error, /URL2/)
+    end
+
+    it "raises on a non-PDF (HTML error page) response" do
+      stub_request(:get, "http://raydo.test:8089/order/FastRpt/PDF_NEW.aspx").with(query: hash_including({})).
+        to_return(body: "<html>error: order not found</html>", headers: { "Content-Type" => "text/html" })
+      expect { described_class.new(account).label_pdf([ "R1" ], "lab10_10") }.to raise_error(FulfillmentService::Error, /non-PDF/)
+    end
+
+    it "raises on an HTTP error status" do
+      stub_request(:get, "http://raydo.test:8089/order/FastRpt/PDF_NEW.aspx").with(query: hash_including({})).
+        to_return(status: 500, body: "err")
+      expect { described_class.new(account).label_pdf([ "R1" ], "lab10_10") }.to raise_error(FulfillmentService::Error, /HTTP 500/)
+    end
+  end
 end

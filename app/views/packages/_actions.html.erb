@@ -47,4 +47,10 @@
         method: :post, form: { data: { turbo_frame: "package-modal" } },
         class: "px-4 py-2 bg-amber-600 text-white text-sm rounded hover:bg-amber-700" %>
   <% end %>
+
+  <% if package.pending_label? && current_membership&.package_shipping? %>
+    <%= link_to t("packages.label.button"), label_package_path(id: package.id),
+        target: "_blank", rel: "noopener",
+        class: "px-4 py-2 bg-teal-600 text-white text-sm rounded hover:bg-teal-700 no-underline" %>
+  <% end %>
 </div>

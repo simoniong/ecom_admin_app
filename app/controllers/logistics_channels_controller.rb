@@ -67,7 +67,7 @@ class LogisticsChannelsController < AdminController
 
   def channel_params
     params.require(:logistics_channel).permit(
-      :name, :product_id, :product_shortname, :shopify_carrier_name, :tracking_url_template
+      :name, :product_id, :product_shortname, :shopify_carrier_name, :tracking_url_template, :label_print_type
     )
   end
 end

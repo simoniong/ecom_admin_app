@@ -669,6 +669,18 @@
       failed: "申請失敗"
       bulk_button: "批量申請運單號"
       tracking_number: "運單號"
+    label:
+      button: "列印面單"
+      bulk_button: "批量列印面單"
+      errors:
+        empty: "未選擇包裹"
+        invalid_state: "只有待打單的包裹可以列印面單"
+        no_order: "包裹尚無運單號，無法列印面單"
+        no_channel: "包裹未指派物流渠道"
+        mixed_type: "所選包裹的標籤類型不一致，請選擇同一種標籤類型"
+        mixed_account: "所選包裹使用了不同的物流帳號"
+        url2_missing: "尚未設定貨代列印位址(URL2)"
+        failed: "取得面單失敗，請稍後再試"
     order_cancelled: "訂單已取消"
     detail_title: "包裹 %{code} 詳情"
     back_to_list: "返回包裹列表"
@@ -1477,3 +1489,4 @@
     deleted: "物流渠道已刪除。"
     account_required: "請先設定華磊帳號後再管理渠道。"
     empty: "尚無物流渠道，建立第一個渠道開始使用。"
+    label_print_type: "標籤列印類型"

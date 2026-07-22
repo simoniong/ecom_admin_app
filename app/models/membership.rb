@@ -38,6 +38,10 @@ class Membership < ApplicationRecord
     owner? || permissions.include?("package_process")
   end
 
+  def package_shipping?
+    owner? || permissions.include?("package_shipping")
+  end
+
   private
 
   def owner_must_have_no_group

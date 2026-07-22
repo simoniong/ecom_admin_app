@@ -69,6 +69,30 @@ module FulfillmentService
       )
     end
 
+    # GET url2/order/FastRpt/PDF_NEW.aspx?PrintType=&order_id=<comma-joined>
+    # Returns raw PDF bytes. Uses url2_base (label server) and does NOT parse the
+    # body as JSON. Raydo returns an HTML error page on failure, so we require a
+    # %PDF magic prefix. The print URL carries no credentials, but we keep the
+    # same credential-safe error discipline (class-only messages).
+    def label_pdf(order_ids, print_type)
+      raise FulfillmentService::Error, "Raydo URL2 base is not configured" if @account.url2_base.blank?
+
+      base = @account.url2_base.to_s.chomp("/")
+      resp = HTTParty.get("#{base}/order/FastRpt/PDF_NEW.aspx",
+                          query: { PrintType: print_type, order_id: Array(order_ids).join(",") },
+                          timeout: 30)
+      raise FulfillmentService::Error, "Raydo HTTP #{resp.code}" unless resp.success?
+
+      body = resp.body.to_s
+      raise FulfillmentService::Error, "Raydo returned a non-PDF label response" unless body.start_with?("%PDF")
+
+      body
+    rescue HTTParty::Error, Net::OpenTimeout, Net::ReadTimeout, IO::TimeoutError, Timeout::Error, SocketError, SystemCallError => e
+      raise FulfillmentService::Error, "Raydo connection failed (#{e.class})"
+    rescue URI::InvalidURIError, ArgumentError => e
+      raise FulfillmentService::Error, "Raydo request failed (#{e.class})"
+    end
+
     private
 
     # Customer ids for order creation: prefer the stored ones, else authenticate.

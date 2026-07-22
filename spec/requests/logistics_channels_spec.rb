@@ -71,6 +71,13 @@ RSpec.describe "LogisticsChannels", type: :request do
       expect(response).to redirect_to(logistics_channels_path)
       expect(channel.reload.name).to eq("New name")
     end
+
+    it "persists label_print_type on update" do
+      channel = create(:logistics_channel, logistics_account: account, label_print_type: "lab10_10")
+
+      patch logistics_channel_path(id: channel.id), params: { logistics_channel: { label_print_type: "A4" } }
+      expect(channel.reload.label_print_type).to eq("A4")
+    end
   end
 
   describe "DELETE /logistics_channels/:id" do

@@ -89,10 +89,12 @@ Rails.application.routes.draw do
         post :merge
         post :apply_tracking
         post :retry_tracking
+        get :label
       end
       collection do
         post :sync
         post :apply_tracking_bulk
+        post :labels
       end
     end
     resources :products, only: [ :index ]
