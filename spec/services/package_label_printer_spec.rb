@@ -42,6 +42,12 @@ RSpec.describe PackageLabelPrinter do
     expect(described_class.new([ pkg(number: 1, order_id: nil) ]).call.error).to eq(:no_order)
   end
 
+  it "fails when a package has no logistics channel" do
+    p = pkg(number: 1)
+    p.update_columns(logistics_channel_id: nil)
+    expect(described_class.new([ p ]).call.error).to eq(:no_channel)
+  end
+
   it "fails on mixed label_print_type" do
     other = create(:logistics_channel, logistics_account: account, product_id: "P2", label_print_type: "A4")
     result = described_class.new([ pkg(number: 1), pkg(number: 2, chan: other) ]).call
