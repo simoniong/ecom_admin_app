@@ -1257,4 +1257,91 @@ RSpec.describe "Packages", type: :request do
       end
     end
   end
+
+  describe "label printing" do
+    def sign_in_as_member_with(permission)
+      member = create(:user)
+      create(:membership, user: member, company: company, role: :member, permissions: [ permission ])
+      sign_in member
+    end
+
+    let(:account) { create(:logistics_account, company: company, url1_base: "http://raydo.test:8082", url2_base: "http://raydo.test:8089", customer_id: "1", customer_userid: "2") }
+    let(:channel) { create(:logistics_channel, logistics_account: account, product_id: "P1", label_print_type: "lab10_10") }
+
+    def label_pkg(number: 900, order_id: "R900", chan: channel, state: "pending_label")
+      order = create(:order, customer: customer, shopify_store: store, name: "PKS#L#{number}")
+      create(:package, shopify_store: store, order: order, number: number, aasm_state: state, logistics_channel: chan, raydo_order_id: order_id)
+    end
+
+    def stub_label(order_ids: "R900", type: "lab10_10")
+      stub_request(:get, "http://raydo.test:8089/order/FastRpt/PDF_NEW.aspx").
+        with(query: { "PrintType" => type, "order_id" => order_ids }).
+        to_return(body: "%PDF-1.4\nlabel", headers: { "Content-Type" => "application/pdf" })
+    end
+
+    describe "GET /packages/:id/label" do
+      it "streams the label PDF inline" do
+        pkg = label_pkg
+        stub_label(order_ids: pkg.raydo_order_id)
+        get label_package_path(id: pkg.id)
+        expect(response).to have_http_status(:ok)
+        expect(response.media_type).to eq("application/pdf")
+        expect(response.headers["Content-Disposition"]).to include("inline")
+        expect(response.body).to start_with("%PDF")
+      end
+
+      it "redirects with an alert when Raydo errors" do
+        pkg = label_pkg
+        stub_request(:get, "http://raydo.test:8089/order/FastRpt/PDF_NEW.aspx").with(query: hash_including({})).to_return(status: 500, body: "e")
+        get label_package_path(id: pkg.id)
+        expect(response).to have_http_status(:found)
+      end
+
+      it "redirects for a non-pending_label package" do
+        pkg = label_pkg(state: "pending_process")
+        get label_package_path(id: pkg.id)
+        expect(response).to have_http_status(:found)
+      end
+
+      it "forbids a member without package_shipping" do
+        pkg = label_pkg
+        sign_in_as_member_with("package_process")
+        get label_package_path(id: pkg.id)
+        expect(response).to have_http_status(:found)
+      end
+
+      it "404s for another company's package" do
+        pkg = label_pkg
+        sign_in create(:user)
+        get label_package_path(id: pkg.id)
+        expect(response).to have_http_status(:not_found)
+      end
+    end
+
+    describe "POST /packages/labels" do
+      it "streams a combined PDF for same-type packages" do
+        a = label_pkg(number: 901, order_id: "R901")
+        b = label_pkg(number: 902, order_id: "R902")
+        stub_label(order_ids: "R901,R902")
+        post labels_packages_path, params: { package_ids: [ a.id, b.id ] }
+        expect(response.media_type).to eq("application/pdf")
+        expect(response.body).to start_with("%PDF")
+      end
+
+      it "redirects with alert on mixed label types" do
+        other = create(:logistics_channel, logistics_account: account, product_id: "P2", label_print_type: "A4")
+        a = label_pkg(number: 901, order_id: "R901")
+        b = label_pkg(number: 902, order_id: "R902", chan: other)
+        post labels_packages_path, params: { package_ids: [ a.id, b.id ] }
+        expect(response).to have_http_status(:found)
+      end
+
+      it "forbids a member without package_shipping" do
+        pkg = label_pkg
+        sign_in_as_member_with("package_process")
+        post labels_packages_path, params: { package_ids: [ pkg.id ] }
+        expect(response).to have_http_status(:found)
+      end
+    end
+  end
 end

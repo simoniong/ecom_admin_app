@@ -11,7 +11,7 @@ class PackagesController < AdminController
   # stale prior value) so address_complete?/tracking_blockers read cleanly.
   ADDRESS_KEYS = %w[name phone address1 address2 city province zip country country_code company tax_id].freeze
 
-  before_action :set_package, only: [ :show, :transition, :update_address, :update_item, :update_logistics, :update_note, :split, :merge, :apply_tracking, :retry_tracking ]
+  before_action :set_package, only: [ :show, :transition, :update_address, :update_item, :update_logistics, :update_note, :split, :merge, :apply_tracking, :retry_tracking, :label ]
 
   def index
     @state = STATES.include?(params[:state]) ? params[:state] : "pending_review"
@@ -272,7 +272,44 @@ class PackagesController < AdminController
     redirect_to packages_path(state: "pending_process"), notice: t("packages.apply.bulk_result", applied: applied, skipped: skipped)
   end
 
+  # Stream the Raydo label PDF for one pending_label package (gated on
+  # package_shipping). No state change — labels are re-printable. On any failure
+  # we can't embed an error in a PDF response, so redirect back with an alert.
+  def label
+    return redirect_to(packages_path, alert: t("companies.no_permission")) unless current_membership&.package_shipping?
+
+    result = PackageLabelPrinter.new([ @package ]).call
+    if result.success?
+      send_data result.pdf, type: "application/pdf", disposition: "inline", filename: result.filename
+    else
+      redirect_to packages_path(state: "pending_label"), alert: label_error_message(result.error)
+    end
+  end
+
+  # Bulk label print: one combined PDF for the selected pending_label packages
+  # (must share a label_print_type). Gated on package_shipping.
+  def labels
+    return redirect_to(packages_path, alert: t("companies.no_permission")) unless current_membership&.package_shipping?
+
+    ids = Array(params[:package_ids]).map(&:to_s)
+    packages = scoped_packages.where(id: ids, aasm_state: "pending_label").to_a
+    result = PackageLabelPrinter.new(packages).call
+    if result.success?
+      send_data result.pdf, type: "application/pdf", disposition: "inline", filename: result.filename
+    else
+      redirect_to packages_path(state: "pending_label"), alert: label_error_message(result.error)
+    end
+  end
+
   private
+
+  # Map a PackageLabelPrinter failure (symbol for a validation reason, or a raw
+  # Raydo error string) to a user-facing flash. Unknown/raw errors fall back to
+  # the generic "failed" message (never surfaces a raw carrier string verbatim).
+  def label_error_message(error)
+    key = error.is_a?(Symbol) ? error : :failed
+    t("packages.label.errors.#{key}", default: t("packages.label.errors.failed"))
+  end
 
   # Move a ready package into applying_tracking (pending) and enqueue the job.
   # applied_at is left nil here — the applier stamps it when Raydo actually
