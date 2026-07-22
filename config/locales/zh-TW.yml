@@ -659,6 +659,10 @@
       ready: "可申請運單號"
     apply:
       timeout: "货代超时未出号"
+      invalid_state: "包裹目前狀態不可申請運單號"
+      not_ready: "包裹尚未滿足申請運單號的條件"
+      enqueued: "已提交運單號申請"
+      bulk_result: "已申請 %{applied} 個，跳過 %{skipped} 個"
     order_cancelled: "訂單已取消"
     detail_title: "包裹 %{code} 詳情"
     back_to_list: "返回包裹列表"

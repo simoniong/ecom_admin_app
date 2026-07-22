@@ -11,7 +11,7 @@ class PackagesController < AdminController
   # stale prior value) so address_complete?/tracking_blockers read cleanly.
   ADDRESS_KEYS = %w[name phone address1 address2 city province zip country country_code company tax_id].freeze
 
-  before_action :set_package, only: [ :show, :transition, :update_address, :update_item, :update_logistics, :update_note, :split, :merge ]
+  before_action :set_package, only: [ :show, :transition, :update_address, :update_item, :update_logistics, :update_note, :split, :merge, :apply_tracking, :retry_tracking ]
 
   def index
     @state = STATES.include?(params[:state]) ? params[:state] : "pending_review"
@@ -201,7 +201,77 @@ class PackagesController < AdminController
     end
   end
 
+  # Apply for a Raydo tracking number (gated on package_process). Blocks a
+  # not-ready package (422 + blockers, no transition); a non-pending_process
+  # package is rejected before the transition. On success: move to
+  # applying_tracking (application_status=pending) and enqueue ApplyTrackingJob.
+  def apply_tracking
+    return redirect_to(packages_path, alert: t("companies.no_permission")) unless current_membership&.package_process?
+    unless @package.pending_process?
+      return redirect_to(package_path(id: @package.id), alert: t("packages.apply.invalid_state"))
+    end
+    unless @package.ready_for_tracking?
+      respond_to do |format|
+        format.turbo_stream { render :apply_tracking, status: :unprocessable_entity }
+        format.html { redirect_to package_path(id: @package.id), alert: t("packages.apply.not_ready") }
+      end
+      return
+    end
+
+    start_application!(@package)
+    respond_to do |format|
+      format.turbo_stream { render :apply_tracking }
+      format.html { redirect_to package_path(id: @package.id), notice: t("packages.apply.enqueued") }
+    end
+  end
+
+  # Retry a failed application (still in applying_tracking). Resets to pending
+  # and re-enqueues; the applier is idempotent (polls if an order already
+  # exists, else re-creates).
+  def retry_tracking
+    return redirect_to(packages_path, alert: t("companies.no_permission")) unless current_membership&.package_process?
+    unless @package.applying_tracking? && @package.application_status == "failed"
+      return redirect_to(package_path(id: @package.id), alert: t("packages.apply.invalid_state"))
+    end
+
+    @package.update!(application_status: "pending", application_message: nil)
+    ApplyTrackingJob.perform_later(@package.id)
+    respond_to do |format|
+      format.turbo_stream { render :apply_tracking }
+      format.html { redirect_to package_path(id: @package.id), notice: t("packages.apply.enqueued") }
+    end
+  end
+
+  # Bulk apply from the pending_process list. Ready packages are applied +
+  # enqueued; not-ready ones are skipped and reported.
+  def apply_tracking_bulk
+    return redirect_to(packages_path, alert: t("companies.no_permission")) unless current_membership&.package_process?
+
+    ids = Array(params[:package_ids]).map(&:to_s)
+    candidates = scoped_packages.where(id: ids, aasm_state: "pending_process")
+    applied = 0
+    skipped = 0
+    candidates.find_each do |package|
+      if package.ready_for_tracking?
+        start_application!(package)
+        applied += 1
+      else
+        skipped += 1
+      end
+    end
+    redirect_to packages_path(state: "pending_process"), notice: t("packages.apply.bulk_result", applied: applied, skipped: skipped)
+  end
+
   private
+
+  # Move a ready package into applying_tracking (pending) and enqueue the job.
+  # applied_at is left nil here — the applier stamps it when Raydo actually
+  # creates the order (the correct anchor for the poll give-up).
+  def start_application!(package)
+    package.apply_tracking!
+    package.update!(application_status: "pending", application_message: nil)
+    ApplyTrackingJob.perform_later(package.id)
+  end
 
   # Explicit dispatch (rather than @package.public_send("#{event}!")) so a
   # user-controlled string never reaches a dynamic method invocation — event

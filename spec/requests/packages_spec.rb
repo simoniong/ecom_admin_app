@@ -1135,4 +1135,106 @@ RSpec.describe "Packages", type: :request do
       expect(response.body).not_to include(CGI.escapeHTML(I18n.t("packages.readiness.blocked_title")))
     end
   end
+
+  describe "tracking application" do
+    def sign_in_as_member_with(permission)
+      member = create(:user)
+      create(:membership, user: member, company: company, role: :member, permissions: [ permission ])
+      sign_in member
+    end
+
+    let(:account) { create(:logistics_account, company: company, url1_base: "http://raydo.test:8082", customer_id: "1", customer_userid: "2") }
+    let(:channel) { create(:logistics_channel, logistics_account: account, product_id: "P1") }
+
+    # number: 700 is a fixed literal in the task brief's own helper; bumped to a
+    # per-call counter here because "applies ready packages and skips not-ready
+    # ones" below calls ready_pkg twice against the same store, and
+    # Package#number is uniqueness-validated per shopify_store_id — the literal
+    # collides on the second call (ActiveRecord::RecordInvalid) regardless of
+    # controller behavior. No assertion anywhere depends on the number's value.
+    def ready_pkg(state: "pending_process")
+      @ready_pkg_number = (@ready_pkg_number || 699) + 1
+      order = create(:order, customer: customer, shopify_store: store, name: "PKS#T1")
+      pkg = create(:package, shopify_store: store, order: order, number: @ready_pkg_number, aasm_state: state, logistics_channel: channel,
+                   shipping_address_snapshot: { "name" => "A", "address1" => "x", "city" => "P", "country_code" => "FR" })
+      create(:package_item, package: pkg, order_line_item: create(:order_line_item, order: order), sku: "A", quantity: 1,
+             customs_name_en: "Art", customs_name_zh: "画", declared_value_usd: 5, customs_weight_grams: 100)
+      pkg
+    end
+
+    describe "POST /packages/:id/apply_tracking" do
+      it "transitions to applying_tracking (pending) and enqueues the job" do
+        pkg = ready_pkg
+        expect {
+          post apply_tracking_package_path(id: pkg.id), headers: { "Accept" => "text/vnd.turbo-stream.html" }
+        }.to have_enqueued_job(ApplyTrackingJob).with(pkg.id)
+        expect(response).to have_http_status(:ok)
+        pkg.reload
+        expect(pkg).to have_state(:applying_tracking)
+        expect(pkg.application_status).to eq("pending")
+      end
+
+      it "rejects (422) a not-ready package with blockers, without transitioning" do
+        pkg = ready_pkg
+        pkg.update!(logistics_channel: nil) # not ready: no logistics
+        post apply_tracking_package_path(id: pkg.id), headers: { "Accept" => "text/vnd.turbo-stream.html" }
+        expect(response).to have_http_status(:unprocessable_entity)
+        expect(pkg.reload).to have_state(:pending_process)
+      end
+
+      it "rejects a non-pending_process package" do
+        pkg = ready_pkg(state: "pending_review")
+        post apply_tracking_package_path(id: pkg.id)
+        expect(response).to have_http_status(:found)
+        expect(pkg.reload).to have_state(:pending_review)
+      end
+
+      it "forbids a member without package_process" do
+        pkg = ready_pkg
+        sign_in_as_member_with("package_review")
+        post apply_tracking_package_path(id: pkg.id)
+        expect(response).to have_http_status(:found)
+        expect(pkg.reload).to have_state(:pending_process)
+      end
+
+      it "404s for another company's package" do
+        pkg = ready_pkg
+        sign_in create(:user)
+        post apply_tracking_package_path(id: pkg.id)
+        expect(response).to have_http_status(:not_found)
+      end
+    end
+
+    describe "POST /packages/:id/retry_tracking" do
+      it "re-enqueues the job for a failed applying_tracking package" do
+        pkg = ready_pkg(state: "applying_tracking")
+        pkg.update!(application_status: "failed", application_message: "boom")
+        expect {
+          post retry_tracking_package_path(id: pkg.id), headers: { "Accept" => "text/vnd.turbo-stream.html" }
+        }.to have_enqueued_job(ApplyTrackingJob).with(pkg.id)
+        expect(pkg.reload.application_status).to eq("pending")
+      end
+    end
+
+    describe "POST /packages/apply_tracking_bulk" do
+      it "applies ready packages and skips not-ready ones" do
+        ready = ready_pkg
+        not_ready = ready_pkg
+        not_ready.update!(logistics_channel: nil)
+        expect {
+          post apply_tracking_bulk_packages_path, params: { package_ids: [ ready.id, not_ready.id ] }
+        }.to have_enqueued_job(ApplyTrackingJob).with(ready.id)
+        expect(ready.reload).to have_state(:applying_tracking)
+        expect(not_ready.reload).to have_state(:pending_process)
+      end
+
+      it "forbids a member without package_process" do
+        pkg = ready_pkg
+        sign_in_as_member_with("package_review")
+        post apply_tracking_bulk_packages_path, params: { package_ids: [ pkg.id ] }
+        expect(response).to have_http_status(:found)
+        expect(pkg.reload).to have_state(:pending_process)
+      end
+    end
+  end
 end
