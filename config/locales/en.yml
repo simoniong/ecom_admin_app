@@ -671,6 +671,17 @@ en:
       failed: "Application failed"
       bulk_button: "Apply for tracking numbers in bulk"
       tracking_number: "Tracking number"
+    label:
+      button: "Print label"
+      bulk_button: "Print labels in bulk"
+      errors:
+        empty: "No packages selected"
+        invalid_state: "Only packages pending label can print a label"
+        no_order: "Package has no tracking number yet, cannot print label"
+        no_channel: "Package has no logistics channel assigned"
+        mixed_type: "Selected packages have different label types; please select packages of the same label type"
+        url2_missing: "Carrier print address (URL2) is not configured"
+        failed: "Failed to fetch the label, please try again later"
     order_cancelled: "Order cancelled"
     detail_title: "Package %{code} detail"
     back_to_list: "Back to packages list"
@@ -1479,3 +1490,4 @@ en:
     deleted: "Logistics channel deleted."
     account_required: "Please configure the Raydo account before managing channels."
     empty: "No logistics channels yet. Create one to get started."
+    label_print_type: "Label print type"

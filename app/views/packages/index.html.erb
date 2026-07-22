@@ -19,13 +19,16 @@
     </nav>
   <% end %>
 
-  <% bulk = (@state == "pending_process") %>
-  <%= form_with url: apply_tracking_bulk_packages_path, method: :post,
-        data: (bulk ? { controller: "package-bulk" } : {}), html: { id: "packages-bulk-form" } do %>
+  <% bulk = %w[pending_process pending_label].include?(@state) %>
+  <% bulk_url = @state == "pending_label" ? labels_packages_path : apply_tracking_bulk_packages_path %>
+  <% bulk_label = @state == "pending_label" ? t("packages.label.bulk_button") : t("packages.apply.bulk_button") %>
+  <% bulk_html = @state == "pending_label" ? { id: "packages-bulk-form", target: "_blank" } : { id: "packages-bulk-form" } %>
+  <%= form_with url: bulk_url, method: :post,
+        data: (bulk ? { controller: "package-bulk" } : {}), html: bulk_html do %>
     <% if bulk %>
       <div data-package-bulk-target="bar" class="hidden mb-3 flex items-center gap-3 px-4 py-2 bg-indigo-50 border border-indigo-200 rounded">
-        <span class="text-sm text-indigo-800"><%= t("packages.apply.bulk_button") %> · <span data-package-bulk-target="count">0</span></span>
-        <%= submit_tag t("packages.apply.bulk_button"), class: "px-3 py-1.5 text-sm bg-indigo-600 text-white rounded hover:bg-indigo-700 cursor-pointer" %>
+        <span class="text-sm text-indigo-800"><%= bulk_label %> · <span data-package-bulk-target="count">0</span></span>
+        <%= submit_tag bulk_label, class: "px-3 py-1.5 text-sm bg-indigo-600 text-white rounded hover:bg-indigo-700 cursor-pointer" %>
       </div>
     <% end %>
     <div class="bg-white rounded-lg border border-gray-200 overflow-hidden">

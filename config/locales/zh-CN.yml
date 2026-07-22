@@ -669,6 +669,17 @@
       failed: "申请失败"
       bulk_button: "批量申请运单号"
       tracking_number: "运单号"
+    label:
+      button: "打印面单"
+      bulk_button: "批量打印面单"
+      errors:
+        empty: "未选择包裹"
+        invalid_state: "只有待打单的包裹可以打印面单"
+        no_order: "包裹尚无运单号，无法打印面单"
+        no_channel: "包裹未指派物流渠道"
+        mixed_type: "所选包裹的标签类型不一致，请选择同一种标签类型"
+        url2_missing: "尚未配置货代打印地址(URL2)"
+        failed: "获取面单失败，请稍后重试"
     order_cancelled: "订单已取消"
     detail_title: "包裹 %{code} 详情"
     back_to_list: "返回包裹列表"
@@ -1477,3 +1488,4 @@
     deleted: "物流渠道已删除。"
     account_required: "请先设置华磊账号后再管理渠道。"
     empty: "暂无物流渠道，创建第一个渠道开始使用。"
+    label_print_type: "标签打印类型"
