@@ -21,16 +21,28 @@ class PackageAutoBuilder
   # a store that has since turned packing off (or a package built before it
   # was disabled) must still see that package transition to refunded on a
   # full refund. packing_enabled? gates ONLY new-package creation below.
+  #
+  # Routes by how many packages the order currently has:
+  #   >1  → frozen (split state): manual reorg only, no auto sync/refund.
+  #   1   → smart_update the lone package (honoring override flags), or refund it.
+  #   0   → build a new package if eligible.
+  # Merging a split order back to one package (count → 1) resumes auto-sync.
   def do_call
     return unless @store
 
-    existing = @store.packages.find_by(order_id: @order.id)
+    packages = @store.packages.where(order_id: @order.id)
+    count = packages.count
+
+    return if count > 1 # frozen — see design doc Q1 (split state)
+
     if fully_refunded?
+      existing = packages.first
       refund(existing) if existing
       return
     end
 
-    if existing
+    if count == 1
+      existing = packages.first
       smart_update(existing) unless existing.refunded?
       return
     end
@@ -101,7 +113,10 @@ class PackageAutoBuilder
       end
     end
   rescue ActiveRecord::RecordNotUnique
-    # A concurrent sync already built it; safe to ignore (order_id is unique).
+    # A concurrent sync already built it; safe to ignore. The order_id unique
+    # index was dropped — the only unique index this can still trip is
+    # shopify_store_id + number, which the @store.with_lock above already
+    # serializes against.
     nil
   end
 

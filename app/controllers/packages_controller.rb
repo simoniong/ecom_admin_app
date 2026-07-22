@@ -11,7 +11,7 @@ class PackagesController < AdminController
   # stale prior value) so address_complete?/tracking_blockers read cleanly.
   ADDRESS_KEYS = %w[name phone address1 address2 city province zip country country_code company tax_id].freeze
 
-  before_action :set_package, only: [ :show, :transition, :update_address, :update_item, :update_logistics, :update_note ]
+  before_action :set_package, only: [ :show, :transition, :update_address, :update_item, :update_logistics, :update_note, :split, :merge ]
 
   def index
     @state = STATES.include?(params[:state]) ? params[:state] : "pending_review"
@@ -160,6 +160,47 @@ class PackagesController < AdminController
     end
   end
 
+  # Folds this pending_process package into new sibling boxes (see
+  # PackageSplitter). Gated on package_process, same as the other manual edits.
+  # Invalid allocations re-render the modal at 422 (never 500); a non-
+  # pending_process source is rejected before the service runs.
+  def split
+    return redirect_to(packages_path, alert: t("companies.no_permission")) unless current_membership&.package_process?
+    unless @package.pending_process?
+      return redirect_to(package_path(id: @package.id), alert: t("packages.split_invalid_state"))
+    end
+
+    result = PackageSplitter.new(@package, split_allocations).call
+    if result.success?
+      respond_to do |format|
+        format.turbo_stream { render :split }
+        format.html { redirect_to package_path(id: @package.id), notice: t("packages.split_done") }
+      end
+    else
+      @split_errors = result.errors
+      respond_to do |format|
+        format.turbo_stream { render :split, status: :unprocessable_entity }
+        format.html { redirect_to package_path(id: @package.id), alert: t("packages.split_invalid") }
+      end
+    end
+  end
+
+  # Collapses this order's split boxes back into the lowest-numbered survivor
+  # (see PackageMerger). Gated on package_process. The modal reloads to show the
+  # survivor; count returns to 1 so auto-sync resumes on the next order sync.
+  def merge
+    return redirect_to(packages_path, alert: t("companies.no_permission")) unless current_membership&.package_process?
+    unless @package.pending_process?
+      return redirect_to(package_path(id: @package.id), alert: t("packages.split_invalid_state"))
+    end
+
+    @survivor = PackageMerger.new(@package).call
+    respond_to do |format|
+      format.turbo_stream { render :merge }
+      format.html { redirect_to package_path(id: @survivor.id), notice: t("packages.merge_done") }
+    end
+  end
+
   private
 
   # Explicit dispatch (rather than @package.public_send("#{event}!")) so a
@@ -187,6 +228,20 @@ class PackagesController < AdminController
     params.require(:package_item).permit(
       :customs_name_zh, :customs_name_en, :declared_value_usd, :hs_code, :import_hs_code, :customs_weight_grams
     )
+  end
+
+  # Split allocations arrive as a dynamic hash keyed by order_line_item UUIDs
+  # ({ li_id => [box1_units, box2_units, ...] }), so a fixed strong-params
+  # permit list can't name the keys. to_unsafe_h is safe here: every key is
+  # validated against the source package's own items inside PackageSplitter
+  # (unknown ids → :unknown_item, 422), and values are coerced to integers, so
+  # nothing user-controlled reaches a query or mass-assignment unchecked.
+  def split_allocations
+    raw = params[:allocations]
+    return {} unless raw.respond_to?(:to_unsafe_h) || raw.is_a?(Hash)
+
+    raw = raw.to_unsafe_h if raw.respond_to?(:to_unsafe_h)
+    raw.to_h.transform_values { |arr| Array(arr).map { |v| v.to_s.to_i } }
   end
 
   # scoped_packages.find raises ActiveRecord::RecordNotFound for a package

@@ -182,4 +182,34 @@ RSpec.describe Package do
       expect(pkg.order_cancelled?).to be(false)
     end
   end
+
+  describe "#order_packages / #split?" do
+    let(:store) { create(:shopify_store) }
+    let(:customer) { create(:customer, shopify_store: store) }
+
+    it "reports split? true when the order has more than one package" do
+      order = create(:order, customer: customer, shopify_store: store)
+      a = create(:package, shopify_store: store, order: order, number: 1)
+      create(:package, shopify_store: store, order: order, number: 2)
+      expect(a.order_packages.count).to eq(2)
+      expect(a.split?).to be(true)
+    end
+
+    it "reports split? false for a lone package" do
+      order = create(:order, customer: customer, shopify_store: store)
+      a = create(:package, shopify_store: store, order: order, number: 1)
+      expect(a.split?).to be(false)
+    end
+  end
+
+  describe "one order → many packages" do
+    it "allows two packages to share the same order_id" do
+      store = create(:shopify_store)
+      order = create(:order, shopify_store: store)
+      create(:package, shopify_store: store, order: order, number: 1)
+      second = build(:package, shopify_store: store, order: order, number: 2)
+      expect(second.save).to be(true)
+      expect(store.packages.where(order_id: order.id).count).to eq(2)
+    end
+  end
 end

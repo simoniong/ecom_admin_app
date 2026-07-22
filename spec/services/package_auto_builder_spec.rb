@@ -369,4 +369,40 @@ RSpec.describe PackageAutoBuilder do
       expect(pkg.shipping_address_snapshot["city"]).not_to eq("LA")
     end
   end
+
+  describe "frozen while split (order has >1 package)" do
+    it "does NOT smart_update any package when the order is split into multiple" do
+      described_class.new(order).call # builds package #1 (pending_review)
+      p1 = store.packages.find_by(order: order)
+      p1.update!(aasm_state: "pending_process")
+      p2 = store.packages.create!(order: order, number: 9_000_001, aasm_state: "pending_process",
+                                  shipping_address_snapshot: { "city" => "Original" })
+
+      order.update!(shopify_data: { "shipping_address" => { "city" => "Changed" } })
+      described_class.new(order.reload).call
+
+      expect(p1.reload.shipping_address_snapshot["city"]).to be_nil
+      expect(p2.reload.shipping_address_snapshot["city"]).to eq("Original")
+    end
+
+    it "does NOT refund sub-packages when a split order is fully refunded" do
+      described_class.new(order).call
+      p1 = store.packages.find_by(order: order)
+      p1.update!(aasm_state: "pending_process")
+      store.packages.create!(order: order, number: 9_000_002, aasm_state: "pending_process")
+
+      order.update!(financial_status: "refunded")
+      described_class.new(order.reload).call
+
+      expect(store.packages.where(order_id: order.id).pluck(:aasm_state)).to all(eq("pending_process"))
+    end
+
+    it "resumes smart_update once merged back to a single package" do
+      described_class.new(order).call
+      p1 = store.packages.find_by(order: order)
+      order.update!(shopify_data: { "shipping_address" => { "city" => "Resumed" } })
+      described_class.new(order.reload).call # count == 1 → smart_update runs
+      expect(p1.reload.shipping_address_snapshot["city"]).to eq("Resumed")
+    end
+  end
 end

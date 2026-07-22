@@ -85,6 +85,8 @@ Rails.application.routes.draw do
         patch :update_item
         patch :update_logistics
         patch :update_note
+        post :split
+        post :merge
       end
       collection { post :sync }
     end
