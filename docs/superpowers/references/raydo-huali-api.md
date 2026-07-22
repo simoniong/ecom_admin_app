@@ -74,5 +74,11 @@
 - **打印标签**（URL2 域）：`postOrderApi.htm` / `selectLabelType.htm`。
 - 其他：`updateOrderWeightByApi.htm`、`modifyInsurance.htm`、`selectTrack.htm`。
 
+## ⚠️ 已知限制：建单超时可能重复下单（2C 最终评审 Important）
+若 `createOrderApi.htm` 在**货代侧已成功建单**、但 HTTP **响应超时**（`Net::ReadTimeout` → `FulfillmentService::Error` → applier `fail!`），则 `raydo_order_id` 从未落库（只从响应体读取）。之后**重试**看到 `raydo_order_id` 为空 → 再次建单 → 货代产生**第二笔付费订单**。这不同于用户已接受的 `back_to_process` 重复case（那是有意打回；这里是纯网络抖动、无操作意图）。
+- 缓解（待确认）：请求已带 `order_customerinvoicecode = package_code`（稳定客户参考号）。**需向货代确认是否对同一 `order_customerinvoicecode` 去重/拒绝重复**。若去重则风险消除。
+- 若不去重的防御式做法（后续可选）：重试前先 `getOrderTrackingNumber.htm?documentCode=<package_code>` 查该参考号是否已有订单，有则改走轮询、不重建。
+- 现状：先记为已知限制，随 PR 提出让业务决定接受与否。
+
 ## 出货（shipped）阶段（延后，非 2C）
 拿到运单号后**不立即**注册 17Track / 回写 Shopify——按用户决策，等包裹「已交运(shipped)」时才做（出货前运单号可能被打回）。
