@@ -11,7 +11,7 @@ class PackagesController < AdminController
   # stale prior value) so address_complete?/tracking_blockers read cleanly.
   ADDRESS_KEYS = %w[name phone address1 address2 city province zip country country_code company tax_id].freeze
 
-  before_action :set_package, only: [ :show, :transition, :update_address, :update_item, :update_logistics, :update_note, :split, :merge, :apply_tracking, :retry_tracking, :label ]
+  before_action :set_package, only: [ :show, :transition, :update_address, :update_item, :update_logistics, :update_note, :split, :merge, :apply_tracking, :retry_tracking, :label, :ship, :sync_shipment ]
 
   def index
     @state = STATES.include?(params[:state]) ? params[:state] : "pending_review"
@@ -301,7 +301,88 @@ class PackagesController < AdminController
     end
   end
 
+  # Marks one pending_label package as shipped (gated on package_shipping).
+  # The actual transition + tracking-number check happen atomically inside
+  # ship_package (Codex: row lock guards a double-click race). :ok re-renders
+  # the modal (turbo_stream) or redirects with a notice; any other outcome
+  # redirects with an alert — never a 500.
+  def ship
+    return redirect_to(packages_path, alert: t("companies.no_permission")) unless current_membership&.package_shipping?
+
+    result = ship_package(@package)
+    if result == :ok
+      respond_to do |format|
+        format.turbo_stream { render turbo_stream: turbo_stream.replace("package-modal", partial: "packages/modal", locals: { package: @package.reload }) }
+        format.html { redirect_to package_path(id: @package.id), notice: t("packages.ship.done") }
+      end
+    else
+      redirect_to package_path(id: @package.id), alert: t("packages.ship.errors.#{result}", default: t("packages.ship.errors.failed"))
+    end
+  end
+
+  # Bulk ship from the pending_label list (gated on package_shipping). Each
+  # package goes through the same atomic ship_package helper; a raised error
+  # on one package is logged and skipped rather than aborting the batch
+  # (mirrors apply_tracking_bulk's per-package isolation).
+  def ship_bulk
+    return redirect_to(packages_path, alert: t("companies.no_permission")) unless current_membership&.package_shipping?
+
+    ids = Array(params[:package_ids]).map(&:to_s)
+    shipped = 0
+    scoped_packages.where(id: ids, aasm_state: "pending_label").find_each do |package|
+      shipped += 1 if ship_package(package) == :ok
+    rescue => e
+      Rails.logger.warn("[ShipBulk] Package##{package.id}: #{e.class}: #{e.message}")
+    end
+    redirect_to packages_path(state: "pending_label"), notice: t("packages.ship.bulk_result", shipped: shipped)
+  end
+
+  # Re-enqueue the Shopify fulfillment sync for a shipped package whose
+  # previous sync failed (or was never enqueued because the store toggle was
+  # off at ship time). Gated on package_shipping AND the store's current
+  # shipping_sync_enabled toggle — this action never proceeds if the store
+  # doesn't want automatic fulfillment sync.
+  def sync_shipment
+    return redirect_to(packages_path, alert: t("companies.no_permission")) unless current_membership&.package_shipping?
+    unless @package.shipped? && %w[failed none].include?(@package.ship_sync_status)
+      return redirect_to(package_path(id: @package.id), alert: t("packages.ship.errors.sync_invalid"))
+    end
+    unless @package.shopify_store.shipping_sync_enabled?
+      return redirect_to(package_path(id: @package.id), alert: t("packages.ship.errors.sync_disabled"))
+    end
+
+    @package.update!(ship_sync_status: "pending", ship_sync_message: nil)
+    PackageShipSyncJob.perform_later(@package.id)
+    respond_to do |format|
+      format.turbo_stream { render turbo_stream: turbo_stream.replace("package-modal", partial: "packages/modal", locals: { package: @package.reload }) }
+      format.html { redirect_to package_path(id: @package.id), notice: t("packages.ship.sync_enqueued") }
+    end
+  end
+
   private
+
+  # Atomically transition to shipped + set status + decide enqueue (Codex: row
+  # lock to avoid double-click races). Returns :ok, :not_pending, :no_tracking.
+  # The job is enqueued OUTSIDE the lock (after the transaction commits) so a
+  # job worker can never race ahead of the row lock's release.
+  def ship_package(package)
+    enqueue = false
+    outcome = package.with_lock do
+      next :not_pending unless package.pending_label?
+      next :no_tracking if package.tracking_number.blank?
+
+      package.ship!
+      attrs = { shipped_at: Time.current }
+      if package.shopify_store.shipping_sync_enabled?
+        attrs.merge!(ship_sync_status: "pending", ship_sync_message: nil)
+        enqueue = true
+      end
+      package.update!(attrs)
+      :ok
+    end
+    PackageShipSyncJob.perform_later(package.id) if enqueue && outcome == :ok
+    outcome
+  end
 
   # Map a PackageLabelPrinter failure (symbol for a validation reason, or a raw
   # Raydo error string) to a user-facing flash. Unknown/raw errors fall back to
