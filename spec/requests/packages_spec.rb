@@ -1350,4 +1350,95 @@ RSpec.describe "Packages", type: :request do
       end
     end
   end
+
+  describe "shipping" do
+    def sign_in_as_member_with(permission)
+      member = create(:user)
+      create(:membership, user: member, company: company, role: :member, permissions: [ permission ])
+      sign_in member
+    end
+
+    let(:account) { create(:logistics_account, company: company, url1_base: "http://raydo.test:8082", url2_base: "http://raydo.test:8089", customer_id: "6581", customer_userid: "6901") }
+    let(:channel) { create(:logistics_channel, logistics_account: account, product_id: "P1") }
+
+    def pl_pkg(number: 900, state: "pending_label", tn: "TN900")
+      order = create(:order, customer: customer, shopify_store: store, name: "PKS#S#{number}")
+      create(:package, shopify_store: store, order: order, number: number, aasm_state: state, logistics_channel: channel, raydo_order_id: "R#{number}", tracking_number: tn)
+    end
+
+    describe "POST /packages/:id/ship" do
+      it "ships + enqueues sync when the store toggle is ON" do
+        store.update!(shipping_sync_enabled: true)
+        pkg = pl_pkg
+        expect { post ship_package_path(id: pkg.id), headers: { "Accept" => "text/vnd.turbo-stream.html" } }
+          .to have_enqueued_job(PackageShipSyncJob).with(pkg.id)
+        pkg.reload
+        expect(pkg).to have_state(:shipped)
+        expect(pkg.ship_sync_status).to eq("pending")
+      end
+
+      it "ships WITHOUT sync when the toggle is OFF (test mode)" do
+        store.update!(shipping_sync_enabled: false)
+        pkg = pl_pkg
+        expect { post ship_package_path(id: pkg.id) }.not_to have_enqueued_job(PackageShipSyncJob)
+        pkg.reload
+        expect(pkg).to have_state(:shipped)
+        expect(pkg.ship_sync_status).to eq("none")
+      end
+
+      it "rejects (422/redirect) shipping without a tracking number" do
+        pkg = pl_pkg(tn: nil)
+        post ship_package_path(id: pkg.id)
+        expect(pkg.reload).to have_state(:pending_label)
+      end
+
+      it "rejects a non-pending_label package" do
+        pkg = pl_pkg(state: "shipped")
+        post ship_package_path(id: pkg.id)
+        expect(response).to have_http_status(:found)
+      end
+
+      it "forbids a member without package_shipping" do
+        pkg = pl_pkg
+        sign_in_as_member_with("package_process")
+        post ship_package_path(id: pkg.id)
+        expect(pkg.reload).to have_state(:pending_label)
+      end
+
+      it "404s for another company's package" do
+        pkg = pl_pkg
+        sign_in create(:user)
+        post ship_package_path(id: pkg.id)
+        expect(response).to have_http_status(:not_found)
+      end
+    end
+
+    describe "POST /packages/:id/sync_shipment" do
+      it "re-enqueues for a failed shipped package when toggle ON" do
+        store.update!(shipping_sync_enabled: true)
+        pkg = pl_pkg(state: "shipped")
+        pkg.update!(ship_sync_status: "failed")
+        expect { post sync_shipment_package_path(id: pkg.id) }.to have_enqueued_job(PackageShipSyncJob).with(pkg.id)
+        expect(pkg.reload.ship_sync_status).to eq("pending")
+      end
+
+      it "rejects when the store toggle is OFF" do
+        pkg = pl_pkg(state: "shipped")
+        pkg.update!(ship_sync_status: "none")
+        post sync_shipment_package_path(id: pkg.id)
+        expect(response).to have_http_status(:found)
+      end
+    end
+
+    describe "POST /packages/ship_bulk" do
+      it "ships selected pending_label packages" do
+        store.update!(shipping_sync_enabled: false)
+        a = pl_pkg(number: 901, tn: "T1")
+        b = pl_pkg(number: 902, tn: "T2")
+        post ship_bulk_packages_path, params: { package_ids: [ a.id, b.id ] }
+        expect(a.reload).to have_state(:shipped)
+        expect(b.reload).to have_state(:shipped)
+      end
+    end
+  end
 end

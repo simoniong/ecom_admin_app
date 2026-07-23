@@ -242,4 +242,26 @@ RSpec.describe FulfillmentService::Raydo do
       expect { described_class.new(account).label_pdf([ "R1" ], "lab10_10") }.to raise_error(FulfillmentService::Error, /HTTP 500/)
     end
   end
+
+  describe "#mark_shipped" do
+    let(:account) { create(:logistics_account, url1_base: "http://raydo.test:8082", customer_id: "6581", customer_userid: "6901") }
+
+    it "marks shipped and returns true on an ack response" do
+      stub_request(:get, "http://raydo.test:8082/postOrderApi.htm").
+        with(query: { customer_id: "6581", order_customerinvoicecode: "XMBDE2013094" }).
+        to_return(body: { ack: "true" }.to_json, headers: { "Content-Type" => "application/json" })
+      expect(described_class.new(account).mark_shipped("XMBDE2013094")).to be(true)
+    end
+
+    it "raises on an unrecognized/non-ack response (conservative)" do
+      stub_request(:get, "http://raydo.test:8082/postOrderApi.htm").with(query: hash_including({})).
+        to_return(body: "<html>error</html>", headers: { "Content-Type" => "text/html" })
+      expect { described_class.new(account).mark_shipped("X") }.to raise_error(FulfillmentService::Error)
+    end
+
+    it "raises on HTTP error" do
+      stub_request(:get, "http://raydo.test:8082/postOrderApi.htm").with(query: hash_including({})).to_return(status: 500, body: "e")
+      expect { described_class.new(account).mark_shipped("X") }.to raise_error(FulfillmentService::Error, /HTTP 500/)
+    end
+  end
 end

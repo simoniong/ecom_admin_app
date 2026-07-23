@@ -90,11 +90,14 @@ Rails.application.routes.draw do
         post :apply_tracking
         post :retry_tracking
         get :label
+        post :ship
+        post :sync_shipment
       end
       collection do
         post :sync
         post :apply_tracking_bulk
         post :labels
+        post :ship_bulk
       end
     end
     resources :products, only: [ :index ]

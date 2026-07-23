@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_22_141049) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_22_164525) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -386,6 +386,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_22_141049) do
     t.string "application_status", default: "none", null: false
     t.datetime "applied_at"
     t.string "carrier"
+    t.datetime "carrier_marked_at"
     t.datetime "created_at", null: false
     t.string "held_from"
     t.uuid "logistics_channel_id"
@@ -393,12 +394,19 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_22_141049) do
     t.integer "number", null: false
     t.uuid "order_id", null: false
     t.string "raydo_order_id"
+    t.text "ship_sync_message"
+    t.string "ship_sync_status", default: "none", null: false
+    t.datetime "shipped_at"
     t.jsonb "shipping_address_snapshot", default: {}, null: false
+    t.string "shopify_fulfillment_id"
     t.uuid "shopify_store_id", null: false
     t.string "tracking_number"
+    t.datetime "tracking_registered_at"
     t.datetime "updated_at", null: false
     t.index ["logistics_channel_id"], name: "index_packages_on_logistics_channel_id"
     t.index ["order_id"], name: "index_packages_on_order_id"
+    t.index ["ship_sync_status"], name: "index_packages_on_ship_sync_status"
+    t.index ["shopify_fulfillment_id"], name: "index_packages_on_shopify_fulfillment_id_unique", unique: true, where: "(shopify_fulfillment_id IS NOT NULL)"
     t.index ["shopify_store_id", "aasm_state"], name: "index_packages_on_shopify_store_id_and_aasm_state"
     t.index ["shopify_store_id", "number"], name: "index_packages_on_shopify_store_id_and_number", unique: true
     t.index ["shopify_store_id"], name: "index_packages_on_shopify_store_id"
@@ -606,6 +614,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_22_141049) do
     t.datetime "packing_enabled_at"
     t.datetime "products_synced_at"
     t.string "scopes"
+    t.boolean "shipping_sync_enabled", default: false, null: false
     t.string "shop_domain", null: false
     t.string "timezone", default: "UTC", null: false
     t.string "trustpilot_bcc_email"

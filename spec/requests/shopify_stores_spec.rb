@@ -358,4 +358,24 @@ RSpec.describe "ShopifyStores", type: :request do
       expect(store.reload.packing_enabled).to be false
     end
   end
+
+  describe "PATCH /shopify_stores/:id shipping_sync_enabled" do
+    let(:user)  { create(:user) }
+    let(:store) { create(:shopify_store, user: user, company: user.companies.first) }
+
+    it "updates shipping_sync_enabled (owner only)" do
+      sign_in user
+      patch shopify_store_path(id: store.id), params: { shopify_store: { shipping_sync_enabled: true } }
+      expect(store.reload.shipping_sync_enabled).to be(true)
+    end
+
+    it "forbids a non-owner member from changing it" do
+      member = create(:user)
+      create(:membership, user: member, company: user.companies.first, role: :member, permissions: [ "shopify_stores" ])
+      sign_in member
+      patch switch_company_path(id: user.companies.first.id)
+      patch shopify_store_path(id: store.id), params: { shopify_store: { shipping_sync_enabled: true } }
+      expect(store.reload.shipping_sync_enabled).to be(false)
+    end
+  end
 end

@@ -53,4 +53,17 @@
         target: "_blank", rel: "noopener",
         class: "px-4 py-2 bg-teal-600 text-white text-sm rounded hover:bg-teal-700 no-underline" %>
   <% end %>
+
+  <% if package.pending_label? && current_membership&.package_shipping? %>
+    <%= button_to t("packages.ship.button"), ship_package_path(id: package.id),
+        method: :post, form: { data: { turbo_frame: "package-modal" } },
+        class: "px-4 py-2 bg-emerald-600 text-white text-sm rounded hover:bg-emerald-700" %>
+  <% end %>
+
+  <% if package.shipped? && current_membership&.package_shipping? && package.shopify_store.shipping_sync_enabled? &&
+        %w[failed none].include?(package.ship_sync_status) %>
+    <%= button_to t("packages.ship.sync_now"), sync_shipment_package_path(id: package.id),
+        method: :post, form: { data: { turbo_frame: "package-modal" } },
+        class: "px-4 py-2 bg-amber-600 text-white text-sm rounded hover:bg-amber-700" %>
+  <% end %>
 </div>

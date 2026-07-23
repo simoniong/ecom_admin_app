@@ -1,6 +1,8 @@
 class ShopifyStore < ApplicationRecord
   include GroupAssignable
 
+  FULFILLMENT_WRITE_SCOPE = "write_merchant_managed_fulfillment_orders"
+
   belongs_to :user
   belongs_to :company
   has_many :email_accounts, dependent: :nullify
@@ -47,6 +49,10 @@ class ShopifyStore < ApplicationRecord
   # Compact label that drops the ".myshopify.com" suffix when no name is set.
   def short_name
     name.presence || shop_domain.sub(".myshopify.com", "")
+  end
+
+  def fulfillment_write_scope?
+    scopes.to_s.split(",").map(&:strip).include?(FULFILLMENT_WRITE_SCOPE)
   end
 
   private
