@@ -13,7 +13,7 @@ class Membership < ApplicationRecord
 
   # Dashboard is always granted — not listed here since it's not a selectable permission
   AVAILABLE_PERMISSIONS = %w[
-    orders shipments tickets ad_campaigns
+    orders shipments tickets ad_campaigns ad_creatives
     shopify_stores ad_accounts email_accounts
     shipping_reminder_rules parcels products
     logistics_channels
