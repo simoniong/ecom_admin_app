@@ -212,7 +212,15 @@ class PackagesController < AdminController
       return redirect_to(package_path(id: @package.id), alert: t("packages.split_invalid_state"))
     end
 
-    @survivor = PackageMerger.new(@package).call
+    # PackageMerger destroys the absorbed boxes, so the rows to remove from the
+    # list have to be captured BEFORE the call — afterwards there is nothing
+    # left to ask. These are in-memory (now destroyed) records, which is all
+    # dom_id needs. Note the merger only folds pending_process siblings, so a
+    # box of this order sitting in another state is deliberately not in here.
+    merger = PackageMerger.new(@package)
+    siblings = merger.pending_siblings
+    @survivor = merger.call
+    @absorbed = siblings.reject { |box| box.id == @survivor.id }
     respond_to do |format|
       format.turbo_stream { render :merge }
       format.html { redirect_to package_path(id: @survivor.id), notice: t("packages.merge_done") }

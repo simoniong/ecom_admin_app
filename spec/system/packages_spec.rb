@@ -416,6 +416,24 @@ RSpec.describe "Packages UI", type: :system do
       expect(store.packages.where(order_id: split_order.id).count).to eq(1)
       expect(source_pkg.reload.package_items.sum(:quantity)).to eq(3)
     end
+
+    it "closes the modal and collapses the boxes back to one row in place" do
+      other = create(:package, shopify_store: store, order: split_order, number: 701, aasm_state: "pending_process")
+      create(:package_item, package: other, order_line_item: oli, sku: "SPLITSKU", quantity: 1)
+      source_pkg.package_items.first.update!(quantity: 2)
+
+      visit packages_path(state: "pending_process")
+      page.execute_script("window.__notReloaded = true")
+      expect(page).to have_content(other.package_code)
+
+      click_link source_pkg.package_code
+      accept_confirm { click_button I18n.t("packages.merge.button") }
+
+      expect(page).to have_no_css("[data-split-target='dialog']")
+      expect(page).to have_content(source_pkg.package_code)
+      expect(page).to have_no_content(other.package_code)
+      expect(page.evaluate_script("window.__notReloaded")).to be(true)
+    end
   end
 
   describe "申请运单号" do

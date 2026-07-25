@@ -1266,6 +1266,16 @@ RSpec.describe "Packages", type: :request do
       expect(survivor.reload.package_items.find_by(order_line_item_id: oli.id).quantity).to eq(3)
     end
 
+    it "streams a modal dismissal and removes the absorbed row" do
+      post merge_package_path(id: other.id),
+           headers: { "Accept" => "text/vnd.turbo-stream.html" }
+
+      expect(response.body).to include('action="dismiss_modal"')
+      expect(response.body).to include('action="remove"')
+      expect(response.body).to include(ActionView::RecordIdentifier.dom_id(other))
+      expect(response.body).to include(ActionView::RecordIdentifier.dom_id(survivor))
+    end
+
     it "forbids a member without package_process permission" do
       sign_in_as_member_with("package_review")
       post merge_package_path(id: other.id)

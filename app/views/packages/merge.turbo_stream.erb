@@ -1,3 +1,14 @@
-<%= turbo_stream.replace "package-modal",
-      partial: "packages/modal",
-      locals: { package: @survivor.reload } %>
+<%# Mirror of split.turbo_stream.erb: close the modal, then collapse the boxes
+    back to a single row where they were. The absorbed boxes no longer exist in
+    the database, so their rows have to be removed explicitly — leaving them on
+    screen would offer the operator packages that 404 on click. %>
+<turbo-stream action="dismiss_modal"></turbo-stream>
+<% survivor = @survivor.reload %>
+<% sibling_index = PackageSiblingIndex.new([ survivor ]).call %>
+<%= turbo_stream.replace dom_id(survivor) do %>
+  <%= render "packages/package_row", package: survivor, bulk: true,
+        sibling_index: sibling_index[survivor.id], flash_highlight: true %>
+<% end %>
+<% @absorbed.each do |box| %>
+  <%= turbo_stream.remove dom_id(box) %>
+<% end %>
