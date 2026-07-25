@@ -67,6 +67,16 @@ RSpec.describe AdCreativeBackfillService do
       expect(ad_account.reload.creative_synced_from_date).to eq(today - 89)
       expect(ad_account.reload.creative_synced_through_date).to eq(today)
     end
+
+    it "never purges rows outside the newly fetched segment" do
+      ad_account.update_columns(creative_synced_from_date: today - 89, creative_synced_through_date: today - 5)
+      old_metric = create(:ad_unit_daily_metric, ad_unit: AdUnit.find_by(ad_id: "a1"), date: today - 89, spend: 5)
+      allow(meta).to receive(:fetch_ad_insights).and_return([])
+
+      service.call(days: 90)
+
+      expect(AdUnitDailyMetric.exists?(old_metric.id)).to be(true)
+    end
   end
 
   describe "segment failure" do
@@ -171,6 +181,28 @@ RSpec.describe AdCreativeBackfillService do
       service.call(days: 90)
 
       expect(AdUnitDailyMetric.exists?(stale_metric.id)).to be(false)
+    end
+
+    it "leaves no row outside the committed interval when a later segment fails, even for a stray row inside the not-yet-reached window" do
+      stray_unit = AdUnit.find_by(ad_id: "a1")
+      # today - 30 sits inside segment 1's own range (today-59..today-30), the
+      # segment that fails below — it must not survive past segment 1's purge.
+      stray_metric = create(:ad_unit_daily_metric, ad_unit: stray_unit, date: today - 30, spend: 5)
+
+      calls = []
+      allow(meta).to receive(:fetch_ad_insights) do |from, to|
+        calls << [ from, to ]
+        raise Koala::Facebook::APIError.new(500, "boom") if calls.size == 2
+        []
+      end
+
+      result = service.call(days: 90)
+
+      expect(result).to be(false)
+      ad_account.reload
+      expect(AdUnitDailyMetric.exists?(stray_metric.id)).to be(false)
+      dates = AdUnitDailyMetric.joins(:ad_unit).where(ad_units: { ad_account_id: ad_account.id }).pluck(:date)
+      expect(dates).to all(be_between(ad_account.creative_synced_from_date, ad_account.creative_synced_through_date))
     end
   end
 

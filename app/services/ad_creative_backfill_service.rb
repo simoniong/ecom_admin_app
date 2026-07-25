@@ -20,11 +20,16 @@ class AdCreativeBackfillService
     return true if start_date > today
 
     initializing = coverage_incomplete?
+    # Only set (and only ever read) in mode A: the rebuild window's start,
+    # held constant across every segment so each segment's purge can bound
+    # its lower edge without drifting. Mode B leaves this nil, which is what
+    # keeps the purge from ever touching mode B's history (see persist_segment).
+    rebuild_start_date = start_date if initializing
 
     segments(start_date, today).each_with_index do |(from, to), index|
       first_segment = initializing && index.zero?
       rows = @meta.fetch_ad_insights(from, to)
-      persist_segment(rows, from, to, initialize_bounds: first_segment, purge_upper_bound: (today if first_segment))
+      persist_segment(rows, from, to, initialize_bounds: first_segment, purge_from: rebuild_start_date)
     rescue Koala::Facebook::APIError, Koala::Facebook::ClientError => e
       Rails.logger.error("[AdCreativeBackfill] account=#{@ad_account.account_id} segment=#{from}..#{to}: #{e.message}")
       return false
@@ -80,18 +85,27 @@ class AdCreativeBackfillService
   end
 
   # Metric writes and the coverage advance share one transaction so the
-  # invariant can never be observed broken (spec §5.6). `purge_upper_bound`
-  # is only set on mode A's first segment: a full rebuild must not leave
-  # pre-existing rows stranded outside the freshly (re)established interval.
-  def persist_segment(rows, from, to, initialize_bounds:, purge_upper_bound: nil)
+  # invariant can never be observed broken (spec §5.6). `purge_from` is only
+  # set in mode A (see `call`) — every mode A segment purges this account's
+  # rows outside `[purge_from, to]`, i.e. outside the window coverage has
+  # actually reached so far, not the full target window. That way the
+  # invariant holds after every transaction, including right after an abort:
+  # rows in a not-yet-fetched later segment get deleted here and re-fetched
+  # only once their own segment actually runs. Bounding by `purge_from`
+  # (the rebuild's start, held constant) rather than `from` (this segment's
+  # own start) matters only for mode A, where they happen to coincide on
+  # segment 0 and diverge from then on; mode B never passes `purge_from` at
+  # all, so it can never purge — a purge bounded by mode B's own `from`
+  # (`_through_date + 1`) would otherwise delete the account's entire history.
+  def persist_segment(rows, from, to, initialize_bounds:, purge_from: nil)
     unit_ids = @ad_account.ad_units.pluck(:ad_id, :id).to_h
 
     ActiveRecord::Base.transaction do
-      if purge_upper_bound
+      if purge_from
         AdUnitDailyMetric
           .joins(:ad_unit)
           .where(ad_units: { ad_account_id: @ad_account.id })
-          .where.not(date: from..purge_upper_bound)
+          .where.not(date: purge_from..to)
           .delete_all
       end
 
