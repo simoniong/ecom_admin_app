@@ -191,6 +191,39 @@ RSpec.describe AdAccount, type: :model do
       expect(account.claim_backfill_slot!(manual: true)).to be(true)
     end
 
+    # `attempts` counts every automatic claim, not just failures — the OAuth
+    # connect hook and every hourly heal bump it — so `attempts > 0` was true
+    # for essentially every account and made the manual path skip the due-time
+    # check entirely. The two windows are told apart by length instead: an
+    # automatic claim is always >= 2h out, a manual one exactly 1h.
+    it "refuses a manual claim inside a manual window even when attempts is high" do
+      account.update_columns(
+        creative_backfill_attempts: 3,
+        creative_backfill_next_attempt_at: 30.minutes.from_now
+      )
+
+      expect(account.claim_backfill_slot!(manual: true)).to be(false)
+    end
+
+    it "still bypasses an automatic backoff window when attempts is high" do
+      account.update_columns(
+        creative_backfill_attempts: 3,
+        creative_backfill_next_attempt_at: 20.hours.from_now
+      )
+
+      expect(account.claim_backfill_slot!(manual: true)).to be(true)
+      expect(account.reload.creative_backfill_next_attempt_at).to be_within(1.minute).of(1.hour.from_now)
+    end
+
+    it "blocks a rapid second manual click after an automatic claim has bumped attempts" do
+      account.claim_backfill_slot!
+      account.update_column(:creative_backfill_next_attempt_at, nil)
+
+      expect(account.claim_backfill_slot!(manual: true)).to be(true)
+      expect(account.claim_backfill_slot!(manual: true)).to be(false)
+      expect(account.claim_backfill_slot!(manual: true)).to be(false)
+    end
+
     it "does not increment attempts on a manual claim" do
       account.update_columns(creative_backfill_attempts: 5, creative_backfill_next_attempt_at: 20.hours.from_now)
 

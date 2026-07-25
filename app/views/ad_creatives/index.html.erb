@@ -2,7 +2,8 @@
 <div class="px-4 sm:px-6 lg:px-8 py-6">
   <div class="flex items-center justify-between mb-6">
     <h1 class="text-2xl font-semibold text-gray-900"><%= t("ad_creatives.title") %></h1>
-    <%= button_to t("ad_creatives.sync_ads"), sync_ad_creatives_path, method: :post,
+    <%# Carry the account filter so Sync claims exactly the accounts on screen. %>
+    <%= button_to t("ad_creatives.sync_ads"), sync_ad_creatives_path(ad_account_id: @selected_account&.id), method: :post,
         class: "px-4 py-2 text-sm font-medium text-white bg-gray-900 rounded-md hover:bg-gray-700" %>
   </div>
 

@@ -37,11 +37,21 @@ class AdAccount < ApplicationRecord
   # next_attempt_at advances at CLAIM time, not on completion, so it also
   # guards against a still-running backfill without inspecting the queue.
   #
-  # Manual claims bypass failure backoff (attempts > 0) because the user asked
-  # for a retry, but still respect a 1-hour window set by a previous manual
-  # click or a clean state, which is what stops rapid double-clicks. Manual
-  # claims never increment attempts: that counter means "consecutive failures"
-  # and drives both backoff and future alerting.
+  # Manual claims bypass failure backoff because the user asked for a retry,
+  # but still respect the 1-hour window a previous manual click wrote, which is
+  # what stops rapid double-clicks. Manual claims never increment attempts:
+  # that counter means "consecutive failures" and drives both backoff and
+  # future alerting.
+  #
+  # The two windows are told apart by their LENGTH, not by `attempts`:
+  # `attempts` is incremented by every automatic claim (including the OAuth
+  # connect hook and every hourly heal), not only by failures, so `attempts > 0`
+  # is true for practically every account and voided the manual throttle
+  # entirely. An automatic claim always schedules at least 2 hours out
+  # (POWER(2, attempts + 1) with attempts >= 0), a manual claim exactly 1 hour,
+  # so "more than an hour away" can only be an automatic backoff window.
+  # Consequence, and it is the safe direction: during the last hour of an
+  # automatic backoff window a manual claim is refused rather than bypassing it.
   def claim_backfill_slot!(manual: false)
     now = Time.current
     scope = AdAccount.where(id: id)
@@ -50,7 +60,7 @@ class AdAccount < ApplicationRecord
       scope.where(
         "creative_backfill_next_attempt_at IS NULL " \
         "OR creative_backfill_next_attempt_at <= ? " \
-        "OR creative_backfill_attempts > 0", now
+        "OR creative_backfill_next_attempt_at > ?", now, now + 1.hour
       )
     else
       scope.where(

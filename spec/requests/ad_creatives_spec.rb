@@ -114,5 +114,30 @@ RSpec.describe "AdCreatives", type: :request do
 
       expect { post sync_ad_creatives_path }.not_to have_enqueued_job(BackfillAdCreativesJob)
     end
+
+    # A claim pushes next_attempt_at an hour out, so claiming accounts the page
+    # is not showing would suppress an unrelated account's automatic heal.
+    it "only claims the selected account when the page is filtered to one" do
+      ad_account
+      other = create(:ad_account, user: user, shopify_store: store, account_name: "Untouched")
+      sign_in user
+
+      post sync_ad_creatives_path(ad_account_id: ad_account.id)
+
+      expect(other.reload.creative_backfill_next_attempt_at).to be_nil
+      expect(ad_account.reload.creative_backfill_next_attempt_at).to be_present
+    end
+
+    it "does not claim an account belonging to another store" do
+      ad_account
+      other_store = create(:shopify_store, user: user)
+      other = create(:ad_account, user: user, shopify_store: other_store, account_name: "Other Store")
+      sign_in user
+
+      post sync_ad_creatives_path(store_id: store.id)
+
+      expect(other.reload.creative_backfill_next_attempt_at).to be_nil
+      expect(ad_account.reload.creative_backfill_next_attempt_at).to be_present
+    end
   end
 end

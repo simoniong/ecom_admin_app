@@ -123,6 +123,32 @@ RSpec.describe AdCreativeBackfillService do
       expect(creative.reload.first_spend_date).to eq(today - 2)
     end
 
+    # A mode A rebuild purges rows outside the new window. Without this, a
+    # creative whose only spend was in the purged range keeps its old
+    # first_spend_date, still reports anchor_state :ok, and renders $0.00 /
+    # 0.0 ROAS instead of "—".
+    it "clears first_spend_date once a rebuild leaves the creative with no spend" do
+      creative = create(:ad_creative, ad_account: ad_account, first_spend_date: today - 200)
+      unit = AdUnit.find_by(ad_id: "a1")
+      unit.update!(ad_creative: creative)
+      create(:ad_unit_daily_metric, ad_unit: unit, date: today - 200, spend: 5)
+      allow(meta).to receive(:fetch_ad_insights).and_return([])
+
+      service.call(days: 90)
+
+      expect(creative.reload.first_spend_date).to be_nil
+    end
+
+    it "leaves another account's first_spend_date alone" do
+      other_account = create(:ad_account)
+      other_creative = create(:ad_creative, ad_account: other_account, first_spend_date: today - 10)
+      allow(meta).to receive(:fetch_ad_insights).and_return([])
+
+      service.call(days: 90)
+
+      expect(other_creative.reload.first_spend_date).to eq(today - 10)
+    end
+
     it "leaves first_spend_date null when the creative never spent" do
       creative = create(:ad_creative, ad_account: ad_account)
       AdUnit.find_by(ad_id: "a1").update!(ad_creative: creative)
@@ -160,6 +186,42 @@ RSpec.describe AdCreativeBackfillService do
   end
 
   describe "sync_range" do
+    # Regression guard for the composition bug: sync_ad_units used to run only
+    # from #call, i.e. once at OAuth connect. persist_segment drops any row
+    # whose ad_id has no ad_units record, so every ad created after onboarding
+    # had all of its rows silently discarded and never appeared in the view.
+    it "syncs ad units first, so an ad created after onboarding still lands" do
+      ad_account.update_columns(creative_synced_from_date: today - 89, creative_synced_through_date: today - 1)
+      allow(meta).to receive(:sync_ad_units) { create(:ad_unit, ad_account: ad_account, ad_id: "brand-new-ad") }
+      allow(meta).to receive(:fetch_ad_insights).and_return([ row(today).merge(ad_id: "brand-new-ad") ])
+
+      expect(service.sync_range(today, today)).to be(true)
+
+      new_unit = AdUnit.find_by(ad_id: "brand-new-ad")
+      expect(new_unit).to be_present
+      expect(AdUnitDailyMetric.where(ad_unit_id: new_unit.id, date: today)).to exist
+    end
+
+    it "refreshes the token and backfills creative assets around the fetch" do
+      ad_account.update_columns(creative_synced_from_date: today - 89, creative_synced_through_date: today - 1)
+      allow(meta).to receive(:fetch_ad_insights).and_return([ row(today) ])
+
+      service.sync_range(today, today)
+
+      expect(meta).to have_received(:refresh_token_if_needed!)
+      expect(meta).to have_received(:sync_creative_assets)
+    end
+
+    it "returns false instead of raising when syncing ad units hits Meta" do
+      ad_account.update_columns(creative_synced_from_date: today - 89, creative_synced_through_date: today - 1)
+      allow(meta).to receive(:fetch_ad_insights).and_return([])
+      allow(meta).to receive(:sync_ad_units).and_raise(Koala::Facebook::APIError.new(500, "boom"))
+      allow(Rails.logger).to receive(:error)
+
+      expect(service.sync_range(today, today)).to be(false)
+      expect(meta).not_to have_received(:fetch_ad_insights)
+    end
+
     it "refuses to run and logs a warning when coverage bounds are not yet established" do
       expect(meta).not_to receive(:fetch_ad_insights)
       allow(Rails.logger).to receive(:warn)
@@ -203,6 +265,74 @@ RSpec.describe AdCreativeBackfillService do
       expect(AdUnitDailyMetric.exists?(stray_metric.id)).to be(false)
       dates = AdUnitDailyMetric.joins(:ad_unit).where(ad_units: { ad_account_id: ad_account.id }).pluck(:date)
       expect(dates).to all(be_between(ad_account.creative_synced_from_date, ad_account.creative_synced_through_date))
+    end
+  end
+
+  describe "concurrency" do
+    # A genuinely separate PostgreSQL session: transactional specs pin the
+    # connection pool, so pool.checkout hands back the very same backend, and a
+    # session-level advisory lock is re-entrant within one session — the assert
+    # would pass vacuously. Closing the connection releases anything it holds.
+    def with_separate_session
+      raw = PG.connect(ActiveRecord::Base.connection.raw_connection.conninfo_hash.compact)
+      yield raw
+    ensure
+      raw&.close
+    end
+
+    def try_lock(session)
+      session.exec_params(
+        "SELECT pg_try_advisory_lock($1, hashtext($2))",
+        [ AdCreativeBackfillService::LOCK_NAMESPACE, ad_account.id ]
+      ).getvalue(0, 0) == "t"
+    end
+
+    # The claim throttle only schedules; it is not a mutex. Two runs on one
+    # account (manual button pressed during the connect-time backfill) would
+    # let persist_segment move coverage backward and strand rows outside the
+    # interval, with no purge to clean them up.
+    it "refuses to start while another session holds the account's lock" do
+      allow(meta).to receive(:fetch_ad_insights).and_return([])
+
+      with_separate_session do |other|
+        expect(try_lock(other)).to be(true)
+
+        expect(service.call(days: 90)).to be(false)
+        expect(meta).not_to have_received(:fetch_ad_insights)
+        expect(ad_account.reload.creative_synced_through_date).to be_nil
+      end
+    end
+
+    it "does not lock out a different ad account" do
+      allow(meta).to receive(:fetch_ad_insights).and_return([])
+      other_account = create(:ad_account, timezone: "UTC")
+
+      with_separate_session do |other|
+        other.exec_params(
+          "SELECT pg_try_advisory_lock($1, hashtext($2))",
+          [ AdCreativeBackfillService::LOCK_NAMESPACE, other_account.id ]
+        )
+
+        expect(service.call(days: 90)).to be(true)
+      end
+    end
+
+    it "releases the lock after a run so the next one can claim it" do
+      allow(meta).to receive(:fetch_ad_insights).and_return([])
+
+      service.call(days: 90)
+
+      with_separate_session { |other| expect(try_lock(other)).to be(true) }
+    end
+
+    it "releases the lock even when a segment raises" do
+      allow(meta).to receive(:fetch_ad_insights) do |from, _to|
+        [ row(from, spend: 10), row(from + 1, spend: -1) ]
+      end
+
+      expect { service.call(days: 90) }.to raise_error(ActiveRecord::RecordInvalid)
+
+      with_separate_session { |other| expect(try_lock(other)).to be(true) }
     end
   end
 

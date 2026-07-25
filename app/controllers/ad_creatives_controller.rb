@@ -7,8 +7,12 @@ class AdCreativesController < AdminController
 
   BACKFILL_DAYS = 90
 
+  # Claims target exactly the accounts the page is showing. A claim pushes
+  # `next_attempt_at` an hour out, so sweeping every visible account would let
+  # a sync of store A suppress the automatic heal of an unrelated broken
+  # account in store B for an hour.
   def sync
-    visible_ad_accounts.each do |account|
+    sync_target_accounts.each do |account|
       next unless account.claim_backfill_slot!(manual: true)
 
       BackfillAdCreativesJob.perform_later(ad_account_id: account.id, days: BACKFILL_DAYS)
@@ -18,20 +22,9 @@ class AdCreativesController < AdminController
   end
 
   def index
-    view_scope = selected_view_group || current_company
-    base_ad_accounts = view_scope.respond_to?(:ad_accounts) ? view_scope.ad_accounts : visible_ad_accounts
-
     @selected_store = current_shopify_store
-
-    @ad_accounts = if @selected_store
-      base_ad_accounts.where(shopify_store: @selected_store).order(:account_name)
-    else
-      base_ad_accounts.order(:account_name)
-    end
-
-    @selected_account = if params[:ad_account_id].present? && params[:ad_account_id] != "all"
-      @ad_accounts.find_by(id: params[:ad_account_id])
-    end
+    @ad_accounts = scoped_ad_accounts
+    @selected_account = find_selected_account(@ad_accounts)
 
     accounts = @selected_account ? [ @selected_account ] : @ad_accounts
 
@@ -49,6 +42,27 @@ class AdCreativesController < AdminController
   end
 
   private
+
+  # The account set the index renders: group view scope, narrowed by the
+  # store switcher. Shared with #sync so both act on the same accounts.
+  def scoped_ad_accounts
+    view_scope = selected_view_group || current_company
+    base = view_scope.respond_to?(:ad_accounts) ? view_scope.ad_accounts : visible_ad_accounts
+    base = base.where(shopify_store: current_shopify_store) if current_shopify_store
+    base.order(:account_name)
+  end
+
+  def find_selected_account(accounts)
+    return nil if params[:ad_account_id].blank? || params[:ad_account_id] == "all"
+
+    accounts.find_by(id: params[:ad_account_id])
+  end
+
+  def sync_target_accounts
+    accounts = scoped_ad_accounts
+    selected = find_selected_account(accounts)
+    selected ? [ selected ] : accounts
+  end
 
   def load_date_range
     @from_date = params[:from_date].present? ? Date.parse(params[:from_date]) : 7.days.ago.to_date
