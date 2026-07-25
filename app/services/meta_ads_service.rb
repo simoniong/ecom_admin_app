@@ -118,6 +118,49 @@ class MetaAdsService
     end
   end
 
+  INSIGHT_FIELDS = %w[
+    ad_id spend impressions clicks inline_link_clicks actions action_values
+    video_continuous_2_sec_watched_actions
+    video_p25_watched_actions video_p50_watched_actions
+    video_p75_watched_actions video_p95_watched_actions video_p100_watched_actions
+  ].join(",").freeze
+
+  # Fetches one date range and returns parsed rows. Deliberately performs no
+  # writes: the caller persists them together with the coverage advance inside
+  # a single transaction (spec §5.6), and an HTTP call must not sit inside one.
+  def fetch_ad_insights(start_date, end_date)
+    rows = fetch_all_pages(
+      @ad_account.account_id, "insights",
+      fields: INSIGHT_FIELDS,
+      level: "ad",
+      time_increment: 1,
+      use_account_attribution_setting: true,
+      time_range: { since: start_date.iso8601, until: end_date.iso8601 },
+      limit: 500
+    )
+
+    rows.map do |row|
+      {
+        ad_id: row["ad_id"],
+        date: Date.parse(row["date_start"]),
+        spend: row["spend"].to_d,
+        impressions: row["impressions"].to_i,
+        clicks: row["clicks"].to_i,
+        inline_link_clicks: row["inline_link_clicks"].to_i,
+        video_continuous_2_sec_watched: extract_video_metric(row["video_continuous_2_sec_watched_actions"]),
+        video_p25_watched: extract_video_metric(row["video_p25_watched_actions"]),
+        video_p50_watched: extract_video_metric(row["video_p50_watched_actions"]),
+        video_p75_watched: extract_video_metric(row["video_p75_watched_actions"]),
+        video_p95_watched: extract_video_metric(row["video_p95_watched_actions"]),
+        video_p100_watched: extract_video_metric(row["video_p100_watched_actions"]),
+        add_to_cart: extract_action_count(row["actions"], "offsite_conversion.fb_pixel_add_to_cart"),
+        checkout_initiated: extract_action_count(row["actions"], "offsite_conversion.fb_pixel_initiate_checkout"),
+        purchases: extract_action_count(row["actions"], "offsite_conversion.fb_pixel_purchase"),
+        conversion_value: extract_action_value(row["action_values"], "offsite_conversion.fb_pixel_purchase")
+      }
+    end
+  end
+
   private
 
   # Resolution order per spec §5.1. First match wins; the multi-asset check
@@ -189,5 +232,14 @@ class MetaAdsService
   def extract_action_value(action_values, action_type)
     return 0 if action_values.blank?
     action_values.find { |a| a["action_type"] == action_type }&.dig("value").to_d
+  end
+
+  # Video insight fields are list<AdsActionStats>, not scalars (spec §2.3).
+  # Sum every entry rather than picking action_type == "video_view", so a new
+  # action_type from Meta cannot silently drop counts.
+  def extract_video_metric(list)
+    return 0 if list.blank?
+
+    list.sum { |entry| entry["value"].to_i }
   end
 end

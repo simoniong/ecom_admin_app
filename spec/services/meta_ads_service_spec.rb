@@ -432,4 +432,103 @@ RSpec.describe MetaAdsService do
       service.refresh_token_if_needed!
     end
   end
+
+  describe "#fetch_ad_insights" do
+    let(:graph) { instance_double(Koala::Facebook::API) }
+
+    before { allow(Koala::Facebook::API).to receive(:new).and_return(graph) }
+
+    def insight_row(overrides = {})
+      {
+        "ad_id" => "a1", "date_start" => "2026-07-01",
+        "spend" => "12.50", "impressions" => "1000", "clicks" => "40",
+        "inline_link_clicks" => "30",
+        "video_continuous_2_sec_watched_actions" => [ { "action_type" => "video_view", "value" => "300" } ],
+        "video_p25_watched_actions" => [ { "action_type" => "video_view", "value" => "250" } ],
+        "video_p50_watched_actions" => [ { "action_type" => "video_view", "value" => "150" } ],
+        "video_p75_watched_actions" => [ { "action_type" => "video_view", "value" => "90" } ],
+        "video_p95_watched_actions" => [ { "action_type" => "video_view", "value" => "50" } ],
+        "video_p100_watched_actions" => [ { "action_type" => "video_view", "value" => "40" } ],
+        "actions" => [
+          { "action_type" => "offsite_conversion.fb_pixel_add_to_cart", "value" => "8" },
+          { "action_type" => "offsite_conversion.fb_pixel_initiate_checkout", "value" => "4" },
+          { "action_type" => "offsite_conversion.fb_pixel_purchase", "value" => "2" }
+        ],
+        "action_values" => [
+          { "action_type" => "offsite_conversion.fb_pixel_purchase", "value" => "88.00" }
+        ]
+      }.merge(overrides)
+    end
+
+    it "parses list-valued video fields into integers" do
+      allow(graph).to receive(:get_connections).and_return([ insight_row ])
+
+      row = service.fetch_ad_insights(Date.new(2026, 7, 1), Date.new(2026, 7, 1)).first
+
+      expect(row[:video_continuous_2_sec_watched]).to eq(300)
+      expect(row[:video_p50_watched]).to eq(150)
+      expect(row[:video_p75_watched]).to eq(90)
+    end
+
+    it "sums every entry in a video action list" do
+      allow(graph).to receive(:get_connections).and_return([
+        insight_row("video_p50_watched_actions" => [
+          { "action_type" => "video_view", "value" => "100" },
+          { "action_type" => "something_new", "value" => "20" }
+        ])
+      ])
+
+      row = service.fetch_ad_insights(Date.new(2026, 7, 1), Date.new(2026, 7, 1)).first
+
+      expect(row[:video_p50_watched]).to eq(120)
+    end
+
+    it "returns zero for absent video fields (image ads)" do
+      allow(graph).to receive(:get_connections).and_return([
+        insight_row.except(
+          "video_continuous_2_sec_watched_actions", "video_p25_watched_actions",
+          "video_p50_watched_actions", "video_p75_watched_actions",
+          "video_p95_watched_actions", "video_p100_watched_actions"
+        )
+      ])
+
+      row = service.fetch_ad_insights(Date.new(2026, 7, 1), Date.new(2026, 7, 1)).first
+
+      expect(row[:video_p50_watched]).to eq(0)
+      expect(row[:video_continuous_2_sec_watched]).to eq(0)
+    end
+
+    it "parses conversions with the full offsite_conversion action types" do
+      allow(graph).to receive(:get_connections).and_return([ insight_row ])
+
+      row = service.fetch_ad_insights(Date.new(2026, 7, 1), Date.new(2026, 7, 1)).first
+
+      expect(row[:add_to_cart]).to eq(8)
+      expect(row[:checkout_initiated]).to eq(4)
+      expect(row[:purchases]).to eq(2)
+      expect(row[:conversion_value]).to eq(88.00)
+    end
+
+    it "requests account attribution settings and ad-level daily granularity" do
+      expect(graph).to receive(:get_connections) do |_node, edge, **params|
+        expect(edge).to eq("insights")
+        expect(params[:level]).to eq("ad")
+        expect(params[:time_increment]).to eq(1)
+        expect(params[:use_account_attribution_setting]).to be(true)
+        expect(params[:limit]).to eq(500)
+        expect(params[:time_range]).to eq({ since: "2026-07-01", until: "2026-07-03" })
+        []
+      end
+
+      service.fetch_ad_insights(Date.new(2026, 7, 1), Date.new(2026, 7, 3))
+    end
+
+    it "writes nothing to the database" do
+      allow(graph).to receive(:get_connections).and_return([ insight_row ])
+
+      expect {
+        service.fetch_ad_insights(Date.new(2026, 7, 1), Date.new(2026, 7, 1))
+      }.not_to change(AdUnitDailyMetric, :count)
+    end
+  end
 end
