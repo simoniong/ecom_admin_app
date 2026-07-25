@@ -65,17 +65,22 @@ class AdCreativeBackfillService
   private
 
   def run_backfill(days:)
-    @meta.refresh_token_if_needed!
-    @meta.sync_ad_units
-
     today = @ad_account.today_in_zone
     start_date = resolve_start_date(today, days)
 
     # An already-caught-up (or ahead-of-today, e.g. a westward timezone change
     # narrowing `today_in_zone`) account is not a backfill scenario — rolling
     # sync owns [today-1, today] per design §5.6. Do nothing rather than
-    # shrinking `creative_synced_through_date` backward.
+    # shrinking `creative_synced_through_date` backward. Checked before any
+    # Meta call: `resolve_start_date` only reads `today_in_zone` and this
+    # account's coverage columns, so this early return costs nothing. In mode
+    # A (coverage_incomplete?) `resolve_start_date` returns
+    # `today - (days - 1)`, which is never `> today`, so this can never fire
+    # there — mode A always proceeds to the Meta calls below.
     return true if start_date > today
+
+    @meta.refresh_token_if_needed!
+    @meta.sync_ad_units
 
     initializing = coverage_incomplete?
     # Only set (and only ever read) in mode A: the rebuild window's start,

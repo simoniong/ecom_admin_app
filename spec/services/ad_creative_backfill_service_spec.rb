@@ -33,6 +33,18 @@ RSpec.describe AdCreativeBackfillService do
       expect(ad_account.creative_synced_through_date).to eq(today)
     end
 
+    # Guards the reorder in run_backfill: the early-return-before-Meta-calls
+    # fix must not accidentally starve mode A (coverage null, so
+    # resolve_start_date can never return a date > today) of its Meta sync.
+    it "still refreshes the token and syncs ad units even though the early return now runs first" do
+      allow(meta).to receive(:fetch_ad_insights).and_return([ row(today) ])
+
+      service.call(days: 90)
+
+      expect(meta).to have_received(:refresh_token_if_needed!)
+      expect(meta).to have_received(:sync_ad_units)
+    end
+
     it "runs when only one bound is null" do
       ad_account.update_columns(creative_synced_from_date: today - 10, creative_synced_through_date: nil)
       allow(meta).to receive(:fetch_ad_insights).and_return([])
@@ -76,6 +88,24 @@ RSpec.describe AdCreativeBackfillService do
       service.call(days: 90)
 
       expect(AdUnitDailyMetric.exists?(old_metric.id)).to be(true)
+    end
+  end
+
+  describe "caught-up account" do
+    # A re-clicked sync on an account already caught up through today must
+    # short-circuit before any Meta call: run_backfill checks
+    # `start_date > today` (which needs only today_in_zone and the account's
+    # own coverage columns) before calling refresh_token_if_needed! or
+    # sync_ad_units. Previously those two Meta calls ran first, so every
+    # re-click cost a real paged Meta /ads request even though the run itself
+    # was a no-op.
+    it "does not call sync_ad_units or refresh_token_if_needed! and still returns true" do
+      ad_account.update_columns(creative_synced_from_date: today - 89, creative_synced_through_date: today)
+
+      expect(service.call(days: 90)).to be(true)
+
+      expect(meta).not_to have_received(:refresh_token_if_needed!)
+      expect(meta).not_to have_received(:sync_ad_units)
     end
   end
 
@@ -235,6 +265,29 @@ RSpec.describe AdCreativeBackfillService do
   end
 
   describe "mode A rebuild" do
+    # Pins the asymmetry between the two branches of persist_segment: the
+    # initializing branch (mode A segment 0) must stay a plain assignment,
+    # not the `[existing, to].compact.max` clamp the non-initializing branch
+    # uses. Clamping here would let a stale, wider `_through_date` from
+    # before the rebuild survive it — nothing else in this suite fails if
+    # that clamp gets "tidied" back in, since a rebuild normally starts from
+    # a narrower or nil `_through_date`. This account starts with
+    # `_through_date` far in the future (today + 50) precisely so a clamp
+    # would keep it instead of reducing it to segment 0's own window.
+    it "reduces creative_synced_through_date on segment 0, rather than preserving a stale wider value" do
+      ad_account.update_columns(creative_synced_from_date: nil, creative_synced_through_date: today + 50)
+      calls = 0
+      allow(meta).to receive(:fetch_ad_insights) do |_from, _to|
+        calls += 1
+        raise Koala::Facebook::APIError.new(500, "boom") if calls == 2
+        []
+      end
+
+      service.call(days: 90)
+
+      expect(ad_account.reload.creative_synced_through_date).to eq(today - 60)
+    end
+
     it "purges pre-existing metric rows that fall outside the rebuilt window" do
       stale_unit = AdUnit.find_by(ad_id: "a1")
       stale_metric = create(:ad_unit_daily_metric, ad_unit: stale_unit, date: today - 200, spend: 5)
