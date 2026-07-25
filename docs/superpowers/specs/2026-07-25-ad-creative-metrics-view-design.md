@@ -339,22 +339,6 @@ per-account rescue 並寫入 `Rails.logger.error`,比照現有 `SyncAdCampaignsJ
 現有 `SyncAdCampaignsJob` 的 2 天回看不足以收斂,會使 D3/D5 ROAS 長期偏低。
 7 天是**下限**,不是固定值 —— 實際回看天數依各帳號的歸因設定計算,規則見 §5.2。
 
-### 5.6 同步覆蓋範圍的推進規則
-
-`creative_synced_from_date` / `_through_date` 必須維持「區間內無洞」的不變式(§4.0),
-因此**不可用 min/max 更新**。規則:
-
-- 分段一律**依時間順序**處理
-- `_through_date` 只推進到「最後一段**連續**成功」的結尾。
-  中間任一段失敗即停止推進,該段之後的成功結果仍寫入 `ad_unit_daily_metrics`
-  (資料留著不浪費),但覆蓋範圍不涵蓋它 —— 寧可少算,不可謊報完整
-- `_from_date` 只在往前擴張且與現有區間**相鄰或重疊**時才前移;
-  若新區間與現有區間不相鄰(中間有洞),則不動 `_from_date`
-- 失敗的分段記入 log,由下次 backfill 重跑補洞
-
-實作上最簡單的作法:backfill 遇到分段失敗就中止整趟並排程重試,
-下次從 `_through_date + 1` 續跑。不需要額外的分段狀態表。
-
 ### 5.4 Rate limit 處理
 
 90 天 backfill 是唯一有量體風險之處。第一版採**同步呼叫 + 30 天分段 + 指數退避**:
@@ -372,6 +356,38 @@ per-account rescue 並寫入 `Rails.logger.error`,比照現有 `SyncAdCampaignsJ
 此值只會往前移、不會往後跳 —— 但這正代表它**是下界而非真值**:
 backfill 加深時 `first_spend_date` 可能再往前移。
 因此凡是以它為錨點的欄位(第 6–11 欄),都必須配合 §6.3 的截斷判斷一起顯示。
+
+由 §5.6 的不變式保證,`first_spend_date` 必然落在
+`[creative_synced_from_date, creative_synced_through_date]` 區間內。
+
+### 5.6 同步覆蓋範圍的推進規則
+
+#### 核心不變式
+
+> **所有 `ad_unit_daily_metrics` 的 `date`,必落在
+> `[creative_synced_from_date, creative_synced_through_date]` 這段連續區間內。**
+
+這條不變式是 §5.5 與 §6.3 全部計算的前提。一旦允許區間外存在資料列,
+生命週期加總(第 10–11 欄)會納入未被覆蓋範圍認可的資料卻仍顯示為「有效」,
+而 `first_spend_date` 也可能落到 `_through_date` 之後 —— 靜默算出錯誤數字。
+
+因此:**不可用 min/max 更新覆蓋範圍**,且**不可寫入區間外的資料**。
+
+#### 規則
+
+- 分段一律**依時間順序**由舊至新處理,且 backfill 的終點固定為「今天」
+  (帳號時區),使 backfill 完成後覆蓋範圍必然延伸到當日
+- **任一段失敗即中止整趟 backfill**,不再送出後續分段。
+  已成功的分段保留,`_through_date` 停在最後一段成功的結尾;
+  排程重試,下次從 `_through_date + 1` 續跑
+- `_from_date` 只在往前擴張且與現有區間**相鄰或重疊**時才前移
+- **滾動同步(`SyncAdCreativesJob`)只處理覆蓋範圍已延伸到當日的帳號**
+  (`_through_date >= 帳號時區的今天 - 1`)。
+  backfill 尚未完成的帳號直接跳過 —— 否則滾動同步會在近幾天寫入資料,
+  與尚未推進到那裡的 backfill 區間之間形成洞,破壞不變式。
+  這不會漏資料:backfill 本來就會一路跑到今天
+
+不需要額外的分段狀態表 —— 單一連續區間 + 「失敗即中止」已足以維持不變式。
 
 ## 6. 視圖層
 
@@ -425,8 +441,16 @@ end
 - 1 先於 2 —— 素材根本沒花費過,與帳號有沒有同步無關
 - 3 先於 4 —— 錨點本身不可信時,數字是**錯的**而不只是**不完整的**,
   兩者同時成立時必須報較嚴重的那個
-- 第 6/7 欄(第 1 天花費 / 轉化數)`n = 1`,狀態 4 由定義恆不成立
-  (`fsd <= _through_date` 必然為真),但仍走同一條路徑,不另立邏輯
+- 第 6/7 欄(第 1 天花費 / 轉化數)帶 `n = 1`,走同一條路徑不另立邏輯。
+  在 §5.6 的不變式下 `fsd <= _through_date` 恆成立,故狀態 4 對 n = 1 實際不會命中 ——
+  但**仍必須實作該檢查**,不可因「理論上不會發生」而略過:
+  它是不變式被破壞時唯一的防線
+
+**生命週期兩欄(n = nil)的加總範圍,以覆蓋範圍為界**,
+即 `date BETWEEN creative_synced_from_date AND creative_synced_through_date`。
+在 §5.6 的不變式下這與「全部已同步日期」等價,但查詢必須明確帶上這個界 ——
+不變式一旦被破壞(bug、手動補資料、未來新增的寫入路徑),
+沒帶界的加總會靜默納入區間外資料並顯示為有效,帶了界則最多少算,不會謊報。
 
 **狀態 3「起點被截斷」的意義:** `first_spend_date` 只是「已同步範圍內最早有花費的日期」,
 是下界不是真值(§5.5)。若它落在同步起點上,這支素材的真實首次花費可能更早,
@@ -454,7 +478,8 @@ end
 - `anchor_state` 五態逐一覆蓋,含**條件重疊時的優先序**:
   `fsd <= synced_from` 且 `fsd + n-1 > synced_through` 同時成立時,必須回「起點被截斷」而非「資料不足」
 - `fsd` 為 null、coverage 為 null 各自的狀態
-- 第 6/7 欄(n = 1)不會落入「資料不足」
+- 生命週期加總帶覆蓋範圍界:人工插入一筆區間外的 `ad_unit_daily_metrics`
+  (模擬不變式被破壞),生命週期數字**不得**納入它
 - 覆蓋範圍邊界:`creative_synced_through_date` 剛好等於 / 差一天於視窗結尾
 - backfill 只完成一半時,不得把不完整視窗當有效值
 - 除以零回傳 0;視窗內 `SUM(spend)` 為 0 時回 0 而非空白
@@ -474,8 +499,10 @@ end
 - `sync_ad_insights` 帶上 `use_account_attribution_setting`
 - 分頁:`fetch_all_pages` 有跟到第二頁(餵兩頁 payload)
 - `sync_ad_insights` 建立 / 更新每日指標,30 天分段
-- **覆蓋範圍連續性(§5.6)**:第 2 段失敗時,`_through_date` 不得越過第 1 段結尾;
-  第 3 段即使成功也不得讓覆蓋範圍涵蓋第 2 段(這是 min/max 寫法會漏掉的情境)
+- **覆蓋範圍連續性(§5.6)**:第 2 段失敗時整趟中止,第 3 段**不得被送出**,
+  `_through_date` 停在第 1 段結尾(這是 min/max 寫法會漏掉的情境)
+- **不變式**:任何情況下 `ad_unit_daily_metrics` 都不得存在覆蓋範圍外的 `date`
+- 滾動同步跳過 `_through_date` 落後於當日的帳號
 - 回看天數依帳號歸因設定計算,取不到時 fallback 7 天
 - `sync_creative_assets` 只打未有縮圖的素材
 - rate limit 退避重試
