@@ -131,6 +131,11 @@ Meta 提供 `breakdowns=video_asset`,表面上直接給素材層級聚合,但**�
 不能用日曆天數推算 —— backfill 未跑完、同步失敗、帳號晚於功能上線才連接,
 都會讓實際覆蓋範圍小於日曆天數,若只看日曆天數就會把不完整的視窗當成有效值。
 
+**不變式:`[from, through]` 區間內必須沒有洞。**
+這兩欄代表的是一段**連續**已同步區間,不是「見過的最早/最晚日期」。
+若用 min/max 更新,中間某段同步失敗會留下隱形的洞,而區間看起來仍是完整的 ——
+D3/D5 會把缺資料的視窗當成有效值,靜默算出偏低的 ROAS。維護規則見 §5.6。
+
 ### 4.1 `ad_creatives` — 素材主檔(聚合單位)
 
 | 欄位 | 型別 | 說明 |
@@ -201,7 +206,8 @@ end
 
 class AdCreative
   belongs_to :ad_account
-  has_many :ad_units                      # dependent: :nullify — 廣告消失不該刪素材
+  # nullify 而非 destroy:廣告刪除不該連帶刪掉素材主檔
+  has_many :ad_units, dependent: :nullify
 end
 
 class AdUnit
@@ -222,13 +228,14 @@ end
 `asset_type` 區分 video/image。圖片素材的第 2–4 欄為 null,CTR/ROAS/生命週期照常計算。
 成本近乎為零,且避免視圖莫名少掉一半素材。
 
-**多素材廣告標記排除,判定依據是「媒體資產總數」而非只看 videos。**
+**多素材廣告標記排除,判定依據是「相異媒體資產數」而非只看 videos。**
 Dynamic / Flexible / Advantage+ creative 可能在 `asset_feed_spec` 放多支影片、多張圖片、
-影片圖片混用,或帶 `asset_customization_rules` 做版位客製。任何一種都會讓花費無法乾淨歸屬單一素材。
+或影片圖片混用,此時花費無法乾淨歸屬單一素材。
 
-判定規則:`asset_feed_spec.videos.size + asset_feed_spec.images.size > 1`
-**或** `asset_customization_rules` 存在 → `multi_asset = true`、`ad_creative_id` 留 null,
-預設從視圖排除。
+判定規則:`asset_feed_spec` 內 `videos` + `images` 的**相異**媒體資產數 > 1
+→ `multi_asset = true`、`ad_creative_id` 留 null,預設從視圖排除。
+
+`asset_customization_rules`(版位客製)**不列入判定** —— 它不拆分花費,見 §5.1。
 
 反過來說,`asset_feed_spec` 內**只有一個**媒體資產是常見情況(Advantage+ 也會這樣產),
 必須正常歸屬,不能當成多素材排除 —— 詳見 §5.1 的解析順序。
@@ -246,7 +253,8 @@ sync_ad_units
   GET /act_X/ads            (fetch_all_pages, limit: 500)
     fields: id,name,adset_id,campaign_id,effective_status,
             creative{id,video_id,image_hash,thumbnail_url,object_story_spec,
-                     asset_feed_spec,asset_customization_rules}
+                     asset_feed_spec}
+    # asset_customization_rules 不需拉取 —— 不列入 multi_asset 判定(見下)
   → upsert ad_units,並建立/連結 ad_creatives
 
 sync_ad_insights(start_date, end_date)
@@ -259,9 +267,9 @@ sync_ad_insights(start_date, end_date)
             video_continuous_2_sec_watched_actions,
             video_p25_watched_actions,video_p50_watched_actions,
             video_p75_watched_actions,video_p95_watched_actions,video_p100_watched_actions
-  日期切成 30 天一段送出,避免單次回應過大
+  日期切成 30 天一段、**依時間順序**送出,避免單次回應過大
   → upsert ad_unit_daily_metrics(影片欄位用 extract_video_metric 抽值,見 §2.3)
-  → 每段成功後推進 ad_account.creative_synced_from_date / _through_date
+  → 依 §5.6 的連續性規則推進 ad_account.creative_synced_* (不可用 min/max)
 
 sync_creative_assets
   僅對 thumbnail_url 為 null 的 video 素材:
@@ -273,7 +281,7 @@ sync_creative_assets
 
 | # | 條件 | 結果 |
 |---|------|------|
-| 1 | `asset_customization_rules` 存在,或 `asset_feed_spec` 的 `videos` + `images` 總數 > 1 | `multi_asset = true`,不歸屬素材 |
+| 1 | `asset_feed_spec` 的 `videos` + `images` **相異**媒體資產總數 > 1 | `multi_asset = true`,不歸屬素材 |
 | 2 | `creative.video_id` | video / 該 id |
 | 3 | `creative.object_story_spec.video_data.video_id` | video / 該 id |
 | 4 | `asset_feed_spec.videos` 恰好 1 筆 | video / `videos[0].video_id` |
@@ -284,6 +292,13 @@ sync_creative_assets
 
 多素材判定放在**第 1 條**是刻意的:必須先排除,否則第 2–3 條會先命中 Advantage+ creative
 上殘留的單一 `video_id`,把多素材廣告的全部花費錯誤歸給一支影片。
+
+**判定依據只看「相異媒體資產數」,`asset_customization_rules` 不是獨立的觸發條件。**
+版位客製規則只是指定同一批資產在不同版位怎麼呈現,它本身不會把花費拆到多個素材上;
+單一媒體 + 客製規則仍是一支素材,必須正常歸屬。
+若逕自把「有 rules」當成多素材,會與 §4.5「單一媒體資產必須正常歸屬」直接矛盾,
+並誤殺一批其實可歸屬的廣告。客製規則所引用的資產本來就會出現在
+`asset_feed_spec.videos` / `.images` 內,計數時自然涵蓋。
 
 第 8 條是「未知形態」的收容分支,與第 1 條的「已知多素材」語意不同,兩者要分開統計,
 否則解析邏輯的漏洞會被誤當成 Advantage+ 佔比。
@@ -299,8 +314,18 @@ sync_creative_assets
 
 | Job | 觸發 | 範圍 |
 |-----|------|------|
-| `SyncAdCreativesJob(company_id: nil, days: 7)` | `config/recurring.yml`,每小時 | 滾動同步近 7 天 |
-| `BackfillAdCreativesJob(ad_account_id:, days: 90)` | 廣告帳號連接時 + 視圖手動按鈕 | 90 天,分 30 天一段 |
+| `SyncAdCreativesJob(company_id: nil, min_lookback_days: 7)` | `config/recurring.yml`,每小時 | 滾動同步,回看天數見下 |
+| `BackfillAdCreativesJob(ad_account_id:, days: 90)` | 廣告帳號連接時 + 視圖手動按鈕 | 90 天,依時間順序分 30 天一段 |
+
+滾動同步的回看天數**不是固定 7 天**,而是逐帳號計算:
+
+```
+lookback = max(該帳號歸因設定的最長點擊窗, min_lookback_days)
+# 取不到帳號設定時 fallback 為 min_lookback_days (7)
+```
+
+因為採 `use_account_attribution_setting`(§2.5),實際歸因窗由各帳號決定。
+寫死 7 天會讓設定了更長窗的帳號長期偏低 —— 見 §5.3。
 
 兩者皆先 `refresh_token_if_needed!`,跳過 `token_expired?` 的帳號,
 per-account rescue 並寫入 `Rails.logger.error`,比照現有 `SyncAdCampaignsJob`。
@@ -312,11 +337,23 @@ per-account rescue 並寫入 `Rails.logger.error`,比照現有 `SyncAdCampaignsJ
 「7 天前那一天」的數字,今天仍可能被改寫。
 
 現有 `SyncAdCampaignsJob` 的 2 天回看不足以收斂,會使 D3/D5 ROAS 長期偏低。
-7 天是能收斂的最小值。
+7 天是**下限**,不是固定值 —— 實際回看天數依各帳號的歸因設定計算,規則見 §5.2。
 
-注意:因為採 `use_account_attribution_setting`(§2.5),實際歸因窗由各帳號設定決定。
-若某帳號設定了更長的窗,7 天回看仍會偏低 —— 實作時應以帳號設定推算回看天數,
-無法取得時 fallback 7 天。
+### 5.6 同步覆蓋範圍的推進規則
+
+`creative_synced_from_date` / `_through_date` 必須維持「區間內無洞」的不變式(§4.0),
+因此**不可用 min/max 更新**。規則:
+
+- 分段一律**依時間順序**處理
+- `_through_date` 只推進到「最後一段**連續**成功」的結尾。
+  中間任一段失敗即停止推進,該段之後的成功結果仍寫入 `ad_unit_daily_metrics`
+  (資料留著不浪費),但覆蓋範圍不涵蓋它 —— 寧可少算,不可謊報完整
+- `_from_date` 只在往前擴張且與現有區間**相鄰或重疊**時才前移;
+  若新區間與現有區間不相鄰(中間有洞),則不動 `_from_date`
+- 失敗的分段記入 log,由下次 backfill 重跑補洞
+
+實作上最簡單的作法:backfill 遇到分段失敗就中止整趟並排程重試,
+下次從 `_through_date + 1` 續跑。不需要額外的分段狀態表。
 
 ### 5.4 Rate limit 處理
 
@@ -367,22 +404,35 @@ end
 
 ### 6.3 顯示規則
 
-**D3 / D5 ROAS 的三態**,判定依據是 §4.0 的實際同步覆蓋範圍,**不是日曆天數**。
-令 `acct = creative.ad_account`,視窗長度 `n`(D3 = 3、D5 = 5):
+**錨點欄位(第 6–11 欄)共用一個狀態判定**,依據是 §4.0 的實際同步覆蓋範圍,
+**不是日曆天數**。集中在 `AdCreative#anchor_state(window_days)`,
+由第 6–11 欄各自帶入視窗長度呼叫。
 
-| 狀態 | 條件 | 顯示 |
-|------|------|------|
-| 資料不足 | `first_spend_date + (n-1) > acct.creative_synced_through_date` | 空白 |
-| 起點被截斷 | `first_spend_date <= acct.creative_synced_from_date` | 空白 + 截斷標記 |
-| 有效 | 其餘 | 數值(視窗內 `SUM(spend)` 為 0 時顯示 0) |
+令 `acct = creative.ad_account`、`fsd = creative.first_spend_date`、`n` 為視窗長度
+(第 6/7 欄 n = 1;D3 n = 3;D5 n = 5;生命週期 n = nil 表示不檢查長度)。
 
-「起點被截斷」是指這支素材的首次花費可能早於我們留存的資料 ——
-`first_spend_date` 只是「已同步範圍內最早有花費的日期」,不保證是真正的上線日。
-此時 D1/D3/D5 的錨點不可信,必須標記而非照常顯示。
+**依序評估,第一個命中者勝** —— 順序不可調換,條件之間本來就會重疊:
+
+| # | 狀態 | 條件 | 顯示 |
+|---|------|------|------|
+| 1 | 無花費 | `fsd` 為 null | `—` |
+| 2 | 未同步 | `acct.creative_synced_from_date` 或 `_through_date` 為 null | 空白 + 未同步標記 |
+| 3 | 起點被截斷 | `fsd <= acct.creative_synced_from_date` | 空白 + 截斷標記 |
+| 4 | 資料不足 | `n` 不為 nil 且 `fsd + (n-1) > acct.creative_synced_through_date` | 空白 |
+| 5 | 有效 | 其餘 | 數值(視窗內 `SUM(spend)` 為 0 時顯示 0) |
+
+順序理由:
+- 1 先於 2 —— 素材根本沒花費過,與帳號有沒有同步無關
+- 3 先於 4 —— 錨點本身不可信時,數字是**錯的**而不只是**不完整的**,
+  兩者同時成立時必須報較嚴重的那個
+- 第 6/7 欄(第 1 天花費 / 轉化數)`n = 1`,狀態 4 由定義恆不成立
+  (`fsd <= _through_date` 必然為真),但仍走同一條路徑,不另立邏輯
+
+**狀態 3「起點被截斷」的意義:** `first_spend_date` 只是「已同步範圍內最早有花費的日期」,
+是下界不是真值(§5.5)。若它落在同步起點上,這支素材的真實首次花費可能更早,
+錨點不可信 —— 第 6–11 欄全部必須標記,不能只標生命週期兩欄。
 
 其餘顯示規則:
-- 生命週期兩欄:同樣以 `first_spend_date <= creative_synced_from_date` 判斷截斷並標記,
-  理由同上。這比「等於回溯起點」的判斷準確,能涵蓋 backfill 失敗或部分完成的情況
 - 圖片素材:第 2–4 欄顯示 `—`
 - `multi_asset` 廣告:預設排除
 - 欄位分組表頭:區隔三種時間基準
@@ -401,7 +451,10 @@ end
 
 **Model spec**
 - `batch_aggregated_metrics` 聚合數學(多 ad_unit 加總至同一 creative)
-- D3 / D5 三態:資料不足(空白)/ 起點被截斷(空白+標記)/ 有效
+- `anchor_state` 五態逐一覆蓋,含**條件重疊時的優先序**:
+  `fsd <= synced_from` 且 `fsd + n-1 > synced_through` 同時成立時,必須回「起點被截斷」而非「資料不足」
+- `fsd` 為 null、coverage 為 null 各自的狀態
+- 第 6/7 欄(n = 1)不會落入「資料不足」
 - 覆蓋範圍邊界:`creative_synced_through_date` 剛好等於 / 差一天於視窗結尾
 - backfill 只完成一半時,不得把不完整視窗當有效值
 - 除以零回傳 0;視窗內 `SUM(spend)` 為 0 時回 0 而非空白
@@ -411,15 +464,19 @@ end
   帳號下,`first_spend_date` 與 D3 視窗需符合各自時區的預期
 
 **Service spec**
-- `sync_ad_units` 的 asset_id 解析**全部 8 條分支** + `multi_asset` 兩種觸發條件
-  (媒體資產總數 > 1、`asset_customization_rules` 存在)
+- `sync_ad_units` 的 asset_id 解析**全部 8 條分支**,
+  `multi_asset` 的唯一觸發條件是「相異媒體資產數 > 1」
 - 特別測「`asset_feed_spec` 只有單一影片/單一圖片」必須正常歸屬,不可誤判為多素材
+- 特別測「單一媒體 + `asset_customization_rules`」必須正常歸屬,**不可**判為多素材
 - 特別測「多素材 creative 上仍殘留 `video_id`」必須走多素材分支,不可歸給該影片
 - 第 8 條未知形態:留 null 且不標記 multi_asset
 - 影片欄位 `list<AdsActionStats>` 的抽值(含空 list、多筆 entry 需加總)
 - `sync_ad_insights` 帶上 `use_account_attribution_setting`
 - 分頁:`fetch_all_pages` 有跟到第二頁(餵兩頁 payload)
-- `sync_ad_insights` 建立 / 更新每日指標,30 天分段,並推進 `creative_synced_*_date`
+- `sync_ad_insights` 建立 / 更新每日指標,30 天分段
+- **覆蓋範圍連續性(§5.6)**:第 2 段失敗時,`_through_date` 不得越過第 1 段結尾;
+  第 3 段即使成功也不得讓覆蓋範圍涵蓋第 2 段(這是 min/max 寫法會漏掉的情境)
+- 回看天數依帳號歸因設定計算,取不到時 fallback 7 天
 - `sync_creative_assets` 只打未有縮圖的素材
 - rate limit 退避重試
 
@@ -439,8 +496,8 @@ end
 ## 8. 已知限制
 
 1. **生命週期 = 已同步範圍(目標 90 天)。** 首次花費早於同步起點的素材,
-   第 8–11 欄會被標記為截斷(§6.3)。`first_spend_date` 是「已同步範圍內最早有花費的日期」,
-   不保證等於真實上線日。
+   第 6–11 欄全部會被標記為截斷(§6.3 狀態 3)。`first_spend_date` 是
+   「已同步範圍內最早有花費的日期」,不保證等於真實上線日。
 2. **多素材廣告被排除。** 若帳號大量使用 Dynamic / Flexible / Advantage+ creative,涵蓋率會下降。
    實作後應統計排除比例(以及 §5.1 第 8 條的未知形態比例),比例過高則需重新評估歸屬策略。
 3. **ROAS 口徑隨帳號而異。** 採 `use_account_attribution_setting`,跨帳號的 ROAS 不嚴格可比。
