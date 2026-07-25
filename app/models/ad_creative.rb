@@ -32,7 +32,7 @@ class AdCreative < ApplicationRecord
   end
 
   CreativeMetrics = Struct.new(
-    :impressions, :inline_link_clicks,
+    :impressions, :inline_link_clicks, :clicks, :range_spend,
     :video_continuous_2_sec_watched, :video_p50_watched, :video_p75_watched,
     :d1_spend, :d1_purchases,
     :d3_spend, :d3_value, :d5_spend, :d5_value,
@@ -42,6 +42,23 @@ class AdCreative < ApplicationRecord
     def p50_rate = percentage(video_p50_watched, impressions)
     def p75_rate = percentage(video_p75_watched, impressions)
     def link_ctr = percentage(inline_link_clicks, impressions)
+
+    # Link-click CPC: lines up with link_ctr (both link-click based) for reading.
+    def cpc_link
+      return 0 if inline_link_clicks.zero?
+
+      (range_spend.to_f / inline_link_clicks).round(2)
+    end
+
+    # All-clicks CPC: matches AdCampaign::CampaignMetrics#cpc's shape exactly so
+    # the campaign-level and creative-level pages agree on this figure.
+    def cpc_all
+      return 0 if clicks.zero?
+
+      (range_spend.to_f / clicks).round(2)
+    end
+
+    def cpm = per_mille(range_spend, impressions)
     def d3_roas = ratio(d3_value, d3_spend)
     def d5_roas = ratio(d5_value, d5_spend)
     def lifetime_roas = ratio(lifetime_value, lifetime_spend)
@@ -58,6 +75,12 @@ class AdCreative < ApplicationRecord
       return 0 if denominator.to_f.zero?
 
       (numerator.to_f / denominator.to_f).round(2)
+    end
+
+    def per_mille(numerator, denominator)
+      return 0 if denominator.to_i.zero?
+
+      (numerator.to_f / denominator * 1000).round(2)
     end
   end
 
@@ -81,7 +104,7 @@ class AdCreative < ApplicationRecord
       lt = lifetime[id] || {}
 
       CreativeMetrics.new(
-        r[:impressions].to_i, r[:inline_link_clicks].to_i,
+        r[:impressions].to_i, r[:inline_link_clicks].to_i, r[:clicks].to_i, r[:spend].to_f,
         r[:two_sec].to_i, r[:p50].to_i, r[:p75].to_i,
         d1[:spend].to_f, d1[:purchases].to_i,
         d3[:spend].to_f, d3[:value].to_f,
@@ -112,9 +135,11 @@ class AdCreative < ApplicationRecord
         Arel.sql("COALESCE(SUM(ad_unit_daily_metrics.inline_link_clicks), 0)"),
         Arel.sql("COALESCE(SUM(ad_unit_daily_metrics.video_continuous_2_sec_watched), 0)"),
         Arel.sql("COALESCE(SUM(ad_unit_daily_metrics.video_p50_watched), 0)"),
-        Arel.sql("COALESCE(SUM(ad_unit_daily_metrics.video_p75_watched), 0)")
+        Arel.sql("COALESCE(SUM(ad_unit_daily_metrics.video_p75_watched), 0)"),
+        Arel.sql("COALESCE(SUM(ad_unit_daily_metrics.clicks), 0)"),
+        Arel.sql("COALESCE(SUM(ad_unit_daily_metrics.spend), 0)")
       )
-      .to_h { |row| [ row[0], { impressions: row[1], inline_link_clicks: row[2], two_sec: row[3], p50: row[4], p75: row[5] } ] }
+      .to_h { |row| [ row[0], { impressions: row[1], inline_link_clicks: row[2], two_sec: row[3], p50: row[4], p75: row[5], clicks: row[6], spend: row[7] } ] }
   end
   private_class_method :range_totals
 

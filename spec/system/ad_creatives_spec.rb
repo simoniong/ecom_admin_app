@@ -24,7 +24,7 @@ RSpec.describe "Ad Creatives", type: :system do
   it "shows creatives with engagement metrics" do
     creative_with_metrics(
       name: "Toy Duck Demo v1", first_spend_date: Date.current - 10,
-      impressions: 10_000, inline_link_clicks: 300,
+      spend: 300, impressions: 10_000, inline_link_clicks: 300, clicks: 600,
       video_continuous_2_sec_watched: 3_700, video_p50_watched: 1_200, video_p75_watched: 700
     )
 
@@ -36,6 +36,12 @@ RSpec.describe "Ad Creatives", type: :system do
     expect(page).to have_text("37.0%")
     expect(page).to have_text("12.0%")
     expect(page).to have_text("3.0%")
+    # CPC (link click) = 300/300 = $1.00, CPC (all clicks) = 300/600 = $0.50, CPM = 300/10,000*1,000 = $30.00.
+    within("tr", text: "Toy Duck Demo v1") do
+      expect(page).to have_text("$1.00")
+      expect(page).to have_text("$0.50")
+      expect(page).to have_text("$30.00")
+    end
   end
 
   it "shows a dash for completion columns on an image creative" do

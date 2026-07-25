@@ -973,7 +973,7 @@ en:
     not_applicable: "—"
     groups:
       creative: "Creative"
-      engagement: "Engagement (selected range)"
+      engagement: "Engagement & Cost (selected range)"
       cold_start: "Cold Start (from first spend)"
       lifetime: "Lifetime (synced range)"
     columns:
@@ -982,6 +982,9 @@ en:
       p50_rate: "50% Watched %"
       p75_rate: "75% Watched %"
       link_ctr: "CTR (Link-Click)"
+      cpc_link: "CPC (Link Click)"
+      cpc_all: "CPC (All Clicks)"
+      cpm: "CPM"
       d1_spend: "D1 Spend"
       d1_purchases: "D1 Conversions"
       d3_roas: "D3 ROAS"

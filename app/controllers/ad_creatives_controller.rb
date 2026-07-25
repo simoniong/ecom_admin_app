@@ -1,6 +1,6 @@
 class AdCreativesController < AdminController
   SORTABLE_COLUMNS = %w[
-    two_sec_rate p50_rate p75_rate link_ctr
+    two_sec_rate p50_rate p75_rate link_ctr cpc_link cpc_all cpm
     d1_spend d1_purchases d3_roas d5_roas
     lifetime_spend lifetime_roas
   ].freeze

@@ -971,7 +971,7 @@
     not_applicable: "—"
     groups:
       creative: "素材"
-      engagement: "互动(选定区间)"
+      engagement: "互动与成本(选定区间)"
       cold_start: "冷启动(自首次投放起算)"
       lifetime: "生命周期(已同步范围)"
     columns:
@@ -980,6 +980,9 @@
       p50_rate: "50%完播率"
       p75_rate: "75%完播率"
       link_ctr: "CTR(链接点击)"
+      cpc_link: "CPC(链接点击)"
+      cpc_all: "CPC(全部点击)"
+      cpm: "CPM(千次曝光成本)"
       d1_spend: "第1天花费"
       d1_purchases: "第1天转化数"
       d3_roas: "D3累计ROAS"

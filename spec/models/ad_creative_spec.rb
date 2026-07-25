@@ -215,5 +215,53 @@ RSpec.describe AdCreative do
 
       expect(m.impressions).to eq(1000)
     end
+
+    it "computes CPC (link click), CPC (all clicks) and CPM from range-scoped spend" do
+      # inline_link_clicks and clicks deliberately differ so cpc_link and cpc_all
+      # come out different: a slip that wires both to the same denominator fails this.
+      metric(today, spend: 300, impressions: 10_000, inline_link_clicks: 100, clicks: 150)
+
+      m = described_class.batch_aggregated_metrics([ creative.id ], today..today)[creative.id]
+
+      expect(m.cpc_link).to eq(3.0)
+      expect(m.cpc_all).to eq(2.0)
+      expect(m.cpm).to eq(30.0)
+    end
+
+    it "returns zero cpc_link when inline_link_clicks is zero" do
+      metric(today, spend: 50, inline_link_clicks: 0, clicks: 10, impressions: 100)
+
+      m = described_class.batch_aggregated_metrics([ creative.id ], today..today)[creative.id]
+
+      expect(m.cpc_link).to eq(0)
+    end
+
+    it "returns zero cpc_all when clicks is zero" do
+      metric(today, spend: 50, inline_link_clicks: 10, clicks: 0, impressions: 100)
+
+      m = described_class.batch_aggregated_metrics([ creative.id ], today..today)[creative.id]
+
+      expect(m.cpc_all).to eq(0)
+    end
+
+    it "returns zero cpm when impressions is zero" do
+      metric(today, spend: 50, inline_link_clicks: 10, clicks: 10, impressions: 0)
+
+      m = described_class.batch_aggregated_metrics([ creative.id ], today..today)[creative.id]
+
+      expect(m.cpm).to eq(0)
+    end
+
+    it "scopes range_spend to the selected date range, not lifetime" do
+      metric(today - 1, spend: 500, impressions: 1000, inline_link_clicks: 50, clicks: 80)
+      metric(today, spend: 100, impressions: 1000, inline_link_clicks: 50, clicks: 80)
+
+      m = described_class.batch_aggregated_metrics([ creative.id ], today..today)[creative.id]
+
+      expect(m.range_spend).to eq(100)
+      expect(m.cpc_link).to eq(2.0)
+      expect(m.cpc_all).to eq(1.25)
+      expect(m.cpm).to eq(100.0)
+    end
   end
 end
