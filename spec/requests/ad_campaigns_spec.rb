@@ -382,6 +382,112 @@ RSpec.describe "AdCampaigns", type: :request do
       expect(response).to have_http_status(:success)
       expect(select_count).to eq(1)
     end
+
+    # Pagination follows the products_controller.rb pattern (page/per_page
+    # params, PER_PAGE_OPTIONS/PER_PAGE_DEFAULT constants), mirroring
+    # 1e02cd4's fix for AdCreativesController. The sort here happens in Ruby
+    # over computed metrics (see AdCampaign::CampaignMetrics) OR the real
+    # daily_budget column, BEFORE the array is sliced into a page -- these
+    # specs exist to catch a regression back to "paginate the DB query, then
+    # sort each page separately", which would silently show the wrong rows,
+    # and a regression back to summing only the current page for the
+    # account-level summary row.
+    describe "pagination" do
+      def campaign_with_budget(name:, budget:)
+        create(:ad_campaign, ad_account: ad_account, campaign_name: name, status: "active", daily_budget: budget)
+      end
+
+      it "returns different campaigns on page 1 vs page 2" do
+        # 25 is the smallest allowed PER_PAGE_OPTIONS value, so 26 records
+        # are needed to force a real second page. Distinct daily_budget
+        # values keep the default desc sort deterministic -- Ruby's sort_by
+        # is not guaranteed stable, so tied sort values would make page
+        # membership unpredictable.
+        campaigns = Array.new(26) { |i| campaign_with_budget(name: format("Campaign %02d", i), budget: 1000 - i) }
+
+        sign_in user
+        get ad_campaigns_path, params: { store_id: store.id, per_page: 25, page: 1 }
+        page1_names = campaigns.map(&:campaign_name).select { |n| response.body.include?(n) }
+
+        get ad_campaigns_path, params: { store_id: store.id, per_page: 25, page: 2 }
+        page2_names = campaigns.map(&:campaign_name).select { |n| response.body.include?(n) }
+
+        expect(page1_names.size).to eq(25)
+        expect(page2_names.size).to eq(1)
+        expect(page1_names & page2_names).to be_empty
+      end
+
+      it "falls back to the default per_page when the value is not an allowed option" do
+        3.times { |i| campaign_with_budget(name: "Campaign #{i}", budget: 10 + i) }
+
+        sign_in user
+        get ad_campaigns_path, params: { store_id: store.id, per_page: 999 }
+
+        expect(response).to have_http_status(:success)
+        expect(response.body).to include(I18n.t("products.showing", from: 1, to: 3, total: 3))
+      end
+
+      it "does not error on an out-of-range page" do
+        campaign_with_budget(name: "Only Campaign", budget: 50)
+
+        sign_in user
+        get ad_campaigns_path, params: { store_id: store.id, page: 999 }
+
+        expect(response).to have_http_status(:success)
+        expect(response.body).to include("Only Campaign")
+      end
+
+      it "puts the highest-metric campaign on page 1 when sorting by that metric" do
+        # Created FIRST, so a naive "paginate the DB query, then sort each
+        # page" implementation would put these on page 1 -- but they have the
+        # lowest roas, so they must not be what determines page 1's contents.
+        25.times do |i|
+          c = create(:ad_campaign, ad_account: ad_account, campaign_name: "Low ROAS #{i}", status: "active")
+          create(:ad_campaign_daily_metric, ad_campaign: c, date: Date.current, spend: 100, conversion_value: 10)
+        end
+        # Created LAST (would land on page 2 under naive DB-order
+        # pagination), but has by far the highest roas -- must appear on
+        # page 1 once sorting happens on the full set before slicing.
+        winner = create(:ad_campaign, ad_account: ad_account, campaign_name: "Winner Highest ROAS", status: "active")
+        create(:ad_campaign_daily_metric, ad_campaign: winner, date: Date.current, spend: 1, conversion_value: 500)
+
+        sign_in user
+        get ad_campaigns_path, params: {
+          store_id: store.id, sort_column: "roas", sort_direction: "desc", per_page: 25, page: 1
+        }
+
+        expect(response).to have_http_status(:success)
+        expect(response.body).to include(winner.campaign_name)
+      end
+
+      it "keeps the summary row identical between page 1 and page 2" do
+        # The summary row is the account-level total across the entire
+        # filtered set, not a per-page subtotal -- build_summary must keep
+        # summing the full materialised array even once @campaigns becomes
+        # just the current page's slice.
+        campaigns = Array.new(26) do |i|
+          c = campaign_with_budget(name: format("Campaign %02d", i), budget: 1000 - i)
+          create(:ad_campaign_daily_metric, ad_campaign: c, date: Date.current,
+            spend: 10, conversion_value: 20, impressions: 100, clicks: 5, purchases: 1)
+          c
+        end
+        total_budget = campaigns.sum { |c| c.daily_budget }
+        expected_budget = ActiveSupport::NumberHelper.number_to_currency(total_budget)
+
+        sign_in user
+        get ad_campaigns_path, params: { store_id: store.id, per_page: 25, page: 1 }
+        page1_body = response.body
+
+        get ad_campaigns_path, params: { store_id: store.id, per_page: 25, page: 2 }
+        page2_body = response.body
+
+        # Total spend $260 ($10 x 26), total conversion_value $520 => ROAS 2.0x
+        expect(page1_body).to include("2.0x")
+        expect(page2_body).to include("2.0x")
+        expect(page1_body).to include(expected_budget)
+        expect(page2_body).to include(expected_budget)
+      end
+    end
   end
 
   describe "POST /ad_campaigns/sync" do
