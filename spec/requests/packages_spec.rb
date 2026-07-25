@@ -47,6 +47,45 @@ RSpec.describe "Packages", type: :request do
       expect(response.body).to include("PKS#1001")
     end
 
+    describe "split badge" do
+      let!(:split_boxes) do
+        order = create(:order, customer: customer, shopify_store: store, name: "PKS#9001")
+        [
+          create(:package, shopify_store: store, order: order, aasm_state: "pending_review", number: 91),
+          create(:package, shopify_store: store, order: order, aasm_state: "pending_review", number: 92)
+        ]
+      end
+
+      it "marks each box of a split order with its position and total" do
+        get packages_path
+
+        expect(response.body).to include(I18n.t("packages.split.badge", position: 1, total: 2))
+        expect(response.body).to include(I18n.t("packages.split.badge", position: 2, total: 2))
+      end
+
+      it "does not mark a package whose order has a single box" do
+        split_boxes.last.destroy!
+
+        get packages_path
+
+        expect(response.body).not_to include(I18n.t("packages.split.badge", position: 1, total: 2))
+      end
+
+      it "marks split boxes on other state pages too" do
+        split_boxes.each { |box| box.update!(aasm_state: "shipped") }
+
+        get packages_path, params: { state: "shipped" }
+
+        expect(response.body).to include(I18n.t("packages.split.badge", position: 2, total: 2))
+      end
+
+      it "gives every row a dom id so a turbo stream can target it" do
+        get packages_path
+
+        expect(response.body).to include("id=\"#{ActionView::RecordIdentifier.dom_id(split_boxes.first)}\"")
+      end
+    end
+
     describe "country filter and sorting" do
       let!(:us_package) do
         order = create(:order, customer: customer, shopify_store: store, name: "PKS#5001",

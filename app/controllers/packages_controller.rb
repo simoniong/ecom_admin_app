@@ -39,6 +39,9 @@ class PackagesController < AdminController
     @page = [ @page, @total_pages ].min if @total_pages > 0
     @packages = filtered.includes(:order, :package_items, :shopify_store, :logistics_channel)
                         .offset((@page - 1) * PER_PAGE).limit(PER_PAGE)
+    # One query for the whole page's box numbering — see PackageSiblingIndex.
+    # Must come after @packages is materialized; it reads their order_ids.
+    @sibling_index = PackageSiblingIndex.new(@packages).call
   end
 
   def sync

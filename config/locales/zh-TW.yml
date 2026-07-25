@@ -787,6 +787,7 @@
     merge_done: "包裹已合併。"
     split:
       button: "折包"
+      badge: "折 %{position}/%{total}"
       title: "拆分訂單"
       add_box: "新增包裹"
       remove_box: "移除此包裹"

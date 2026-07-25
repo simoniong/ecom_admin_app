@@ -789,6 +789,7 @@ en:
     merge_done: "Packages merged."
     split:
       button: "Split"
+      badge: "Split %{position}/%{total}"
       title: "Split Order"
       add_box: "Add Box"
       remove_box: "Remove this box"

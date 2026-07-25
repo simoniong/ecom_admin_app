@@ -76,7 +76,8 @@
               </tr>
             <% else %>
               <% @packages.each do |package| %>
-                <%= render "packages/package_row", package: package, bulk: bulk %>
+                <%= render "packages/package_row", package: package, bulk: bulk,
+                      sibling_index: @sibling_index[package.id] %>
               <% end %>
             <% end %>
           </tbody>
