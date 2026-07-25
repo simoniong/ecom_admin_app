@@ -118,6 +118,12 @@ class MetaAdsService
     end
   end
 
+  # Placeholder for Task 7: fetches and persists per-creative asset metadata
+  # (thumbnails, durations, etc). AdCreativeBackfillService#call invokes this
+  # after a successful run; the real implementation lands with Task 7.
+  def sync_creative_assets
+  end
+
   INSIGHT_FIELDS = %w[
     ad_id spend impressions clicks inline_link_clicks actions action_values
     video_continuous_2_sec_watched_actions
