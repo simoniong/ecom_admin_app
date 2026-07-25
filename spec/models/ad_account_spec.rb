@@ -209,6 +209,48 @@ RSpec.describe AdAccount, type: :model do
 
       expect(account.claim_backfill_slot!).to be(false)
     end
+
+    # Regression guard for the core requirement: checking whether the slot is
+    # due and advancing next_attempt_at must be ONE statement, not a SELECT
+    # followed by an UPDATE. A "simplified" `return false unless due?;
+    # update_all(...)` rewrite would pass every other spec in this file while
+    # reintroducing the race two concurrent runners rely on this method to
+    # prevent. Asserting on real statements is what proves that didn't happen;
+    # SCHEMA/TRANSACTION notifications and BEGIN/COMMIT/SAVEPOINT statements
+    # (emitted by RSpec's transactional test wrapping) are filtered out so the
+    # assertion is about the method's own SQL only.
+    def capture_sql
+      statements = []
+      subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |*, payload|
+        next if %w[SCHEMA TRANSACTION].include?(payload[:name])
+        next if payload[:sql] =~ /\A\s*(BEGIN|COMMIT|SAVEPOINT|RELEASE)/i
+
+        statements << payload[:sql]
+      end
+
+      yield
+      statements
+    ensure
+      ActiveSupport::Notifications.unsubscribe(subscriber)
+    end
+
+    it "issues exactly one UPDATE with no preceding SELECT for an automatic claim" do
+      account # materialize the let before capturing, so its own INSERT isn't counted
+
+      statements = capture_sql { account.claim_backfill_slot! }
+
+      expect(statements.size).to eq(1)
+      expect(statements.first).to match(/\AUPDATE "ad_accounts"/)
+    end
+
+    it "issues exactly one UPDATE with no preceding SELECT for a manual claim" do
+      account # materialize the let before capturing, so its own INSERT isn't counted
+
+      statements = capture_sql { account.claim_backfill_slot!(manual: true) }
+
+      expect(statements.size).to eq(1)
+      expect(statements.first).to match(/\AUPDATE "ad_accounts"/)
+    end
   end
 
   describe "#release_backfill_slot!" do
