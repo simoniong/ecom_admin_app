@@ -279,6 +279,109 @@ RSpec.describe "AdCampaigns", type: :request do
       body = response.body
       expect(body.index("Active Low")).to be < body.index("Paused High")
     end
+
+    # Regression for a production 500: SyncAdCampaignsJob inserts brand new
+    # AdCampaign rows every hour via MetaAdsService#sync_campaigns. The old
+    # controller queried the same `ad_campaigns` relation twice -- once via
+    # `.pluck(:id)` to build the metrics hash, once via `.to_a` to sort --
+    # with build_summary/load_display_templates running in between. If a new
+    # campaign was inserted in that window, the second query returned a
+    # campaign the first one never saw, so the metrics hash lookup in
+    # #sort_campaigns returned nil and `nil.public_send(...)` raised
+    # NoMethodError. The fix materialises the campaign set once and derives
+    # both the metrics hash and the sort input from those same records, so
+    # the two can no longer disagree.
+    it "does not 500 when a new campaign is inserted mid-request" do
+      stable = create(:ad_campaign, ad_account: ad_account, campaign_name: "Stable Alpha")
+      create(:ad_campaign_daily_metric, ad_campaign: stable, date: Date.current, spend: 10)
+
+      fired = false
+      subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |*, payload|
+        sql = payload[:sql].to_s
+        if !fired && sql.match?(/\A\s*SELECT/i) && sql.include?('"ad_campaigns"') &&
+            !sql.include?("INNER JOIN") && !sql.include?("GROUP BY")
+          fired = true
+          # Simulate SyncAdCampaignsJob committing a brand-new campaign for
+          # this ad_account between the two queries.
+          create(:ad_campaign, ad_account: ad_account, campaign_name: "Late Arriving Beta")
+        end
+      end
+
+      begin
+        sign_in user
+        get ad_campaigns_path, params: { store_id: store.id }
+      ensure
+        ActiveSupport::Notifications.unsubscribe(subscriber)
+      end
+
+      expect(fired).to eq(true) # sanity: the injection actually happened
+      expect(response).to have_http_status(:success)
+    end
+
+    # The has_spend filter compounds the same race: its extra
+    # `.where(id: AdCampaignDailyMetric...)` predicate is re-evaluated on the
+    # second query too, so a metric row that commits between the two queries
+    # (exactly like sync_campaign_insights writing seconds after
+    # sync_campaigns in the same job run) pulls a previously-invisible
+    # campaign into the sort input with no matching metrics-hash entry.
+    it "does not 500 for has_spend filter when a metric arrives mid-request" do
+      stable = create(:ad_campaign, ad_account: ad_account, campaign_name: "Stable Spend", status: "active")
+      create(:ad_campaign_daily_metric, ad_campaign: stable, date: Date.current, spend: 50)
+
+      # Campaign already exists (matches the outer ad_account scope) but has
+      # no spend yet -- excluded from the has_spend predicate until its
+      # metric commits, exactly like a campaign the same sync run hasn't
+      # reached yet.
+      late_arrival = create(:ad_campaign, ad_account: ad_account, campaign_name: "Late Spend Beta", status: "active")
+
+      fired = false
+      subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |*, payload|
+        sql = payload[:sql].to_s
+        if !fired && sql.match?(/\A\s*SELECT/i) && sql.include?('"ad_campaigns"') &&
+            !sql.include?("INNER JOIN") && !sql.include?("GROUP BY")
+          fired = true
+          create(:ad_campaign_daily_metric, ad_campaign: late_arrival, date: Date.current, spend: 75)
+        end
+      end
+
+      begin
+        sign_in user
+        get ad_campaigns_path, params: { store_id: store.id, status_filter: "has_spend" }
+      ensure
+        ActiveSupport::Notifications.unsubscribe(subscriber)
+      end
+
+      expect(fired).to eq(true) # sanity: the injection actually happened
+      expect(response).to have_http_status(:success)
+    end
+
+    # Cheap guard against regressing back to the two-query shape: the
+    # plain (non-aggregation) SELECT against ad_campaigns must fire exactly
+    # once per index request. batch_aggregated_metrics issues its own
+    # ad_campaign_daily_metrics queries, which carry GROUP BY and are
+    # excluded by the filter below.
+    it "queries ad_campaigns exactly once to build the index page" do
+      create(:ad_campaign, ad_account: ad_account, campaign_name: "Single Query Campaign")
+
+      select_count = 0
+      subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |*, payload|
+        sql = payload[:sql].to_s
+        if sql.match?(/\A\s*SELECT/i) && sql.include?('"ad_campaigns"') &&
+            !sql.include?("INNER JOIN") && !sql.include?("GROUP BY")
+          select_count += 1
+        end
+      end
+
+      begin
+        sign_in user
+        get ad_campaigns_path, params: { store_id: store.id }
+      ensure
+        ActiveSupport::Notifications.unsubscribe(subscriber)
+      end
+
+      expect(response).to have_http_status(:success)
+      expect(select_count).to eq(1)
+    end
   end
 
   describe "POST /ad_campaigns/sync" do
