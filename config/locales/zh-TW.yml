@@ -651,6 +651,7 @@
       created_at: "建立時間"
       logistics_channel: "物流方式"
       status: "狀態"
+      store: "店鋪"
     no_packages: "尚無包裹"
     showing: "顯示第 %{from}-%{to} 筆，共 %{total} 筆"
     prev: "上一頁"

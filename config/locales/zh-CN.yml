@@ -651,6 +651,7 @@
       created_at: "创建时间"
       logistics_channel: "物流方式"
       status: "状态"
+      store: "店铺"
     no_packages: "暂无包裹"
     showing: "显示第 %{from}-%{to} 笔，共 %{total} 笔"
     prev: "上一页"

@@ -653,6 +653,7 @@ en:
       created_at: "Created At"
       logistics_channel: "Logistics"
       status: "Status"
+      store: "Store"
     no_packages: "No packages yet"
     showing: "Showing %{from}-%{to} of %{total}"
     prev: "Prev"

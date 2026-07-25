@@ -5,6 +5,11 @@
              data-package-bulk-target="checkbox" data-action="change->package-bulk#refresh">
     </td>
   <% end %>
+  <%# Only rendered in the all-stores view — in single-store mode the column
+      would repeat the same name on every row for no information. %>
+  <% unless current_shopify_store %>
+    <td class="px-4 py-3 text-sm text-gray-700 align-top whitespace-nowrap"><%= package.shopify_store.display_name %></td>
+  <% end %>
   <td class="px-4 py-3 text-sm font-medium align-top whitespace-nowrap">
     <%= link_to package.package_code, package_path(id: package.id),
         data: { turbo_frame: "package-modal" },

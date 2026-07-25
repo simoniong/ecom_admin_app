@@ -179,11 +179,47 @@ RSpec.describe "Packages", type: :request do
       end
     end
 
+    describe "cross-store listing" do
+      let(:other_store) { create(:shopify_store, user: user, company: company) }
+      let(:other_customer) { create(:customer, shopify_store: other_store) }
+
+      let!(:other_store_package) do
+        order = create(:order, customer: other_customer, shopify_store: other_store, name: "PKS#6001")
+        create(:package, shopify_store: other_store, order: order, aasm_state: "pending_review", number: 61)
+      end
+
+      it "lists packages from every visible store by default" do
+        get packages_path
+
+        expect(response.body).to include("PKS#1001")
+        expect(response.body).to include("PKS#6001")
+      end
+
+      it "shows the store name column when no single store is selected" do
+        get packages_path
+
+        expect(response.body).to include(I18n.t("packages.columns.store"))
+        expect(response.body).to include(other_store.display_name)
+      end
+
+      it "narrows to one store when store_id is given" do
+        get packages_path, params: { store_id: store.id }
+
+        expect(response.body).to include("PKS#1001")
+        expect(response.body).not_to include("PKS#6001")
+      end
+    end
+
     describe "store switcher scoping" do
-      # Codex finding 2: the packages list + sidebar counts must respect the
-      # currently-selected store (current_shopify_store), same as
-      # OrdersController#index, instead of always aggregating across every
-      # visible store.
+      # Codex finding 2 (superseded by Task 4): the packages list + sidebar
+      # counts must respect the currently-selected store
+      # (current_shopify_store) the same way OrdersController#index does.
+      # Task 4 additionally adds packages to STORE_ALL_ALLOWED_CONTROLLERS,
+      # which flips the *default* (no store_id param/session) from "first
+      # store" to "all visible stores" — current_shopify_store now resolves
+      # to nil in that case, and scoped_packages' nil branch aggregates
+      # across every visible store on purpose. Explicitly selecting a store
+      # (via store_id) still narrows to just that store.
       let!(:store_b) { create(:shopify_store, user: user, company: company) }
       let!(:customer_b) { create(:customer, shopify_store: store_b) }
 
@@ -198,17 +234,16 @@ RSpec.describe "Packages", type: :request do
         link.at_xpath(".//span[2]").text.strip.to_i
       end
 
-      it "defaults to a single store (not an aggregate of all stores) when none is explicitly selected" do
-        # Packages is switcher-visible but NOT in STORE_ALL_ALLOWED_CONTROLLERS
-        # (same as Orders), so with no store_id param/session,
-        # current_shopify_store resolves to visible_shopify_stores.first
-        # rather than nil/"all" — scoped_packages must follow that store, not
-        # silently aggregate every store's packages.
+      it "defaults to an aggregate of every visible store when none is explicitly selected" do
+        # Packages is now in STORE_ALL_ALLOWED_CONTROLLERS (Task 4), so with
+        # no store_id param/session, current_shopify_store resolves to nil —
+        # scoped_packages' nil branch then aggregates every visible store's
+        # packages, and the sidebar badge counts follow the same scope.
         get packages_path
         expect(response).to have_http_status(:ok)
         expect(response.body).to include("PKS#1001")
-        expect(response.body).not_to include("PKS#STOREB")
-        expect(sidebar_badge_count(response.body, "Pending Review")).to eq(1)
+        expect(response.body).to include("PKS#STOREB")
+        expect(sidebar_badge_count(response.body, "Pending Review")).to eq(2)
       end
 
       it "scopes the list and sidebar counts to the selected store" do
