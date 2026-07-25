@@ -9,3 +9,13 @@
 Turbo.StreamActions.dismiss_modal = function () {
   window.dispatchEvent(new CustomEvent("modal:dismiss"))
 }
+
+// Full-page Turbo Drive visit driven by the server, for a response with no
+// in-page target to update — e.g. a split submitted from the standalone
+// /packages/:id page, which has no list row to fold into and no
+// modal:dismiss listener (see packages/show.html.erb and
+// split.turbo_stream.erb). The URL travels as a data attribute rather than
+// the stream's `target` (a dom id), since there is no element to target.
+Turbo.StreamActions.visit = function () {
+  Turbo.visit(this.getAttribute("data-url"))
+}

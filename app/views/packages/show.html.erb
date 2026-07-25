@@ -16,7 +16,12 @@
        class="fixed inset-0 bg-black/50"></div>
   <div class="fixed inset-0 flex items-start justify-center pt-[6vh] px-4 pointer-events-none">
     <div class="bg-white rounded-xl shadow-2xl w-full max-w-5xl max-h-[88vh] overflow-y-auto pointer-events-auto">
-      <%= render "modal", package: @package %>
+      <%# standalone: true is the explicit, testable signal that this modal is
+          mounted on the bookmark/shared-link page rather than the packages
+          list — threaded down to _split_dialog so its form can tell the
+          controller which context it's submitting from (see #split and
+          split.turbo_stream.erb). Not inferred from the referer. %>
+      <%= render "modal", package: @package, standalone: true %>
     </div>
   </div>
 </div>

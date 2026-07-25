@@ -69,7 +69,7 @@
               <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase"><%= t("packages.columns.status") %></th>
             </tr>
           </thead>
-          <tbody class="divide-y divide-gray-100">
+          <tbody class="divide-y divide-gray-100" data-package-bulk-target="<%= "rows" if bulk %>">
             <% if @total_count.zero? %>
               <tr>
                 <td colspan="<%= 8 + (bulk ? 1 : 0) + (current_shopify_store ? 0 : 1) %>" class="px-4 py-8 text-center text-sm text-gray-500"><%= t("packages.no_packages") %></td>

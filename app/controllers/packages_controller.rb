@@ -187,12 +187,29 @@ class PackagesController < AdminController
     unless @package.pending_process?
       return redirect_to(package_path(id: @package.id), alert: t("packages.split_invalid_state"))
     end
+    # Package#split? is what _split_dialog uses to hide the button once this
+    # package is already folded into boxes — that view-only guard is not
+    # sufficient by itself (a stale form, still open from before the first
+    # split landed, can still POST here). Enforce the same invariant
+    # server-side so a second submit can't mint a third box.
+    if @package.split?
+      return redirect_to(package_path(id: @package.id), alert: t("packages.split_invalid_state"))
+    end
+
+    # Explicit, controller-owned signal for split.turbo_stream.erb: the
+    # standalone /packages/:id page (show.html.erb) has no list row for
+    # `turbo_stream.replace dom_id(@package)` to hit and its modal wrapper
+    # doesn't listen for modal:dismiss, so a dismiss+replace stream there
+    # would silently do nothing. _split_dialog only renders the
+    # `context=standalone` hidden field when show.html.erb rendered it (see
+    # that view), so this is never a referer guess.
+    @standalone = params[:context] == "standalone"
 
     result = PackageSplitter.new(@package, split_allocations).call
     if result.success?
       respond_to do |format|
         format.turbo_stream { render :split }
-        format.html { redirect_to package_path(id: @package.id), notice: t("packages.split_done") }
+        format.html { redirect_to(@standalone ? packages_path(state: @package.aasm_state) : package_path(id: @package.id), notice: t("packages.split_done")) }
       end
     else
       @split_errors = result.errors
@@ -217,6 +234,9 @@ class PackagesController < AdminController
     # left to ask. These are in-memory (now destroyed) records, which is all
     # dom_id needs. Note the merger only folds pending_process siblings, so a
     # box of this order sitting in another state is deliberately not in here.
+    # #pending_siblings is memoized on the merger instance, so #call's own
+    # internal read of it below reuses THIS query result rather than issuing
+    # a second one — the removed set is guaranteed to match what was destroyed.
     merger = PackageMerger.new(@package)
     siblings = merger.pending_siblings
     @survivor = merger.call

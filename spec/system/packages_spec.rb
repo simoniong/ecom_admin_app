@@ -434,6 +434,70 @@ RSpec.describe "Packages UI", type: :system do
       expect(page).to have_no_content(other.package_code)
       expect(page.evaluate_script("window.__notReloaded")).to be(true)
     end
+
+    # The standalone /packages/:id page (a bookmark or shared link, reached
+    # without going through the list first) IS the modal — there is no list
+    # row behind it for a turbo_stream.replace to hit, and its modal wrapper
+    # doesn't listen for modal:dismiss. A successful split there used to
+    # change nothing on screen; it now navigates the whole page back to the
+    # list, where the new boxes are visible.
+    it "navigates back to the list after a split submitted from the standalone page" do
+      visit package_path(id: source_pkg.id)
+      expect(page).to have_button(I18n.t("packages.split.button"))
+
+      click_button I18n.t("packages.split.button")
+      fill_in_first_box_input("1")
+      within("[data-split-target='dialog']") { click_button I18n.t("packages.split.submit") }
+
+      expect(page).to have_current_path(packages_path(state: "pending_process"))
+
+      new_box = store.packages.where(order_id: split_order.id).where.not(id: source_pkg.id).sole
+      expect(page).to have_content(new_box.package_code)
+      expect(page).to have_content(I18n.t("packages.split.badge", position: 1, total: 2))
+      expect(page).to have_content(I18n.t("packages.split.badge", position: 2, total: 2))
+    end
+
+    # The list-page path is unaffected by the standalone fix above: it must
+    # keep dismissing the modal and replacing the row in place, no navigation.
+    it "still dismisses the modal and folds the row in place when split from the list" do
+      visit packages_path(state: "pending_process")
+      page.execute_script("window.__notReloaded = true")
+
+      click_link source_pkg.package_code
+      click_button I18n.t("packages.split.button")
+      fill_in_first_box_input("1")
+      within("[data-split-target='dialog']") { click_button I18n.t("packages.split.submit") }
+
+      expect(page).to have_no_css("[data-split-target='dialog']")
+      expect(page.evaluate_script("window.__notReloaded")).to be(true)
+      expect(page).to have_current_path(packages_path(state: "pending_process"))
+    end
+
+    # package_bulk_controller#refresh used to run only on a checkbox's own
+    # "change" event, so a Turbo Stream row replacement never recomputed it —
+    # measured on staging: split a package whose row was checked and the bar
+    # kept reading "1" with zero checkboxes actually checked.
+    it "recomputes the bulk selection bar after a split replaces the checked row" do
+      visit packages_path(state: "pending_process")
+
+      within("##{ActionView::RecordIdentifier.dom_id(source_pkg)}") do
+        find("input[name='package_ids[]']").check
+      end
+      expect(page).to have_css("[data-package-bulk-target='bar']", visible: :visible)
+      expect(find("[data-package-bulk-target='count']").text).to eq("1")
+
+      click_link source_pkg.package_code
+      click_button I18n.t("packages.split.button")
+      fill_in_first_box_input("1")
+      within("[data-split-target='dialog']") { click_button I18n.t("packages.split.submit") }
+
+      expect(page).to have_no_css("[data-split-target='dialog']")
+      # The rows that replaced the checked source row start unchecked, so the
+      # bar must recompute to zero and hide itself rather than keep reporting
+      # the "1" that was true before the split.
+      expect(page).to have_css("[data-package-bulk-target='count']", text: "0", visible: :all)
+      expect(page).to have_css("[data-package-bulk-target='bar']", visible: :hidden)
+    end
   end
 
   describe "申请运单号" do

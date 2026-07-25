@@ -8,8 +8,17 @@ class PackageMerger
     @store = @order.shopify_store
   end
 
+  # Memoized: the controller reads this BEFORE calling #call (to know which
+  # rows to remove from the list) and #call reads it again internally to
+  # decide what to absorb. Without memoization those are two separate
+  # queries, and a state change landing between them would let the two
+  # callers disagree on the sibling set — #call would destroy a box the
+  # controller never saw, or spare one the controller already queued for
+  # removal. Memoizing makes the second read reuse the first read's result,
+  # so "what the controller was told to remove" and "what #call actually
+  # destroyed" are guaranteed to be the same query result.
   def pending_siblings
-    @store.packages.where(order_id: @order.id, aasm_state: "pending_process").order(:number).to_a
+    @pending_siblings ||= @store.packages.where(order_id: @order.id, aasm_state: "pending_process").order(:number).to_a
   end
 
   # True when the boxes to be merged disagree on address or logistics channel —

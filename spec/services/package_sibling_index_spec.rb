@@ -67,7 +67,10 @@ RSpec.describe PackageSiblingIndex do
 
     result = described_class.new([ a1, a2, b1, b2, b3 ]).call
 
+    expect(result[a1.id]).to eq([ 1, 2 ])
     expect(result[a2.id]).to eq([ 2, 2 ])
+    expect(result[b1.id]).to eq([ 1, 3 ])
+    expect(result[b2.id]).to eq([ 2, 3 ])
     expect(result[b3.id]).to eq([ 3, 3 ])
   end
 
@@ -77,6 +80,21 @@ RSpec.describe PackageSiblingIndex do
     make_package(order: order, number: 2)
 
     expect(described_class.new([ passed ]).call[passed.id]).to eq([ 1, 2 ])
+  end
+
+  it "does not group a package with a same-order_id package belonging to another store" do
+    order = make_order
+    other_store = create(:shopify_store)
+    real = make_package(order: order, number: 1)
+    # Simulates the anomaly this class hardens against: a Package row whose
+    # shopify_store_id disagrees with its own order's real store. Nothing in
+    # the schema prevents this today (see the class's header comment), and
+    # Package#order_packages is store-scoped (`shopify_store.packages.where(
+    # order_id: ...)`) — this class must agree, not fold the stray row into
+    # `real`'s group via order_id alone.
+    create(:package, shopify_store: other_store, order: order, number: 2, aasm_state: "pending_process")
+
+    expect(described_class.new([ real ]).call).to eq({})
   end
 
   it "returns an empty hash for no packages without querying" do
