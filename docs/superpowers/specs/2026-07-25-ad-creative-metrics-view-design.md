@@ -126,6 +126,11 @@ Meta 提供 `breakdowns=video_asset`,表面上直接給素材層級聚合,但**�
 |------|------|------|
 | `creative_synced_from_date` | date | 已同步 ad 層資料的**最早**日期,nullable(未同步過為 null) |
 | `creative_synced_through_date` | date | 已同步 ad 層資料的**最晚**日期,nullable |
+| `creative_backfill_attempts` | integer | default 0,連續失敗次數,成功時歸零 |
+| `creative_backfill_next_attempt_at` | datetime | nullable,早於此時刻不得重新入列 backfill(§5.6) |
+
+後兩欄是自癒入列的節流依據 —— 沒有它們,每小時的滾動同步會對同一個持續失敗的帳號
+無限重複入列 backfill。
 
 這兩欄是 §6.3 判斷「資料是否足以計算」的唯一依據。
 不能用日曆天數推算 —— backfill 未跑完、同步失敗、帳號晚於功能上線才連接,
@@ -267,7 +272,9 @@ sync_ad_insights(start_date, end_date)
             video_continuous_2_sec_watched_actions,
             video_p25_watched_actions,video_p50_watched_actions,
             video_p75_watched_actions,video_p95_watched_actions,video_p100_watched_actions
-  日期切成 30 天一段、**依時間順序**送出,避免單次回應過大
+  日期切成 30 天一段送出,避免單次回應過大。
+  分段順序由呼叫端的模式決定(§5.6):模式 A / B 由舊至新,模式 C 由新至舊 ——
+  此方法本身不假設順序
   → upsert ad_unit_daily_metrics(影片欄位用 extract_video_metric 抽值,見 §2.3)
   → 依 §5.6 的連續性規則推進 ad_account.creative_synced_* (不可用 min/max)
 
@@ -391,8 +398,12 @@ backfill 加深時 `first_spend_date` 可能再往前移。
 | 模式 | 觸發 | 區間 | 分段順序 | 覆蓋範圍更新 |
 |------|------|------|---------|-------------|
 | A 初始化 | coverage 兩欄皆 null | `[今天 - N + 1, 今天]` | 由舊至新 | 第一段同時設定 `_from` 與 `_through`;其後每段推進 `_through` |
-| B 向前續跑 | `_through_date < 今天` | `[_through_date + 1, 今天]` | 由舊至新 | 每段推進 `_through` |
+| B 向前續跑 | `_through_date < 今天 - 1` | `[_through_date + 1, 今天]` | 由舊至新 | 每段推進 `_through` |
 | C 向後加深 | 需要更早的歷史 | `[目標起點, _from_date - 1]` | **由新至舊** | 每段前移 `_from` |
+
+三種模式的觸發條件**互斥**:B 的門檻是 `_through_date < 今天 - 1`,
+與滾動同步的資格條件(`_through_date >= 今天 - 1`)正好互補。
+`_through_date` 為昨天時由滾動同步自然補上今天,不需要 backfill。
 
 模式 C 必須**由新至舊**處理,這樣每一段都與當前的 `_from_date` 相鄰,
 前移後區間始終連續。若比照 A/B 由舊至新,第一段會與現有區間不相鄰 ——
@@ -420,10 +431,10 @@ backfill 加深時 `first_spend_date` 可能再往前移。
 否則滾動同步會在近幾天寫入資料,與尚未推進到那裡的 backfill 區間之間形成洞。
 
 但**不合資格的帳號不可被靜默跳過**,否則會永遠停在跳過狀態。
-`SyncAdCreativesJob` 對每個不合資格的帳號:
+`SyncAdCreativesJob` 對每個不合資格的帳號,在通過下述節流檢查後入列 backfill:
 
-- coverage 為 null → 入列 `BackfillAdCreativesJob`(模式 A)
-- `_through_date < 今天 - 1` → 入列 `BackfillAdCreativesJob`(模式 B,從 `_through_date + 1` 續跑)
+- coverage 為 null → 模式 A
+- `_through_date < 今天 - 1` → 模式 B(從 `_through_date + 1` 續跑)
 - 兩者皆寫 `Rails.logger.warn`,使「長期不合資格」在 log 中可見
 
 如此滾動同步本身就是恢復路徑,不依賴任何一次性事件。
@@ -434,6 +445,32 @@ backfill 加深時 `first_spend_date` 可能再往前移。
 
 因此**不需要**額外的 deploy-time 一次性 backfill 任務:
 第一次 `SyncAdCreativesJob` 執行時就會把所有 coverage 為 null 的既有帳號補入列。
+
+#### 自癒入列的節流(必要)
+
+自癒路徑每小時執行,若不節流,一個持續失敗的帳號會被無限重複入列,
+堆出重複 job 並吃光 rate limit —— 恢復機制本身變成故障源。
+
+以 `creative_backfill_next_attempt_at` / `creative_backfill_attempts`(§4.0)控制:
+
+```
+入列前:  next_attempt_at 為 null 或 <= 現在  → 才可入列;否則跳過(不 warn,避免洗版)
+入列時:  attempts += 1
+         next_attempt_at = 現在 + max(2^attempts 小時, 1 小時),上限 24 小時
+成功時:  attempts = 0、next_attempt_at = null
+失敗時:  不再另行變更(入列時已推進,退避自然生效)
+```
+
+要點:
+
+- **`next_attempt_at` 在入列時就推進,不是等 job 結束才推進。**
+  這同時擋掉重複入列與「前一趟還在跑」兩種情況,不需要查詢 job queue 狀態
+- 下限 1 小時,保證每個帳號每小時最多入列一次 —— 與滾動同步的週期對齊
+- 上限 24 小時,避免退避到永遠不再重試
+- 手動按鈕觸發的 backfill **不受節流限制**,但同樣會推進 `next_attempt_at`,
+  避免手動觸發後緊接著又被自動入列一次
+- `attempts` 持續累積代表該帳號長期無法同步(token 失效、權限被撤等),
+  是後續加告警的掛載點;本次僅寫 log
 
 不需要額外的分段狀態表 —— 單一連續區間 + 「失敗即中止」+ 滾動同步自癒,已足以維持不變式。
 
@@ -562,6 +599,12 @@ end
   - `_through_date` 落後超過一天 → 入列模式 B backfill
   - `_through_date` 為昨天或今天 → 正常滾動同步,**不**入列 backfill
   - 不合資格時寫入 `Rails.logger.warn`
+- **節流(§5.6)**:
+  - `next_attempt_at` 在未來 → 不得入列(連續執行兩次 job,第二次不得產生新 job)
+  - 入列時 `attempts` 遞增、`next_attempt_at` 往前推,且**在入列當下**推進而非 job 結束時
+  - 退避下限 1 小時、上限 24 小時
+  - backfill 成功後 `attempts` 歸零、`next_attempt_at` 清空
+  - 手動按鈕不受節流限制,但仍推進 `next_attempt_at`
 - `BackfillAdCreativesJob` 分段呼叫;模式 A 第一段同時初始化兩個邊界;
   模式 B 從 `_through_date + 1` 起算
 - 分段失敗即中止:後續分段不得被送出,且該段資料不得留下
