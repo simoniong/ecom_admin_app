@@ -1,6 +1,15 @@
 # Box numbering ("box 2 of 3") for split orders, resolved for a whole page of
 # packages in one query. Package#split? is a COUNT per package — fine inside a
 # single modal, an N+1 across a 50-row list.
+#
+# Contract: #call issues exactly ONE query of its own — the pluck below —
+# on top of however the caller already materialized @packages. Pass it an
+# Array (or an already-loaded Relation) and that's the only query you pay.
+# Pass it an unloaded Relation and @packages.map(&:order_id) forces it to
+# load first, so the total becomes two queries: one to load the relation,
+# one of this class's own. That's expected, not a regression — the callers
+# that hand this class a Relation are rendering those same packages in the
+# list anyway, so the load isn't wasted work.
 class PackageSiblingIndex
   def initialize(packages)
     @packages = packages

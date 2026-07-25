@@ -92,4 +92,23 @@ RSpec.describe PackageSiblingIndex do
 
     expect(count_queries { described_class.new(packages).call }).to eq(1)
   end
+
+  # Pins the documented contract for the Relation input shape: the class
+  # itself always adds exactly one query. An already-loaded Relation pays
+  # only that one query, same as an Array. An unloaded Relation additionally
+  # pays for the load that materializes it, since @packages.map(&:order_id)
+  # forces it — two queries total, not a regression in this class.
+  it "adds exactly one query for an already-loaded relation, and one more to load an unloaded relation" do
+    orders = Array.new(5) { make_order }
+    orders.each_with_index do |order, i|
+      make_package(order: order, number: i * 10 + 1)
+      make_package(order: order, number: i * 10 + 2)
+    end
+
+    loaded_relation = Package.all.load
+    expect(count_queries { described_class.new(loaded_relation).call }).to eq(1)
+
+    unloaded_relation = Package.all
+    expect(count_queries { described_class.new(unloaded_relation).call }).to eq(2)
+  end
 end
