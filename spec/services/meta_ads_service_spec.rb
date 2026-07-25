@@ -531,4 +531,62 @@ RSpec.describe MetaAdsService do
       }.not_to change(AdUnitDailyMetric, :count)
     end
   end
+
+  describe "#sync_creative_assets" do
+    let(:graph) { instance_double(Koala::Facebook::API) }
+
+    before { allow(Koala::Facebook::API).to receive(:new).and_return(graph) }
+
+    it "backfills name, duration and thumbnail for a video creative" do
+      creative = create(:ad_creative, ad_account: ad_account, asset_type: "video",
+        asset_id: "v1", thumbnail_url: nil, name: nil, duration_seconds: nil)
+      allow(graph).to receive(:get_object).with("v1", fields: "title,length,thumbnails,picture")
+        .and_return({ "title" => "Hook A", "length" => "27.5", "picture" => "https://x/t.jpg" })
+
+      service.sync_creative_assets
+
+      creative.reload
+      expect(creative.name).to eq("Hook A")
+      expect(creative.duration_seconds).to eq(27)
+      expect(creative.thumbnail_url).to eq("https://x/t.jpg")
+    end
+
+    it "skips creatives that already have a thumbnail" do
+      create(:ad_creative, ad_account: ad_account, asset_type: "video", thumbnail_url: "https://x/have.jpg")
+      expect(graph).not_to receive(:get_object)
+
+      service.sync_creative_assets
+    end
+
+    it "skips image creatives" do
+      create(:ad_creative, ad_account: ad_account, asset_type: "image", asset_id: "h1", thumbnail_url: nil)
+      expect(graph).not_to receive(:get_object)
+
+      service.sync_creative_assets
+    end
+
+    it "keeps an existing name when the video has no title" do
+      creative = create(:ad_creative, ad_account: ad_account, asset_type: "video",
+        asset_id: "v2", name: "Existing", thumbnail_url: nil)
+      allow(graph).to receive(:get_object).and_return({ "picture" => "https://x/t.jpg" })
+
+      service.sync_creative_assets
+
+      expect(creative.reload.name).to eq("Existing")
+    end
+
+    it "logs and continues when one video lookup fails" do
+      create(:ad_creative, ad_account: ad_account, asset_type: "video", asset_id: "v3", thumbnail_url: nil)
+      create(:ad_creative, ad_account: ad_account, asset_type: "video", asset_id: "v4", thumbnail_url: nil)
+      call = 0
+      allow(graph).to receive(:get_object) do
+        call += 1
+        raise Koala::Facebook::ClientError.new(400, "gone") if call == 1
+        { "picture" => "https://x/ok.jpg" }
+      end
+
+      expect { service.sync_creative_assets }.not_to raise_error
+      expect(call).to eq(2)
+    end
+  end
 end

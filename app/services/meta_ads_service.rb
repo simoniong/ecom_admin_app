@@ -118,11 +118,18 @@ class MetaAdsService
     end
   end
 
-  # Placeholder for Task 7: fetches and persists per-creative asset metadata
-  # (thumbnails, durations, etc). AdCreativeBackfillService#call invokes this
-  # after a successful run; the real implementation lands with Task 7.
   def sync_creative_assets
-    Rails.logger.warn("[SyncCreativeAssets] placeholder — Task 7 pending")
+    @ad_account.ad_creatives.video.where(thumbnail_url: nil).find_each do |creative|
+      data = @graph.get_object(creative.asset_id, fields: "title,length,thumbnails,picture")
+      next if data.blank?
+
+      creative.name = data["title"] if data["title"].present?
+      creative.duration_seconds = data["length"].to_f.floor if data["length"].present?
+      creative.thumbnail_url = data["picture"] if data["picture"].present?
+      creative.save!
+    rescue Koala::Facebook::ClientError, Koala::Facebook::APIError => e
+      Rails.logger.error("[SyncCreativeAssets] video=#{creative.asset_id}: #{e.message}")
+    end
   end
 
   INSIGHT_FIELDS = %w[
