@@ -6,7 +6,7 @@ FactoryBot.define do
     impressions { 10_000 }
     clicks { 300 }
     inline_link_clicks { 200 }
-    video_continuous_2_sec_watched { 3_000 }
+    video_3_sec_watched { 3_000 }
     video_p25_watched { 2_000 }
     video_p50_watched { 1_200 }
     video_p75_watched { 700 }

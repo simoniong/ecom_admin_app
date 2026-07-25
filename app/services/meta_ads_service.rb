@@ -161,7 +161,13 @@ class MetaAdsService
         impressions: row["impressions"].to_i,
         clicks: row["clicks"].to_i,
         inline_link_clicks: row["inline_link_clicks"].to_i,
-        video_continuous_2_sec_watched: extract_video_metric(row["video_continuous_2_sec_watched_actions"]),
+        # Meta does not emit video_continuous_2_sec_watched_actions for this
+        # account's ads (confirmed against production). The "3-Second Video
+        # Views" metric (Meta's ads-action-stats reference) is already present
+        # on every response inside `actions` as action_type "video_view" --
+        # reuse the same extract_action_count path the conversion fields use
+        # below rather than the list-summing extract_video_metric helper.
+        video_3_sec_watched: extract_action_count(row["actions"], "video_view"),
         video_p25_watched: extract_video_metric(row["video_p25_watched_actions"]),
         video_p50_watched: extract_video_metric(row["video_p50_watched_actions"]),
         video_p75_watched: extract_video_metric(row["video_p75_watched_actions"]),

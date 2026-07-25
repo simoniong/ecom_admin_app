@@ -47,8 +47,9 @@ en:
     tracking: "Tracking"
     parcels: "Shipping Variance"
     ad_accounts: "Ad Accounts"
+    ads: "Ads"
     ad_campaigns: "Ad Campaigns"
-    ad_creatives: "Ad Creatives"
+    ad_creatives: "Creative Analysis"
     company: "Company"
     settings: "Settings"
     sign_out: "Sign out"
@@ -977,7 +978,7 @@ en:
       deleted: "Deleted"
       has_spend: "Has Spend"
   ad_creatives:
-    title: "Ad Creatives"
+    title: "Creative Analysis"
     empty: "No ad creatives found."
     sync_ads: "Sync Creative Data"
     sync_enqueued: "Creative data sync has been enqueued."
@@ -993,7 +994,7 @@ en:
       lifetime: "Lifetime (synced range)"
     columns:
       name: "Creative"
-      two_sec_rate: "2s Play %"
+      three_sec_rate: "3s Play Rate"
       p50_rate: "50% Watched %"
       p75_rate: "75% Watched %"
       link_ctr: "CTR (Link-Click)"
@@ -1010,6 +1011,11 @@ en:
     states:
       truncated_hint: "First spend predates the synced range — cold-start figures are unreliable."
       unsynced_hint: "This account has not been synced yet."
+  shared:
+    pagination:
+      showing: "Showing %{from}-%{to} of %{total}"
+      prev: "Prev"
+      next: "Next"
   orders:
     title: "Orders"
     sync: "Sync Orders"

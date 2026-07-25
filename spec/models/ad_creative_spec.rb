@@ -112,12 +112,12 @@ RSpec.describe AdCreative do
     end
 
     it "computes completion rates against impressions" do
-      metric(today, impressions: 1000, video_continuous_2_sec_watched: 300,
+      metric(today, impressions: 1000, video_3_sec_watched: 300,
         video_p50_watched: 150, video_p75_watched: 90)
 
       m = described_class.batch_aggregated_metrics([ creative.id ], today..today)[creative.id]
 
-      expect(m.two_sec_rate).to eq(30.0)
+      expect(m.three_sec_rate).to eq(30.0)
       expect(m.p50_rate).to eq(15.0)
       expect(m.p75_rate).to eq(9.0)
     end
@@ -127,7 +127,7 @@ RSpec.describe AdCreative do
 
       m = described_class.batch_aggregated_metrics([ creative.id ], today..today)[creative.id]
 
-      expect(m.two_sec_rate).to eq(0)
+      expect(m.three_sec_rate).to eq(0)
       expect(m.link_ctr).to eq(0)
       expect(m.lifetime_roas).to eq(0)
     end
@@ -169,7 +169,7 @@ RSpec.describe AdCreative do
       m = described_class.batch_aggregated_metrics([ other.id ], today..today)[other.id]
 
       expect(m.lifetime_spend).to eq(0)
-      expect(m.two_sec_rate).to eq(0)
+      expect(m.three_sec_rate).to eq(0)
     end
 
     it "excludes ad units flagged multi_asset" do

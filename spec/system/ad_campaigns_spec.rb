@@ -7,7 +7,7 @@ RSpec.describe "Ad Campaigns", type: :system do
 
   it "shows empty state when no campaigns" do
     sign_in_as(user)
-    click_link "Ad Campaigns"
+    navigate_to_settings_item(I18n.t("nav.ad_campaigns"), group: I18n.t("nav.ads"))
     expect(page).to have_text("No ad campaigns found")
   end
 
@@ -18,7 +18,7 @@ RSpec.describe "Ad Campaigns", type: :system do
       purchases: 20, spend: 250, conversion_value: 1000)
 
     sign_in_as(user)
-    click_link "Ad Campaigns"
+    navigate_to_settings_item(I18n.t("nav.ad_campaigns"), group: I18n.t("nav.ads"))
 
     expect(page).to have_text("Black Friday")
     expect(page).to have_text("Meta Ads")
@@ -44,7 +44,7 @@ RSpec.describe "Ad Campaigns", type: :system do
 
     it "shows the unified store switcher" do
       sign_in_as(user)
-      click_link "Ad Campaigns"
+      navigate_to_settings_item(I18n.t("nav.ad_campaigns"), group: I18n.t("nav.ads"))
       expect(page).to have_css("[data-controller='store-switcher']")
     end
   end
@@ -57,7 +57,7 @@ RSpec.describe "Ad Campaigns", type: :system do
       create(:ad_campaign, ad_account: account2, campaign_name: "Google Campaign")
 
       sign_in_as(user)
-      click_link "Ad Campaigns"
+      navigate_to_settings_item(I18n.t("nav.ad_campaigns"), group: I18n.t("nav.ads"))
 
       expect(page).to have_select("ad_account_id")
       expect(page).to have_text("Meta Campaign")
@@ -67,7 +67,7 @@ RSpec.describe "Ad Campaigns", type: :system do
 
   it "shows date range quick pick buttons" do
     sign_in_as(user)
-    click_link "Ad Campaigns"
+    navigate_to_settings_item(I18n.t("nav.ad_campaigns"), group: I18n.t("nav.ads"))
 
     expect(page).to have_button("Today")
     expect(page).to have_button("Yesterday")
@@ -95,14 +95,14 @@ RSpec.describe "Ad Campaigns", type: :system do
     # campaign_filter_controller.js's sortBy/submit instead.
     click_button "Daily Budget"
 
-    expect(page).to have_text(I18n.t("products.showing", from: 1, to: 25, total: 26))
+    expect(page).to have_text(I18n.t("shared.pagination.showing", from: 1, to: 25, total: 26))
   end
 
   it "shows column toggle popover with checkboxes" do
     create(:ad_campaign, ad_account: ad_account, campaign_name: "Test Camp")
 
     sign_in_as(user)
-    click_link "Ad Campaigns"
+    navigate_to_settings_item(I18n.t("nav.ad_campaigns"), group: I18n.t("nav.ads"))
 
     # Open column toggle modal (first match is the column icon button)
     find("[data-action*='ad-column-toggle#toggle']", match: :first).click

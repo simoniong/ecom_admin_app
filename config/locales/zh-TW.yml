@@ -43,8 +43,9 @@
     customer_support: "客戶支援"
     orders: "訂單"
     ad_accounts: "廣告帳戶"
+    ads: "廣告"
     ad_campaigns: "廣告活動"
-    ad_creatives: "廣告素材"
+    ad_creatives: "素材分析"
     company: "公司"
     settings: "設定"
     shipments: "物流"
@@ -975,7 +976,7 @@
       deleted: "已刪除"
       has_spend: "有花費"
   ad_creatives:
-    title: "廣告素材"
+    title: "素材分析"
     empty: "找不到廣告素材。"
     sync_ads: "同步素材資料"
     sync_enqueued: "素材資料同步已排入佇列。"
@@ -991,7 +992,7 @@
       lifetime: "生命週期(已同步範圍)"
     columns:
       name: "素材"
-      two_sec_rate: "2秒播放率"
+      three_sec_rate: "3秒播放率"
       p50_rate: "50%完播率"
       p75_rate: "75%完播率"
       link_ctr: "CTR(連結點擊)"
@@ -1008,6 +1009,11 @@
     states:
       truncated_hint: "首次投放早於已同步範圍，冷啟動數字不可信。"
       unsynced_hint: "此帳號尚未同步。"
+  shared:
+    pagination:
+      showing: "顯示 %{from}-%{to}，共 %{total} 筆"
+      prev: "上一頁"
+      next: "下一頁"
   orders:
     title: "訂單"
     sync: "同步訂單"

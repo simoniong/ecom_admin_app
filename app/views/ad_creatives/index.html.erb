@@ -69,7 +69,7 @@
               <td class="px-3 py-2 text-gray-500"><%= creative.ad_account.platform %></td>
 
               <%# Engagement — selected range. Video-only columns dash out for images. %>
-              <td class="px-3 py-2 text-right border-l border-gray-100"><%= video ? number_to_percentage(metrics.two_sec_rate, precision: 1) : t("ad_creatives.not_applicable") %></td>
+              <td class="px-3 py-2 text-right border-l border-gray-100"><%= video ? number_to_percentage(metrics.three_sec_rate, precision: 1) : t("ad_creatives.not_applicable") %></td>
               <td class="px-3 py-2 text-right"><%= video ? number_to_percentage(metrics.p50_rate, precision: 1) : t("ad_creatives.not_applicable") %></td>
               <td class="px-3 py-2 text-right"><%= video ? number_to_percentage(metrics.p75_rate, precision: 1) : t("ad_creatives.not_applicable") %></td>
               <td class="px-3 py-2 text-right"><%= number_to_percentage(metrics.link_ctr, precision: 1) %></td>
@@ -93,37 +93,20 @@
     </div>
 
     <nav class="flex items-center justify-between mt-4">
-      <p class="text-sm text-gray-600">
-        <% if @total_count > 0 %>
-          <%= t("products.showing", from: ((@page - 1) * @per_page) + 1, to: [ @page * @per_page, @total_count ].min, total: @total_count) %>
-        <% end %>
-      </p>
-      <div class="flex items-center gap-4">
-        <div class="flex items-center gap-2">
-          <label for="per_page" class="text-sm text-gray-600"><%= t("products.per_page") %></label>
-          <select id="per_page" onchange="window.location.href = this.value"
-                  class="text-sm rounded-md border border-gray-300 bg-white py-1 pl-2 pr-7">
-            <% AdCreativesController::PER_PAGE_OPTIONS.each do |opt| %>
-              <option value="<%= ad_creatives_path(request.query_parameters.merge(per_page: opt, page: 1)) %>"
-                      <%= "selected" if opt == @per_page %>>
-                <%= opt %>
-              </option>
-            <% end %>
-          </select>
-        </div>
-        <% if @total_pages > 1 %>
-          <div class="flex gap-1">
-            <% if @page > 1 %>
-              <%= link_to "←", ad_creatives_path(request.query_parameters.merge(page: @page - 1)),
-                  class: "px-3 py-1 text-sm rounded-md border border-gray-300 bg-white" %>
-            <% end %>
-            <% if @page < @total_pages %>
-              <%= link_to "→", ad_creatives_path(request.query_parameters.merge(page: @page + 1)),
-                  class: "px-3 py-1 text-sm rounded-md border border-gray-300 bg-white" %>
-            <% end %>
-          </div>
-        <% end %>
+      <div class="flex items-center gap-2">
+        <label for="per_page" class="text-sm text-gray-600"><%= t("products.per_page") %></label>
+        <select id="per_page" onchange="window.location.href = this.value"
+                class="text-sm rounded-md border border-gray-300 bg-white py-1 pl-2 pr-7">
+          <% AdCreativesController::PER_PAGE_OPTIONS.each do |opt| %>
+            <option value="<%= ad_creatives_path(request.query_parameters.merge(per_page: opt, page: 1)) %>"
+                    <%= "selected" if opt == @per_page %>>
+              <%= opt %>
+            </option>
+          <% end %>
+        </select>
       </div>
+      <%= render "shared/pagination", page: @page, total_pages: @total_pages, total_count: @total_count,
+          per_page: @per_page, page_url: ->(p) { ad_creatives_path(request.query_parameters.merge(page: p)) } %>
     </nav>
   <% end %>
 </div>

@@ -1,0 +1,27 @@
+<%# app/views/shared/_pagination.html.erb %>
+<%# locals: (page:, total_pages:, total_count:, per_page:, page_url:) %>
+<% if total_pages > 1 %>
+  <div class="flex items-center gap-4">
+    <p class="text-sm text-gray-600">
+      <%= t("shared.pagination.showing", from: (page - 1) * per_page + 1, to: [ page * per_page, total_count ].min, total: total_count) %>
+    </p>
+    <div class="flex gap-1">
+      <% if page > 1 %>
+        <%= link_to t("shared.pagination.prev"), page_url.call(page - 1),
+            class: "px-3 py-1 text-sm rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50" %>
+      <% end %>
+      <% pagination_range(page, total_pages).each do |p| %>
+        <% if p == :gap %>
+          <span class="px-2 py-1 text-sm text-gray-400">...</span>
+        <% else %>
+          <%= link_to p, page_url.call(p),
+              class: "px-3 py-1 text-sm rounded-md border #{p == page ? 'border-blue-500 bg-blue-50 text-blue-700 font-medium' : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'}" %>
+        <% end %>
+      <% end %>
+      <% if page < total_pages %>
+        <%= link_to t("shared.pagination.next"), page_url.call(page + 1),
+            class: "px-3 py-1 text-sm rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50" %>
+      <% end %>
+    </div>
+  </div>
+<% end %>

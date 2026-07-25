@@ -16,7 +16,7 @@ RSpec.describe AdCreativeBackfillService do
 
   def row(date, spend: 10, purchases: 1, value: 20)
     { ad_id: "a1", date: date, spend: spend, impressions: 100, clicks: 5,
-      inline_link_clicks: 4, video_continuous_2_sec_watched: 30,
+      inline_link_clicks: 4, video_3_sec_watched: 30,
       video_p25_watched: 25, video_p50_watched: 15, video_p75_watched: 9,
       video_p95_watched: 5, video_p100_watched: 4, add_to_cart: 2,
       checkout_initiated: 1, purchases: purchases, conversion_value: value }
