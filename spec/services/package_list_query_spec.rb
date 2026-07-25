@@ -143,13 +143,21 @@ RSpec.describe PackageListQuery do
 
     it "breaks ties on id so pagination stays stable" do
       at = 2.days.ago
-      make_package(number: 1, created_at: at)
-      make_package(number: 2, created_at: at)
+      a = make_package(number: 1, created_at: at)
+      b = make_package(number: 2, created_at: at)
 
-      first_run  = described_class.new(scope).relation.pluck(:id)
-      second_run = described_class.new(scope).relation.pluck(:id)
-      expect(first_run).to eq(second_run)
-      expect(first_run.uniq.size).to eq(2)
+      # Derive the expected order from the actual persisted ids (UUIDs) rather
+      # than assuming which record was created first — Postgres orders
+      # uuid columns by byte value, which matches Ruby's String#<=> here since
+      # the hex/dash formatting keeps lexicographic and byte order aligned.
+      ids_desc = [ a.id, b.id ].sort.reverse
+      ids_asc  = [ a.id, b.id ].sort
+
+      desc_result = described_class.new(scope, sort_direction: "desc").relation.pluck(:id)
+      expect(desc_result).to eq(ids_desc)
+
+      asc_result = described_class.new(scope, sort_direction: "asc").relation.pluck(:id)
+      expect(asc_result).to eq(ids_asc)
     end
 
     it "falls back to the default column for an unknown sort_column" do
