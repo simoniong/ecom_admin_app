@@ -17,13 +17,28 @@ class PackagesController < AdminController
     @state = STATES.include?(params[:state]) ? params[:state] : "pending_review"
     scope = scoped_packages.where(aasm_state: @state)
     scope = scope.where(application_status: params[:application_status]) if @state == "applying_tracking" && APPLICATION_STATUSES.include?(params[:application_status])
+
+    # Filtering/ordering lives in the query object; the scope handed to it is
+    # already company/store/state-authorized and the query object never widens
+    # it. Pagination stays here.
+    query = PackageListQuery.new(scope, country: params[:country],
+                                        sort_column: params[:sort_column],
+                                        sort_direction: params[:sort_direction])
+    # Ordered by the LOCALIZED country name, which SQL can't do — parcel_country_name
+    # resolves through i18n. Reached via the `helpers` proxy rather than including
+    # ParcelsHelper, which would graft all its public methods onto the controller.
+    @countries = query.countries.sort_by { |code| helpers.parcel_country_name(code).to_s }
+    @country = query.country
+    @sort_column = query.sort_column
+    @sort_direction = query.sort_direction
+
+    filtered = query.relation
     @page = [ params[:page].to_i, 1 ].max
-    @total_count = scope.count
+    @total_count = filtered.count
     @total_pages = (@total_count.to_f / PER_PAGE).ceil
     @page = [ @page, @total_pages ].min if @total_pages > 0
-    @packages = scope.includes(:order, :package_items, :shopify_store, :logistics_channel)
-                     .order(created_at: :desc)
-                     .offset((@page - 1) * PER_PAGE).limit(PER_PAGE)
+    @packages = filtered.includes(:order, :package_items, :shopify_store, :logistics_channel)
+                        .offset((@page - 1) * PER_PAGE).limit(PER_PAGE)
   end
 
   def sync

@@ -47,6 +47,57 @@ RSpec.describe "Packages", type: :request do
       expect(response.body).to include("PKS#1001")
     end
 
+    describe "country filter and sorting" do
+      let!(:us_package) do
+        order = create(:order, customer: customer, shopify_store: store, name: "PKS#5001",
+                       ordered_at: 5.days.ago, paid_at: 5.days.ago)
+        create(:package, shopify_store: store, order: order, aasm_state: "pending_review",
+               number: 51, created_at: 5.days.ago,
+               shipping_address_snapshot: { "country_code" => "US" })
+      end
+
+      let!(:ca_package) do
+        order = create(:order, customer: customer, shopify_store: store, name: "PKS#5002",
+                       ordered_at: 1.hour.ago, paid_at: 1.hour.ago)
+        create(:package, shopify_store: store, order: order, aasm_state: "pending_review",
+               number: 52, created_at: 1.hour.ago,
+               shipping_address_snapshot: { "country_code" => "CA" })
+      end
+
+      it "filters the list to the requested country" do
+        get packages_path, params: { country: "US" }
+
+        expect(response.body).to include("PKS#5001")
+        expect(response.body).not_to include("PKS#5002")
+      end
+
+      it "ignores a country that is not present in the list" do
+        get packages_path, params: { country: "JP" }
+
+        expect(response.body).to include("PKS#5001")
+        expect(response.body).to include("PKS#5002")
+      end
+
+      it "sorts by the order's ordered_at ascending" do
+        get packages_path, params: { sort_column: "ordered_at", sort_direction: "asc" }
+
+        expect(response.body.index("PKS#5001")).to be < response.body.index("PKS#5002")
+      end
+
+      it "sorts by the order's paid_at descending" do
+        get packages_path, params: { sort_column: "paid_at", sort_direction: "desc" }
+
+        expect(response.body.index("PKS#5002")).to be < response.body.index("PKS#5001")
+      end
+
+      it "falls back to the default sort for junk sort params" do
+        get packages_path, params: { sort_column: "; drop table", sort_direction: "sideways" }
+
+        expect(response).to have_http_status(:ok)
+        expect(response.body.index("PKS#5002")).to be < response.body.index("PKS#5001")
+      end
+    end
+
     describe "held list" do
       it "shows the held_from original state label for a held package" do
         order = create(:order, customer: customer, shopify_store: store, name: "PKS#3001")
