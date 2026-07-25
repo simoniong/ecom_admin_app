@@ -70,8 +70,13 @@ RSpec.describe "Ad Creatives", type: :system do
     click_link "Ad Creatives"
     click_link "Lifetime Spend"
 
-    rows = page.all("tbody tr").map(&:text)
-    expect(rows.first).to include("High Spender")
+    # `page.all(...).map(&:text)` takes an unsynchronized snapshot of the DOM — it can grab
+    # element handles from the pre-navigation page that go stale mid-map after the sort link's
+    # click triggers a fresh render. Asserting via `have_css` on the first row instead gives a
+    # retrying matcher that waits for the post-sort DOM, and it asserts order directly (an
+    # assertion that only checked presence of "High Spender" anywhere would pass regardless of
+    # sort order, which defeats the point of the spec).
+    expect(page).to have_css("tbody tr:first-child", text: "High Spender")
   end
 
   it "filters by date range" do
