@@ -122,6 +122,7 @@ class MetaAdsService
   # (thumbnails, durations, etc). AdCreativeBackfillService#call invokes this
   # after a successful run; the real implementation lands with Task 7.
   def sync_creative_assets
+    Rails.logger.warn("[SyncCreativeAssets] placeholder — Task 7 pending")
   end
 
   INSIGHT_FIELDS = %w[

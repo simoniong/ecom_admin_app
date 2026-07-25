@@ -13,16 +13,18 @@ class AdCreativeBackfillService
 
     today = @ad_account.today_in_zone
     start_date = resolve_start_date(today, days)
-    # Clamp rather than skip: even when coverage already reaches `today`,
-    # re-sync today's (still-accumulating) segment instead of no-op'ing, so a
-    # same-day re-run picks up late-arriving spend/conversions.
-    start_date = today if start_date > today
+    # An already-caught-up (or ahead-of-today, e.g. a westward timezone change
+    # narrowing `today_in_zone`) account is not a backfill scenario — rolling
+    # sync owns [today-1, today] per design §5.6. Do nothing rather than
+    # shrinking `creative_synced_through_date` backward.
+    return true if start_date > today
 
     initializing = coverage_incomplete?
 
     segments(start_date, today).each_with_index do |(from, to), index|
+      first_segment = initializing && index.zero?
       rows = @meta.fetch_ad_insights(from, to)
-      persist_segment(rows, from, to, initialize_bounds: initializing && index.zero?)
+      persist_segment(rows, from, to, initialize_bounds: first_segment, purge_upper_bound: (today if first_segment))
     rescue Koala::Facebook::APIError, Koala::Facebook::ClientError => e
       Rails.logger.error("[AdCreativeBackfill] account=#{@ad_account.account_id} segment=#{from}..#{to}: #{e.message}")
       return false
@@ -32,8 +34,18 @@ class AdCreativeBackfillService
     true
   end
 
-  # Used by the rolling job: one segment, forward append only.
+  # Used by the rolling job: one segment, forward append only. Must never run
+  # against an account whose coverage interval is not yet established — that
+  # would write rows and advance `_through_date` while `_from_date` stays
+  # null, violating the "no rows while either bound is null" rule (§5.6).
+  # Task 6 also gates eligibility externally, but this method is public and
+  # must not depend on that.
   def sync_range(start_date, end_date)
+    if coverage_incomplete?
+      Rails.logger.warn("[AdCreativeRolling] account=#{@ad_account.account_id}: refusing sync_range, coverage bounds not established")
+      return false
+    end
+
     rows = @meta.fetch_ad_insights(start_date, end_date)
     persist_segment(rows, start_date, end_date, initialize_bounds: false)
     true
@@ -68,18 +80,40 @@ class AdCreativeBackfillService
   end
 
   # Metric writes and the coverage advance share one transaction so the
-  # invariant can never be observed broken (spec §5.6).
-  def persist_segment(rows, from, to, initialize_bounds:)
+  # invariant can never be observed broken (spec §5.6). `purge_upper_bound`
+  # is only set on mode A's first segment: a full rebuild must not leave
+  # pre-existing rows stranded outside the freshly (re)established interval.
+  def persist_segment(rows, from, to, initialize_bounds:, purge_upper_bound: nil)
     unit_ids = @ad_account.ad_units.pluck(:ad_id, :id).to_h
 
     ActiveRecord::Base.transaction do
+      if purge_upper_bound
+        AdUnitDailyMetric
+          .joins(:ad_unit)
+          .where(ad_units: { ad_account_id: @ad_account.id })
+          .where.not(date: from..purge_upper_bound)
+          .delete_all
+      end
+
+      skipped = 0
       rows.each do |row|
+        # Trust our own segment bounds over Meta's `date_start`, so "no row
+        # lands outside the segment" holds by construction.
+        next unless row[:date].between?(from, to)
+
         unit_id = unit_ids[row[:ad_id]]
-        next if unit_id.nil?
+        if unit_id.nil?
+          skipped += 1
+          next
+        end
 
         metric = AdUnitDailyMetric.find_or_initialize_by(ad_unit_id: unit_id, date: row[:date])
         metric.assign_attributes(row.except(:ad_id, :date))
         metric.save!
+      end
+
+      if skipped.positive?
+        Rails.logger.warn("[AdCreativeBackfill] account=#{@ad_account.account_id} segment=#{from}..#{to}: skipped #{skipped} row(s) with unknown ad_id")
       end
 
       if initialize_bounds
@@ -92,11 +126,14 @@ class AdCreativeBackfillService
     end
   end
 
+  # Anchored on AdUnit.attributable (multi_asset: false AND creative present)
+  # to match Task 8's view scope — a multi_asset unit carrying a creative id
+  # must not anchor that creative's first_spend_date.
   def recompute_first_spend_dates
     earliest = AdUnitDailyMetric
       .joins(:ad_unit)
+      .merge(AdUnit.attributable)
       .where(ad_units: { ad_account_id: @ad_account.id })
-      .where("ad_units.ad_creative_id IS NOT NULL")
       .where("ad_unit_daily_metrics.spend > 0")
       .group("ad_units.ad_creative_id")
       .minimum("ad_unit_daily_metrics.date")

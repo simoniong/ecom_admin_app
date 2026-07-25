@@ -125,22 +125,67 @@ RSpec.describe AdCreativeBackfillService do
   end
 
   describe "upsert" do
-    it "updates an existing row rather than duplicating it" do
+    it "updates an existing row rather than duplicating it via sync_range" do
+      ad_account.update_columns(creative_synced_from_date: today - 89, creative_synced_through_date: today - 1)
+
       allow(meta).to receive(:fetch_ad_insights).and_return([ row(today, spend: 10) ])
-      service.call(days: 90)
+      service.sync_range(today, today)
 
       allow(meta).to receive(:fetch_ad_insights).and_return([ row(today, spend: 99) ])
-      service.call(days: 90)
+      service.sync_range(today, today)
 
       metrics = AdUnitDailyMetric.joins(:ad_unit).where(ad_units: { ad_account_id: ad_account.id })
       expect(metrics.count).to eq(1)
       expect(metrics.first.spend).to eq(99)
     end
 
-    it "ignores rows for ads that are not synced yet" do
+    it "ignores rows for ads that are not synced yet and logs how many were skipped" do
       allow(meta).to receive(:fetch_ad_insights).and_return([ row(today).merge(ad_id: "unknown") ])
+      allow(Rails.logger).to receive(:warn)
 
       expect { service.call(days: 90) }.not_to change(AdUnitDailyMetric, :count)
+
+      expect(Rails.logger).to have_received(:warn).with(a_string_including("skipped 1 row"))
+    end
+  end
+
+  describe "sync_range" do
+    it "refuses to run and logs a warning when coverage bounds are not yet established" do
+      expect(meta).not_to receive(:fetch_ad_insights)
+      allow(Rails.logger).to receive(:warn)
+
+      result = service.sync_range(today, today)
+
+      expect(result).to be(false)
+      expect(AdUnitDailyMetric.count).to eq(0)
+      expect(Rails.logger).to have_received(:warn).with(a_string_including("coverage bounds not established"))
+    end
+  end
+
+  describe "mode A rebuild" do
+    it "purges pre-existing metric rows that fall outside the rebuilt window" do
+      stale_unit = AdUnit.find_by(ad_id: "a1")
+      stale_metric = create(:ad_unit_daily_metric, ad_unit: stale_unit, date: today - 200, spend: 5)
+      allow(meta).to receive(:fetch_ad_insights).and_return([])
+
+      service.call(days: 90)
+
+      expect(AdUnitDailyMetric.exists?(stale_metric.id)).to be(false)
+    end
+  end
+
+  describe "transactional integrity" do
+    it "rolls back the whole segment, including the coverage advance, when a row fails validation" do
+      allow(meta).to receive(:fetch_ad_insights) do |from, _to|
+        [ row(from, spend: 10), row(from + 1, spend: -1) ]
+      end
+
+      expect { service.call(days: 90) }.to raise_error(ActiveRecord::RecordInvalid)
+
+      expect(AdUnitDailyMetric.count).to eq(0)
+      ad_account.reload
+      expect(ad_account.creative_synced_from_date).to be_nil
+      expect(ad_account.creative_synced_through_date).to be_nil
     end
   end
 end
