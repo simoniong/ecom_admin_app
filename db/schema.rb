@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_25_101430) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_25_165555) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -108,7 +108,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_25_101430) do
     t.integer "purchases", default: 0
     t.decimal "spend", precision: 12, scale: 2, default: "0.0"
     t.datetime "updated_at", null: false
-    t.integer "video_continuous_2_sec_watched", default: 0
+    t.integer "video_3_sec_watched", default: 0
     t.integer "video_p100_watched", default: 0
     t.integer "video_p25_watched", default: 0
     t.integer "video_p50_watched", default: 0

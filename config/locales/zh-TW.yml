@@ -991,7 +991,7 @@
       lifetime: "生命週期(已同步範圍)"
     columns:
       name: "素材"
-      two_sec_rate: "2秒播放率"
+      three_sec_rate: "3秒播放率"
       p50_rate: "50%完播率"
       p75_rate: "75%完播率"
       link_ctr: "CTR(連結點擊)"

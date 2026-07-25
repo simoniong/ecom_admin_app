@@ -33,12 +33,12 @@ class AdCreative < ApplicationRecord
 
   CreativeMetrics = Struct.new(
     :impressions, :inline_link_clicks, :clicks, :range_spend,
-    :video_continuous_2_sec_watched, :video_p50_watched, :video_p75_watched,
+    :video_3_sec_watched, :video_p50_watched, :video_p75_watched,
     :d1_spend, :d1_purchases,
     :d3_spend, :d3_value, :d5_spend, :d5_value,
     :lifetime_spend, :lifetime_value
   ) do
-    def two_sec_rate = percentage(video_continuous_2_sec_watched, impressions)
+    def three_sec_rate = percentage(video_3_sec_watched, impressions)
     def p50_rate = percentage(video_p50_watched, impressions)
     def p75_rate = percentage(video_p75_watched, impressions)
     def link_ctr = percentage(inline_link_clicks, impressions)
@@ -105,7 +105,7 @@ class AdCreative < ApplicationRecord
 
       CreativeMetrics.new(
         r[:impressions].to_i, r[:inline_link_clicks].to_i, r[:clicks].to_i, r[:spend].to_f,
-        r[:two_sec].to_i, r[:p50].to_i, r[:p75].to_i,
+        r[:three_sec].to_i, r[:p50].to_i, r[:p75].to_i,
         d1[:spend].to_f, d1[:purchases].to_i,
         d3[:spend].to_f, d3[:value].to_f,
         d5[:spend].to_f, d5[:value].to_f,
@@ -133,13 +133,13 @@ class AdCreative < ApplicationRecord
         Arel.sql("ad_creatives.id"),
         Arel.sql("COALESCE(SUM(ad_unit_daily_metrics.impressions), 0)"),
         Arel.sql("COALESCE(SUM(ad_unit_daily_metrics.inline_link_clicks), 0)"),
-        Arel.sql("COALESCE(SUM(ad_unit_daily_metrics.video_continuous_2_sec_watched), 0)"),
+        Arel.sql("COALESCE(SUM(ad_unit_daily_metrics.video_3_sec_watched), 0)"),
         Arel.sql("COALESCE(SUM(ad_unit_daily_metrics.video_p50_watched), 0)"),
         Arel.sql("COALESCE(SUM(ad_unit_daily_metrics.video_p75_watched), 0)"),
         Arel.sql("COALESCE(SUM(ad_unit_daily_metrics.clicks), 0)"),
         Arel.sql("COALESCE(SUM(ad_unit_daily_metrics.spend), 0)")
       )
-      .to_h { |row| [ row[0], { impressions: row[1], inline_link_clicks: row[2], two_sec: row[3], p50: row[4], p75: row[5], clicks: row[6], spend: row[7] } ] }
+      .to_h { |row| [ row[0], { impressions: row[1], inline_link_clicks: row[2], three_sec: row[3], p50: row[4], p75: row[5], clicks: row[6], spend: row[7] } ] }
   end
   private_class_method :range_totals
 

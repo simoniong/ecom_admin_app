@@ -69,7 +69,7 @@
               <td class="px-3 py-2 text-gray-500"><%= creative.ad_account.platform %></td>
 
               <%# Engagement — selected range. Video-only columns dash out for images. %>
-              <td class="px-3 py-2 text-right border-l border-gray-100"><%= video ? number_to_percentage(metrics.two_sec_rate, precision: 1) : t("ad_creatives.not_applicable") %></td>
+              <td class="px-3 py-2 text-right border-l border-gray-100"><%= video ? number_to_percentage(metrics.three_sec_rate, precision: 1) : t("ad_creatives.not_applicable") %></td>
               <td class="px-3 py-2 text-right"><%= video ? number_to_percentage(metrics.p50_rate, precision: 1) : t("ad_creatives.not_applicable") %></td>
               <td class="px-3 py-2 text-right"><%= video ? number_to_percentage(metrics.p75_rate, precision: 1) : t("ad_creatives.not_applicable") %></td>
               <td class="px-3 py-2 text-right"><%= number_to_percentage(metrics.link_ctr, precision: 1) %></td>

@@ -25,7 +25,7 @@ RSpec.describe "Ad Creatives", type: :system do
     creative_with_metrics(
       name: "Toy Duck Demo v1", first_spend_date: Date.current - 10,
       spend: 300, impressions: 10_000, inline_link_clicks: 300, clicks: 600,
-      video_continuous_2_sec_watched: 3_700, video_p50_watched: 1_200, video_p75_watched: 700
+      video_3_sec_watched: 3_700, video_p50_watched: 1_200, video_p75_watched: 700
     )
 
     sign_in_as(user)
@@ -49,7 +49,7 @@ RSpec.describe "Ad Creatives", type: :system do
       asset_id: "hash1", name: "Static Banner", first_spend_date: Date.current - 10)
     unit = create(:ad_unit, ad_account: ad_account, ad_creative: creative)
     create(:ad_unit_daily_metric, ad_unit: unit, date: Date.current,
-      impressions: 5_000, video_continuous_2_sec_watched: 0,
+      impressions: 5_000, video_3_sec_watched: 0,
       video_p50_watched: 0, video_p75_watched: 0)
 
     sign_in_as(user)
@@ -102,7 +102,7 @@ RSpec.describe "Ad Creatives", type: :system do
     fill_in "to_date", with: Date.current.to_s
     click_button "Filter"
 
-    # 3,000 / 4,242 video_continuous_2_sec_watched/impressions (factory defaults) => two_sec_rate.
+    # 3,000 / 4,242 video_3_sec_watched/impressions (factory defaults) => three_sec_rate.
     # Asserting on the computed rate (rather than the raw impressions count, which the table
     # never displays as its own figure) proves the in-range metric was actually aggregated.
     expect(page).to have_text("70.7%")

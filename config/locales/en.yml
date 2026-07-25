@@ -993,7 +993,7 @@ en:
       lifetime: "Lifetime (synced range)"
     columns:
       name: "Creative"
-      two_sec_rate: "2s Play %"
+      three_sec_rate: "3s Play Rate"
       p50_rate: "50% Watched %"
       p75_rate: "75% Watched %"
       link_ctr: "CTR (Link-Click)"

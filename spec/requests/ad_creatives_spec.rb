@@ -32,7 +32,7 @@ RSpec.describe "AdCreatives", type: :request do
       get ad_creatives_path, params: { store_id: store.id }
 
       expect(response.body).to include("Toy Duck Demo v1")
-      # 3,000 (factory default video_continuous_2_sec_watched) / 12,345 impressions => two_sec_rate.
+      # 3,000 (factory default video_3_sec_watched) / 12,345 impressions => three_sec_rate.
       # The table renders computed rates, not the raw impressions count, so assert on the rate.
       expect(response.body).to include("24.3%")
     end
