@@ -1,4 +1,15 @@
 class Order < ApplicationRecord
+  # paid_at is a SORTING PROXY for payment time, not a settlement timestamp.
+  # Shopify exposes no "paid at" field on the order payload, and this app does
+  # not mirror Shopify transactions/captures, so the closest available value is
+  # the order's `processed_at` (when Shopify processed the payment). Do not use
+  # it for reconciliation — that needs a real transactions sync.
+  #
+  # Written unconditionally rather than gated on financial_status: a
+  # status-conditional write would make the column flip back to nil when an
+  # order is later refunded. The packing module only builds packages for
+  # paid/partially_paid orders (PackageAutoBuilder::PAID_STATUSES), so every
+  # order surfaced in the packing list has it set.
   belongs_to :customer
   belongs_to :shopify_store, optional: true
   has_many :fulfillments, dependent: :destroy

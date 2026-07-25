@@ -20,6 +20,7 @@ RSpec.describe SyncAllOrdersService do
         "total_price" => "49.99", "currency" => "USD",
         "financial_status" => "paid", "fulfillment_status" => "fulfilled",
         "created_at" => "2026-03-20",
+        "processed_at" => "2026-03-21T08:30:00Z",
         "customer" => shopify_customer,
         "fulfillments" => [
           { "id" => 300, "status" => "success", "tracking_number" => "TRACK1",
@@ -52,6 +53,36 @@ RSpec.describe SyncAllOrdersService do
       expect(order.total_price).to eq(49.99)
       expect(order.financial_status).to eq("paid")
       expect(order.customer.email).to eq("buyer@example.com")
+    end
+
+    it "stores the Shopify processed_at as the order's paid_at" do
+      service.call
+
+      order = Order.find_by(shopify_order_id: 200)
+      expect(order.paid_at).to eq(Time.utc(2026, 3, 21, 8, 30, 0))
+    end
+
+    context "when the payload has no processed_at" do
+      let(:shopify_order) do
+        {
+          "id" => 201, "email" => "buyer@example.com", "name" => "#1002",
+          "total_price" => "10.00", "currency" => "USD",
+          "financial_status" => "pending", "fulfillment_status" => nil,
+          "created_at" => "2026-03-20",
+          "customer" => shopify_customer,
+          "fulfillments" => []
+        }
+      end
+
+      before do
+        allow(shopify_service).to receive(:fetch_fulfillments).with(201).and_return([])
+      end
+
+      it "leaves paid_at nil rather than guessing" do
+        service.call
+
+        expect(Order.find_by(shopify_order_id: 201).paid_at).to be_nil
+      end
     end
 
     it "sets correct fulfillment attributes" do

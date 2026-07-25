@@ -47,6 +47,57 @@ RSpec.describe "Packages", type: :request do
       expect(response.body).to include("PKS#1001")
     end
 
+    describe "country filter and sorting" do
+      let!(:us_package) do
+        order = create(:order, customer: customer, shopify_store: store, name: "PKS#5001",
+                       ordered_at: 5.days.ago, paid_at: 5.days.ago)
+        create(:package, shopify_store: store, order: order, aasm_state: "pending_review",
+               number: 51, created_at: 5.days.ago,
+               shipping_address_snapshot: { "country_code" => "US" })
+      end
+
+      let!(:ca_package) do
+        order = create(:order, customer: customer, shopify_store: store, name: "PKS#5002",
+                       ordered_at: 1.hour.ago, paid_at: 1.hour.ago)
+        create(:package, shopify_store: store, order: order, aasm_state: "pending_review",
+               number: 52, created_at: 1.hour.ago,
+               shipping_address_snapshot: { "country_code" => "CA" })
+      end
+
+      it "filters the list to the requested country" do
+        get packages_path, params: { country: "US" }
+
+        expect(response.body).to include("PKS#5001")
+        expect(response.body).not_to include("PKS#5002")
+      end
+
+      it "ignores a country that is not present in the list" do
+        get packages_path, params: { country: "JP" }
+
+        expect(response.body).to include("PKS#5001")
+        expect(response.body).to include("PKS#5002")
+      end
+
+      it "sorts by the order's ordered_at ascending" do
+        get packages_path, params: { sort_column: "ordered_at", sort_direction: "asc" }
+
+        expect(response.body.index("PKS#5001")).to be < response.body.index("PKS#5002")
+      end
+
+      it "sorts by the order's paid_at descending" do
+        get packages_path, params: { sort_column: "paid_at", sort_direction: "desc" }
+
+        expect(response.body.index("PKS#5002")).to be < response.body.index("PKS#5001")
+      end
+
+      it "falls back to the default sort for junk sort params" do
+        get packages_path, params: { sort_column: "; drop table", sort_direction: "sideways" }
+
+        expect(response).to have_http_status(:ok)
+        expect(response.body.index("PKS#5002")).to be < response.body.index("PKS#5001")
+      end
+    end
+
     describe "held list" do
       it "shows the held_from original state label for a held package" do
         order = create(:order, customer: customer, shopify_store: store, name: "PKS#3001")
@@ -89,6 +140,57 @@ RSpec.describe "Packages", type: :request do
       end
     end
 
+    describe "combined country filter + sort + pagination" do
+      # Rails only takes the eager_load DISTINCT-id subquery path when
+      # `includes` and `joins` overlap on the same association — exactly what
+      # PackagesController#index does (includes(:order, ...) alongside
+      # PackageListQuery's joins(:order)). That combination only actually
+      # engages once a WHERE (country) and a non-default ORDER BY (sort) are
+      # both in play at the same time as pagination's LIMIT/OFFSET, so this
+      # spec exercises all three together rather than in isolation.
+      let(:us_count) { PackagesController::PER_PAGE + 5 }
+
+      let!(:us_combo_packages) do
+        Array.new(us_count) do |i|
+          order = create(:order, customer: customer, shopify_store: store, name: "PKS#COMBO-US-#{i}",
+                         ordered_at: (us_count - i).days.ago)
+          create(:package, shopify_store: store, order: order, aasm_state: "pending_review",
+                 number: 3000 + i, shipping_address_snapshot: { "country_code" => "US" })
+        end
+      end
+
+      let!(:ca_combo_packages) do
+        Array.new(3) do |i|
+          order = create(:order, customer: customer, shopify_store: store, name: "PKS#COMBO-CA-#{i}",
+                         ordered_at: (i + 1).days.ago)
+          create(:package, shopify_store: store, order: order, aasm_state: "pending_review",
+                 number: 4000 + i, shipping_address_snapshot: { "country_code" => "CA" })
+        end
+      end
+
+      def combo_us_names_in_order(body)
+        body.scan(/PKS#COMBO-US-\d+/)
+      end
+
+      it "returns page 1 sorted ascending by ordered_at, scoped to the country filter" do
+        get packages_path, params: { country: "US", sort_column: "ordered_at", sort_direction: "asc", page: 1 }
+
+        expect(response).to have_http_status(:ok)
+        expected = (0...PackagesController::PER_PAGE).map { |i| "PKS#COMBO-US-#{i}" }
+        expect(combo_us_names_in_order(response.body)).to eq(expected)
+        expect(response.body).not_to include("PKS#COMBO-CA")
+      end
+
+      it "returns the remainder on page 2, still ascending and still scoped to the country filter" do
+        get packages_path, params: { country: "US", sort_column: "ordered_at", sort_direction: "asc", page: 2 }
+
+        expect(response).to have_http_status(:ok)
+        expected = (PackagesController::PER_PAGE...us_count).map { |i| "PKS#COMBO-US-#{i}" }
+        expect(combo_us_names_in_order(response.body)).to eq(expected)
+        expect(response.body).not_to include("PKS#COMBO-CA")
+      end
+    end
+
     describe "applying_tracking sub-tabs (application_status)" do
       let!(:pending_application) do
         order = create(:order, customer: customer, shopify_store: store, name: "PKS#2001")
@@ -128,11 +230,60 @@ RSpec.describe "Packages", type: :request do
       end
     end
 
+    describe "cross-store listing" do
+      let(:other_store) { create(:shopify_store, user: user, company: company) }
+      let(:other_customer) { create(:customer, shopify_store: other_store) }
+
+      let!(:other_store_package) do
+        order = create(:order, customer: other_customer, shopify_store: other_store, name: "PKS#6001")
+        create(:package, shopify_store: other_store, order: order, aasm_state: "pending_review", number: 61)
+      end
+
+      it "lists packages from every visible store by default" do
+        get packages_path
+
+        expect(response.body).to include("PKS#1001")
+        expect(response.body).to include("PKS#6001")
+      end
+
+      it "shows the store name column when no single store is selected" do
+        get packages_path
+
+        expect(response.body).to include(I18n.t("packages.columns.store"))
+        expect(response.body).to include(other_store.display_name)
+      end
+
+      it "narrows to one store when store_id is given" do
+        get packages_path, params: { store_id: store.id }
+
+        expect(response.body).to include("PKS#1001")
+        expect(response.body).not_to include("PKS#6001")
+      end
+
+      it "labels the timezone only when several stores share the list" do
+        store.update!(timezone: "America/Los_Angeles")
+
+        get packages_path
+        cross_store_body = response.body
+
+        get packages_path, params: { store_id: store.id }
+        single_store_body = response.body
+
+        expect(cross_store_body).to include(Time.current.in_time_zone("America/Los_Angeles").zone)
+        expect(single_store_body).not_to include(Time.current.in_time_zone("America/Los_Angeles").zone)
+      end
+    end
+
     describe "store switcher scoping" do
-      # Codex finding 2: the packages list + sidebar counts must respect the
-      # currently-selected store (current_shopify_store), same as
-      # OrdersController#index, instead of always aggregating across every
-      # visible store.
+      # Codex finding 2 (superseded by Task 4): the packages list + sidebar
+      # counts must respect the currently-selected store
+      # (current_shopify_store) the same way OrdersController#index does.
+      # Task 4 additionally adds packages to STORE_ALL_ALLOWED_CONTROLLERS,
+      # which flips the *default* (no store_id param/session) from "first
+      # store" to "all visible stores" — current_shopify_store now resolves
+      # to nil in that case, and scoped_packages' nil branch aggregates
+      # across every visible store on purpose. Explicitly selecting a store
+      # (via store_id) still narrows to just that store.
       let!(:store_b) { create(:shopify_store, user: user, company: company) }
       let!(:customer_b) { create(:customer, shopify_store: store_b) }
 
@@ -147,17 +298,16 @@ RSpec.describe "Packages", type: :request do
         link.at_xpath(".//span[2]").text.strip.to_i
       end
 
-      it "defaults to a single store (not an aggregate of all stores) when none is explicitly selected" do
-        # Packages is switcher-visible but NOT in STORE_ALL_ALLOWED_CONTROLLERS
-        # (same as Orders), so with no store_id param/session,
-        # current_shopify_store resolves to visible_shopify_stores.first
-        # rather than nil/"all" — scoped_packages must follow that store, not
-        # silently aggregate every store's packages.
+      it "defaults to an aggregate of every visible store when none is explicitly selected" do
+        # Packages is now in STORE_ALL_ALLOWED_CONTROLLERS (Task 4), so with
+        # no store_id param/session, current_shopify_store resolves to nil —
+        # scoped_packages' nil branch then aggregates every visible store's
+        # packages, and the sidebar badge counts follow the same scope.
         get packages_path
         expect(response).to have_http_status(:ok)
         expect(response.body).to include("PKS#1001")
-        expect(response.body).not_to include("PKS#STOREB")
-        expect(sidebar_badge_count(response.body, "Pending Review")).to eq(1)
+        expect(response.body).to include("PKS#STOREB")
+        expect(sidebar_badge_count(response.body, "Pending Review")).to eq(2)
       end
 
       it "scopes the list and sidebar counts to the selected store" do
@@ -1255,6 +1405,15 @@ RSpec.describe "Packages", type: :request do
         expect(first.reload).to have_state(:applying_tracking)
         expect(second.reload).to have_state(:applying_tracking)
       end
+
+      it "carries the current filters back to the list" do
+        post apply_tracking_bulk_packages_path,
+             params: { package_ids: [ process_package.id ], country: "US", sort_column: "ordered_at" }
+
+        expect(response).to redirect_to(
+          packages_path(country: "US", sort_column: "ordered_at", state: "pending_process")
+        )
+      end
     end
   end
 
@@ -1439,6 +1598,113 @@ RSpec.describe "Packages", type: :request do
         expect(a.reload).to have_state(:shipped)
         expect(b.reload).to have_state(:shipped)
       end
+
+      it "carries the current filters back to the list" do
+        post ship_bulk_packages_path,
+             params: { package_ids: [], country: "US", sort_column: "ordered_at" }
+
+        expect(response).to redirect_to(
+          packages_path(country: "US", sort_column: "ordered_at", state: "pending_label")
+        )
+      end
+    end
+  end
+
+  describe "POST /packages/submit_review_bulk" do
+    def sign_in_as_member_with(permission)
+      member = create(:user)
+      create(:membership, user: member, company: company, role: :member, permissions: [ permission ])
+      sign_out user
+      sign_in member
+      member
+    end
+
+    it "advances every selected pending_review package" do
+      second = create(:package, shopify_store: store, aasm_state: "pending_review", number: 81,
+                      order: create(:order, customer: customer, shopify_store: store, name: "PKS#8001"))
+
+      post submit_review_bulk_packages_path, params: { package_ids: [ review_package.id, second.id ] }
+
+      expect(review_package.reload.aasm_state).to eq("pending_process")
+      expect(second.reload.aasm_state).to eq("pending_process")
+      expect(flash[:notice]).to include("2")
+    end
+
+    it "skips a package that is not pending_review" do
+      post submit_review_bulk_packages_path, params: { package_ids: [ process_package.id ] }
+
+      expect(process_package.reload.aasm_state).to eq("pending_process")
+      expect(response).to redirect_to(packages_path(state: "pending_review"))
+    end
+
+    it "denies a member without package_review and transitions nothing" do
+      sign_in_as_member_with("package_process")
+
+      post submit_review_bulk_packages_path, params: { package_ids: [ review_package.id ] }
+
+      expect(review_package.reload.aasm_state).to eq("pending_review")
+      expect(response).to redirect_to(packages_path)
+      expect(flash[:alert]).to eq(I18n.t("companies.no_permission"))
+    end
+
+    it "allows a member granted package_review" do
+      sign_in_as_member_with("package_review")
+
+      post submit_review_bulk_packages_path, params: { package_ids: [ review_package.id ] }
+
+      expect(review_package.reload.aasm_state).to eq("pending_process")
+    end
+
+    it "ignores a package belonging to another company" do
+      other_user = create(:user)
+      other_store = create(:shopify_store, user: other_user, company: other_user.companies.first)
+      other_customer = create(:customer, shopify_store: other_store)
+      foreign = create(:package, shopify_store: other_store, aasm_state: "pending_review", number: 91,
+                       order: create(:order, customer: other_customer, shopify_store: other_store))
+
+      post submit_review_bulk_packages_path, params: { package_ids: [ foreign.id ] }
+
+      expect(foreign.reload.aasm_state).to eq("pending_review")
+    end
+
+    it "advances a legitimate package while leaving a foreign package untouched in a mixed batch" do
+      other_user = create(:user)
+      other_store = create(:shopify_store, user: other_user, company: other_user.companies.first)
+      other_customer = create(:customer, shopify_store: other_store)
+      foreign = create(:package, shopify_store: other_store, aasm_state: "pending_review", number: 92,
+                       order: create(:order, customer: other_customer, shopify_store: other_store))
+
+      post submit_review_bulk_packages_path, params: { package_ids: [ review_package.id, foreign.id ] }
+
+      expect(review_package.reload.aasm_state).to eq("pending_process")
+      expect(foreign.reload.aasm_state).to eq("pending_review")
+      # The foreign id is silently filtered out by scoped_packages' company
+      # scope (same as apply_tracking_bulk/ship_bulk) — it never reaches the
+      # find_each loop, so it is NOT counted as skipped.
+      expect(flash[:notice]).to eq(I18n.t("packages.review.bulk_result", reviewed: 1, skipped: 0))
+    end
+
+    it "does not raise on a malformed non-UUID id and still advances the legitimate package" do
+      expect {
+        post submit_review_bulk_packages_path, params: { package_ids: [ review_package.id, "not-a-uuid" ] }
+      }.not_to raise_error
+
+      expect(response).to redirect_to(packages_path(state: "pending_review"))
+      expect(review_package.reload.aasm_state).to eq("pending_process")
+      # Same reasoning as the mixed-company case: Rails' UUID cast turns the
+      # malformed id into IS NULL in the WHERE clause, so it never matches a
+      # row and is not counted as skipped.
+      expect(flash[:notice]).to eq(I18n.t("packages.review.bulk_result", reviewed: 1, skipped: 0))
+    end
+
+    it "carries the current filters back to the list" do
+      post submit_review_bulk_packages_path,
+           params: { package_ids: [ review_package.id ], country: "US",
+                     sort_column: "paid_at", sort_direction: "asc" }
+
+      expect(response).to redirect_to(
+        packages_path(country: "US", sort_column: "paid_at", sort_direction: "asc", state: "pending_review")
+      )
     end
   end
 end

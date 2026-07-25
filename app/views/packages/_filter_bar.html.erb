@@ -1,0 +1,35 @@
+<%# 國家區域 + 排序方式。兩者都是純連結（Turbo Drive 負責導覽），不需要 Stimulus。
+    國家清單只列出這個狀態下實際存在的國家，所以不會出現點了沒有結果的膠囊。 %>
+<div class="bg-white rounded-lg border border-gray-200 px-4 py-3 mb-4 space-y-2">
+  <% if countries.any? %>
+    <div class="flex items-start gap-3">
+      <span class="shrink-0 pt-1 text-sm text-gray-500"><%= t("packages.filters.country") %></span>
+      <div class="flex flex-wrap gap-1.5">
+        <%= link_to t("packages.filters.all"), packages_list_path(country: nil, page: nil),
+              class: "px-2.5 py-1 text-sm rounded #{country.nil? ? 'bg-blue-600 text-white' : 'text-gray-700 hover:bg-gray-100'}" %>
+        <% countries.each do |code| %>
+          <%= link_to packages_list_path(country: code, page: nil),
+                class: "px-2.5 py-1 text-sm rounded #{country == code ? 'bg-blue-600 text-white' : 'text-gray-700 hover:bg-gray-100'}" do %>
+            <%= parcel_country_flag(code) %> <%= parcel_country_name(code) %>
+          <% end %>
+        <% end %>
+      </div>
+    </div>
+  <% end %>
+
+  <div class="flex items-start gap-3">
+    <span class="shrink-0 pt-1 text-sm text-gray-500"><%= t("packages.filters.sort") %></span>
+    <div class="flex flex-wrap gap-1.5">
+      <% PackageListQuery::SORT_COLUMNS.each_key do |column| %>
+        <% active = sort_column == column %>
+        <%# Clicking the active column flips the direction; clicking another
+            column starts it at desc (newest/largest first). %>
+        <% next_direction = (active && sort_direction == "desc") ? "asc" : "desc" %>
+        <%= link_to packages_list_path(sort_column: column, sort_direction: next_direction, page: nil),
+              class: "px-2.5 py-1 text-sm rounded #{active ? 'bg-blue-600 text-white' : 'text-gray-700 hover:bg-gray-100'}" do %>
+          <%= t("packages.sort.#{column}") %><% if active %> <%= sort_direction == "asc" ? "▲" : "▼" %><% end %>
+        <% end %>
+      <% end %>
+    </div>
+  </div>
+</div>

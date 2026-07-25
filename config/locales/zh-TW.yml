@@ -642,15 +642,26 @@
       pending: "申請中"
       succeeded: "申請成功"
       failed: "申請失敗"
+    filters:
+      all: "全部"
+      country: "國家區域"
+      sort: "排序方式"
+    sort:
+      created_at: "按建包時間"
+      ordered_at: "按下單時間"
+      paid_at: "按付款時間"
     columns:
       package_code: "包裹編號"
       items: "商品"
       order_total: "訂單金額"
       destination: "目的地"
       order_name: "訂單編號"
-      created_at: "建立時間"
+      created_at: "建包時間"
+      ordered_at: "下單"
+      paid_at: "付款"
       logistics_channel: "物流方式"
       status: "狀態"
+      store: "店鋪"
     no_packages: "尚無包裹"
     showing: "顯示第 %{from}-%{to} 筆，共 %{total} 筆"
     prev: "上一頁"
@@ -662,6 +673,9 @@
     readiness:
       blocked_title: "尚未可出貨"
       ready: "可申請運單號"
+    review:
+      bulk_button: "批量審核"
+      bulk_result: "已審核 %{reviewed} 個，跳過 %{skipped} 個"
     apply:
       timeout: "貨代超時未出號"
       invalid_state: "包裹目前狀態不可申請運單號"

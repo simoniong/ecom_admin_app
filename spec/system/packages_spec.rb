@@ -473,6 +473,81 @@ RSpec.describe "Packages UI", type: :system do
       expect(page).to have_button(I18n.t("packages.ship.bulk_button"))
     end
   end
+
+  describe "列表篩選與排序" do
+    # created_at and ordered_at are deliberately given OPPOSING relative
+    # orders here (us_package: old ordered_at / recent created_at; ca_package:
+    # recent ordered_at / old created_at) so the "sorts by order time" example
+    # below can only pass if it really sorts by ordered_at — if the sort_column
+    # wiring silently fell back to the default created_at column, the packages
+    # would come back in the opposite order and the example would fail.
+    let!(:us_package) do
+      order = create(:order, customer: customer, shopify_store: store, name: "PKS#7001",
+                     ordered_at: 5.days.ago, paid_at: 5.days.ago)
+      create(:package, shopify_store: store, order: order, aasm_state: "pending_review",
+             number: 71, created_at: 1.hour.ago,
+             shipping_address_snapshot: { "country_code" => "US" })
+    end
+
+    let!(:ca_package) do
+      order = create(:order, customer: customer, shopify_store: store, name: "PKS#7002",
+                     ordered_at: 1.hour.ago, paid_at: 1.hour.ago)
+      create(:package, shopify_store: store, order: order, aasm_state: "pending_review",
+             number: 72, created_at: 5.days.ago,
+             shipping_address_snapshot: { "country_code" => "CA" })
+    end
+
+    it "narrows the list when a country pill is clicked, and restores it via 全部" do
+      visit packages_path(state: "pending_review")
+
+      expect(page).to have_content("PKS#7001")
+      expect(page).to have_content("PKS#7002")
+
+      click_link "#{I18n.t('shipping_rate_cards.countries.US')}"
+      expect(page).to have_content("PKS#7001")
+      expect(page).to have_no_content("PKS#7002")
+
+      click_link I18n.t("packages.filters.all")
+      expect(page).to have_content("PKS#7002")
+    end
+
+    it "sorts by order time and toggles direction on a second click" do
+      visit packages_path(state: "pending_review")
+
+      click_link I18n.t("packages.sort.ordered_at")
+      # Turbo Drive navigates asynchronously; page.body.index below does not
+      # retry, so wait for the toggled (now-active, desc) link to render
+      # before reading the body — otherwise this can race the navigation and
+      # read the pre-click page.
+      expect(page).to have_link("#{I18n.t('packages.sort.ordered_at')} ▼")
+      expect(page.body.index("PKS#7002")).to be < page.body.index("PKS#7001")
+
+      click_link I18n.t("packages.sort.ordered_at")
+      expect(page).to have_link("#{I18n.t('packages.sort.ordered_at')} ▲")
+      expect(page.body.index("PKS#7001")).to be < page.body.index("PKS#7002")
+    end
+
+    it "shows the order and payment times on each row" do
+      visit packages_path(state: "pending_review")
+
+      expect(page).to have_content(I18n.t("packages.columns.ordered_at"))
+      expect(page).to have_content(I18n.t("packages.columns.paid_at"))
+    end
+  end
+
+  describe "批量審核" do
+    it "advances the checked packages and empties the pending_review list" do
+      visit packages_path(state: "pending_review")
+
+      check_all = find("input[data-package-bulk-target='all']")
+      check_all.check
+
+      click_button I18n.t("packages.review.bulk_button")
+
+      expect(page).to have_content(I18n.t("packages.states.pending_review"))
+      expect(page).to have_no_content("PKS#3001")
+    end
+  end
 end
 
 # Fills the first box's number input for the first item row.

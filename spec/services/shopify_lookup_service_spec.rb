@@ -31,6 +31,24 @@ RSpec.describe ShopifyLookupService do
       expect(ticket.customer.orders.first.fulfillments.first.tracking_number).to eq("TRACK1")
     end
 
+    it "stores the Shopify processed_at as the order's paid_at" do
+      allow(shopify_service).to receive(:find_customers_by_email).with("buyer@example.com").and_return([
+        { "id" => 100, "email" => "buyer@example.com", "first_name" => "Jane", "last_name" => "Buyer" }
+      ])
+
+      allow(shopify_service).to receive(:fetch_orders).with(100).and_return([
+        { "id" => 200, "email" => "buyer@example.com", "name" => "#1001", "total_price" => "49.99",
+          "currency" => "USD", "financial_status" => "paid", "fulfillment_status" => "fulfilled",
+          "created_at" => "2026-03-20", "processed_at" => "2026-03-21T08:30:00Z" }
+      ])
+
+      allow(shopify_service).to receive(:fetch_fulfillments).with(200).and_return([])
+
+      service.lookup(ticket)
+
+      expect(Order.find_by(shopify_order_id: 200).paid_at).to eq(Time.utc(2026, 3, 21, 8, 30, 0))
+    end
+
     it "does nothing when no Shopify customer found" do
       allow(shopify_service).to receive(:find_customers_by_email).and_return([])
 

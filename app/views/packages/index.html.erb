@@ -10,22 +10,34 @@
 
   <% if @state == "applying_tracking" %>
     <nav class="flex gap-4 border-b border-gray-200 mb-4">
-      <%= link_to t("packages.application_status.all"), packages_path(state: @state),
+      <%= link_to t("packages.application_status.all"), packages_list_path(application_status: nil, page: nil),
             class: "pb-2 text-sm font-medium #{params[:application_status].blank? ? 'border-b-2 border-gray-900 text-gray-900' : 'text-gray-500 hover:text-gray-700'}" %>
       <% PackagesController::APPLICATION_STATUSES.each do |status| %>
-        <%= link_to t("packages.application_status.#{status}"), packages_path(state: @state, application_status: status),
+        <%= link_to t("packages.application_status.#{status}"), packages_list_path(application_status: status, page: nil),
               class: "pb-2 text-sm font-medium #{params[:application_status] == status ? 'border-b-2 border-gray-900 text-gray-900' : 'text-gray-500 hover:text-gray-700'}" %>
       <% end %>
     </nav>
   <% end %>
 
-  <% bulk = %w[pending_process pending_label].include?(@state) %>
-  <% bulk_url = @state == "pending_label" ? labels_packages_path : apply_tracking_bulk_packages_path %>
-  <% bulk_label = @state == "pending_label" ? t("packages.label.bulk_button") : t("packages.apply.bulk_button") %>
+  <%= render "packages/filter_bar", countries: @countries, country: @country,
+        sort_column: @sort_column, sort_direction: @sort_direction %>
+
+  <% bulk = %w[pending_review pending_process pending_label].include?(@state) %>
+  <%
+    bulk_url, bulk_label =
+      case @state
+      when "pending_label"  then [ labels_packages_path, t("packages.label.bulk_button") ]
+      when "pending_review" then [ submit_review_bulk_packages_path, t("packages.review.bulk_button") ]
+      else                       [ apply_tracking_bulk_packages_path, t("packages.apply.bulk_button") ]
+      end
+  %>
   <% bulk_html = @state == "pending_label" ? { id: "packages-bulk-form", target: "_blank" } : { id: "packages-bulk-form" } %>
   <%= form_with url: bulk_url, method: :post,
         data: (bulk ? { controller: "package-bulk" } : {}), html: bulk_html do %>
     <% if bulk %>
+      <%= hidden_field_tag :country, @country %>
+      <%= hidden_field_tag :sort_column, @sort_column %>
+      <%= hidden_field_tag :sort_direction, @sort_direction %>
       <div data-package-bulk-target="bar" class="hidden mb-3 flex items-center gap-3 px-4 py-2 bg-indigo-50 border border-indigo-200 rounded">
         <span class="text-sm text-indigo-800"><%= bulk_label %> · <span data-package-bulk-target="count">0</span></span>
         <%= submit_tag bulk_label, formaction: bulk_url, formtarget: (@state == "pending_label" ? "_blank" : nil),
@@ -44,20 +56,23 @@
               <% if bulk %>
                 <th class="px-4 py-3"><input type="checkbox" data-action="change->package-bulk#toggleAll" data-package-bulk-target="all"></th>
               <% end %>
+              <% unless current_shopify_store %>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase"><%= t("packages.columns.store") %></th>
+              <% end %>
               <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase"><%= t("packages.columns.package_code") %></th>
               <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase"><%= t("packages.columns.items") %></th>
               <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase"><%= t("packages.columns.order_total") %></th>
               <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase"><%= t("packages.columns.destination") %></th>
               <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase"><%= t("packages.columns.order_name") %></th>
-              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase"><%= t("packages.columns.created_at") %></th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase"><%= t("packages.columns.ordered_at") %> / <%= t("packages.columns.paid_at") %></th>
               <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase"><%= t("packages.columns.logistics_channel") %></th>
               <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase"><%= t("packages.columns.status") %></th>
             </tr>
           </thead>
           <tbody class="divide-y divide-gray-100">
-            <% if @packages.empty? %>
+            <% if @total_count.zero? %>
               <tr>
-                <td colspan="<%= bulk ? 9 : 8 %>" class="px-4 py-8 text-center text-sm text-gray-500"><%= t("packages.no_packages") %></td>
+                <td colspan="<%= 8 + (bulk ? 1 : 0) + (current_shopify_store ? 0 : 1) %>" class="px-4 py-8 text-center text-sm text-gray-500"><%= t("packages.no_packages") %></td>
               </tr>
             <% else %>
               <% @packages.each do |package| %>
