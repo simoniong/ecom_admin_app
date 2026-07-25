@@ -123,4 +123,177 @@ RSpec.describe AdAccount, type: :model do
       expect(ad_account.reload.shopify_store).to eq(store)
     end
   end
+
+  describe "#today_in_zone" do
+    it "uses the account timezone rather than the app timezone" do
+      account = create(:ad_account, timezone: "Asia/Taipei")
+
+      travel_to Time.utc(2026, 7, 25, 18, 0, 0) do
+        expect(account.today_in_zone).to eq(Date.new(2026, 7, 26))
+      end
+    end
+
+    it "falls back to UTC when the timezone is unknown" do
+      account = create(:ad_account)
+      account.update_column(:timezone, "Not/AZone")
+
+      travel_to Time.utc(2026, 7, 25, 18, 0, 0) do
+        expect(account.today_in_zone).to eq(Date.new(2026, 7, 25))
+      end
+    end
+  end
+
+  describe "#claim_backfill_slot!" do
+    let(:account) { create(:ad_account) }
+
+    it "claims when no attempt is scheduled" do
+      expect(account.claim_backfill_slot!).to be(true)
+      expect(account.reload.creative_backfill_attempts).to eq(1)
+      expect(account.creative_backfill_next_attempt_at).to be_present
+    end
+
+    it "refuses a second automatic claim inside the backoff window" do
+      account.claim_backfill_slot!
+
+      expect(account.claim_backfill_slot!).to be(false)
+      expect(account.reload.creative_backfill_attempts).to eq(1)
+    end
+
+    it "backs off exponentially and never schedules under one hour out" do
+      3.times do
+        account.claim_backfill_slot!
+        account.update_column(:creative_backfill_next_attempt_at, 1.second.ago)
+      end
+      account.reload
+
+      account.update_column(:creative_backfill_next_attempt_at, nil)
+      account.claim_backfill_slot!
+
+      gap = account.reload.creative_backfill_next_attempt_at - Time.current
+      expect(gap).to be >= 1.hour
+      expect(gap).to be <= 24.hours
+    end
+
+    it "caps the backoff at 24 hours" do
+      account.update_column(:creative_backfill_attempts, 20)
+      account.claim_backfill_slot!
+
+      gap = account.reload.creative_backfill_next_attempt_at - Time.current
+      expect(gap).to be <= 24.hours + 1.minute
+    end
+
+    it "lets a manual claim bypass failure backoff" do
+      account.update_columns(
+        creative_backfill_attempts: 5,
+        creative_backfill_next_attempt_at: 20.hours.from_now
+      )
+
+      expect(account.claim_backfill_slot!(manual: true)).to be(true)
+    end
+
+    # `attempts` counts every automatic claim, not just failures — the OAuth
+    # connect hook and every hourly heal bump it — so `attempts > 0` was true
+    # for essentially every account and made the manual path skip the due-time
+    # check entirely. The two windows are told apart by length instead: an
+    # automatic claim is always >= 2h out, a manual one exactly 1h.
+    it "refuses a manual claim inside a manual window even when attempts is high" do
+      account.update_columns(
+        creative_backfill_attempts: 3,
+        creative_backfill_next_attempt_at: 30.minutes.from_now
+      )
+
+      expect(account.claim_backfill_slot!(manual: true)).to be(false)
+    end
+
+    it "still bypasses an automatic backoff window when attempts is high" do
+      account.update_columns(
+        creative_backfill_attempts: 3,
+        creative_backfill_next_attempt_at: 20.hours.from_now
+      )
+
+      expect(account.claim_backfill_slot!(manual: true)).to be(true)
+      expect(account.reload.creative_backfill_next_attempt_at).to be_within(1.minute).of(1.hour.from_now)
+    end
+
+    it "blocks a rapid second manual click after an automatic claim has bumped attempts" do
+      account.claim_backfill_slot!
+      account.update_column(:creative_backfill_next_attempt_at, nil)
+
+      expect(account.claim_backfill_slot!(manual: true)).to be(true)
+      expect(account.claim_backfill_slot!(manual: true)).to be(false)
+      expect(account.claim_backfill_slot!(manual: true)).to be(false)
+    end
+
+    it "does not increment attempts on a manual claim" do
+      account.update_columns(creative_backfill_attempts: 5, creative_backfill_next_attempt_at: 20.hours.from_now)
+
+      account.claim_backfill_slot!(manual: true)
+
+      expect(account.reload.creative_backfill_attempts).to eq(5)
+    end
+
+    it "blocks a rapid second manual click after a clean state" do
+      expect(account.claim_backfill_slot!(manual: true)).to be(true)
+      expect(account.claim_backfill_slot!(manual: true)).to be(false)
+    end
+
+    it "refuses an automatic claim while a manual one holds the slot" do
+      account.claim_backfill_slot!(manual: true)
+
+      expect(account.claim_backfill_slot!).to be(false)
+    end
+
+    # Regression guard for the core requirement: checking whether the slot is
+    # due and advancing next_attempt_at must be ONE statement, not a SELECT
+    # followed by an UPDATE. A "simplified" `return false unless due?;
+    # update_all(...)` rewrite would pass every other spec in this file while
+    # reintroducing the race two concurrent runners rely on this method to
+    # prevent. Asserting on real statements is what proves that didn't happen;
+    # SCHEMA/TRANSACTION notifications and BEGIN/COMMIT/SAVEPOINT statements
+    # (emitted by RSpec's transactional test wrapping) are filtered out so the
+    # assertion is about the method's own SQL only.
+    def capture_sql
+      statements = []
+      subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |*, payload|
+        next if %w[SCHEMA TRANSACTION].include?(payload[:name])
+        next if payload[:sql] =~ /\A\s*(BEGIN|COMMIT|SAVEPOINT|RELEASE)/i
+
+        statements << payload[:sql]
+      end
+
+      yield
+      statements
+    ensure
+      ActiveSupport::Notifications.unsubscribe(subscriber)
+    end
+
+    it "issues exactly one UPDATE with no preceding SELECT for an automatic claim" do
+      account # materialize the let before capturing, so its own INSERT isn't counted
+
+      statements = capture_sql { account.claim_backfill_slot! }
+
+      expect(statements.size).to eq(1)
+      expect(statements.first).to match(/\AUPDATE "ad_accounts"/)
+    end
+
+    it "issues exactly one UPDATE with no preceding SELECT for a manual claim" do
+      account # materialize the let before capturing, so its own INSERT isn't counted
+
+      statements = capture_sql { account.claim_backfill_slot!(manual: true) }
+
+      expect(statements.size).to eq(1)
+      expect(statements.first).to match(/\AUPDATE "ad_accounts"/)
+    end
+  end
+
+  describe "#release_backfill_slot!" do
+    it "clears the attempt counter and schedule" do
+      account = create(:ad_account, creative_backfill_attempts: 4, creative_backfill_next_attempt_at: 2.hours.from_now)
+
+      account.release_backfill_slot!
+
+      expect(account.reload.creative_backfill_attempts).to eq(0)
+      expect(account.creative_backfill_next_attempt_at).to be_nil
+    end
+  end
 end

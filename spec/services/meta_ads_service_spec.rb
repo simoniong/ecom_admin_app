@@ -217,6 +217,189 @@ RSpec.describe MetaAdsService do
     end
   end
 
+  describe "#sync_ad_units" do
+    let(:graph) { instance_double(Koala::Facebook::API) }
+
+    before { allow(Koala::Facebook::API).to receive(:new).and_return(graph) }
+
+    def stub_ads(*ads)
+      allow(graph).to receive(:get_connections).and_return(ads)
+    end
+
+    def ad_payload(id:, creative:)
+      {
+        "id" => id, "name" => "Ad #{id}", "adset_id" => "adset_1",
+        "campaign_id" => "camp_1", "effective_status" => "ACTIVE",
+        "creative" => creative
+      }
+    end
+
+    it "resolves creative.video_id (branch 2)" do
+      stub_ads(ad_payload(id: "a1", creative: { "id" => "c1", "video_id" => "v9" }))
+
+      service.sync_ad_units
+
+      unit = AdUnit.find_by(ad_id: "a1")
+      expect(unit.multi_asset).to be(false)
+      expect(unit.ad_creative.asset_type).to eq("video")
+      expect(unit.ad_creative.asset_id).to eq("v9")
+    end
+
+    it "resolves object_story_spec video_data (branch 3)" do
+      stub_ads(ad_payload(id: "a2", creative: {
+        "id" => "c2", "object_story_spec" => { "video_data" => { "video_id" => "v8" } }
+      }))
+
+      service.sync_ad_units
+
+      expect(AdUnit.find_by(ad_id: "a2").ad_creative.asset_id).to eq("v8")
+    end
+
+    it "resolves a single video inside asset_feed_spec (branch 4)" do
+      stub_ads(ad_payload(id: "a3", creative: {
+        "id" => "c3", "asset_feed_spec" => { "videos" => [ { "video_id" => "v7" } ] }
+      }))
+
+      service.sync_ad_units
+
+      unit = AdUnit.find_by(ad_id: "a3")
+      expect(unit.multi_asset).to be(false)
+      expect(unit.ad_creative.asset_id).to eq("v7")
+    end
+
+    it "resolves creative.image_hash (branch 5)" do
+      stub_ads(ad_payload(id: "a4", creative: { "id" => "c4", "image_hash" => "h1" }))
+
+      service.sync_ad_units
+
+      creative = AdUnit.find_by(ad_id: "a4").ad_creative
+      expect(creative.asset_type).to eq("image")
+      expect(creative.asset_id).to eq("h1")
+    end
+
+    it "resolves a single image inside asset_feed_spec (branch 6)" do
+      stub_ads(ad_payload(id: "a5", creative: {
+        "id" => "c5", "asset_feed_spec" => { "images" => [ { "hash" => "h2" } ] }
+      }))
+
+      service.sync_ad_units
+
+      expect(AdUnit.find_by(ad_id: "a5").ad_creative.asset_id).to eq("h2")
+    end
+
+    it "resolves link_data image_hash (branch 7)" do
+      stub_ads(ad_payload(id: "a6", creative: {
+        "id" => "c6", "object_story_spec" => { "link_data" => { "image_hash" => "h3" } }
+      }))
+
+      service.sync_ad_units
+
+      expect(AdUnit.find_by(ad_id: "a6").ad_creative.asset_id).to eq("h3")
+    end
+
+    it "marks multiple distinct media as multi_asset (branch 1)" do
+      stub_ads(ad_payload(id: "a7", creative: {
+        "id" => "c7",
+        "asset_feed_spec" => { "videos" => [ { "video_id" => "v1" }, { "video_id" => "v2" } ] }
+      }))
+
+      service.sync_ad_units
+
+      unit = AdUnit.find_by(ad_id: "a7")
+      expect(unit.multi_asset).to be(true)
+      expect(unit.ad_creative_id).to be_nil
+    end
+
+    it "treats mixed video and image as multi_asset" do
+      stub_ads(ad_payload(id: "a8", creative: {
+        "id" => "c8",
+        "asset_feed_spec" => { "videos" => [ { "video_id" => "v1" } ], "images" => [ { "hash" => "h1" } ] }
+      }))
+
+      service.sync_ad_units
+
+      expect(AdUnit.find_by(ad_id: "a8").multi_asset).to be(true)
+    end
+
+    it "prefers the multi_asset branch over a residual top-level video_id" do
+      stub_ads(ad_payload(id: "a9", creative: {
+        "id" => "c9", "video_id" => "residual",
+        "asset_feed_spec" => { "videos" => [ { "video_id" => "v1" }, { "video_id" => "v2" } ] }
+      }))
+
+      service.sync_ad_units
+
+      unit = AdUnit.find_by(ad_id: "a9")
+      expect(unit.multi_asset).to be(true)
+      expect(AdCreative.find_by(asset_id: "residual")).to be_nil
+    end
+
+    it "counts duplicate media ids as one distinct asset" do
+      stub_ads(ad_payload(id: "a10", creative: {
+        "id" => "c10",
+        "asset_feed_spec" => { "videos" => [ { "video_id" => "v1" }, { "video_id" => "v1" } ] }
+      }))
+
+      service.sync_ad_units
+
+      unit = AdUnit.find_by(ad_id: "a10")
+      expect(unit.multi_asset).to be(false)
+      expect(unit.ad_creative.asset_id).to eq("v1")
+    end
+
+    it "attributes a single media asset that also carries customization rules" do
+      stub_ads(ad_payload(id: "a11", creative: {
+        "id" => "c11",
+        "asset_feed_spec" => {
+          "videos" => [ { "video_id" => "v1" } ],
+          "asset_customization_rules" => [ { "customization_spec" => { "publisher_platforms" => [ "facebook" ] } } ]
+        }
+      }))
+
+      service.sync_ad_units
+
+      unit = AdUnit.find_by(ad_id: "a11")
+      expect(unit.multi_asset).to be(false)
+      expect(unit.ad_creative.asset_id).to eq("v1")
+    end
+
+    it "leaves an unknown creative shape unattributed without marking multi_asset (branch 8)" do
+      stub_ads(ad_payload(id: "a12", creative: { "id" => "c12" }))
+
+      service.sync_ad_units
+
+      unit = AdUnit.find_by(ad_id: "a12")
+      expect(unit.ad_creative_id).to be_nil
+      expect(unit.multi_asset).to be(false)
+    end
+
+    it "links the ad unit to an existing campaign" do
+      campaign = create(:ad_campaign, ad_account: ad_account, campaign_id: "camp_1")
+      stub_ads(ad_payload(id: "a13", creative: { "id" => "c13", "video_id" => "v1" }))
+
+      service.sync_ad_units
+
+      expect(AdUnit.find_by(ad_id: "a13").ad_campaign).to eq(campaign)
+    end
+
+    it "reuses one creative across several ads" do
+      stub_ads(
+        ad_payload(id: "a14", creative: { "id" => "c14", "video_id" => "shared" }),
+        ad_payload(id: "a15", creative: { "id" => "c15", "video_id" => "shared" })
+      )
+
+      expect { service.sync_ad_units }.to change(AdCreative, :count).by(1)
+      expect(AdUnit.count).to eq(2)
+    end
+
+    it "is idempotent across repeated syncs" do
+      stub_ads(ad_payload(id: "a16", creative: { "id" => "c16", "video_id" => "v1" }))
+
+      service.sync_ad_units
+      expect { service.sync_ad_units }.not_to change(AdUnit, :count)
+    end
+  end
+
   describe "#refresh_token_if_needed!" do
     it "refreshes token when expiring soon" do
       ad_account.update!(token_expires_at: 3.days.from_now)
@@ -247,6 +430,163 @@ RSpec.describe MetaAdsService do
 
       expect(Koala::Facebook::OAuth).not_to receive(:new)
       service.refresh_token_if_needed!
+    end
+  end
+
+  describe "#fetch_ad_insights" do
+    let(:graph) { instance_double(Koala::Facebook::API) }
+
+    before { allow(Koala::Facebook::API).to receive(:new).and_return(graph) }
+
+    def insight_row(overrides = {})
+      {
+        "ad_id" => "a1", "date_start" => "2026-07-01",
+        "spend" => "12.50", "impressions" => "1000", "clicks" => "40",
+        "inline_link_clicks" => "30",
+        "video_continuous_2_sec_watched_actions" => [ { "action_type" => "video_view", "value" => "300" } ],
+        "video_p25_watched_actions" => [ { "action_type" => "video_view", "value" => "250" } ],
+        "video_p50_watched_actions" => [ { "action_type" => "video_view", "value" => "150" } ],
+        "video_p75_watched_actions" => [ { "action_type" => "video_view", "value" => "90" } ],
+        "video_p95_watched_actions" => [ { "action_type" => "video_view", "value" => "50" } ],
+        "video_p100_watched_actions" => [ { "action_type" => "video_view", "value" => "40" } ],
+        "actions" => [
+          { "action_type" => "offsite_conversion.fb_pixel_add_to_cart", "value" => "8" },
+          { "action_type" => "offsite_conversion.fb_pixel_initiate_checkout", "value" => "4" },
+          { "action_type" => "offsite_conversion.fb_pixel_purchase", "value" => "2" }
+        ],
+        "action_values" => [
+          { "action_type" => "offsite_conversion.fb_pixel_purchase", "value" => "88.00" }
+        ]
+      }.merge(overrides)
+    end
+
+    it "parses list-valued video fields into integers" do
+      allow(graph).to receive(:get_connections).and_return([ insight_row ])
+
+      row = service.fetch_ad_insights(Date.new(2026, 7, 1), Date.new(2026, 7, 1)).first
+
+      expect(row[:video_continuous_2_sec_watched]).to eq(300)
+      expect(row[:video_p50_watched]).to eq(150)
+      expect(row[:video_p75_watched]).to eq(90)
+    end
+
+    it "sums every entry in a video action list" do
+      allow(graph).to receive(:get_connections).and_return([
+        insight_row("video_p50_watched_actions" => [
+          { "action_type" => "video_view", "value" => "100" },
+          { "action_type" => "something_new", "value" => "20" }
+        ])
+      ])
+
+      row = service.fetch_ad_insights(Date.new(2026, 7, 1), Date.new(2026, 7, 1)).first
+
+      expect(row[:video_p50_watched]).to eq(120)
+    end
+
+    it "returns zero for absent video fields (image ads)" do
+      allow(graph).to receive(:get_connections).and_return([
+        insight_row.except(
+          "video_continuous_2_sec_watched_actions", "video_p25_watched_actions",
+          "video_p50_watched_actions", "video_p75_watched_actions",
+          "video_p95_watched_actions", "video_p100_watched_actions"
+        )
+      ])
+
+      row = service.fetch_ad_insights(Date.new(2026, 7, 1), Date.new(2026, 7, 1)).first
+
+      expect(row[:video_p50_watched]).to eq(0)
+      expect(row[:video_continuous_2_sec_watched]).to eq(0)
+    end
+
+    it "parses conversions with the full offsite_conversion action types" do
+      allow(graph).to receive(:get_connections).and_return([ insight_row ])
+
+      row = service.fetch_ad_insights(Date.new(2026, 7, 1), Date.new(2026, 7, 1)).first
+
+      expect(row[:add_to_cart]).to eq(8)
+      expect(row[:checkout_initiated]).to eq(4)
+      expect(row[:purchases]).to eq(2)
+      expect(row[:conversion_value]).to eq(88.00)
+    end
+
+    it "requests account attribution settings and ad-level daily granularity" do
+      expect(graph).to receive(:get_connections) do |_node, edge, **params|
+        expect(edge).to eq("insights")
+        expect(params[:level]).to eq("ad")
+        expect(params[:time_increment]).to eq(1)
+        expect(params[:use_account_attribution_setting]).to be(true)
+        expect(params[:limit]).to eq(500)
+        expect(params[:time_range]).to eq({ since: "2026-07-01", until: "2026-07-03" })
+        []
+      end
+
+      service.fetch_ad_insights(Date.new(2026, 7, 1), Date.new(2026, 7, 3))
+    end
+
+    it "writes nothing to the database" do
+      allow(graph).to receive(:get_connections).and_return([ insight_row ])
+
+      expect {
+        service.fetch_ad_insights(Date.new(2026, 7, 1), Date.new(2026, 7, 1))
+      }.not_to change(AdUnitDailyMetric, :count)
+    end
+  end
+
+  describe "#sync_creative_assets" do
+    let(:graph) { instance_double(Koala::Facebook::API) }
+
+    before { allow(Koala::Facebook::API).to receive(:new).and_return(graph) }
+
+    it "backfills name, duration and thumbnail for a video creative" do
+      creative = create(:ad_creative, ad_account: ad_account, asset_type: "video",
+        asset_id: "v1", thumbnail_url: nil, name: nil, duration_seconds: nil)
+      allow(graph).to receive(:get_object).with("v1", fields: "title,length,thumbnails,picture")
+        .and_return({ "title" => "Hook A", "length" => "27.5", "picture" => "https://x/t.jpg" })
+
+      service.sync_creative_assets
+
+      creative.reload
+      expect(creative.name).to eq("Hook A")
+      expect(creative.duration_seconds).to eq(27)
+      expect(creative.thumbnail_url).to eq("https://x/t.jpg")
+    end
+
+    it "skips creatives that already have a thumbnail" do
+      create(:ad_creative, ad_account: ad_account, asset_type: "video", thumbnail_url: "https://x/have.jpg")
+      expect(graph).not_to receive(:get_object)
+
+      service.sync_creative_assets
+    end
+
+    it "skips image creatives" do
+      create(:ad_creative, ad_account: ad_account, asset_type: "image", asset_id: "h1", thumbnail_url: nil)
+      expect(graph).not_to receive(:get_object)
+
+      service.sync_creative_assets
+    end
+
+    it "keeps an existing name when the video has no title" do
+      creative = create(:ad_creative, ad_account: ad_account, asset_type: "video",
+        asset_id: "v2", name: "Existing", thumbnail_url: nil)
+      allow(graph).to receive(:get_object).and_return({ "picture" => "https://x/t.jpg" })
+
+      service.sync_creative_assets
+
+      expect(creative.reload.name).to eq("Existing")
+    end
+
+    it "logs and continues when one video lookup fails" do
+      create(:ad_creative, ad_account: ad_account, asset_type: "video", asset_id: "v3", thumbnail_url: nil)
+      create(:ad_creative, ad_account: ad_account, asset_type: "video", asset_id: "v4", thumbnail_url: nil)
+      call = 0
+      allow(graph).to receive(:get_object) do
+        call += 1
+        raise Koala::Facebook::ClientError.new(400, "gone") if call == 1
+        { "picture" => "https://x/ok.jpg" }
+      end
+
+      expect { service.sync_creative_assets }.not_to raise_error
+      expect(call).to eq(2)
     end
   end
 end

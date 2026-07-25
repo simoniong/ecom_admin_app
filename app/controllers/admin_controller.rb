@@ -25,7 +25,7 @@ class AdminController < ApplicationController
     "logistics_accounts" => "logistics_channels"
   }.freeze
 
-  STORE_SWITCHER_CONTROLLERS = %w[dashboard orders shipments tickets ad_campaigns packages].freeze
+  STORE_SWITCHER_CONTROLLERS = %w[dashboard orders shipments tickets ad_campaigns ad_creatives packages].freeze
   STORE_ALL_ALLOWED_CONTROLLERS = %w[dashboard shipments packages].freeze
 
   private

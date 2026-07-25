@@ -1,0 +1,17 @@
+<%# app/views/ad_creatives/_anchor_cell.html.erb %>
+<%# locals: (creative:, window:, value:, first:) %>
+<% state = creative.anchor_state(window) %>
+<td class="px-3 py-2 text-right <%= 'border-l border-gray-100' if first %>" data-anchor-state="<%= state %>">
+  <% case state %>
+  <% when :no_spend %>
+    <span class="text-gray-300"><%= t("ad_creatives.not_applicable") %></span>
+  <% when :unsynced %>
+    <span class="text-gray-300" title="<%= t("ad_creatives.states.unsynced_hint") %>">·</span>
+  <% when :truncated %>
+    <span class="text-amber-500" title="<%= t("ad_creatives.states.truncated_hint") %>">⚠</span>
+  <% when :insufficient %>
+    <span class="text-gray-300"></span>
+  <% else %>
+    <%= value %>
+  <% end %>
+</td>

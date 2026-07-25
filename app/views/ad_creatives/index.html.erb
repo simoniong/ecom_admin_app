@@ -1,0 +1,94 @@
+<%# app/views/ad_creatives/index.html.erb %>
+<div class="px-4 sm:px-6 lg:px-8 py-6">
+  <div class="flex items-center justify-between mb-6">
+    <h1 class="text-2xl font-semibold text-gray-900"><%= t("ad_creatives.title") %></h1>
+    <%# Carry the account filter so Sync claims exactly the accounts on screen. %>
+    <%= button_to t("ad_creatives.sync_ads"), sync_ad_creatives_path(ad_account_id: @selected_account&.id), method: :post,
+        class: "px-4 py-2 text-sm font-medium text-white bg-gray-900 rounded-md hover:bg-gray-700" %>
+  </div>
+
+  <%= form_with url: ad_creatives_path, method: :get, class: "flex flex-wrap items-end gap-3 mb-6" do %>
+    <div>
+      <label class="block text-xs font-medium text-gray-500 mb-1"><%= t("ad_creatives.from_date") %></label>
+      <%= date_field_tag :from_date, @from_date, class: "rounded-md border-gray-300 text-sm" %>
+    </div>
+    <div>
+      <label class="block text-xs font-medium text-gray-500 mb-1"><%= t("ad_creatives.to_date") %></label>
+      <%= date_field_tag :to_date, @to_date, class: "rounded-md border-gray-300 text-sm" %>
+    </div>
+    <div>
+      <%= select_tag :ad_account_id,
+          options_from_collection_for_select(@ad_accounts, :id, :account_name, @selected_account&.id),
+          include_blank: t("ad_creatives.all_accounts"), class: "rounded-md border-gray-300 text-sm" %>
+    </div>
+    <%= submit_tag t("ad_creatives.filter"),
+        class: "px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50" %>
+  <% end %>
+
+  <% if @creatives.empty? %>
+    <p class="text-sm text-gray-500"><%= t("ad_creatives.empty") %></p>
+  <% else %>
+    <div class="overflow-x-auto bg-white border border-gray-200 rounded-lg">
+      <table class="min-w-full divide-y divide-gray-200 text-sm">
+        <thead class="bg-gray-50">
+          <%# Three different time bases share this table; the group header row keeps them apart. %>
+          <tr class="text-xs uppercase tracking-wide text-gray-500">
+            <th class="px-3 py-2 text-left" colspan="2"><%= t("ad_creatives.groups.creative") %></th>
+            <th class="px-3 py-2 text-center border-l border-gray-200" colspan="7"><%= t("ad_creatives.groups.engagement") %></th>
+            <th class="px-3 py-2 text-center border-l border-gray-200" colspan="4"><%= t("ad_creatives.groups.cold_start") %></th>
+            <th class="px-3 py-2 text-center border-l border-gray-200" colspan="2"><%= t("ad_creatives.groups.lifetime") %></th>
+          </tr>
+          <tr class="text-xs font-medium text-gray-500">
+            <th class="px-3 py-2 text-left"><%= t("ad_creatives.columns.name") %></th>
+            <th class="px-3 py-2 text-left"><%= t("ad_creatives.columns.platform") %></th>
+            <% AdCreativesController::SORTABLE_COLUMNS.each_with_index do |column, index| %>
+              <th class="px-3 py-2 text-right <%= 'border-l border-gray-200' if [0, 7, 11].include?(index) %>">
+                <%= link_to t("ad_creatives.columns.#{column}"),
+                    ad_creatives_path(request.query_parameters.merge(
+                      sort_column: column,
+                      sort_direction: (@sort_column == column && @sort_direction == "desc") ? "asc" : "desc"
+                    )), class: "hover:text-gray-900" %>
+              </th>
+            <% end %>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100">
+          <% @creatives.each do |creative| %>
+            <% metrics = @creative_metrics[creative.id] %>
+            <% video = creative.asset_type == "video" %>
+            <tr>
+              <td class="px-3 py-2">
+                <div class="flex items-center gap-2">
+                  <% if creative.thumbnail_url.present? %>
+                    <%= image_tag creative.thumbnail_url, class: "w-10 h-10 rounded object-cover", loading: "lazy" %>
+                  <% end %>
+                  <span class="font-medium text-gray-900"><%= creative.name %></span>
+                </div>
+              </td>
+              <td class="px-3 py-2 text-gray-500"><%= creative.ad_account.platform %></td>
+
+              <%# Engagement — selected range. Video-only columns dash out for images. %>
+              <td class="px-3 py-2 text-right border-l border-gray-100"><%= video ? number_to_percentage(metrics.two_sec_rate, precision: 1) : t("ad_creatives.not_applicable") %></td>
+              <td class="px-3 py-2 text-right"><%= video ? number_to_percentage(metrics.p50_rate, precision: 1) : t("ad_creatives.not_applicable") %></td>
+              <td class="px-3 py-2 text-right"><%= video ? number_to_percentage(metrics.p75_rate, precision: 1) : t("ad_creatives.not_applicable") %></td>
+              <td class="px-3 py-2 text-right"><%= number_to_percentage(metrics.link_ctr, precision: 1) %></td>
+              <td class="px-3 py-2 text-right"><%= number_to_currency(metrics.cpc_link) %></td>
+              <td class="px-3 py-2 text-right"><%= number_to_currency(metrics.cpc_all) %></td>
+              <td class="px-3 py-2 text-right"><%= number_to_currency(metrics.cpm) %></td>
+
+              <%# Cold start — anchored on first_spend_date, each column carries its own window. %>
+              <%= render "anchor_cell", creative: creative, window: 1, value: number_to_currency(metrics.d1_spend), first: true %>
+              <%= render "anchor_cell", creative: creative, window: 1, value: number_with_delimiter(metrics.d1_purchases), first: false %>
+              <%= render "anchor_cell", creative: creative, window: 3, value: metrics.d3_roas, first: false %>
+              <%= render "anchor_cell", creative: creative, window: 5, value: metrics.d5_roas, first: false %>
+
+              <%# Lifetime — bounded by the account's synced coverage. %>
+              <%= render "anchor_cell", creative: creative, window: nil, value: number_to_currency(metrics.lifetime_spend), first: true %>
+              <%= render "anchor_cell", creative: creative, window: nil, value: metrics.lifetime_roas, first: false %>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+</div>

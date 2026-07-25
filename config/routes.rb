@@ -130,6 +130,9 @@ Rails.application.routes.draw do
     resources :ad_campaigns, only: [ :index ] do
       post :sync, on: :collection
     end
+    resources :ad_creatives, only: [ :index ] do
+      post :sync, on: :collection
+    end
     resources :campaign_display_templates, only: [ :create, :update, :destroy ]
     resources :orders, only: [ :index ] do
       post :sync, on: :collection

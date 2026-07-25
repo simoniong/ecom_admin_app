@@ -20,6 +20,9 @@ production:
   sync_ad_campaigns:
     class: SyncAdCampaignsJob
     schedule: every 1 hour
+  sync_ad_creatives:
+    class: SyncAdCreativesJob
+    schedule: every 1 hour
   sync_all_shopify_orders:
     class: SyncAllShopifyOrdersRecurringJob
     schedule: every 1 hour
@@ -54,6 +57,9 @@ development:
     schedule: every 1 hour
   sync_ad_campaigns:
     class: SyncAdCampaignsJob
+    schedule: every 1 hour
+  sync_ad_creatives:
+    class: SyncAdCreativesJob
     schedule: every 1 hour
   sync_all_shopify_orders:
     class: SyncAllShopifyOrdersRecurringJob

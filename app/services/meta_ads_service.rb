@@ -90,7 +90,128 @@ class MetaAdsService
     end
   end
 
+  AD_FIELDS = "id,name,adset_id,campaign_id,effective_status," \
+              "creative{id,video_id,image_hash,thumbnail_url,object_story_spec,asset_feed_spec}".freeze
+
+  def sync_ad_units
+    ads = fetch_all_pages(@ad_account.account_id, "ads", fields: AD_FIELDS, limit: 500)
+    campaign_ids = @ad_account.ad_campaigns.pluck(:campaign_id, :id).to_h
+
+    ads.each do |data|
+      resolved = resolve_asset(data["creative"] || {})
+      creative = find_or_create_creative(resolved, data["name"])
+
+      unit = @ad_account.ad_units.find_or_initialize_by(ad_id: data["id"])
+      unit.assign_attributes(
+        ad_name: data["name"],
+        adset_id: data["adset_id"],
+        ad_campaign_id: campaign_ids[data["campaign_id"]],
+        status: map_campaign_status(data["effective_status"]),
+        multi_asset: resolved[:multi_asset],
+        ad_creative: creative
+      )
+      unit.save!
+
+      if creative.nil? && !resolved[:multi_asset]
+        Rails.logger.warn("[SyncAdUnits] unresolved creative shape ad=#{data['id']} account=#{@ad_account.account_id}")
+      end
+    end
+  end
+
+  def sync_creative_assets
+    @ad_account.ad_creatives.video.where(thumbnail_url: nil).find_each do |creative|
+      data = @graph.get_object(creative.asset_id, fields: "title,length,thumbnails,picture")
+      next if data.blank?
+
+      creative.name = data["title"] if data["title"].present?
+      creative.duration_seconds = data["length"].to_f.floor if data["length"].present?
+      creative.thumbnail_url = data["picture"] if data["picture"].present?
+      creative.save!
+    rescue Koala::Facebook::ClientError, Koala::Facebook::APIError => e
+      Rails.logger.error("[SyncCreativeAssets] video=#{creative.asset_id}: #{e.message}")
+    end
+  end
+
+  INSIGHT_FIELDS = %w[
+    ad_id spend impressions clicks inline_link_clicks actions action_values
+    video_continuous_2_sec_watched_actions
+    video_p25_watched_actions video_p50_watched_actions
+    video_p75_watched_actions video_p95_watched_actions video_p100_watched_actions
+  ].join(",").freeze
+
+  # Fetches one date range and returns parsed rows. Deliberately performs no
+  # writes: the caller persists them together with the coverage advance inside
+  # a single transaction (spec §5.6), and an HTTP call must not sit inside one.
+  def fetch_ad_insights(start_date, end_date)
+    rows = fetch_all_pages(
+      @ad_account.account_id, "insights",
+      fields: INSIGHT_FIELDS,
+      level: "ad",
+      time_increment: 1,
+      use_account_attribution_setting: true,
+      time_range: { since: start_date.iso8601, until: end_date.iso8601 },
+      limit: 500
+    )
+
+    rows.map do |row|
+      {
+        ad_id: row["ad_id"],
+        date: Date.parse(row["date_start"]),
+        spend: row["spend"].to_d,
+        impressions: row["impressions"].to_i,
+        clicks: row["clicks"].to_i,
+        inline_link_clicks: row["inline_link_clicks"].to_i,
+        video_continuous_2_sec_watched: extract_video_metric(row["video_continuous_2_sec_watched_actions"]),
+        video_p25_watched: extract_video_metric(row["video_p25_watched_actions"]),
+        video_p50_watched: extract_video_metric(row["video_p50_watched_actions"]),
+        video_p75_watched: extract_video_metric(row["video_p75_watched_actions"]),
+        video_p95_watched: extract_video_metric(row["video_p95_watched_actions"]),
+        video_p100_watched: extract_video_metric(row["video_p100_watched_actions"]),
+        add_to_cart: extract_action_count(row["actions"], "offsite_conversion.fb_pixel_add_to_cart"),
+        checkout_initiated: extract_action_count(row["actions"], "offsite_conversion.fb_pixel_initiate_checkout"),
+        purchases: extract_action_count(row["actions"], "offsite_conversion.fb_pixel_purchase"),
+        conversion_value: extract_action_value(row["action_values"], "offsite_conversion.fb_pixel_purchase")
+      }
+    end
+  end
+
   private
+
+  # Resolution order per spec §5.1. First match wins; the multi-asset check
+  # must stay first so a residual video_id on an Advantage+ creative cannot
+  # capture the whole ad's spend.
+  def resolve_asset(creative)
+    feed = creative["asset_feed_spec"] || {}
+    videos = Array(feed["videos"]).map { |v| v["video_id"] }.compact.uniq
+    images = Array(feed["images"]).map { |i| i["hash"] }.compact.uniq
+
+    return { asset_type: nil, asset_id: nil, multi_asset: true } if videos.size + images.size > 1
+
+    story = creative["object_story_spec"] || {}
+
+    video_id = creative["video_id"].presence ||
+               story.dig("video_data", "video_id").presence ||
+               videos.first
+    return { asset_type: "video", asset_id: video_id, multi_asset: false } if video_id.present?
+
+    image_hash = creative["image_hash"].presence ||
+                 images.first ||
+                 story.dig("link_data", "image_hash").presence
+    return { asset_type: "image", asset_id: image_hash, multi_asset: false } if image_hash.present?
+
+    { asset_type: nil, asset_id: nil, multi_asset: false }
+  end
+
+  def find_or_create_creative(resolved, fallback_name)
+    return nil if resolved[:asset_id].blank?
+
+    creative = @ad_account.ad_creatives.find_or_initialize_by(
+      asset_type: resolved[:asset_type], asset_id: resolved[:asset_id]
+    )
+    creative.name ||= fallback_name
+    creative.save!
+    creative
+  end
 
   def fetch_all_pages(node, edge, **params)
     page = @graph.get_connections(node, edge, **params)
@@ -125,5 +246,14 @@ class MetaAdsService
   def extract_action_value(action_values, action_type)
     return 0 if action_values.blank?
     action_values.find { |a| a["action_type"] == action_type }&.dig("value").to_d
+  end
+
+  # Video insight fields are list<AdsActionStats>, not scalars (spec §2.3).
+  # Sum every entry rather than picking action_type == "video_view", so a new
+  # action_type from Meta cannot silently drop counts.
+  def extract_video_metric(list)
+    return 0 if list.blank?
+
+    list.sum { |entry| entry["value"].to_i }
   end
 end
