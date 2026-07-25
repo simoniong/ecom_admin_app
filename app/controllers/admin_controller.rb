@@ -26,7 +26,7 @@ class AdminController < ApplicationController
   }.freeze
 
   STORE_SWITCHER_CONTROLLERS = %w[dashboard orders shipments tickets ad_campaigns ad_creatives packages].freeze
-  STORE_ALL_ALLOWED_CONTROLLERS = %w[dashboard shipments].freeze
+  STORE_ALL_ALLOWED_CONTROLLERS = %w[dashboard shipments packages].freeze
 
   private
 

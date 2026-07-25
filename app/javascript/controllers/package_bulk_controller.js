@@ -1,7 +1,8 @@
 import { Controller } from "@hotwired/stimulus"
 
-// Lightweight bulk selection for the pending_process packages list. Shows the
-// action bar with a live count when at least one row is checked.
+// Lightweight bulk selection for the pending_review, pending_process, and
+// pending_label packages lists. Shows the action bar with a live count when
+// at least one row is checked.
 export default class extends Controller {
   static targets = ["checkbox", "bar", "count", "all"]
 

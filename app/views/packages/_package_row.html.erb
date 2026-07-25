@@ -5,6 +5,11 @@
              data-package-bulk-target="checkbox" data-action="change->package-bulk#refresh">
     </td>
   <% end %>
+  <%# Only rendered in the all-stores view — in single-store mode the column
+      would repeat the same name on every row for no information. %>
+  <% unless current_shopify_store %>
+    <td class="px-4 py-3 text-sm text-gray-700 align-top whitespace-nowrap"><%= package.shopify_store.display_name %></td>
+  <% end %>
   <td class="px-4 py-3 text-sm font-medium align-top whitespace-nowrap">
     <%= link_to package.package_code, package_path(id: package.id),
         data: { turbo_frame: "package-modal" },
@@ -35,8 +40,11 @@
     <%# Prefer the package's own address snapshot so a manual override (which
         sets address_overridden and may change the country) shows here too;
         fall back to the order's raw Shopify shipping address otherwise. %>
-    <% country = package.shipping_address_snapshot["country_code"].presence ||
-                 package.order.shopify_data&.dig("shipping_address", "country_code") %>
+    <%# Normalized the same way PackageListQuery::COUNTRY_SQL normalizes it —
+        #update_address accepts hand-typed country codes, so " us " is possible
+        and must render as 美國, not as a raw code the filter pills don't match. %>
+    <% country = (package.shipping_address_snapshot["country_code"].to_s.strip.presence ||
+                  package.order.shopify_data&.dig("shipping_address", "country_code").to_s.strip.presence)&.upcase %>
     <% if country.present? %>
       <%= parcel_country_flag(country) %> <%= parcel_country_name(country) %>
     <% else %>
@@ -44,7 +52,31 @@
     <% end %>
   </td>
   <td class="px-4 py-3 text-sm text-gray-700 align-top whitespace-nowrap"><%= package.order.name %></td>
-  <td class="px-4 py-3 text-sm text-gray-500 align-top whitespace-nowrap"><%= package.created_at.strftime("%Y-%m-%d %H:%M") %></td>
+  <%# Times render in the STORE's timezone, matching the orders list. The old
+      bare strftime here printed UTC, so the same order showed two different
+      times on two pages. packages.shopify_store_id is NOT NULL and the
+      association is eager-loaded by index, so this costs no extra query.
+
+      In the all-stores view, stores in different zones each render their own
+      local time while the sort runs on absolute time — the list would look
+      mis-sorted. Appending the zone abbreviation there explains it. In
+      single-store mode every row would repeat the same abbreviation, so it is
+      left off. %>
+  <% tz = package.shopify_store.active_timezone %>
+  <% show_zone = current_shopify_store.nil? %>
+  <td class="px-4 py-3 text-sm text-gray-500 align-top whitespace-nowrap">
+    <% [ [ "ordered_at", package.order.ordered_at ], [ "paid_at", package.order.paid_at ] ].each do |label, value| %>
+      <div>
+        <%= t("packages.columns.#{label}") %>：
+        <% if value %>
+          <% local = value.in_time_zone(tz) %>
+          <%= local.strftime("%Y-%m-%d %H:%M") %><%= " #{local.zone}" if show_zone %>
+        <% else %>
+          —
+        <% end %>
+      </div>
+    <% end %>
+  </td>
   <td class="px-4 py-3 text-sm text-gray-700 align-top whitespace-nowrap"><%= package.logistics_channel&.name || "—" %></td>
   <td class="px-4 py-3 text-sm align-top whitespace-nowrap">
     <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700">

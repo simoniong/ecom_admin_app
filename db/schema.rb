@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_25_093004) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_25_101430) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -405,6 +405,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_25_093004) do
     t.string "fulfillment_status"
     t.string "name"
     t.datetime "ordered_at"
+    t.datetime "paid_at"
     t.jsonb "shopify_data", default: {}
     t.bigint "shopify_order_id", null: false
     t.uuid "shopify_store_id"
@@ -412,6 +413,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_25_093004) do
     t.datetime "updated_at", null: false
     t.index ["customer_id"], name: "index_orders_on_customer_id"
     t.index ["shopify_store_id", "ordered_at"], name: "idx_orders_store_ordered_at"
+    t.index ["shopify_store_id", "paid_at"], name: "idx_orders_store_paid_at"
     t.index ["shopify_store_id", "shopify_order_id"], name: "idx_orders_store_shopify_id", unique: true
     t.index ["shopify_store_id"], name: "index_orders_on_shopify_store_id"
   end

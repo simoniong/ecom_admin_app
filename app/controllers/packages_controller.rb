@@ -17,13 +17,28 @@ class PackagesController < AdminController
     @state = STATES.include?(params[:state]) ? params[:state] : "pending_review"
     scope = scoped_packages.where(aasm_state: @state)
     scope = scope.where(application_status: params[:application_status]) if @state == "applying_tracking" && APPLICATION_STATUSES.include?(params[:application_status])
+
+    # Filtering/ordering lives in the query object; the scope handed to it is
+    # already company/store/state-authorized and the query object never widens
+    # it. Pagination stays here.
+    query = PackageListQuery.new(scope, country: params[:country],
+                                        sort_column: params[:sort_column],
+                                        sort_direction: params[:sort_direction])
+    # Ordered by the LOCALIZED country name, which SQL can't do — parcel_country_name
+    # resolves through i18n. Reached via the `helpers` proxy rather than including
+    # ParcelsHelper, which would graft all its public methods onto the controller.
+    @countries = query.countries.sort_by { |code| helpers.parcel_country_name(code).to_s }
+    @country = query.country
+    @sort_column = query.sort_column
+    @sort_direction = query.sort_direction
+
+    filtered = query.relation
     @page = [ params[:page].to_i, 1 ].max
-    @total_count = scope.count
+    @total_count = filtered.count
     @total_pages = (@total_count.to_f / PER_PAGE).ceil
     @page = [ @page, @total_pages ].min if @total_pages > 0
-    @packages = scope.includes(:order, :package_items, :shopify_store, :logistics_channel)
-                     .order(created_at: :desc)
-                     .offset((@page - 1) * PER_PAGE).limit(PER_PAGE)
+    @packages = filtered.includes(:order, :package_items, :shopify_store, :logistics_channel)
+                        .offset((@page - 1) * PER_PAGE).limit(PER_PAGE)
   end
 
   def sync
@@ -269,7 +284,7 @@ class PackagesController < AdminController
         skipped += 1
       end
     end
-    redirect_to packages_path(state: "pending_process"), notice: t("packages.apply.bulk_result", applied: applied, skipped: skipped)
+    redirect_to packages_path(list_filter_params.merge(state: "pending_process")), notice: t("packages.apply.bulk_result", applied: applied, skipped: skipped)
   end
 
   # Stream the Raydo label PDF for one pending_label package (gated on
@@ -282,7 +297,7 @@ class PackagesController < AdminController
     if result.success?
       send_data result.pdf, type: "application/pdf", disposition: "inline", filename: result.filename
     else
-      redirect_to packages_path(state: "pending_label"), alert: label_error_message(result.error)
+      redirect_to packages_path(list_filter_params.merge(state: "pending_label")), alert: label_error_message(result.error)
     end
   end
 
@@ -297,7 +312,7 @@ class PackagesController < AdminController
     if result.success?
       send_data result.pdf, type: "application/pdf", disposition: "inline", filename: result.filename
     else
-      redirect_to packages_path(state: "pending_label"), alert: label_error_message(result.error)
+      redirect_to packages_path(list_filter_params.merge(state: "pending_label")), alert: label_error_message(result.error)
     end
   end
 
@@ -334,7 +349,29 @@ class PackagesController < AdminController
     rescue => e
       Rails.logger.warn("[ShipBulk] Package##{package.id}: #{e.class}: #{e.message}")
     end
-    redirect_to packages_path(state: "pending_label"), notice: t("packages.ship.bulk_result", shipped: shipped)
+    redirect_to packages_path(list_filter_params.merge(state: "pending_label")), notice: t("packages.ship.bulk_result", shipped: shipped)
+  end
+
+  # Bulk review from the pending_review list (gated on package_review, the same
+  # permission that guards REVIEW_EVENTS in #transition). Per-package isolation
+  # mirrors apply_tracking_bulk/ship_bulk: a package whose state raced between
+  # the scope query and submit_review! (AASM::InvalidTransition) is counted as
+  # skipped rather than aborting the rest of the batch.
+  def submit_review_bulk
+    return redirect_to(packages_path, alert: t("companies.no_permission")) unless current_membership&.package_review?
+
+    ids = Array(params[:package_ids]).map(&:to_s)
+    reviewed = 0
+    skipped = 0
+    scoped_packages.where(id: ids, aasm_state: "pending_review").find_each do |package|
+      package.submit_review!
+      reviewed += 1
+    rescue AASM::InvalidTransition, ActiveRecord::ActiveRecordError => e
+      Rails.logger.warn("[ReviewBulk] Package##{package.id}: #{e.class}: #{e.message}")
+      skipped += 1
+    end
+    redirect_to packages_path(list_filter_params.merge(state: "pending_review")),
+                notice: t("packages.review.bulk_result", reviewed: reviewed, skipped: skipped)
   end
 
   # Re-enqueue the Shopify fulfillment sync for a shipped package whose
@@ -360,6 +397,14 @@ class PackagesController < AdminController
   end
 
   private
+
+  # The list filters, carried back through a bulk action's redirect. Without
+  # this, one click on a bulk button silently resets the user's country/sort
+  # selection. Values are re-validated by PackageListQuery on the way back in,
+  # so this only has to move them.
+  def list_filter_params
+    params.permit(:country, :sort_column, :sort_direction).to_h.compact_blank.symbolize_keys
+  end
 
   # Atomically transition to shipped + set status + decide enqueue (Codex: row
   # lock to avoid double-click races). Returns :ok, :not_pending, :no_tracking.

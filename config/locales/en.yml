@@ -645,15 +645,26 @@ en:
       pending: "In Progress"
       succeeded: "Succeeded"
       failed: "Failed"
+    filters:
+      all: "All"
+      country: "Country"
+      sort: "Sort by"
+    sort:
+      created_at: "Packed time"
+      ordered_at: "Order time"
+      paid_at: "Payment time"
     columns:
       package_code: "Package"
       items: "Items"
       order_total: "Order Total"
       destination: "Destination"
       order_name: "Order"
-      created_at: "Created At"
+      created_at: "Packed At"
+      ordered_at: "Ordered"
+      paid_at: "Paid"
       logistics_channel: "Logistics"
       status: "Status"
+      store: "Store"
     no_packages: "No packages yet"
     showing: "Showing %{from}-%{to} of %{total}"
     prev: "Prev"
@@ -665,6 +676,9 @@ en:
     readiness:
       blocked_title: "Not ready to ship"
       ready: "Ready to apply for tracking"
+    review:
+      bulk_button: "Bulk review"
+      bulk_result: "Reviewed %{reviewed}, skipped %{skipped}"
     apply:
       timeout: "Carrier did not issue a tracking number in time"
       invalid_state: "Package is not in a state that can apply for tracking"
