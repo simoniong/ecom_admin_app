@@ -43,10 +43,14 @@
 
 ```sql
 COALESCE(
-  NULLIF(packages.shipping_address_snapshot->>'country_code', ''),
-  NULLIF(orders.shopify_data->'shipping_address'->>'country_code', '')
+  UPPER(NULLIF(TRIM(packages.shipping_address_snapshot->>'country_code'), '')),
+  UPPER(NULLIF(TRIM(orders.shopify_data #>> '{shipping_address,country_code}'), ''))
 )
 ```
+
+`NULLIF(TRIM(...), '')` 是本專案既有的國家碼取值慣例（`Order::DESTINATION_COUNTRY_SQL`，`app/models/order.rb:33`），沿用它才能一致處理只有空白的值。
+
+`UPPER` 不是多餘的防禦：`PackagesController#update_address` 讓人手動編輯地址快照（`ADDRESS_KEYS` 含 `country_code`），輸入未經正規化，所以快照裡確實可能出現小寫的 `us`。不統一大小寫的話，同一個國家會裂成兩個膠囊。相應地，`_package_row` 顯示國家時也要先 `upcase` 再交給 `parcel_country_flag` / `parcel_country_name`，否則小寫碼會顯示成原始碼而不是「美國」。
 
 `packages.order` 是 `belongs_to`（必填、無 optional），`joins(:order)` 為 inner join，不會漏掉任何 package，因此查詢一律 join，不做條件式 join。
 
@@ -80,13 +84,15 @@ COALESCE(
 
 ## 6. `orders.paid_at` 新欄位
 
-Shopify 訂單沒有獨立的「付款時間」欄位，最接近的是 REST payload 的 `processed_at`（付款處理時間）。目前它只存在 `orders.shopify_data` JSON 裡，無法有效率地排序。
+Shopify 訂單沒有獨立的「付款時間」欄位。這個 app 也沒有鏡射 Shopify 的 transaction／capture 資料，所以真正的收款結算時間並不在手上。最接近的代理值是 REST payload 的 `processed_at`（訂單的付款處理時間），目前它只存在 `orders.shopify_data` JSON 裡，無法有效率地排序。
+
+**這個欄位是排序用的代理值，不是結算時間。** 欄位註解與本文件都必須這樣描述，避免日後有人拿它去對帳。真的需要結算時間時，得另外同步 Shopify transactions。
 
 **Migration**
 
 - `add_column :orders, :paid_at, :datetime`
 - `add_index :orders, [:shopify_store_id, :paid_at]`（對齊既有的 `idx_orders_store_ordered_at`）
-- 回填：`UPDATE orders SET paid_at = (shopify_data->>'processed_at')::timestamptz WHERE shopify_data->>'processed_at' ~ '^\d{4}-\d{2}-\d{2}'`。加上正則守衛，避免任何非預期字串讓整個 migration 失敗。
+- 回填：以 Ruby 逐批處理、逐筆 `rescue`，不用單一 `UPDATE ... ::timestamptz`。正則守衛擋不住 `2026-99-99` 這種「格式對、日期不存在」的值——它照樣過關再讓轉型拋錯、整個 migration 失敗。`shopify_data` 是未經驗證的第三方 JSON，回填必須容得下任何一筆髒資料。
 
 **寫入點**（兩處都要補，否則不同同步路徑會產生不一致的資料）
 
@@ -123,7 +129,7 @@ PackageListQuery.new(scope, country:, sort_column:, sort_direction:)
 ```
 
 - `scope` —— 已套好公司/店鋪範圍與 `aasm_state` 的 relation，由 controller 傳入。查詢物件不碰授權範圍。
-- `#countries` —— 該範圍內出現過的國家代碼，已排序。
+- `#countries` —— 該範圍內出現過的國家代碼，正規化為大寫、去重，**不排序**。排序依據是在地化的國家名稱，那是 i18n 的事、SQL 排不出來，所以交給 controller。
 - `#country` / `#sort_column` / `#sort_direction` —— 正規化後的值，供 view 標示當前選中項。
 - `#relation` —— 套好 join、篩選與排序的 relation。分頁仍由 controller 負責（沿用現行寫法）。
 
@@ -134,6 +140,7 @@ Controller `index` 因此維持精簡：解析 state → 組 scope → 交給查
 - 「建包時間」欄改為「時間」欄，兩行顯示：`下單：YYYY-MM-DD HH:MM` / `付款：YYYY-MM-DD HH:MM`，缺值顯示 `—`。
 - 建包時間讓出列表版面後仍需有地方可查：在詳情 modal 的 `_order_info` 區塊新增一列顯示（該 partial 目前沒有任何時間欄位，這是新增而非搬移）。「按建包時間」仍是排序選項且是預設值——雖然列表不再有這一欄，排序列會明確標示當前排序依據，不會造成「照著看不見的欄位排序」的困惑。
 - 時間一律以店鋪時區呈現，與訂單頁（`orders/index.html.erb:247`）一致。這裡取 `package.shopify_store.active_timezone`，而非訂單頁用的 `order.shopify_store&.active_timezone` —— `packages.shopify_store_id` 有 NOT NULL 約束、`orders.shopify_store_id` 沒有，且 `shopify_store` 已在 `index` 的 `includes` 中預載，不會多打 query。這是**修正**：現行 `_package_row.html.erb:47` 直接 `strftime` 輸出 UTC，與訂單頁對同一筆訂單顯示的時間不一致。
+- **跨店鋪模式下的時區歧義。** 一旦預設變成「全部店鋪」，不同時區的店鋪會在同一張表裡各自顯示自己的當地時間，但排序是依絕對時間；使用者會看到「時間看起來沒排好」的列表。因此在 `current_shopify_store` 為 nil 時，時間後面附上時區縮寫（`Time#zone`，例如 `PDT` / `CST`）。單店模式下不附加，避免每列都是同一個縮寫的雜訊。
 - 跨店鋪模式（`current_shopify_store` 為 nil）時多顯示一欄店鋪名稱。
 - 三個 i18n 檔（`zh-TW` / `zh-CN` / `en`）同步補齊新增文案。
 

@@ -124,15 +124,23 @@ class AddPaidAtToOrders < ActiveRecord::Migration[8.1]
     add_column :orders, :paid_at, :datetime
     add_index :orders, [ :shopify_store_id, :paid_at ], name: "idx_orders_store_paid_at"
 
-    # Backfill from the Shopify payload we already store. The regex guard keeps
-    # a single malformed value from aborting the whole migration — ::timestamptz
-    # raises on anything it can't parse, and shopify_data is raw vendor JSON we
-    # don't validate on write.
-    execute <<~SQL
-      UPDATE orders
-         SET paid_at = (shopify_data->>'processed_at')::timestamptz
-       WHERE shopify_data->>'processed_at' ~ '^\\d{4}-\\d{2}-\\d{2}'
-    SQL
+    # Backfill in Ruby, one row at a time, rather than a single
+    # `UPDATE ... (shopify_data->>'processed_at')::timestamptz`. shopify_data is
+    # raw third-party JSON this app never validates on write, and a Postgres cast
+    # raises on the first unparseable value — taking the whole migration with it.
+    # A regex guard does not save it either: '2026-99-99' is well-formed and
+    # still fails to cast. One bad row must cost one row, not the deploy.
+    Order.reset_column_information
+    Order.where.not(shopify_data: nil).find_each(batch_size: 500) do |order|
+      raw = order.shopify_data.is_a?(Hash) ? order.shopify_data["processed_at"] : nil
+      next if raw.blank?
+
+      begin
+        order.update_column(:paid_at, Time.zone.parse(raw.to_s))
+      rescue ArgumentError, TypeError => e
+        say "skipped Order #{order.id}: unparseable processed_at #{raw.inspect} (#{e.class})"
+      end
+    end
   end
 
   def down
@@ -141,6 +149,8 @@ class AddPaidAtToOrders < ActiveRecord::Migration[8.1]
   end
 end
 ```
+
+`Time.zone.parse` 對 `"2026-99-99"` 會拋 `ArgumentError`（而非回傳 nil），所以 `rescue` 是必要的、不是裝飾。
 
 - [ ] **Step 4: 執行 migration**
 
@@ -168,13 +178,17 @@ Expected: migration 成功，`db/schema.rb` 出現 `t.datetime "paid_at"` 與 `i
 在 `app/models/order.rb` 的 class 開頭（`belongs_to` 之上）加註解：
 
 ```ruby
-  # paid_at comes from the Shopify order's `processed_at` — Shopify exposes no
-  # dedicated "paid at" field on the order payload, and `processed_at` is the
-  # payment-processing timestamp. It is written unconditionally rather than
-  # gated on financial_status: a status-conditional write would make the column
-  # flip back to nil when an order is later refunded. The packing module only
-  # builds packages for paid/partially_paid orders (PackageAutoBuilder::
-  # PAID_STATUSES), so every order surfaced in the packing list has it set.
+  # paid_at is a SORTING PROXY for payment time, not a settlement timestamp.
+  # Shopify exposes no "paid at" field on the order payload, and this app does
+  # not mirror Shopify transactions/captures, so the closest available value is
+  # the order's `processed_at` (when Shopify processed the payment). Do not use
+  # it for reconciliation — that needs a real transactions sync.
+  #
+  # Written unconditionally rather than gated on financial_status: a
+  # status-conditional write would make the column flip back to nil when an
+  # order is later refunded. The packing module only builds packages for
+  # paid/partially_paid orders (PackageAutoBuilder::PAID_STATUSES), so every
+  # order surfaced in the packing list has it set.
 ```
 
 - [ ] **Step 6: 執行測試確認通過**
@@ -303,6 +317,19 @@ RSpec.describe PackageListQuery do
 
       expect(described_class.new(scope).countries).to eq([ "US" ])
     end
+
+    it "treats a whitespace-only snapshot country as absent and falls back" do
+      make_package(number: 1, snapshot_country: "   ", shopify_country: "GB")
+
+      expect(described_class.new(scope).countries).to eq([ "GB" ])
+    end
+
+    it "normalizes case so a hand-edited lowercase code is not a separate bucket" do
+      make_package(number: 1, snapshot_country: "US")
+      make_package(number: 2, snapshot_country: "us")
+
+      expect(described_class.new(scope).countries).to eq([ "US" ])
+    end
   end
 
   describe "#country" do
@@ -344,6 +371,13 @@ RSpec.describe PackageListQuery do
       make_package(number: 2, snapshot_country: "US")
 
       expect(described_class.new(scope, country: "DE").relation).to eq([ de ])
+    end
+
+    it "matches a hand-edited lowercase country code" do
+      lower = make_package(number: 1, snapshot_country: "us")
+      make_package(number: 2, snapshot_country: "CA")
+
+      expect(described_class.new(scope, country: "US").relation).to eq([ lower ])
     end
 
     it "returns everything when the country is not in the scope" do
@@ -434,10 +468,19 @@ class PackageListQuery
   # _package_row.html.erb). Both the selectable-country list and the filter
   # itself must use this SAME expression — otherwise a row displaying 美國
   # would not come back when the user clicks 美國.
+  #
+  # NULLIF(TRIM(...), '') mirrors Order::DESTINATION_COUNTRY_SQL, this app's
+  # existing way of reading a country code out of Shopify JSON, so a
+  # whitespace-only value counts as absent in both places.
+  #
+  # UPPER is not paranoia: #update_address lets a human hand-edit the snapshot
+  # (ADDRESS_KEYS includes country_code) with no normalization, so a lowercase
+  # "us" really can land in the column and would otherwise split one country
+  # into two pills.
   COUNTRY_SQL = <<~SQL.squish
     COALESCE(
-      NULLIF(packages.shipping_address_snapshot->>'country_code', ''),
-      NULLIF(orders.shopify_data->'shipping_address'->>'country_code', '')
+      UPPER(NULLIF(TRIM(packages.shipping_address_snapshot->>'country_code'), '')),
+      UPPER(NULLIF(TRIM(orders.shopify_data #>> '{shipping_address,country_code}'), ''))
     )
   SQL
 
@@ -876,6 +919,23 @@ EOF
   end
 ```
 
+同時在 `spec/requests/packages_spec.rb` 的 `describe "cross-store listing"` 區塊（Task 4 建立）內加入一個範例，釘住跨店鋪模式才附加時區縮寫的行為：
+
+```ruby
+      it "labels the timezone only when several stores share the list" do
+        store.update!(timezone: "America/Los_Angeles")
+
+        get packages_path
+        cross_store_body = response.body
+
+        get packages_path, params: { store_id: store.id }
+        single_store_body = response.body
+
+        expect(cross_store_body).to include(Time.current.in_time_zone("America/Los_Angeles").zone)
+        expect(single_store_body).not_to include(Time.current.in_time_zone("America/Los_Angeles").zone)
+      end
+```
+
 - [ ] **Step 2: 執行測試確認失敗**
 
 Run: `bundle exec rspec spec/system/packages_spec.rb -e "列表篩選與排序"`
@@ -1039,12 +1099,45 @@ Create `app/views/packages/_filter_bar.html.erb`:
   <%# Times render in the STORE's timezone, matching the orders list. The old
       bare strftime here printed UTC, so the same order showed two different
       times on two pages. packages.shopify_store_id is NOT NULL and the
-      association is eager-loaded by index, so this costs no extra query. %>
+      association is eager-loaded by index, so this costs no extra query.
+
+      In the all-stores view, stores in different zones each render their own
+      local time while the sort runs on absolute time — the list would look
+      mis-sorted. Appending the zone abbreviation there explains it. In
+      single-store mode every row would repeat the same abbreviation, so it is
+      left off. %>
   <% tz = package.shopify_store.active_timezone %>
+  <% show_zone = current_shopify_store.nil? %>
   <td class="px-4 py-3 text-sm text-gray-500 align-top whitespace-nowrap">
-    <div><%= t("packages.columns.ordered_at") %>：<%= package.order.ordered_at ? package.order.ordered_at.in_time_zone(tz).strftime("%Y-%m-%d %H:%M") : "—" %></div>
-    <div><%= t("packages.columns.paid_at") %>：<%= package.order.paid_at ? package.order.paid_at.in_time_zone(tz).strftime("%Y-%m-%d %H:%M") : "—" %></div>
+    <% [ [ "ordered_at", package.order.ordered_at ], [ "paid_at", package.order.paid_at ] ].each do |label, value| %>
+      <div>
+        <%= t("packages.columns.#{label}") %>：
+        <% if value %>
+          <% local = value.in_time_zone(tz) %>
+          <%= local.strftime("%Y-%m-%d %H:%M") %><%= " #{local.zone}" if show_zone %>
+        <% else %>
+          —
+        <% end %>
+      </div>
+    <% end %>
   </td>
+```
+
+同一個檔案中，國家顯示也要跟 `PackageListQuery::COUNTRY_SQL` 一樣正規化，否則手動編輯存進的 `us` 會顯示成原始碼 `us`，而膠囊列顯示「美國」——同一筆資料兩種寫法。找到：
+
+```erb
+    <% country = package.shipping_address_snapshot["country_code"].presence ||
+                 package.order.shopify_data&.dig("shipping_address", "country_code") %>
+```
+
+換成：
+
+```erb
+    <%# Normalized the same way PackageListQuery::COUNTRY_SQL normalizes it —
+        #update_address accepts hand-typed country codes, so " us " is possible
+        and must render as 美國, not as a raw code the filter pills don't match. %>
+    <% country = (package.shipping_address_snapshot["country_code"].to_s.strip.presence ||
+                  package.order.shopify_data&.dig("shipping_address", "country_code").to_s.strip.presence)&.upcase %>
 ```
 
 - [ ] **Step 8: 詳情 modal 顯示建包時間**
