@@ -1,19 +1,23 @@
 import { Controller } from "@hotwired/stimulus"
 
 export default class extends Controller {
-  static targets = ["fromDate", "toDate", "rangeButton", "filterForm", "statusFilter", "sortColumn", "sortDirection", "statusSelect"]
+  static targets = ["fromDate", "toDate", "rangeButton", "filterForm", "statusFilter", "sortColumn", "sortDirection", "statusSelect", "page"]
 
   connect() {
     this.highlightMatchingRange()
   }
 
+  // Every filter-changing action funnels through here so the page always
+  // resets to 1 -- otherwise changing a filter or sort while on, say, page 3
+  // would keep showing page 3 of a completely different result set.
   submit() {
+    this.pageTarget.value = "1"
     this.filterFormTarget.requestSubmit()
   }
 
   dateChanged() {
     this.highlightMatchingRange()
-    this.filterFormTarget.requestSubmit()
+    this.submit()
   }
 
   selectRange(event) {
@@ -24,12 +28,12 @@ export default class extends Controller {
     this.fromDateTarget.value = this.formatDate(dates.from)
     this.toDateTarget.value = this.formatDate(dates.to)
     this.highlightRange(range)
-    this.filterFormTarget.requestSubmit()
+    this.submit()
   }
 
   statusChanged() {
     this.statusFilterTarget.value = this.statusSelectTarget.value
-    this.filterFormTarget.requestSubmit()
+    this.submit()
   }
 
   sortBy(event) {
@@ -44,7 +48,7 @@ export default class extends Controller {
       this.sortDirectionTarget.value = "desc"
     }
 
-    this.filterFormTarget.requestSubmit()
+    this.submit()
   }
 
   // --- private helpers ---

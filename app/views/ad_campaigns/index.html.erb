@@ -140,6 +140,8 @@
     <input type="hidden" name="status_filter" value="<%= @status_filter %>" data-campaign-filter-target="statusFilter">
     <input type="hidden" name="sort_column" value="<%= @sort_column %>" data-campaign-filter-target="sortColumn">
     <input type="hidden" name="sort_direction" value="<%= @sort_direction %>" data-campaign-filter-target="sortDirection">
+    <input type="hidden" name="per_page" value="<%= @per_page %>">
+    <input type="hidden" name="page" value="<%= @page %>" data-campaign-filter-target="page">
 
     <div class="flex flex-wrap items-end gap-4">
       <%# Ad Account filter (only if multiple accounts) %>
@@ -297,7 +299,7 @@
             </tr>
           <% end %>
         </tbody>
-        <% if @campaigns.size > 1 %>
+        <% if @total_count > 1 %>
           <%
             sm = @summary_metrics
             summary_defs = {
@@ -340,6 +342,40 @@
         <% end %>
       </table>
     </div>
+
+    <nav class="flex items-center justify-between mt-4">
+      <p class="text-sm text-gray-600">
+        <% if @total_count > 0 %>
+          <%= t("products.showing", from: ((@page - 1) * @per_page) + 1, to: [ @page * @per_page, @total_count ].min, total: @total_count) %>
+        <% end %>
+      </p>
+      <div class="flex items-center gap-4">
+        <div class="flex items-center gap-2">
+          <label for="per_page" class="text-sm text-gray-600"><%= t("products.per_page") %></label>
+          <select id="per_page" onchange="window.location.href = this.value"
+                  class="text-sm rounded-md border border-gray-300 bg-white py-1 pl-2 pr-7">
+            <% AdCampaignsController::PER_PAGE_OPTIONS.each do |opt| %>
+              <option value="<%= ad_campaigns_path(request.query_parameters.merge(per_page: opt, page: 1)) %>"
+                      <%= "selected" if opt == @per_page %>>
+                <%= opt %>
+              </option>
+            <% end %>
+          </select>
+        </div>
+        <% if @total_pages > 1 %>
+          <div class="flex gap-1">
+            <% if @page > 1 %>
+              <%= link_to "←", ad_campaigns_path(request.query_parameters.merge(page: @page - 1)),
+                  class: "px-3 py-1 text-sm rounded-md border border-gray-300 bg-white" %>
+            <% end %>
+            <% if @page < @total_pages %>
+              <%= link_to "→", ad_campaigns_path(request.query_parameters.merge(page: @page + 1)),
+                  class: "px-3 py-1 text-sm rounded-md border border-gray-300 bg-white" %>
+            <% end %>
+          </div>
+        <% end %>
+      </div>
+    </nav>
   <% else %>
     <div class="bg-white rounded-lg border border-gray-200 p-12 text-center">
       <p class="text-gray-500"><%= t("ad_campaigns.empty") %></p>
