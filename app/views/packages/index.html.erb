@@ -19,6 +19,9 @@
     </nav>
   <% end %>
 
+  <%= render "packages/filter_bar", countries: @countries, country: @country,
+        sort_column: @sort_column, sort_direction: @sort_direction %>
+
   <% bulk = %w[pending_process pending_label].include?(@state) %>
   <% bulk_url = @state == "pending_label" ? labels_packages_path : apply_tracking_bulk_packages_path %>
   <% bulk_label = @state == "pending_label" ? t("packages.label.bulk_button") : t("packages.apply.bulk_button") %>
@@ -52,7 +55,7 @@
               <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase"><%= t("packages.columns.order_total") %></th>
               <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase"><%= t("packages.columns.destination") %></th>
               <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase"><%= t("packages.columns.order_name") %></th>
-              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase"><%= t("packages.columns.created_at") %></th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase"><%= t("packages.columns.ordered_at") %> / <%= t("packages.columns.paid_at") %></th>
               <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase"><%= t("packages.columns.logistics_channel") %></th>
               <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase"><%= t("packages.columns.status") %></th>
             </tr>

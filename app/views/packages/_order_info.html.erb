@@ -14,6 +14,10 @@
     <% end %>
   </div>
 
+  <p class="mb-3 text-xs text-gray-500">
+    <%= t("packages.columns.created_at") %>：<%= package.created_at.in_time_zone(package.shopify_store.active_timezone).strftime("%Y-%m-%d %H:%M") %>
+  </p>
+
   <% if line_items.empty? %>
     <p class="text-sm text-gray-400"><%= t("packages.order_info.no_items") %></p>
   <% else %>

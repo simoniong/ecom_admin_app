@@ -208,6 +208,19 @@ RSpec.describe "Packages", type: :request do
         expect(response.body).to include("PKS#1001")
         expect(response.body).not_to include("PKS#6001")
       end
+
+      it "labels the timezone only when several stores share the list" do
+        store.update!(timezone: "America/Los_Angeles")
+
+        get packages_path
+        cross_store_body = response.body
+
+        get packages_path, params: { store_id: store.id }
+        single_store_body = response.body
+
+        expect(cross_store_body).to include(Time.current.in_time_zone("America/Los_Angeles").zone)
+        expect(single_store_body).not_to include(Time.current.in_time_zone("America/Los_Angeles").zone)
+      end
     end
 
     describe "store switcher scoping" do
