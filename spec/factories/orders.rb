@@ -10,6 +10,7 @@ FactoryBot.define do
     financial_status { "paid" }
     fulfillment_status { "fulfilled" }
     ordered_at { 1.day.ago }
+    paid_at { 1.day.ago }
     shopify_data { {} }
   end
 end

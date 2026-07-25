@@ -62,6 +62,7 @@ class ShopifyLookupService
         financial_status: shopify_order["financial_status"],
         fulfillment_status: shopify_order["fulfillment_status"],
         ordered_at: shopify_order["created_at"],
+        paid_at: shopify_order["processed_at"],
         shopify_data: shopify_order
       }
 
