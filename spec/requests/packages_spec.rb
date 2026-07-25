@@ -47,6 +47,45 @@ RSpec.describe "Packages", type: :request do
       expect(response.body).to include("PKS#1001")
     end
 
+    describe "split badge" do
+      let!(:split_boxes) do
+        order = create(:order, customer: customer, shopify_store: store, name: "PKS#9001")
+        [
+          create(:package, shopify_store: store, order: order, aasm_state: "pending_review", number: 91),
+          create(:package, shopify_store: store, order: order, aasm_state: "pending_review", number: 92)
+        ]
+      end
+
+      it "marks each box of a split order with its position and total" do
+        get packages_path
+
+        expect(response.body).to include(I18n.t("packages.split.badge", position: 1, total: 2))
+        expect(response.body).to include(I18n.t("packages.split.badge", position: 2, total: 2))
+      end
+
+      it "does not mark a package whose order has a single box" do
+        split_boxes.last.destroy!
+
+        get packages_path
+
+        expect(response.body).not_to include(I18n.t("packages.split.badge", position: 1, total: 2))
+      end
+
+      it "marks split boxes on other state pages too" do
+        split_boxes.each { |box| box.update!(aasm_state: "shipped") }
+
+        get packages_path, params: { state: "shipped" }
+
+        expect(response.body).to include(I18n.t("packages.split.badge", position: 2, total: 2))
+      end
+
+      it "gives every row a dom id so a turbo stream can target it" do
+        get packages_path
+
+        expect(response.body).to include("id=\"#{ActionView::RecordIdentifier.dom_id(split_boxes.first)}\"")
+      end
+    end
+
     describe "country filter and sorting" do
       let!(:us_package) do
         order = create(:order, customer: customer, shopify_store: store, name: "PKS#5001",
@@ -1159,11 +1198,54 @@ RSpec.describe "Packages", type: :request do
       expect(store.packages.where(order_id: order.id).count).to eq(1)
     end
 
+    it "streams a modal dismissal alongside the replaced row" do
+      post split_package_path(id: src.id), params: { allocations: { oli.id => [ "1" ] } },
+           headers: { "Accept" => "text/vnd.turbo-stream.html" }
+
+      expect(response.body).to include('action="dismiss_modal"')
+      expect(response.body).to include(ActionView::RecordIdentifier.dom_id(src))
+    end
+
+    it "leaves the modal open with the error banner on an invalid allocation" do
+      post split_package_path(id: src.id), params: { allocations: { oli.id => [ "0" ] } },
+           headers: { "Accept" => "text/vnd.turbo-stream.html" }
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.body).not_to include('action="dismiss_modal"')
+      # allocations: { oli.id => ["0"] } allocates nothing to box 1 while the
+      # source keeps its full shippable quantity, so PackageSplitter's
+      # validator returns exactly [:empty_box] — this is what the modal's
+      # error banner (_split_dialog.html.erb) actually renders from
+      # @split_errors. Asserting on the translated text (not just the status
+      # + absence of dismiss_modal) is what would have caught a deleted
+      # `turbo_stream.replace "package-modal"` line in the failure branch —
+      # that regression left this example green before this assertion existed.
+      expect(response.body).to include(I18n.t("packages.split.errors.empty_box"))
+    end
+
     it "rejects splitting a non-pending_process package" do
       src.update!(aasm_state: "pending_review")
       post split_package_path(id: src.id), params: { allocations: { oli.id => [ "1" ] } }
       expect(response).to have_http_status(:found) # redirect with alert
       expect(store.packages.where(order_id: order.id).count).to eq(1)
+    end
+
+    it "rejects a second split of an already-split package and mints no third box" do
+      # First split succeeds and stays pending_process (still eligible on the
+      # pending_process? check alone) — the _split_dialog partial already
+      # hides the button once package.split? is true, but nothing before this
+      # fix stopped a stale form (still open from before the first split
+      # landed) from POSTing again anyway.
+      post split_package_path(id: src.id), params: { allocations: { oli.id => [ "1" ] } },
+           headers: { "Accept" => "text/vnd.turbo-stream.html" }
+      expect(response).to have_http_status(:ok)
+      expect(store.packages.where(order_id: order.id).count).to eq(2)
+
+      post split_package_path(id: src.id), params: { allocations: { oli.id => [ "1" ] } }
+
+      expect(response).to have_http_status(:found) # redirect with alert
+      expect(response).to redirect_to(package_path(id: src.id))
+      expect(store.packages.where(order_id: order.id).count).to eq(2) # no third box
     end
 
     it "forbids a member without package_process permission" do
@@ -1178,6 +1260,35 @@ RSpec.describe "Packages", type: :request do
       sign_in stranger
       post split_package_path(id: src.id), params: { allocations: { oli.id => [ "1" ] } }
       expect(response).to have_http_status(:not_found)
+    end
+
+    describe "from the standalone show page (context=standalone)" do
+      # _split_dialog only renders this hidden field when show.html.erb
+      # rendered the modal with standalone: true — see that view and
+      # _split_dialog.html.erb. A request carrying it is exactly what the
+      # standalone page's own form submits; nothing here is inferred from
+      # the referer.
+      it "navigates the whole page back to the list instead of dismissing a (non-existent) modal" do
+        post split_package_path(id: src.id),
+             params: { allocations: { oli.id => [ "1" ] }, context: "standalone" },
+             headers: { "Accept" => "text/vnd.turbo-stream.html" }
+
+        expect(response).to have_http_status(:ok)
+        expect(response.body).to include('action="visit"')
+        # state: pending_process (src's own, unchanged by the split) — not the
+        # bare list URL — so the operator lands where the new boxes actually
+        # render, not the default pending_review list.
+        expect(response.body).to include(packages_path(state: "pending_process"))
+        expect(response.body).not_to include('action="dismiss_modal"')
+      end
+
+      it "keeps the list-page path unchanged when context is absent" do
+        post split_package_path(id: src.id), params: { allocations: { oli.id => [ "1" ] } },
+             headers: { "Accept" => "text/vnd.turbo-stream.html" }
+
+        expect(response.body).to include('action="dismiss_modal"')
+        expect(response.body).not_to include('action="visit"')
+      end
     end
   end
 
@@ -1211,6 +1322,16 @@ RSpec.describe "Packages", type: :request do
       expect(survivor.reload.package_items.find_by(order_line_item_id: oli.id).quantity).to eq(3)
     end
 
+    it "streams a modal dismissal and removes the absorbed row" do
+      post merge_package_path(id: other.id),
+           headers: { "Accept" => "text/vnd.turbo-stream.html" }
+
+      expect(response.body).to include('action="dismiss_modal"')
+      expect(response.body).to include('action="remove"')
+      expect(response.body).to include(ActionView::RecordIdentifier.dom_id(other))
+      expect(response.body).to include(ActionView::RecordIdentifier.dom_id(survivor))
+    end
+
     it "forbids a member without package_process permission" do
       sign_in_as_member_with("package_review")
       post merge_package_path(id: other.id)
@@ -1230,6 +1351,37 @@ RSpec.describe "Packages", type: :request do
       sign_in stranger
       post merge_package_path(id: other.id)
       expect(response).to have_http_status(:not_found)
+    end
+
+    describe "from the standalone show page (context=standalone)" do
+      # _siblings_strip only sends context=standalone as an extra hidden field
+      # on the merge button_to form when show.html.erb rendered the modal with
+      # standalone: true — see that view and _siblings_strip.html.erb. A
+      # request carrying it is exactly what the standalone page's own button
+      # submits; nothing here is inferred from the referer.
+      it "navigates the whole page back to the list instead of streaming row updates" do
+        post merge_package_path(id: other.id),
+             params: { context: "standalone" },
+             headers: { "Accept" => "text/vnd.turbo-stream.html" }
+
+        expect(response).to have_http_status(:ok)
+        expect(response.body).to include('action="visit"')
+        # state: pending_process (the survivor's own, unchanged by a merge) —
+        # not the bare list URL — so the operator lands where the collapsed
+        # box actually renders, not the default pending_review list.
+        expect(response.body).to include(packages_path(state: "pending_process"))
+        expect(response.body).not_to include('action="dismiss_modal"')
+        expect(response.body).not_to include('action="remove"')
+      end
+
+      it "keeps streaming the row replace and removals when context is absent" do
+        post merge_package_path(id: other.id),
+             headers: { "Accept" => "text/vnd.turbo-stream.html" }
+
+        expect(response.body).to include('action="dismiss_modal"')
+        expect(response.body).to include('action="remove"')
+        expect(response.body).not_to include('action="visit"')
+      end
     end
   end
 

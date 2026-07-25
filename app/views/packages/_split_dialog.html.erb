@@ -29,6 +29,11 @@
 
       <%= form_with url: split_package_path(id: package.id), method: :post,
             data: { turbo_frame: "package-modal", split_target: "form" } do %>
+        <%# Explicit, testable signal for #split / split.turbo_stream.erb to tell
+            the standalone /packages/:id page apart from the list's modal frame —
+            see show.html.erb, which is the only place "standalone" is true. Not
+            inferred from the referer. %>
+        <%= hidden_field_tag :context, "standalone" if local_assigns[:standalone] %>
         <table class="w-full text-xs border-collapse">
           <thead>
             <tr class="text-left text-gray-500 border-b border-gray-200" data-split-target="headerRow">

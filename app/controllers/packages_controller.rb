@@ -39,6 +39,9 @@ class PackagesController < AdminController
     @page = [ @page, @total_pages ].min if @total_pages > 0
     @packages = filtered.includes(:order, :package_items, :shopify_store, :logistics_channel)
                         .offset((@page - 1) * PER_PAGE).limit(PER_PAGE)
+    # One query for the whole page's box numbering — see PackageSiblingIndex.
+    # Must come after @packages is materialized; it reads their order_ids.
+    @sibling_index = PackageSiblingIndex.new(@packages).call
   end
 
   def sync
@@ -184,12 +187,29 @@ class PackagesController < AdminController
     unless @package.pending_process?
       return redirect_to(package_path(id: @package.id), alert: t("packages.split_invalid_state"))
     end
+    # Package#split? is what _split_dialog uses to hide the button once this
+    # package is already folded into boxes — that view-only guard is not
+    # sufficient by itself (a stale form, still open from before the first
+    # split landed, can still POST here). Enforce the same invariant
+    # server-side so a second submit can't mint a third box.
+    if @package.split?
+      return redirect_to(package_path(id: @package.id), alert: t("packages.split_invalid_state"))
+    end
+
+    # Explicit, controller-owned signal for split.turbo_stream.erb: the
+    # standalone /packages/:id page (show.html.erb) has no list row for
+    # `turbo_stream.replace dom_id(@package)` to hit and its modal wrapper
+    # doesn't listen for modal:dismiss, so a dismiss+replace stream there
+    # would silently do nothing. _split_dialog only renders the
+    # `context=standalone` hidden field when show.html.erb rendered it (see
+    # that view), so this is never a referer guess.
+    @standalone = params[:context] == "standalone"
 
     result = PackageSplitter.new(@package, split_allocations).call
     if result.success?
       respond_to do |format|
         format.turbo_stream { render :split }
-        format.html { redirect_to package_path(id: @package.id), notice: t("packages.split_done") }
+        format.html { redirect_to(@standalone ? packages_path(state: @package.aasm_state) : package_path(id: @package.id), notice: t("packages.split_done")) }
       end
     else
       @split_errors = result.errors
@@ -209,7 +229,27 @@ class PackagesController < AdminController
       return redirect_to(package_path(id: @package.id), alert: t("packages.split_invalid_state"))
     end
 
-    @survivor = PackageMerger.new(@package).call
+    # Explicit, controller-owned signal for merge.turbo_stream.erb — mirrors
+    # #split's @standalone: the standalone /packages/:id page (show.html.erb)
+    # has no list row for `turbo_stream.replace dom_id(@survivor)`/`.remove`
+    # to hit and its modal wrapper doesn't listen for modal:dismiss, so a
+    # dismiss+replace+remove stream there would silently do nothing.
+    # _siblings_strip only sends context=standalone when show.html.erb
+    # rendered it (see that view), so this is never a referer guess.
+    @standalone = params[:context] == "standalone"
+
+    # PackageMerger destroys the absorbed boxes, so the rows to remove from the
+    # list have to be captured BEFORE the call — afterwards there is nothing
+    # left to ask. These are in-memory (now destroyed) records, which is all
+    # dom_id needs. Note the merger only folds pending_process siblings, so a
+    # box of this order sitting in another state is deliberately not in here.
+    # #pending_siblings is memoized on the merger instance, so #call's own
+    # internal read of it below reuses THIS query result rather than issuing
+    # a second one — the removed set is guaranteed to match what was destroyed.
+    merger = PackageMerger.new(@package)
+    siblings = merger.pending_siblings
+    @survivor = merger.call
+    @absorbed = siblings.reject { |box| box.id == @survivor.id }
     respond_to do |format|
       format.turbo_stream { render :merge }
       format.html { redirect_to package_path(id: @survivor.id), notice: t("packages.merge_done") }

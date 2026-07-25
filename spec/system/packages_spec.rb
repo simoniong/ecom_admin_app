@@ -320,12 +320,12 @@ RSpec.describe "Packages UI", type: :system do
       # the opener button is a sibling of, not inside, the dialog container.
       within("[data-split-target='dialog']") { click_button I18n.t("packages.split.submit") }
 
-      # after split: the siblings strip's wrapper div (dom_id(package,
-      # :siblings_strip)) always renders — its content, gated on
-      # package.split?, is what actually proves the split happened. Wait on
-      # the frozen notice (only shown once split) before hitting the DB, so
-      # the count/content checks below don't race the turbo_stream response.
-      expect(page).to have_content(I18n.t("packages.frozen_notice"))
+      # A successful split now closes the modal (see the "closes the modal"
+      # example below) rather than leaving it open on the frozen notice, so
+      # that closing is what we wait on before hitting the DB — it proves the
+      # turbo_stream response landed and the count/content checks below don't
+      # race it.
+      expect(page).to have_no_css("[data-split-target='dialog']")
       expect(store.packages.where(order_id: split_order.id).count).to eq(2)
 
       new_box = store.packages.where(order_id: split_order.id).where.not(id: source_pkg.id).sole
@@ -337,6 +337,28 @@ RSpec.describe "Packages UI", type: :system do
       click_link source_pkg.package_code
       click_button I18n.t("packages.split.button")
       expect(page).to have_button(I18n.t("packages.split.submit"), disabled: true)
+    end
+
+    it "closes the modal and folds the row into the order's boxes in place" do
+      visit packages_path(state: "pending_process")
+      # A page reload would wipe this; the assertion at the end is what proves
+      # the list updated over Turbo rather than by navigating.
+      page.execute_script("window.__notReloaded = true")
+
+      click_link source_pkg.package_code
+      click_button I18n.t("packages.split.button")
+      fill_in_first_box_input("1")
+      within("[data-split-target='dialog']") { click_button I18n.t("packages.split.submit") }
+
+      # The modal empties its frame on close, so the dialog element goes away.
+      expect(page).to have_no_css("[data-split-target='dialog']")
+
+      new_box = store.packages.where(order_id: split_order.id).where.not(id: source_pkg.id).sole
+      expect(page).to have_content(new_box.package_code)
+      expect(page).to have_content(I18n.t("packages.split.badge", position: 1, total: 2))
+      expect(page).to have_content(I18n.t("packages.split.badge", position: 2, total: 2))
+
+      expect(page.evaluate_script("window.__notReloaded")).to be(true)
     end
 
     # The opener button sits at the very bottom of a max-h-[88vh] overflow-y-auto
@@ -393,6 +415,108 @@ RSpec.describe "Packages UI", type: :system do
 
       expect(store.packages.where(order_id: split_order.id).count).to eq(1)
       expect(source_pkg.reload.package_items.sum(:quantity)).to eq(3)
+    end
+
+    it "closes the modal and collapses the boxes back to one row in place" do
+      other = create(:package, shopify_store: store, order: split_order, number: 701, aasm_state: "pending_process")
+      create(:package_item, package: other, order_line_item: oli, sku: "SPLITSKU", quantity: 1)
+      source_pkg.package_items.first.update!(quantity: 2)
+
+      visit packages_path(state: "pending_process")
+      page.execute_script("window.__notReloaded = true")
+      expect(page).to have_content(other.package_code)
+
+      click_link source_pkg.package_code
+      accept_confirm { click_button I18n.t("packages.merge.button") }
+
+      expect(page).to have_no_css("[data-split-target='dialog']")
+      expect(page).to have_content(source_pkg.package_code)
+      expect(page).to have_no_content(other.package_code)
+      expect(page.evaluate_script("window.__notReloaded")).to be(true)
+    end
+
+    # The standalone /packages/:id page (a bookmark or shared link, reached
+    # without going through the list first) IS the modal — there is no list
+    # row behind it for a turbo_stream.replace to hit, and its modal wrapper
+    # doesn't listen for modal:dismiss. A successful split there used to
+    # change nothing on screen; it now navigates the whole page back to the
+    # list, where the new boxes are visible.
+    it "navigates back to the list after a split submitted from the standalone page" do
+      visit package_path(id: source_pkg.id)
+      expect(page).to have_button(I18n.t("packages.split.button"))
+
+      click_button I18n.t("packages.split.button")
+      fill_in_first_box_input("1")
+      within("[data-split-target='dialog']") { click_button I18n.t("packages.split.submit") }
+
+      expect(page).to have_current_path(packages_path(state: "pending_process"))
+
+      new_box = store.packages.where(order_id: split_order.id).where.not(id: source_pkg.id).sole
+      expect(page).to have_content(new_box.package_code)
+      expect(page).to have_content(I18n.t("packages.split.badge", position: 1, total: 2))
+      expect(page).to have_content(I18n.t("packages.split.badge", position: 2, total: 2))
+    end
+
+    # Mirrors the split standalone-page test above: the standalone
+    # /packages/:id page has no list row for a merge's turbo_stream row
+    # replace/remove to hit, so a successful merge there now navigates the
+    # whole page back to the list instead of silently doing nothing.
+    it "merges split boxes back into one from the standalone page, landing on the packing list with the boxes collapsed" do
+      other = create(:package, shopify_store: store, order: split_order, number: 701, aasm_state: "pending_process")
+      create(:package_item, package: other, order_line_item: oli, sku: "SPLITSKU", quantity: 1)
+      source_pkg.package_items.first.update!(quantity: 2)
+
+      visit package_path(id: source_pkg.id)
+      expect(page).to have_content(I18n.t("packages.frozen_notice"))
+
+      accept_confirm { click_button I18n.t("packages.merge.button") }
+
+      expect(page).to have_current_path(packages_path(state: "pending_process"))
+      expect(store.packages.where(order_id: split_order.id).count).to eq(1)
+      expect(page).to have_content(source_pkg.package_code)
+      expect(page).to have_no_content(other.package_code)
+    end
+
+    # The list-page path is unaffected by the standalone fix above: it must
+    # keep dismissing the modal and replacing the row in place, no navigation.
+    it "still dismisses the modal and folds the row in place when split from the list" do
+      visit packages_path(state: "pending_process")
+      page.execute_script("window.__notReloaded = true")
+
+      click_link source_pkg.package_code
+      click_button I18n.t("packages.split.button")
+      fill_in_first_box_input("1")
+      within("[data-split-target='dialog']") { click_button I18n.t("packages.split.submit") }
+
+      expect(page).to have_no_css("[data-split-target='dialog']")
+      expect(page.evaluate_script("window.__notReloaded")).to be(true)
+      expect(page).to have_current_path(packages_path(state: "pending_process"))
+    end
+
+    # package_bulk_controller#refresh used to run only on a checkbox's own
+    # "change" event, so a Turbo Stream row replacement never recomputed it —
+    # measured on staging: split a package whose row was checked and the bar
+    # kept reading "1" with zero checkboxes actually checked.
+    it "recomputes the bulk selection bar after a split replaces the checked row" do
+      visit packages_path(state: "pending_process")
+
+      within("##{ActionView::RecordIdentifier.dom_id(source_pkg)}") do
+        find("input[name='package_ids[]']").check
+      end
+      expect(page).to have_css("[data-package-bulk-target='bar']", visible: :visible)
+      expect(find("[data-package-bulk-target='count']").text).to eq("1")
+
+      click_link source_pkg.package_code
+      click_button I18n.t("packages.split.button")
+      fill_in_first_box_input("1")
+      within("[data-split-target='dialog']") { click_button I18n.t("packages.split.submit") }
+
+      expect(page).to have_no_css("[data-split-target='dialog']")
+      # The rows that replaced the checked source row start unchecked, so the
+      # bar must recompute to zero and hide itself rather than keep reporting
+      # the "1" that was true before the split.
+      expect(page).to have_css("[data-package-bulk-target='count']", text: "0", visible: :all)
+      expect(page).to have_css("[data-package-bulk-target='bar']", visible: :hidden)
     end
   end
 

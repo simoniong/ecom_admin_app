@@ -21,7 +21,7 @@
       </div>
     <% end %>
 
-    <%= render "packages/siblings_strip", package: package %>
+    <%= render "packages/siblings_strip", package: package, standalone: local_assigns[:standalone] %>
 
     <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 px-6 py-3 border-b border-gray-100 text-sm">
       <div>
@@ -79,7 +79,8 @@
          buttons here; later tasks (5-8) may add more to the same partial. -->
     <div id="<%= dom_id(package, :actions) %>" class="border-t border-gray-100 px-6 py-3">
       <%= render "packages/actions", package: package %>
-      <%= render "packages/split_dialog", package: package, split_errors: local_assigns[:split_errors] %>
+      <%= render "packages/split_dialog", package: package, split_errors: local_assigns[:split_errors],
+            standalone: local_assigns[:standalone] %>
     </div>
   </div>
 <% end %>

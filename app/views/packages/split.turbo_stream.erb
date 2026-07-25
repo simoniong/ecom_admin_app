@@ -1,5 +1,44 @@
-<%# Success and failure both reload the source modal. On failure @split_errors
-    is passed through so the split dialog re-opens showing the error banner. %>
-<%= turbo_stream.replace "package-modal",
-      partial: "packages/modal",
-      locals: { package: @package.reload, split_errors: @split_errors } %>
+<%# Success closes the modal and folds the source row into the order's boxes,
+    in place. A full reload would scatter the new boxes through a time-sorted
+    list and the operator would lose track of which ones just appeared — the
+    whole point of updating in place is that they stay together, where the
+    source row was.
+
+    That only works when there IS a list row to fold into. The standalone
+    /packages/:id page (@standalone, set in #split from the explicit
+    context=standalone hidden field — see show.html.erb and _split_dialog)
+    has no such row, and its modal wrapper doesn't listen for modal:dismiss,
+    so a dismiss+replace stream there would silently do nothing. Navigate the
+    whole page back to the list instead, where the new boxes are visible
+    folded into place.
+
+    Failure is unchanged: re-render the modal so the dialog reopens carrying
+    the error banner. %>
+<% if @split_errors.present? %>
+  <%= turbo_stream.replace "package-modal",
+        partial: "packages/modal",
+        locals: { package: @package.reload, split_errors: @split_errors, standalone: @standalone } %>
+<% elsif @standalone %>
+  <%# state: @package.aasm_state (unchanged by a split — only item quantities
+      move) so the operator lands on the filtered list the new boxes actually
+      appear on, not the default pending_review list. %>
+  <turbo-stream action="visit" data-url="<%= packages_path(state: @package.aasm_state) %>"></turbo-stream>
+<% else %>
+  <turbo-stream action="dismiss_modal"></turbo-stream>
+  <%# The source package survives a split — it becomes box 1, the remainder —
+      so this is one row becoming N, never a delete plus inserts. Eager-load
+      the same associations _package_row reads that #index loads for the same
+      partial (:order, :package_items, :shopify_store, :logistics_channel) —
+      without it this N+1s per sibling. %>
+  <% siblings = @package.order_packages.includes(:order, :package_items, :shopify_store, :logistics_channel).to_a %>
+  <% sibling_index = PackageSiblingIndex.new(siblings).call %>
+  <%= turbo_stream.replace dom_id(@package) do %>
+    <% siblings.each do |sibling| %>
+      <%# bulk: true is not a guess — #split rejects any package that is not
+          pending_process, and that list always renders the bulk column. A
+          wrong value here would emit a row with the wrong number of cells. %>
+      <%= render "packages/package_row", package: sibling, bulk: true,
+            sibling_index: sibling_index[sibling.id], flash_highlight: true %>
+    <% end %>
+  <% end %>
+<% end %>
