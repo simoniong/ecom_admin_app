@@ -62,7 +62,11 @@ class AdCreative < ApplicationRecord
   end
 
   def self.batch_aggregated_metrics(creative_ids, date_range)
-    ids = Array(creative_ids)
+    # Coerce defensively: a caller passing records (or a relation) rather than
+    # bare ids would otherwise silently key the returned hash on model objects
+    # while the pluck'ed totals are keyed on ids, so every lookup misses and
+    # every metric renders as zero with no error raised.
+    ids = Array(creative_ids).map { |c| c.try(:id) || c }
     return {} if ids.empty?
 
     range = range_totals(ids, date_range)
@@ -88,11 +92,13 @@ class AdCreative < ApplicationRecord
   end
 
   # Only attributable units count: multi_asset ads cannot be assigned to one
-  # creative, so their spend must never land in a creative's numbers.
+  # creative, so their spend must never land in a creative's numbers. Reuses
+  # AdUnit.attributable rather than re-stating `multi_asset: false` inline so
+  # the two definitions of "attributable" cannot drift apart.
   def self.metrics_join
     joins("INNER JOIN ad_units ON ad_units.ad_creative_id = ad_creatives.id")
       .joins("INNER JOIN ad_unit_daily_metrics ON ad_unit_daily_metrics.ad_unit_id = ad_units.id")
-      .where(ad_units: { multi_asset: false })
+      .merge(AdUnit.attributable)
   end
   private_class_method :metrics_join
 

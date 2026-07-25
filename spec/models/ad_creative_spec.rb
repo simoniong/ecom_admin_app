@@ -174,10 +174,44 @@ RSpec.describe AdCreative do
 
     it "excludes ad units flagged multi_asset" do
       excluded = create(:ad_unit, ad_account: account, ad_creative: creative, multi_asset: true)
-      create(:ad_unit_daily_metric, ad_unit: excluded, date: today, impressions: 5000)
-      metric(today, impressions: 1000)
+      create(:ad_unit_daily_metric, ad_unit: excluded, date: today, impressions: 5000, spend: 100)
+      metric(today, impressions: 1000, spend: 100)
 
       m = described_class.batch_aggregated_metrics([ creative.id ], today..today)[creative.id]
+
+      expect(m.impressions).to eq(1000)
+      expect(m.lifetime_spend).to eq(100)
+    end
+
+    it "aggregates data inside the coverage interval, not just excludes outside it" do
+      metric(today - 10, spend: 100, conversion_value: 200)
+
+      m = described_class.batch_aggregated_metrics([ creative.id ], today..today)[creative.id]
+
+      expect(m.lifetime_spend).to eq(100)
+      expect(m.lifetime_roas).to eq(2.0)
+    end
+
+    it "accumulates D5 across the first five days from the anchor, past the D3 window" do
+      # Days 1-3 alone would give a 2.0 ROAS (matching the D3 spec below); days
+      # 4-5 are deliberately skewed so a d5-mapped-to-d3 wiring mistake changes
+      # the result instead of coincidentally matching it.
+      metric(today - 10, spend: 10, conversion_value: 20)
+      metric(today - 9, spend: 10, conversion_value: 30)
+      metric(today - 8, spend: 10, conversion_value: 10)
+      metric(today - 7, spend: 40, conversion_value: 40)
+      metric(today - 6, spend: 10, conversion_value: 10)
+      metric(today - 5, spend: 999, conversion_value: 999)
+
+      m = described_class.batch_aggregated_metrics([ creative.id ], today..today)[creative.id]
+
+      expect(m.d5_roas).to eq(1.38)
+    end
+
+    it "accepts creative records instead of bare ids" do
+      metric(today, spend: 100, impressions: 1000)
+
+      m = described_class.batch_aggregated_metrics([ creative ], today..today)[creative.id]
 
       expect(m.impressions).to eq(1000)
     end
