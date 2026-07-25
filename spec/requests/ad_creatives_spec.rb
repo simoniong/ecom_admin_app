@@ -155,6 +155,81 @@ RSpec.describe "AdCreatives", type: :request do
       expect(response).to have_http_status(:success)
       expect(select_count).to eq(1)
     end
+
+    # Pagination follows the products_controller.rb pattern: page/per_page
+    # params, PER_PAGE_OPTIONS/PER_PAGE_DEFAULT constants. Unlike products,
+    # the sort here happens in Ruby over computed metrics (see AdCreative::
+    # CreativeMetrics) BEFORE the array is sliced into a page -- these specs
+    # exist to catch a regression back to "paginate the DB query, then sort
+    # each page separately", which would silently show the wrong rows.
+    describe "pagination" do
+      def creative_with_cpm(name:, spend:, impressions:)
+        creative = create(:ad_creative, ad_account: ad_account, name: name)
+        unit = create(:ad_unit, ad_account: ad_account, ad_creative: creative)
+        create(:ad_unit_daily_metric, ad_unit: unit, date: Date.current, spend: spend, impressions: impressions)
+        creative
+      end
+
+      it "returns different creatives on page 1 vs page 2" do
+        # 25 is the smallest allowed PER_PAGE_OPTIONS value, so 26 records are
+        # needed to force a real second page.
+        # lifetime_spend (the default sort) is 0 for all of these (no
+        # creative_synced_from_date/through_date on the account), so
+        # sort_creatives' name-ascending tiebreak makes ordering deterministic.
+        creatives = Array.new(26) { |i| creative_with_cpm(name: format("Creative %02d", i), spend: 10, impressions: 1_000) }
+
+        sign_in user
+        get ad_creatives_path, params: { store_id: store.id, per_page: 25, page: 1 }
+        page1_names = creatives.map(&:name).select { |n| response.body.include?(n) }
+
+        get ad_creatives_path, params: { store_id: store.id, per_page: 25, page: 2 }
+        page2_names = creatives.map(&:name).select { |n| response.body.include?(n) }
+
+        expect(page1_names.size).to eq(25)
+        expect(page2_names.size).to eq(1)
+        expect(page1_names & page2_names).to be_empty
+      end
+
+      it "falls back to the default per_page when the value is not an allowed option" do
+        3.times { |i| creative_with_cpm(name: "Creative #{i}", spend: 10, impressions: 1_000) }
+
+        sign_in user
+        get ad_creatives_path, params: { store_id: store.id, per_page: 999 }
+
+        expect(response).to have_http_status(:success)
+        expect(response.body).to include(I18n.t("products.showing", from: 1, to: 3, total: 3))
+      end
+
+      it "does not error on an out-of-range page" do
+        creative_with_cpm(name: "Only Creative", spend: 10, impressions: 1_000)
+
+        sign_in user
+        get ad_creatives_path, params: { store_id: store.id, page: 999 }
+
+        expect(response).to have_http_status(:success)
+        expect(response.body).to include("Only Creative")
+      end
+
+      it "puts the highest-metric creative on page 1 when sorting by that metric" do
+        # Created FIRST, so a naive "paginate the DB query, then sort each
+        # page" implementation would put these on page 1 -- but they have the
+        # lowest cpm, so they must not be what determines page 1's contents.
+        5.times { |i| creative_with_cpm(name: "Low CPM #{i}", spend: 1, impressions: 10_000) }
+        # Created LAST (would land on a later page under naive DB-order
+        # pagination), but has by far the highest cpm (500 / 1_000 * 1_000 =
+        # 500 vs 0.1 for the ones above) -- must appear on page 1 once
+        # sorting happens on the full set before slicing.
+        winner = creative_with_cpm(name: "Winner Highest CPM", spend: 500, impressions: 1_000)
+
+        sign_in user
+        get ad_creatives_path, params: {
+          store_id: store.id, sort_column: "cpm", sort_direction: "desc", per_page: 2, page: 1
+        }
+
+        expect(response).to have_http_status(:success)
+        expect(response.body).to include(winner.name)
+      end
+    end
   end
 
   describe "POST /ad_creatives/sync" do
