@@ -1008,6 +1008,11 @@
     states:
       truncated_hint: "首次投放早于已同步范围，冷启动数字不可信。"
       unsynced_hint: "此账户尚未同步。"
+  shared:
+    pagination:
+      showing: "显示 %{from}-%{to}，共 %{total} 条"
+      prev: "上一页"
+      next: "下一页"
   orders:
     title: "订单"
     sync: "同步订单"

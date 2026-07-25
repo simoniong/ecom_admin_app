@@ -1008,6 +1008,11 @@
     states:
       truncated_hint: "首次投放早於已同步範圍，冷啟動數字不可信。"
       unsynced_hint: "此帳號尚未同步。"
+  shared:
+    pagination:
+      showing: "顯示 %{from}-%{to}，共 %{total} 筆"
+      prev: "上一頁"
+      next: "下一頁"
   orders:
     title: "訂單"
     sync: "同步訂單"

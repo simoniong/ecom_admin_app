@@ -1010,6 +1010,11 @@ en:
     states:
       truncated_hint: "First spend predates the synced range — cold-start figures are unreliable."
       unsynced_hint: "This account has not been synced yet."
+  shared:
+    pagination:
+      showing: "Showing %{from}-%{to} of %{total}"
+      prev: "Prev"
+      next: "Next"
   orders:
     title: "Orders"
     sync: "Sync Orders"

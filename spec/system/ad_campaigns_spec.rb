@@ -95,7 +95,7 @@ RSpec.describe "Ad Campaigns", type: :system do
     # campaign_filter_controller.js's sortBy/submit instead.
     click_button "Daily Budget"
 
-    expect(page).to have_text(I18n.t("products.showing", from: 1, to: 25, total: 26))
+    expect(page).to have_text(I18n.t("shared.pagination.showing", from: 1, to: 25, total: 26))
   end
 
   it "shows column toggle popover with checkboxes" do

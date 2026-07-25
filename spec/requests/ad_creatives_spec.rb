@@ -197,7 +197,13 @@ RSpec.describe "AdCreatives", type: :request do
         get ad_creatives_path, params: { store_id: store.id, per_page: 999 }
 
         expect(response).to have_http_status(:success)
-        expect(response.body).to include(I18n.t("products.showing", from: 1, to: 3, total: 3))
+        # 3 results fit on any per_page, so the pagination "showing" line (which
+        # only renders once there's more than one page) can't prove the
+        # fallback happened -- assert on the per_page selector's own selected
+        # option instead, which always renders.
+        doc = Nokogiri::HTML(response.body)
+        selected_option = doc.at_css("select#per_page option[selected]")
+        expect(selected_option.text.strip).to eq(AdCreativesController::PER_PAGE_DEFAULT.to_s)
       end
 
       it "does not error on an out-of-range page" do
