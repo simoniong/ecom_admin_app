@@ -988,7 +988,7 @@
       lifetime_roas: "生命周期ROAS"
       platform: "投放平台"
     states:
-      truncated_hint: "首次投放早于已同步范围,冷启动数字不可信。"
+      truncated_hint: "首次投放早于已同步范围，冷启动数字不可信。"
       unsynced_hint: "此账户尚未同步。"
   orders:
     title: "订单"
@@ -1300,6 +1300,7 @@
       shipments: "物流"
       tickets: "工单"
       ad_campaigns: "广告活动"
+      ad_creatives: "广告素材"
       shopify_stores: "Shopify 商店"
       ad_accounts: "广告账户"
       email_accounts: "邮箱"

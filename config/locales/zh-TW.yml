@@ -988,7 +988,7 @@
       lifetime_roas: "生命週期ROAS"
       platform: "投放平台"
     states:
-      truncated_hint: "首次投放早於已同步範圍,冷啟動數字不可信。"
+      truncated_hint: "首次投放早於已同步範圍，冷啟動數字不可信。"
       unsynced_hint: "此帳號尚未同步。"
   orders:
     title: "訂單"
@@ -1300,6 +1300,7 @@
       shipments: "物流"
       tickets: "工單"
       ad_campaigns: "廣告活動"
+      ad_creatives: "廣告素材"
       shopify_stores: "Shopify 商店"
       ad_accounts: "廣告帳戶"
       email_accounts: "郵箱"
