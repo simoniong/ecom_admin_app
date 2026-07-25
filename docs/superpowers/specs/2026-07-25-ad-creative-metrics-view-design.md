@@ -397,13 +397,18 @@ backfill 加深時 `first_spend_date` 可能再往前移。
 
 | 模式 | 觸發 | 區間 | 分段順序 | 覆蓋範圍更新 |
 |------|------|------|---------|-------------|
-| A 初始化 | coverage 兩欄皆 null | `[今天 - N + 1, 今天]` | 由舊至新 | 第一段同時設定 `_from` 與 `_through`;其後每段推進 `_through` |
+| A 初始化 | coverage **任一欄**為 null | `[今天 - N + 1, 今天]` | 由舊至新 | 第一段同時設定 `_from` 與 `_through`;其後每段推進 `_through` |
 | B 向前續跑 | `_through_date < 今天 - 1` | `[_through_date + 1, 今天]` | 由舊至新 | 每段推進 `_through` |
 | C 向後加深 | 需要更早的歷史 | `[目標起點, _from_date - 1]` | **由新至舊** | 每段前移 `_from` |
 
 三種模式的觸發條件**互斥**:B 的門檻是 `_through_date < 今天 - 1`,
 與滾動同步的資格條件(`_through_date >= 今天 - 1`)正好互補。
 `_through_date` 為昨天時由滾動同步自然補上今天,不需要 backfill。
+
+模式 A 的條件是「**任一欄**為 null」而非「兩欄皆 null」:
+單邊為 null 是不該出現的損壞狀態(違反 §5.6 的不變式),
+但一旦出現,唯一安全的處置是整段重建而不是嘗試從半個邊界續跑。
+歸入 A 使這個狀態有明確且安全的恢復路徑,而不是落到規則的縫隙裡。
 
 模式 C 必須**由新至舊**處理,這樣每一段都與當前的 `_from_date` 相鄰,
 前移後區間始終連續。若比照 A/B 由舊至新,第一段會與現有區間不相鄰 ——
@@ -461,14 +466,33 @@ backfill 加深時 `first_spend_date` 可能再往前移。
 失敗時:  不再另行變更(入列時已推進,退避自然生效)
 ```
 
+**「檢查是否到期」與「推進 next_attempt_at」必須是單一原子的條件式 UPDATE**,
+不可先 SELECT 判斷再 UPDATE:
+
+```sql
+UPDATE ad_accounts
+   SET creative_backfill_attempts = creative_backfill_attempts + 1,
+       creative_backfill_next_attempt_at = <計算後的時刻>
+ WHERE id = ?
+   AND (creative_backfill_next_attempt_at IS NULL
+        OR creative_backfill_next_attempt_at <= NOW())
+```
+
+僅在 affected rows = 1 時才真正入列 job。
+否則兩個並行的 runner(recurring job 重疊執行、或多台 worker)會同時通過檢查,
+各自入列一次 —— 節流形同虛設。
+
 要點:
 
 - **`next_attempt_at` 在入列時就推進,不是等 job 結束才推進。**
   這同時擋掉重複入列與「前一趟還在跑」兩種情況,不需要查詢 job queue 狀態
 - 下限 1 小時,保證每個帳號每小時最多入列一次 —— 與滾動同步的週期對齊
 - 上限 24 小時,避免退避到永遠不再重試
-- 手動按鈕觸發的 backfill **不受節流限制**,但同樣會推進 `next_attempt_at`,
-  避免手動觸發後緊接著又被自動入列一次
+- 手動按鈕觸發的 backfill **不受退避限制**(使用者明確要求重試,不該被擋),
+  但仍走同一個原子 UPDATE 並把 `next_attempt_at` 推進**固定 1 小時**,
+  避免連點產生重複 job、以及手動觸發後緊接著又被自動入列一次。
+  **手動觸發不遞增 `attempts`** —— 該欄位代表「連續失敗次數」,是退避與告警的依據;
+  讓使用者點擊去推高它,會使連點把自動自癒壓制到 24 小時上限,反而害了要修的帳號
 - `attempts` 持續累積代表該帳號長期無法同步(token 失效、權限被撤等),
   是後續加告警的掛載點;本次僅寫 log
 
@@ -604,7 +628,10 @@ end
   - 入列時 `attempts` 遞增、`next_attempt_at` 往前推,且**在入列當下**推進而非 job 結束時
   - 退避下限 1 小時、上限 24 小時
   - backfill 成功後 `attempts` 歸零、`next_attempt_at` 清空
-  - 手動按鈕不受節流限制,但仍推進 `next_attempt_at`
+  - 手動按鈕不受退避限制,推進 `next_attempt_at` 固定 1 小時,且**不**遞增 `attempts`
+  - 並行安全:同一帳號被兩個 runner 同時處理時,只有一個能入列
+    (原子條件式 UPDATE 的 affected rows 為 1)
+  - coverage 單邊為 null → 走模式 A 整段重建
 - `BackfillAdCreativesJob` 分段呼叫;模式 A 第一段同時初始化兩個邊界;
   模式 B 從 `_through_date + 1` 起算
 - 分段失敗即中止:後續分段不得被送出,且該段資料不得留下
