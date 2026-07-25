@@ -1352,6 +1352,37 @@ RSpec.describe "Packages", type: :request do
       post merge_package_path(id: other.id)
       expect(response).to have_http_status(:not_found)
     end
+
+    describe "from the standalone show page (context=standalone)" do
+      # _siblings_strip only sends context=standalone as an extra hidden field
+      # on the merge button_to form when show.html.erb rendered the modal with
+      # standalone: true — see that view and _siblings_strip.html.erb. A
+      # request carrying it is exactly what the standalone page's own button
+      # submits; nothing here is inferred from the referer.
+      it "navigates the whole page back to the list instead of streaming row updates" do
+        post merge_package_path(id: other.id),
+             params: { context: "standalone" },
+             headers: { "Accept" => "text/vnd.turbo-stream.html" }
+
+        expect(response).to have_http_status(:ok)
+        expect(response.body).to include('action="visit"')
+        # state: pending_process (the survivor's own, unchanged by a merge) —
+        # not the bare list URL — so the operator lands where the collapsed
+        # box actually renders, not the default pending_review list.
+        expect(response.body).to include(packages_path(state: "pending_process"))
+        expect(response.body).not_to include('action="dismiss_modal"')
+        expect(response.body).not_to include('action="remove"')
+      end
+
+      it "keeps streaming the row replace and removals when context is absent" do
+        post merge_package_path(id: other.id),
+             headers: { "Accept" => "text/vnd.turbo-stream.html" }
+
+        expect(response.body).to include('action="dismiss_modal"')
+        expect(response.body).to include('action="remove"')
+        expect(response.body).not_to include('action="visit"')
+      end
+    end
   end
 
   describe "readiness + cancel display" do

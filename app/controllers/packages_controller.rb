@@ -229,6 +229,15 @@ class PackagesController < AdminController
       return redirect_to(package_path(id: @package.id), alert: t("packages.split_invalid_state"))
     end
 
+    # Explicit, controller-owned signal for merge.turbo_stream.erb — mirrors
+    # #split's @standalone: the standalone /packages/:id page (show.html.erb)
+    # has no list row for `turbo_stream.replace dom_id(@survivor)`/`.remove`
+    # to hit and its modal wrapper doesn't listen for modal:dismiss, so a
+    # dismiss+replace+remove stream there would silently do nothing.
+    # _siblings_strip only sends context=standalone when show.html.erb
+    # rendered it (see that view), so this is never a referer guess.
+    @standalone = params[:context] == "standalone"
+
     # PackageMerger destroys the absorbed boxes, so the rows to remove from the
     # list have to be captured BEFORE the call — afterwards there is nothing
     # left to ask. These are in-memory (now destroyed) records, which is all

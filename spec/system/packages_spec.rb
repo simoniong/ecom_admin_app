@@ -457,6 +457,26 @@ RSpec.describe "Packages UI", type: :system do
       expect(page).to have_content(I18n.t("packages.split.badge", position: 2, total: 2))
     end
 
+    # Mirrors the split standalone-page test above: the standalone
+    # /packages/:id page has no list row for a merge's turbo_stream row
+    # replace/remove to hit, so a successful merge there now navigates the
+    # whole page back to the list instead of silently doing nothing.
+    it "merges split boxes back into one from the standalone page, landing on the packing list with the boxes collapsed" do
+      other = create(:package, shopify_store: store, order: split_order, number: 701, aasm_state: "pending_process")
+      create(:package_item, package: other, order_line_item: oli, sku: "SPLITSKU", quantity: 1)
+      source_pkg.package_items.first.update!(quantity: 2)
+
+      visit package_path(id: source_pkg.id)
+      expect(page).to have_content(I18n.t("packages.frozen_notice"))
+
+      accept_confirm { click_button I18n.t("packages.merge.button") }
+
+      expect(page).to have_current_path(packages_path(state: "pending_process"))
+      expect(store.packages.where(order_id: split_order.id).count).to eq(1)
+      expect(page).to have_content(source_pkg.package_code)
+      expect(page).to have_no_content(other.package_code)
+    end
+
     # The list-page path is unaffected by the standalone fix above: it must
     # keep dismissing the modal and replacing the row in place, no navigation.
     it "still dismisses the modal and folds the row in place when split from the list" do

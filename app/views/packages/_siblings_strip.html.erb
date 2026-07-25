@@ -18,9 +18,16 @@
         <% end %>
 
         <% if package.pending_process? %>
+          <%# Explicit, testable signal for #merge / merge.turbo_stream.erb to tell
+              the standalone /packages/:id page apart from the list's modal frame —
+              mirrors _split_dialog's hidden :context field, but button_to has no
+              form block to nest one in, so it goes through the `params:` option
+              instead (added as an extra hidden input on the generated form). Not
+              inferred from the referer. %>
           <%= button_to t("packages.merge.button"),
                 merge_package_path(id: package.id), method: :post,
                 form: { data: { turbo_frame: "package-modal" } },
+                params: (local_assigns[:standalone] ? { context: "standalone" } : nil),
                 data: { turbo_confirm: PackageMerger.new(package).conflict? ? t("packages.merge.confirm_conflict") : t("packages.merge.confirm") },
                 class: "ml-auto px-3 py-1 bg-indigo-600 text-white text-xs rounded hover:bg-indigo-700" %>
         <% end %>

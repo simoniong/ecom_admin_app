@@ -21,7 +21,7 @@
       </div>
     <% end %>
 
-    <%= render "packages/siblings_strip", package: package %>
+    <%= render "packages/siblings_strip", package: package, standalone: local_assigns[:standalone] %>
 
     <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 px-6 py-3 border-b border-gray-100 text-sm">
       <div>
