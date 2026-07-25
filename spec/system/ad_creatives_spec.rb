@@ -73,10 +73,18 @@ RSpec.describe "Ad Creatives", type: :system do
     # `page.all(...).map(&:text)` takes an unsynchronized snapshot of the DOM — it can grab
     # element handles from the pre-navigation page that go stale mid-map after the sort link's
     # click triggers a fresh render. Asserting via `have_css` on the first row instead gives a
-    # retrying matcher that waits for the post-sort DOM, and it asserts order directly (an
-    # assertion that only checked presence of "High Spender" anywhere would pass regardless of
-    # sort order, which defeats the point of the spec).
-    expect(page).to have_css("tbody tr:first-child", text: "High Spender")
+    # retrying matcher that self-synchronizes against the live DOM.
+    #
+    # The default page load is already sorted by lifetime_spend desc, so High Spender is first
+    # BEFORE the click too — asserting "High Spender" here would pass against the stale
+    # pre-navigation DOM the instant have_css's first poll runs, never actually waiting for the
+    # click's navigation, and would stay green even with sorting completely broken. The
+    # "Lifetime Spend" header link toggles direction on click (desc -> asc, since the page is
+    # already sorted desc by default), so following it flips the order and Low Spender becomes
+    # first. Asserting "Low Spender" is therefore both the value the click genuinely produces
+    # and the opposite of the pre-navigation DOM, so the matcher cannot succeed until the sorted
+    # page has actually rendered — do not "fix" this back to "High Spender".
+    expect(page).to have_css("tbody tr:first-child", text: "Low Spender")
   end
 
   it "filters by date range" do
