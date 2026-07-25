@@ -142,4 +142,83 @@ RSpec.describe AdAccount, type: :model do
       end
     end
   end
+
+  describe "#claim_backfill_slot!" do
+    let(:account) { create(:ad_account) }
+
+    it "claims when no attempt is scheduled" do
+      expect(account.claim_backfill_slot!).to be(true)
+      expect(account.reload.creative_backfill_attempts).to eq(1)
+      expect(account.creative_backfill_next_attempt_at).to be_present
+    end
+
+    it "refuses a second automatic claim inside the backoff window" do
+      account.claim_backfill_slot!
+
+      expect(account.claim_backfill_slot!).to be(false)
+      expect(account.reload.creative_backfill_attempts).to eq(1)
+    end
+
+    it "backs off exponentially and never schedules under one hour out" do
+      3.times do
+        account.claim_backfill_slot!
+        account.update_column(:creative_backfill_next_attempt_at, 1.second.ago)
+      end
+      account.reload
+
+      account.update_column(:creative_backfill_next_attempt_at, nil)
+      account.claim_backfill_slot!
+
+      gap = account.reload.creative_backfill_next_attempt_at - Time.current
+      expect(gap).to be >= 1.hour
+      expect(gap).to be <= 24.hours
+    end
+
+    it "caps the backoff at 24 hours" do
+      account.update_column(:creative_backfill_attempts, 20)
+      account.claim_backfill_slot!
+
+      gap = account.reload.creative_backfill_next_attempt_at - Time.current
+      expect(gap).to be <= 24.hours + 1.minute
+    end
+
+    it "lets a manual claim bypass failure backoff" do
+      account.update_columns(
+        creative_backfill_attempts: 5,
+        creative_backfill_next_attempt_at: 20.hours.from_now
+      )
+
+      expect(account.claim_backfill_slot!(manual: true)).to be(true)
+    end
+
+    it "does not increment attempts on a manual claim" do
+      account.update_columns(creative_backfill_attempts: 5, creative_backfill_next_attempt_at: 20.hours.from_now)
+
+      account.claim_backfill_slot!(manual: true)
+
+      expect(account.reload.creative_backfill_attempts).to eq(5)
+    end
+
+    it "blocks a rapid second manual click after a clean state" do
+      expect(account.claim_backfill_slot!(manual: true)).to be(true)
+      expect(account.claim_backfill_slot!(manual: true)).to be(false)
+    end
+
+    it "refuses an automatic claim while a manual one holds the slot" do
+      account.claim_backfill_slot!(manual: true)
+
+      expect(account.claim_backfill_slot!).to be(false)
+    end
+  end
+
+  describe "#release_backfill_slot!" do
+    it "clears the attempt counter and schedule" do
+      account = create(:ad_account, creative_backfill_attempts: 4, creative_backfill_next_attempt_at: 2.hours.from_now)
+
+      account.release_backfill_slot!
+
+      expect(account.reload.creative_backfill_attempts).to eq(0)
+      expect(account.creative_backfill_next_attempt_at).to be_nil
+    end
+  end
 end
