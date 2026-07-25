@@ -7,6 +7,9 @@ class AdCreativesController < AdminController
 
   BACKFILL_DAYS = 90
 
+  PER_PAGE_DEFAULT = 50
+  PER_PAGE_OPTIONS = [ 25, 50, 100, 200, 300, 500 ].freeze
+
   # Claims target exactly the accounts the page is showing. A claim pushes
   # `next_attempt_at` an hour out, so sweeping every visible account would let
   # a sync of store A suppress the automatic heal of an unrelated broken
@@ -32,13 +35,41 @@ class AdCreativesController < AdminController
     @sort_column = SORTABLE_COLUMNS.include?(params[:sort_column]) ? params[:sort_column] : "lifetime_spend"
     @sort_direction = params[:sort_direction] == "asc" ? "asc" : "desc"
 
+    @page = [ params[:page].to_i, 1 ].max
+    per_page = Integer(params[:per_page], exception: false)
+    @per_page = PER_PAGE_OPTIONS.include?(per_page) ? per_page : PER_PAGE_DEFAULT
+
+    # Materialise the creative set ONCE and derive metrics from these same
+    # records. `ad_units` is written continuously by the hourly backfill
+    # (BackfillAdCreativesJob -> MetaAdsService#sync_ad_units), so the
+    # `AdUnit.attributable` predicate above is not stable across two separate
+    # queries: a creative that gains its first attributable ad_unit between
+    # query #1 and query #2 would appear in the second query but not the
+    # first, leaving `sort_creatives` looking up a metrics hash key that was
+    # never populated (nil) -> NoMethodError. Querying once removes the
+    # window entirely.
     creatives = AdCreative
       .where(ad_account: accounts)
       .where(id: AdUnit.attributable.select(:ad_creative_id))
       .includes(:ad_account)
+      .to_a
 
-    @creative_metrics = AdCreative.batch_aggregated_metrics(creatives.pluck(:id), @from_date..@to_date)
-    @creatives = sort_creatives(creatives.to_a)
+    @creative_metrics = AdCreative.batch_aggregated_metrics(creatives, @from_date..@to_date)
+
+    # Sort BEFORE paginating, in Ruby, over the whole set: @sort_column is one
+    # of SORTABLE_COLUMNS, every one a method on CreativeMetrics computed from
+    # the aggregation queries above, not a real SQL column -- there is no
+    # `ORDER BY` that could express it. Slicing the DB result first and then
+    # sorting only that page would show an arbitrary page 1 (e.g. the highest
+    # lifetime_spend creative could land on page 4), so the full set must be
+    # sorted first and the page taken from the sorted array. @total_count
+    # comes from this same in-memory array (not a fresh COUNT query) so the
+    # single-SELECT-against-ad_creatives guarantee below still holds.
+    sorted = sort_creatives(creatives)
+    @total_count = sorted.size
+    @total_pages = (@total_count.to_f / @per_page).ceil
+    @page = [ @page, @total_pages ].min if @total_pages > 0
+    @creatives = sorted.drop((@page - 1) * @per_page).first(@per_page)
   end
 
   private

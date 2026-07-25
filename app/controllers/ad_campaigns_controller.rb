@@ -55,9 +55,21 @@ class AdCampaignsController < AdminController
       campaigns = campaigns.where(status: @status_filter)
     end
 
-    @campaign_metrics = AdCampaign.batch_aggregated_metrics(campaigns.pluck(:id), date_range)
+    # Materialise the campaign set ONCE and derive metrics from these same
+    # records. SyncAdCampaignsJob (MetaAdsService#sync_campaigns) inserts new
+    # AdCampaign rows into this same ad_account scope every hour, and when
+    # status_filter == "has_spend" the same job also writes the
+    # AdCampaignDailyMetric rows the extra predicate depends on. Either can
+    # commit between two separate queries against `campaigns`, so a campaign
+    # that appears in a second query but not the first leaves
+    # `sort_campaigns` looking up a metrics hash key that was never
+    # populated (nil) -> NoMethodError. Querying once removes the window
+    # entirely.
+    campaigns = campaigns.to_a
 
-    @campaigns = sort_campaigns(campaigns.to_a)
+    @campaign_metrics = AdCampaign.batch_aggregated_metrics(campaigns, date_range)
+
+    @campaigns = sort_campaigns(campaigns)
 
     build_summary
 
