@@ -339,6 +339,41 @@ RSpec.describe "Packages UI", type: :system do
       expect(page).to have_button(I18n.t("packages.split.submit"), disabled: true)
     end
 
+    # The opener button sits at the very bottom of a max-h-[88vh] overflow-y-auto
+    # modal, so the dialog it reveals lands below the fold. Nothing scrolls, the
+    # screen does not change, and the button reads as broken — which is exactly
+    # how this was reported from staging. The window is squeezed here because at
+    # the suite's default 1400x900 the dialog happens to fit on screen and the
+    # assertion would hold with or without the fix.
+    it "scrolls the split dialog into view when it opens below the fold" do
+      page.driver.browser.manage.window.resize_to(1400, 500)
+
+      visit packages_path(state: "pending_process")
+      click_link source_pkg.package_code
+      click_button I18n.t("packages.split.button")
+      expect(page).to have_content(I18n.t("packages.split.title"))
+
+      # Measured against the MODAL's visible box, not the window's. The dialog
+      # is clipped by the modal's own overflow long before it leaves the window,
+      # so a window-relative check reports "visible" for a dialog the user
+      # cannot see.
+      within_modal_viewport = page.evaluate_script(<<~JS)
+        (() => {
+          const dialog = document.querySelector("[data-split-target='dialog']");
+          let scroller = dialog.parentElement;
+          while (scroller && scroller.scrollHeight <= scroller.clientHeight + 2) {
+            scroller = scroller.parentElement;
+          }
+          const d = dialog.getBoundingClientRect();
+          const s = scroller.getBoundingClientRect();
+          return d.top < s.bottom && d.bottom > s.top;
+        })()
+      JS
+      expect(within_modal_viewport).to be(true)
+    ensure
+      page.driver.browser.manage.window.resize_to(1400, 900)
+    end
+
     it "merges split boxes back into one and shows the survivor" do
       other = create(:package, shopify_store: store, order: split_order, number: 701, aasm_state: "pending_process")
       create(:package_item, package: other, order_line_item: oli, sku: "SPLITSKU", quantity: 1)

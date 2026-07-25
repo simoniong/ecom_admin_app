@@ -12,7 +12,17 @@ export default class extends Controller {
 
   connect() { this.boxCount = 0 }
 
-  open() { this.dialogTarget.classList.remove("hidden"); if (this.boxCount === 0) this.addBox() }
+  // The opener sits at the bottom of the modal's max-h-[88vh] overflow-y-auto
+  // panel, so the dialog it reveals opens below the fold. Without the scroll
+  // the screen does not visibly change and the button reads as broken. Boxes
+  // are added BEFORE scrolling so the dialog is already at full height when
+  // the browser computes where to scroll to.
+  open() {
+    this.dialogTarget.classList.remove("hidden")
+    if (this.boxCount === 0) this.addBox()
+    this.dialogTarget.scrollIntoView({ block: "nearest" })
+  }
+
   close() { this.dialogTarget.classList.add("hidden") }
 
   addBox() {
