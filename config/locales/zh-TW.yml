@@ -673,6 +673,9 @@
     readiness:
       blocked_title: "尚未可出貨"
       ready: "可申請運單號"
+    review:
+      bulk_button: "批量審核"
+      bulk_result: "已審核 %{reviewed} 個，跳過 %{skipped} 個"
     apply:
       timeout: "貨代超時未出號"
       invalid_state: "包裹目前狀態不可申請運單號"

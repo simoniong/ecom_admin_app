@@ -95,6 +95,7 @@ Rails.application.routes.draw do
       end
       collection do
         post :sync
+        post :submit_review_bulk
         post :apply_tracking_bulk
         post :labels
         post :ship_bulk

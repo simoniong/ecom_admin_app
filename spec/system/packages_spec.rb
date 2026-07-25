@@ -528,6 +528,20 @@ RSpec.describe "Packages UI", type: :system do
       expect(page).to have_content(I18n.t("packages.columns.paid_at"))
     end
   end
+
+  describe "批量審核" do
+    it "advances the checked packages and empties the pending_review list" do
+      visit packages_path(state: "pending_review")
+
+      check_all = find("input[data-package-bulk-target='all']")
+      check_all.check
+
+      click_button I18n.t("packages.review.bulk_button")
+
+      expect(page).to have_content(I18n.t("packages.states.pending_review"))
+      expect(page).to have_no_content("PKS#3001")
+    end
+  end
 end
 
 # Fills the first box's number input for the first item row.

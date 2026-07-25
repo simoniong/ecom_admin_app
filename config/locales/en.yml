@@ -675,6 +675,9 @@ en:
     readiness:
       blocked_title: "Not ready to ship"
       ready: "Ready to apply for tracking"
+    review:
+      bulk_button: "Bulk review"
+      bulk_result: "Reviewed %{reviewed}, skipped %{skipped}"
     apply:
       timeout: "Carrier did not issue a tracking number in time"
       invalid_state: "Package is not in a state that can apply for tracking"

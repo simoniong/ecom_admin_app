@@ -1540,4 +1540,72 @@ RSpec.describe "Packages", type: :request do
       end
     end
   end
+
+  describe "POST /packages/submit_review_bulk" do
+    def sign_in_as_member_with(permission)
+      member = create(:user)
+      create(:membership, user: member, company: company, role: :member, permissions: [ permission ])
+      sign_out user
+      sign_in member
+      member
+    end
+
+    it "advances every selected pending_review package" do
+      second = create(:package, shopify_store: store, aasm_state: "pending_review", number: 81,
+                      order: create(:order, customer: customer, shopify_store: store, name: "PKS#8001"))
+
+      post submit_review_bulk_packages_path, params: { package_ids: [ review_package.id, second.id ] }
+
+      expect(review_package.reload.aasm_state).to eq("pending_process")
+      expect(second.reload.aasm_state).to eq("pending_process")
+      expect(flash[:notice]).to include("2")
+    end
+
+    it "skips a package that is not pending_review" do
+      post submit_review_bulk_packages_path, params: { package_ids: [ process_package.id ] }
+
+      expect(process_package.reload.aasm_state).to eq("pending_process")
+      expect(response).to redirect_to(packages_path(state: "pending_review"))
+    end
+
+    it "denies a member without package_review and transitions nothing" do
+      sign_in_as_member_with("package_process")
+
+      post submit_review_bulk_packages_path, params: { package_ids: [ review_package.id ] }
+
+      expect(review_package.reload.aasm_state).to eq("pending_review")
+      expect(response).to redirect_to(packages_path)
+      expect(flash[:alert]).to eq(I18n.t("companies.no_permission"))
+    end
+
+    it "allows a member granted package_review" do
+      sign_in_as_member_with("package_review")
+
+      post submit_review_bulk_packages_path, params: { package_ids: [ review_package.id ] }
+
+      expect(review_package.reload.aasm_state).to eq("pending_process")
+    end
+
+    it "ignores a package belonging to another company" do
+      other_user = create(:user)
+      other_store = create(:shopify_store, user: other_user, company: other_user.companies.first)
+      other_customer = create(:customer, shopify_store: other_store)
+      foreign = create(:package, shopify_store: other_store, aasm_state: "pending_review", number: 91,
+                       order: create(:order, customer: other_customer, shopify_store: other_store))
+
+      post submit_review_bulk_packages_path, params: { package_ids: [ foreign.id ] }
+
+      expect(foreign.reload.aasm_state).to eq("pending_review")
+    end
+
+    it "carries the current filters back to the list" do
+      post submit_review_bulk_packages_path,
+           params: { package_ids: [ review_package.id ], country: "US",
+                     sort_column: "paid_at", sort_direction: "asc" }
+
+      expect(response).to redirect_to(
+        packages_path(country: "US", sort_column: "paid_at", sort_direction: "asc", state: "pending_review")
+      )
+    end
+  end
 end

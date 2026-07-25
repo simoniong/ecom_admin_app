@@ -352,6 +352,28 @@ class PackagesController < AdminController
     redirect_to packages_path(state: "pending_label"), notice: t("packages.ship.bulk_result", shipped: shipped)
   end
 
+  # Bulk review from the pending_review list (gated on package_review, the same
+  # permission that guards REVIEW_EVENTS in #transition). Per-package isolation
+  # mirrors apply_tracking_bulk/ship_bulk: a package whose state raced between
+  # the scope query and submit_review! (AASM::InvalidTransition) is counted as
+  # skipped rather than aborting the rest of the batch.
+  def submit_review_bulk
+    return redirect_to(packages_path, alert: t("companies.no_permission")) unless current_membership&.package_review?
+
+    ids = Array(params[:package_ids]).map(&:to_s)
+    reviewed = 0
+    skipped = 0
+    scoped_packages.where(id: ids, aasm_state: "pending_review").find_each do |package|
+      package.submit_review!
+      reviewed += 1
+    rescue AASM::InvalidTransition, ActiveRecord::ActiveRecordError => e
+      Rails.logger.warn("[ReviewBulk] Package##{package.id}: #{e.class}: #{e.message}")
+      skipped += 1
+    end
+    redirect_to packages_path(list_filter_params.merge(state: "pending_review")),
+                notice: t("packages.review.bulk_result", reviewed: reviewed, skipped: skipped)
+  end
+
   # Re-enqueue the Shopify fulfillment sync for a shipped package whose
   # previous sync failed (or was never enqueued because the store toggle was
   # off at ship time). Gated on package_shipping AND the store's current
@@ -375,6 +397,14 @@ class PackagesController < AdminController
   end
 
   private
+
+  # The list filters, carried back through a bulk action's redirect. Without
+  # this, one click on a bulk button silently resets the user's country/sort
+  # selection. Values are re-validated by PackageListQuery on the way back in,
+  # so this only has to move them.
+  def list_filter_params
+    params.permit(:country, :sort_column, :sort_direction).to_h.compact_blank.symbolize_keys
+  end
 
   # Atomically transition to shipped + set status + decide enqueue (Codex: row
   # lock to avoid double-click races). Returns :ok, :not_pending, :no_tracking.
