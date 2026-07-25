@@ -297,7 +297,7 @@ class PackagesController < AdminController
     if result.success?
       send_data result.pdf, type: "application/pdf", disposition: "inline", filename: result.filename
     else
-      redirect_to packages_path(state: "pending_label"), alert: label_error_message(result.error)
+      redirect_to packages_path(list_filter_params.merge(state: "pending_label")), alert: label_error_message(result.error)
     end
   end
 
@@ -312,7 +312,7 @@ class PackagesController < AdminController
     if result.success?
       send_data result.pdf, type: "application/pdf", disposition: "inline", filename: result.filename
     else
-      redirect_to packages_path(state: "pending_label"), alert: label_error_message(result.error)
+      redirect_to packages_path(list_filter_params.merge(state: "pending_label")), alert: label_error_message(result.error)
     end
   end
 

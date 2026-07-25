@@ -475,11 +475,17 @@ RSpec.describe "Packages UI", type: :system do
   end
 
   describe "列表篩選與排序" do
+    # created_at and ordered_at are deliberately given OPPOSING relative
+    # orders here (us_package: old ordered_at / recent created_at; ca_package:
+    # recent ordered_at / old created_at) so the "sorts by order time" example
+    # below can only pass if it really sorts by ordered_at — if the sort_column
+    # wiring silently fell back to the default created_at column, the packages
+    # would come back in the opposite order and the example would fail.
     let!(:us_package) do
       order = create(:order, customer: customer, shopify_store: store, name: "PKS#7001",
                      ordered_at: 5.days.ago, paid_at: 5.days.ago)
       create(:package, shopify_store: store, order: order, aasm_state: "pending_review",
-             number: 71, created_at: 5.days.ago,
+             number: 71, created_at: 1.hour.ago,
              shipping_address_snapshot: { "country_code" => "US" })
     end
 
@@ -487,7 +493,7 @@ RSpec.describe "Packages UI", type: :system do
       order = create(:order, customer: customer, shopify_store: store, name: "PKS#7002",
                      ordered_at: 1.hour.ago, paid_at: 1.hour.ago)
       create(:package, shopify_store: store, order: order, aasm_state: "pending_review",
-             number: 72, created_at: 1.hour.ago,
+             number: 72, created_at: 5.days.ago,
              shipping_address_snapshot: { "country_code" => "CA" })
     end
 

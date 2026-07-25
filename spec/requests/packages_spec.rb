@@ -140,6 +140,57 @@ RSpec.describe "Packages", type: :request do
       end
     end
 
+    describe "combined country filter + sort + pagination" do
+      # Rails only takes the eager_load DISTINCT-id subquery path when
+      # `includes` and `joins` overlap on the same association — exactly what
+      # PackagesController#index does (includes(:order, ...) alongside
+      # PackageListQuery's joins(:order)). That combination only actually
+      # engages once a WHERE (country) and a non-default ORDER BY (sort) are
+      # both in play at the same time as pagination's LIMIT/OFFSET, so this
+      # spec exercises all three together rather than in isolation.
+      let(:us_count) { PackagesController::PER_PAGE + 5 }
+
+      let!(:us_combo_packages) do
+        Array.new(us_count) do |i|
+          order = create(:order, customer: customer, shopify_store: store, name: "PKS#COMBO-US-#{i}",
+                         ordered_at: (us_count - i).days.ago)
+          create(:package, shopify_store: store, order: order, aasm_state: "pending_review",
+                 number: 3000 + i, shipping_address_snapshot: { "country_code" => "US" })
+        end
+      end
+
+      let!(:ca_combo_packages) do
+        Array.new(3) do |i|
+          order = create(:order, customer: customer, shopify_store: store, name: "PKS#COMBO-CA-#{i}",
+                         ordered_at: (i + 1).days.ago)
+          create(:package, shopify_store: store, order: order, aasm_state: "pending_review",
+                 number: 4000 + i, shipping_address_snapshot: { "country_code" => "CA" })
+        end
+      end
+
+      def combo_us_names_in_order(body)
+        body.scan(/PKS#COMBO-US-\d+/)
+      end
+
+      it "returns page 1 sorted ascending by ordered_at, scoped to the country filter" do
+        get packages_path, params: { country: "US", sort_column: "ordered_at", sort_direction: "asc", page: 1 }
+
+        expect(response).to have_http_status(:ok)
+        expected = (0...PackagesController::PER_PAGE).map { |i| "PKS#COMBO-US-#{i}" }
+        expect(combo_us_names_in_order(response.body)).to eq(expected)
+        expect(response.body).not_to include("PKS#COMBO-CA")
+      end
+
+      it "returns the remainder on page 2, still ascending and still scoped to the country filter" do
+        get packages_path, params: { country: "US", sort_column: "ordered_at", sort_direction: "asc", page: 2 }
+
+        expect(response).to have_http_status(:ok)
+        expected = (PackagesController::PER_PAGE...us_count).map { |i| "PKS#COMBO-US-#{i}" }
+        expect(combo_us_names_in_order(response.body)).to eq(expected)
+        expect(response.body).not_to include("PKS#COMBO-CA")
+      end
+    end
+
     describe "applying_tracking sub-tabs (application_status)" do
       let!(:pending_application) do
         order = create(:order, customer: customer, shopify_store: store, name: "PKS#2001")
@@ -1614,6 +1665,36 @@ RSpec.describe "Packages", type: :request do
       post submit_review_bulk_packages_path, params: { package_ids: [ foreign.id ] }
 
       expect(foreign.reload.aasm_state).to eq("pending_review")
+    end
+
+    it "advances a legitimate package while leaving a foreign package untouched in a mixed batch" do
+      other_user = create(:user)
+      other_store = create(:shopify_store, user: other_user, company: other_user.companies.first)
+      other_customer = create(:customer, shopify_store: other_store)
+      foreign = create(:package, shopify_store: other_store, aasm_state: "pending_review", number: 92,
+                       order: create(:order, customer: other_customer, shopify_store: other_store))
+
+      post submit_review_bulk_packages_path, params: { package_ids: [ review_package.id, foreign.id ] }
+
+      expect(review_package.reload.aasm_state).to eq("pending_process")
+      expect(foreign.reload.aasm_state).to eq("pending_review")
+      # The foreign id is silently filtered out by scoped_packages' company
+      # scope (same as apply_tracking_bulk/ship_bulk) — it never reaches the
+      # find_each loop, so it is NOT counted as skipped.
+      expect(flash[:notice]).to eq(I18n.t("packages.review.bulk_result", reviewed: 1, skipped: 0))
+    end
+
+    it "does not raise on a malformed non-UUID id and still advances the legitimate package" do
+      expect {
+        post submit_review_bulk_packages_path, params: { package_ids: [ review_package.id, "not-a-uuid" ] }
+      }.not_to raise_error
+
+      expect(response).to redirect_to(packages_path(state: "pending_review"))
+      expect(review_package.reload.aasm_state).to eq("pending_process")
+      # Same reasoning as the mixed-company case: Rails' UUID cast turns the
+      # malformed id into IS NULL in the WHERE clause, so it never matches a
+      # row and is not counted as skipped.
+      expect(flash[:notice]).to eq(I18n.t("packages.review.bulk_result", reviewed: 1, skipped: 0))
     end
 
     it "carries the current filters back to the list" do

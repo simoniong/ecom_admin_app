@@ -10,10 +10,10 @@
 
   <% if @state == "applying_tracking" %>
     <nav class="flex gap-4 border-b border-gray-200 mb-4">
-      <%= link_to t("packages.application_status.all"), packages_path(state: @state),
+      <%= link_to t("packages.application_status.all"), packages_list_path(application_status: nil, page: nil),
             class: "pb-2 text-sm font-medium #{params[:application_status].blank? ? 'border-b-2 border-gray-900 text-gray-900' : 'text-gray-500 hover:text-gray-700'}" %>
       <% PackagesController::APPLICATION_STATUSES.each do |status| %>
-        <%= link_to t("packages.application_status.#{status}"), packages_path(state: @state, application_status: status),
+        <%= link_to t("packages.application_status.#{status}"), packages_list_path(application_status: status, page: nil),
               class: "pb-2 text-sm font-medium #{params[:application_status] == status ? 'border-b-2 border-gray-900 text-gray-900' : 'text-gray-500 hover:text-gray-700'}" %>
       <% end %>
     </nav>
@@ -70,7 +70,7 @@
             </tr>
           </thead>
           <tbody class="divide-y divide-gray-100">
-            <% if @packages.empty? %>
+            <% if @total_count.zero? %>
               <tr>
                 <td colspan="<%= 8 + (bulk ? 1 : 0) + (current_shopify_store ? 0 : 1) %>" class="px-4 py-8 text-center text-sm text-gray-500"><%= t("packages.no_packages") %></td>
               </tr>
