@@ -217,6 +217,189 @@ RSpec.describe MetaAdsService do
     end
   end
 
+  describe "#sync_ad_units" do
+    let(:graph) { instance_double(Koala::Facebook::API) }
+
+    before { allow(Koala::Facebook::API).to receive(:new).and_return(graph) }
+
+    def stub_ads(*ads)
+      allow(graph).to receive(:get_connections).and_return(ads)
+    end
+
+    def ad_payload(id:, creative:)
+      {
+        "id" => id, "name" => "Ad #{id}", "adset_id" => "adset_1",
+        "campaign_id" => "camp_1", "effective_status" => "ACTIVE",
+        "creative" => creative
+      }
+    end
+
+    it "resolves creative.video_id (branch 2)" do
+      stub_ads(ad_payload(id: "a1", creative: { "id" => "c1", "video_id" => "v9" }))
+
+      service.sync_ad_units
+
+      unit = AdUnit.find_by(ad_id: "a1")
+      expect(unit.multi_asset).to be(false)
+      expect(unit.ad_creative.asset_type).to eq("video")
+      expect(unit.ad_creative.asset_id).to eq("v9")
+    end
+
+    it "resolves object_story_spec video_data (branch 3)" do
+      stub_ads(ad_payload(id: "a2", creative: {
+        "id" => "c2", "object_story_spec" => { "video_data" => { "video_id" => "v8" } }
+      }))
+
+      service.sync_ad_units
+
+      expect(AdUnit.find_by(ad_id: "a2").ad_creative.asset_id).to eq("v8")
+    end
+
+    it "resolves a single video inside asset_feed_spec (branch 4)" do
+      stub_ads(ad_payload(id: "a3", creative: {
+        "id" => "c3", "asset_feed_spec" => { "videos" => [ { "video_id" => "v7" } ] }
+      }))
+
+      service.sync_ad_units
+
+      unit = AdUnit.find_by(ad_id: "a3")
+      expect(unit.multi_asset).to be(false)
+      expect(unit.ad_creative.asset_id).to eq("v7")
+    end
+
+    it "resolves creative.image_hash (branch 5)" do
+      stub_ads(ad_payload(id: "a4", creative: { "id" => "c4", "image_hash" => "h1" }))
+
+      service.sync_ad_units
+
+      creative = AdUnit.find_by(ad_id: "a4").ad_creative
+      expect(creative.asset_type).to eq("image")
+      expect(creative.asset_id).to eq("h1")
+    end
+
+    it "resolves a single image inside asset_feed_spec (branch 6)" do
+      stub_ads(ad_payload(id: "a5", creative: {
+        "id" => "c5", "asset_feed_spec" => { "images" => [ { "hash" => "h2" } ] }
+      }))
+
+      service.sync_ad_units
+
+      expect(AdUnit.find_by(ad_id: "a5").ad_creative.asset_id).to eq("h2")
+    end
+
+    it "resolves link_data image_hash (branch 7)" do
+      stub_ads(ad_payload(id: "a6", creative: {
+        "id" => "c6", "object_story_spec" => { "link_data" => { "image_hash" => "h3" } }
+      }))
+
+      service.sync_ad_units
+
+      expect(AdUnit.find_by(ad_id: "a6").ad_creative.asset_id).to eq("h3")
+    end
+
+    it "marks multiple distinct media as multi_asset (branch 1)" do
+      stub_ads(ad_payload(id: "a7", creative: {
+        "id" => "c7",
+        "asset_feed_spec" => { "videos" => [ { "video_id" => "v1" }, { "video_id" => "v2" } ] }
+      }))
+
+      service.sync_ad_units
+
+      unit = AdUnit.find_by(ad_id: "a7")
+      expect(unit.multi_asset).to be(true)
+      expect(unit.ad_creative_id).to be_nil
+    end
+
+    it "treats mixed video and image as multi_asset" do
+      stub_ads(ad_payload(id: "a8", creative: {
+        "id" => "c8",
+        "asset_feed_spec" => { "videos" => [ { "video_id" => "v1" } ], "images" => [ { "hash" => "h1" } ] }
+      }))
+
+      service.sync_ad_units
+
+      expect(AdUnit.find_by(ad_id: "a8").multi_asset).to be(true)
+    end
+
+    it "prefers the multi_asset branch over a residual top-level video_id" do
+      stub_ads(ad_payload(id: "a9", creative: {
+        "id" => "c9", "video_id" => "residual",
+        "asset_feed_spec" => { "videos" => [ { "video_id" => "v1" }, { "video_id" => "v2" } ] }
+      }))
+
+      service.sync_ad_units
+
+      unit = AdUnit.find_by(ad_id: "a9")
+      expect(unit.multi_asset).to be(true)
+      expect(AdCreative.find_by(asset_id: "residual")).to be_nil
+    end
+
+    it "counts duplicate media ids as one distinct asset" do
+      stub_ads(ad_payload(id: "a10", creative: {
+        "id" => "c10",
+        "asset_feed_spec" => { "videos" => [ { "video_id" => "v1" }, { "video_id" => "v1" } ] }
+      }))
+
+      service.sync_ad_units
+
+      unit = AdUnit.find_by(ad_id: "a10")
+      expect(unit.multi_asset).to be(false)
+      expect(unit.ad_creative.asset_id).to eq("v1")
+    end
+
+    it "attributes a single media asset that also carries customization rules" do
+      stub_ads(ad_payload(id: "a11", creative: {
+        "id" => "c11",
+        "asset_feed_spec" => {
+          "videos" => [ { "video_id" => "v1" } ],
+          "asset_customization_rules" => [ { "customization_spec" => { "publisher_platforms" => [ "facebook" ] } } ]
+        }
+      }))
+
+      service.sync_ad_units
+
+      unit = AdUnit.find_by(ad_id: "a11")
+      expect(unit.multi_asset).to be(false)
+      expect(unit.ad_creative.asset_id).to eq("v1")
+    end
+
+    it "leaves an unknown creative shape unattributed without marking multi_asset (branch 8)" do
+      stub_ads(ad_payload(id: "a12", creative: { "id" => "c12" }))
+
+      service.sync_ad_units
+
+      unit = AdUnit.find_by(ad_id: "a12")
+      expect(unit.ad_creative_id).to be_nil
+      expect(unit.multi_asset).to be(false)
+    end
+
+    it "links the ad unit to an existing campaign" do
+      campaign = create(:ad_campaign, ad_account: ad_account, campaign_id: "camp_1")
+      stub_ads(ad_payload(id: "a13", creative: { "id" => "c13", "video_id" => "v1" }))
+
+      service.sync_ad_units
+
+      expect(AdUnit.find_by(ad_id: "a13").ad_campaign).to eq(campaign)
+    end
+
+    it "reuses one creative across several ads" do
+      stub_ads(
+        ad_payload(id: "a14", creative: { "id" => "c14", "video_id" => "shared" }),
+        ad_payload(id: "a15", creative: { "id" => "c15", "video_id" => "shared" })
+      )
+
+      expect { service.sync_ad_units }.to change(AdCreative, :count).by(1)
+      expect(AdUnit.count).to eq(2)
+    end
+
+    it "is idempotent across repeated syncs" do
+      stub_ads(ad_payload(id: "a16", creative: { "id" => "c16", "video_id" => "v1" }))
+
+      service.sync_ad_units
+      expect { service.sync_ad_units }.not_to change(AdUnit, :count)
+    end
+  end
+
   describe "#refresh_token_if_needed!" do
     it "refreshes token when expiring soon" do
       ad_account.update!(token_expires_at: 3.days.from_now)

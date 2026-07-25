@@ -90,7 +90,71 @@ class MetaAdsService
     end
   end
 
+  AD_FIELDS = "id,name,adset_id,campaign_id,effective_status," \
+              "creative{id,video_id,image_hash,thumbnail_url,object_story_spec,asset_feed_spec}".freeze
+
+  def sync_ad_units
+    ads = fetch_all_pages(@ad_account.account_id, "ads", fields: AD_FIELDS, limit: 500)
+    campaign_ids = @ad_account.ad_campaigns.pluck(:campaign_id, :id).to_h
+
+    ads.each do |data|
+      resolved = resolve_asset(data["creative"] || {})
+      creative = find_or_create_creative(resolved, data["name"])
+
+      unit = @ad_account.ad_units.find_or_initialize_by(ad_id: data["id"])
+      unit.assign_attributes(
+        ad_name: data["name"],
+        adset_id: data["adset_id"],
+        ad_campaign_id: campaign_ids[data["campaign_id"]],
+        status: map_campaign_status(data["effective_status"]),
+        multi_asset: resolved[:multi_asset],
+        ad_creative: creative
+      )
+      unit.save!
+
+      if creative.nil? && !resolved[:multi_asset]
+        Rails.logger.warn("[SyncAdUnits] unresolved creative shape ad=#{data['id']} account=#{@ad_account.account_id}")
+      end
+    end
+  end
+
   private
+
+  # Resolution order per spec §5.1. First match wins; the multi-asset check
+  # must stay first so a residual video_id on an Advantage+ creative cannot
+  # capture the whole ad's spend.
+  def resolve_asset(creative)
+    feed = creative["asset_feed_spec"] || {}
+    videos = Array(feed["videos"]).map { |v| v["video_id"] }.compact.uniq
+    images = Array(feed["images"]).map { |i| i["hash"] }.compact.uniq
+
+    return { asset_type: nil, asset_id: nil, multi_asset: true } if videos.size + images.size > 1
+
+    story = creative["object_story_spec"] || {}
+
+    video_id = creative["video_id"].presence ||
+               story.dig("video_data", "video_id").presence ||
+               videos.first
+    return { asset_type: "video", asset_id: video_id, multi_asset: false } if video_id.present?
+
+    image_hash = creative["image_hash"].presence ||
+                 images.first ||
+                 story.dig("link_data", "image_hash").presence
+    return { asset_type: "image", asset_id: image_hash, multi_asset: false } if image_hash.present?
+
+    { asset_type: nil, asset_id: nil, multi_asset: false }
+  end
+
+  def find_or_create_creative(resolved, fallback_name)
+    return nil if resolved[:asset_id].blank?
+
+    creative = @ad_account.ad_creatives.find_or_initialize_by(
+      asset_type: resolved[:asset_type], asset_id: resolved[:asset_id]
+    )
+    creative.name ||= fallback_name
+    creative.save!
+    creative
+  end
 
   def fetch_all_pages(node, edge, **params)
     page = @graph.get_connections(node, edge, **params)
