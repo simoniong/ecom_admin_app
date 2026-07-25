@@ -90,7 +90,7 @@
 </div>
 
 <div data-controller="modal" data-modal-target="dialog"
-     data-action="turbo:frame-load@window->modal#open"
+     data-action="turbo:frame-load@window->modal#open modal:dismiss@window->modal#close"
      class="hidden fixed inset-0 z-50">
   <div data-modal-target="backdrop" data-action="click->modal#backdropClick"
        class="fixed inset-0 bg-black/50"></div>

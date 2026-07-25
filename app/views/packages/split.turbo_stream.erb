@@ -1,5 +1,28 @@
-<%# Success and failure both reload the source modal. On failure @split_errors
-    is passed through so the split dialog re-opens showing the error banner. %>
-<%= turbo_stream.replace "package-modal",
-      partial: "packages/modal",
-      locals: { package: @package.reload, split_errors: @split_errors } %>
+<%# Success closes the modal and folds the source row into the order's boxes,
+    in place. A full reload would scatter the new boxes through a time-sorted
+    list and the operator would lose track of which ones just appeared — the
+    whole point of updating in place is that they stay together, where the
+    source row was.
+
+    Failure is unchanged: re-render the modal so the dialog reopens carrying
+    the error banner. %>
+<% if @split_errors.present? %>
+  <%= turbo_stream.replace "package-modal",
+        partial: "packages/modal",
+        locals: { package: @package.reload, split_errors: @split_errors } %>
+<% else %>
+  <turbo-stream action="dismiss_modal"></turbo-stream>
+  <%# The source package survives a split — it becomes box 1, the remainder —
+      so this is one row becoming N, never a delete plus inserts. %>
+  <% siblings = @package.order_packages.to_a %>
+  <% sibling_index = PackageSiblingIndex.new(siblings).call %>
+  <%= turbo_stream.replace dom_id(@package) do %>
+    <% siblings.each do |sibling| %>
+      <%# bulk: true is not a guess — #split rejects any package that is not
+          pending_process, and that list always renders the bulk column. A
+          wrong value here would emit a row with the wrong number of cells. %>
+      <%= render "packages/package_row", package: sibling, bulk: true,
+            sibling_index: sibling_index[sibling.id], flash_highlight: true %>
+    <% end %>
+  <% end %>
+<% end %>

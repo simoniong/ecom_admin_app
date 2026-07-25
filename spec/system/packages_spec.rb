@@ -320,12 +320,12 @@ RSpec.describe "Packages UI", type: :system do
       # the opener button is a sibling of, not inside, the dialog container.
       within("[data-split-target='dialog']") { click_button I18n.t("packages.split.submit") }
 
-      # after split: the siblings strip's wrapper div (dom_id(package,
-      # :siblings_strip)) always renders — its content, gated on
-      # package.split?, is what actually proves the split happened. Wait on
-      # the frozen notice (only shown once split) before hitting the DB, so
-      # the count/content checks below don't race the turbo_stream response.
-      expect(page).to have_content(I18n.t("packages.frozen_notice"))
+      # A successful split now closes the modal (see the "closes the modal"
+      # example below) rather than leaving it open on the frozen notice, so
+      # that closing is what we wait on before hitting the DB — it proves the
+      # turbo_stream response landed and the count/content checks below don't
+      # race it.
+      expect(page).to have_no_css("[data-split-target='dialog']")
       expect(store.packages.where(order_id: split_order.id).count).to eq(2)
 
       new_box = store.packages.where(order_id: split_order.id).where.not(id: source_pkg.id).sole
@@ -337,6 +337,28 @@ RSpec.describe "Packages UI", type: :system do
       click_link source_pkg.package_code
       click_button I18n.t("packages.split.button")
       expect(page).to have_button(I18n.t("packages.split.submit"), disabled: true)
+    end
+
+    it "closes the modal and folds the row into the order's boxes in place" do
+      visit packages_path(state: "pending_process")
+      # A page reload would wipe this; the assertion at the end is what proves
+      # the list updated over Turbo rather than by navigating.
+      page.execute_script("window.__notReloaded = true")
+
+      click_link source_pkg.package_code
+      click_button I18n.t("packages.split.button")
+      fill_in_first_box_input("1")
+      within("[data-split-target='dialog']") { click_button I18n.t("packages.split.submit") }
+
+      # The modal empties its frame on close, so the dialog element goes away.
+      expect(page).to have_no_css("[data-split-target='dialog']")
+
+      new_box = store.packages.where(order_id: split_order.id).where.not(id: source_pkg.id).sole
+      expect(page).to have_content(new_box.package_code)
+      expect(page).to have_content(I18n.t("packages.split.badge", position: 1, total: 2))
+      expect(page).to have_content(I18n.t("packages.split.badge", position: 2, total: 2))
+
+      expect(page.evaluate_script("window.__notReloaded")).to be(true)
     end
 
     # The opener button sits at the very bottom of a max-h-[88vh] overflow-y-auto

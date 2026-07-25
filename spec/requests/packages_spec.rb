@@ -1198,6 +1198,22 @@ RSpec.describe "Packages", type: :request do
       expect(store.packages.where(order_id: order.id).count).to eq(1)
     end
 
+    it "streams a modal dismissal alongside the replaced row" do
+      post split_package_path(id: src.id), params: { allocations: { oli.id => [ "1" ] } },
+           headers: { "Accept" => "text/vnd.turbo-stream.html" }
+
+      expect(response.body).to include('action="dismiss_modal"')
+      expect(response.body).to include(ActionView::RecordIdentifier.dom_id(src))
+    end
+
+    it "leaves the modal open with the error banner on an invalid allocation" do
+      post split_package_path(id: src.id), params: { allocations: { oli.id => [ "0" ] } },
+           headers: { "Accept" => "text/vnd.turbo-stream.html" }
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.body).not_to include('action="dismiss_modal"')
+    end
+
     it "rejects splitting a non-pending_process package" do
       src.update!(aasm_state: "pending_review")
       post split_package_path(id: src.id), params: { allocations: { oli.id => [ "1" ] } }
