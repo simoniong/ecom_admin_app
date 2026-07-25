@@ -14,13 +14,6 @@
     <%= link_to package.package_code, package_path(id: package.id),
         data: { turbo_frame: "package-modal" },
         class: "text-blue-600 hover:underline font-medium" %>
-    <%# Present only for an order folded into more than one box — PackageSiblingIndex
-        omits single-box orders entirely, so no extra split? check is needed here. %>
-    <% if local_assigns[:sibling_index] %>
-      <span class="ml-1 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-orange-100 text-orange-800">
-        <%= t("packages.split.badge", position: sibling_index.first, total: sibling_index.last) %>
-      </span>
-    <% end %>
   </td>
   <td class="px-4 py-3 text-sm text-gray-700 align-top">
     <% if package.package_items.any? %>
@@ -58,7 +51,25 @@
       <span class="text-gray-400">—</span>
     <% end %>
   </td>
-  <td class="px-4 py-3 text-sm text-gray-700 align-top whitespace-nowrap"><%= package.order.name %></td>
+  <td class="px-4 py-3 text-sm text-gray-700 align-top whitespace-nowrap">
+    <div><%= package.order.name %></div>
+    <%# Under the order number, not beside the package code: this cell is
+        single-line and has the vertical room to spare, whereas widening the
+        package-code cell costs horizontal space on an already-wide table. The
+        badge also reads better here — it is a fact about the ORDER (this is box
+        1 of the 3 that order was folded into), not about the package code.
+
+        Rendered only for an order folded into more than one box —
+        PackageSiblingIndex omits single-box orders entirely, so no extra
+        split? check is needed. %>
+    <% if local_assigns[:sibling_index] %>
+      <div class="mt-0.5">
+        <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-orange-100 text-orange-800">
+          <%= t("packages.split.badge", position: sibling_index.first, total: sibling_index.last) %>
+        </span>
+      </div>
+    <% end %>
+  </td>
   <%# Times render in the STORE's timezone, matching the orders list. The old
       bare strftime here printed UTC, so the same order showed two different
       times on two pages. packages.shopify_store_id is NOT NULL and the
