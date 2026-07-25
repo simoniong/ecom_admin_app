@@ -284,7 +284,7 @@ class PackagesController < AdminController
         skipped += 1
       end
     end
-    redirect_to packages_path(state: "pending_process"), notice: t("packages.apply.bulk_result", applied: applied, skipped: skipped)
+    redirect_to packages_path(list_filter_params.merge(state: "pending_process")), notice: t("packages.apply.bulk_result", applied: applied, skipped: skipped)
   end
 
   # Stream the Raydo label PDF for one pending_label package (gated on
@@ -349,7 +349,7 @@ class PackagesController < AdminController
     rescue => e
       Rails.logger.warn("[ShipBulk] Package##{package.id}: #{e.class}: #{e.message}")
     end
-    redirect_to packages_path(state: "pending_label"), notice: t("packages.ship.bulk_result", shipped: shipped)
+    redirect_to packages_path(list_filter_params.merge(state: "pending_label")), notice: t("packages.ship.bulk_result", shipped: shipped)
   end
 
   # Bulk review from the pending_review list (gated on package_review, the same

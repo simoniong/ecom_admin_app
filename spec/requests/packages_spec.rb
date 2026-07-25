@@ -1354,6 +1354,15 @@ RSpec.describe "Packages", type: :request do
         expect(first.reload).to have_state(:applying_tracking)
         expect(second.reload).to have_state(:applying_tracking)
       end
+
+      it "carries the current filters back to the list" do
+        post apply_tracking_bulk_packages_path,
+             params: { package_ids: [ process_package.id ], country: "US", sort_column: "ordered_at" }
+
+        expect(response).to redirect_to(
+          packages_path(country: "US", sort_column: "ordered_at", state: "pending_process")
+        )
+      end
     end
   end
 
@@ -1537,6 +1546,15 @@ RSpec.describe "Packages", type: :request do
         post ship_bulk_packages_path, params: { package_ids: [ a.id, b.id ] }
         expect(a.reload).to have_state(:shipped)
         expect(b.reload).to have_state(:shipped)
+      end
+
+      it "carries the current filters back to the list" do
+        post ship_bulk_packages_path,
+             params: { package_ids: [], country: "US", sort_column: "ordered_at" }
+
+        expect(response).to redirect_to(
+          packages_path(country: "US", sort_column: "ordered_at", state: "pending_label")
+        )
       end
     end
   end
