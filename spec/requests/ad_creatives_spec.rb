@@ -32,12 +32,17 @@ RSpec.describe "AdCreatives", type: :request do
       get ad_creatives_path, params: { store_id: store.id }
 
       expect(response.body).to include("Toy Duck Demo v1")
-      expect(response.body).to include("12,345")
+      # 3,000 (factory default video_continuous_2_sec_watched) / 12,345 impressions => two_sec_rate.
+      # The table renders computed rates, not the raw impressions count, so assert on the rate.
+      expect(response.body).to include("24.3%")
     end
 
     it "does not show creatives belonging to another user" do
       other_account = create(:ad_account, user: create(:user))
-      create(:ad_creative, ad_account: other_account, name: "Competitor Hook Alpha")
+      other_creative = create(:ad_creative, ad_account: other_account, name: "Competitor Hook Alpha")
+      # An attributable ad unit is required so this creative would actually render if tenant
+      # scoping broke — without one it is excluded regardless, and the spec would pass vacuously.
+      create(:ad_unit, ad_account: other_account, ad_creative: other_creative)
 
       sign_in user
       get ad_creatives_path
@@ -47,8 +52,10 @@ RSpec.describe "AdCreatives", type: :request do
 
     it "filters by ad account" do
       keep = create(:ad_creative, ad_account: ad_account, name: "Kept Creative Alpha")
+      create(:ad_unit, ad_account: ad_account, ad_creative: keep)
       other = create(:ad_account, user: user, account_name: "Second")
-      create(:ad_creative, ad_account: other, name: "Filtered Creative Beta")
+      filtered = create(:ad_creative, ad_account: other, name: "Filtered Creative Beta")
+      create(:ad_unit, ad_account: other, ad_creative: filtered)
 
       sign_in user
       get ad_creatives_path, params: { ad_account_id: ad_account.id }
