@@ -6,6 +6,8 @@ class AdAccount < ApplicationRecord
   belongs_to :shopify_store, optional: true
   has_many :ad_campaigns, dependent: :destroy
   has_many :ad_daily_metrics, dependent: :destroy
+  has_many :ad_creatives, dependent: :destroy
+  has_many :ad_units, dependent: :destroy
 
   encrypts :access_token, deterministic: false
 
@@ -21,5 +23,10 @@ class AdAccount < ApplicationRecord
 
   def token_expiring_soon?
     token_expires_at.present? && token_expires_at < 7.days.from_now
+  end
+
+  # Meta insights dates are in the ad account's own timezone, never the app's.
+  def today_in_zone
+    (ActiveSupport::TimeZone[timezone.to_s] || ActiveSupport::TimeZone["UTC"]).today
   end
 end

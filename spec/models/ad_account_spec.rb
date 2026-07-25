@@ -123,4 +123,23 @@ RSpec.describe AdAccount, type: :model do
       expect(ad_account.reload.shopify_store).to eq(store)
     end
   end
+
+  describe "#today_in_zone" do
+    it "uses the account timezone rather than the app timezone" do
+      account = create(:ad_account, timezone: "Asia/Taipei")
+
+      travel_to Time.utc(2026, 7, 25, 18, 0, 0) do
+        expect(account.today_in_zone).to eq(Date.new(2026, 7, 26))
+      end
+    end
+
+    it "falls back to UTC when the timezone is unknown" do
+      account = create(:ad_account)
+      account.update_column(:timezone, "Not/AZone")
+
+      travel_to Time.utc(2026, 7, 25, 18, 0, 0) do
+        expect(account.today_in_zone).to eq(Date.new(2026, 7, 25))
+      end
+    end
+  end
 end

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_22_164525) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_25_093004) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -21,6 +21,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_22_164525) do
     t.string "account_name"
     t.uuid "company_id", null: false
     t.datetime "created_at", null: false
+    t.integer "creative_backfill_attempts", default: 0, null: false
+    t.datetime "creative_backfill_next_attempt_at"
+    t.date "creative_synced_from_date"
+    t.date "creative_synced_through_date"
     t.uuid "group_id"
     t.string "platform", default: "meta", null: false
     t.uuid "shopify_store_id"
@@ -63,6 +67,20 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_22_164525) do
     t.index ["ad_account_id"], name: "index_ad_campaigns_on_ad_account_id"
   end
 
+  create_table "ad_creatives", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "ad_account_id", null: false
+    t.string "asset_id", null: false
+    t.string "asset_type", null: false
+    t.datetime "created_at", null: false
+    t.integer "duration_seconds"
+    t.date "first_spend_date"
+    t.string "name"
+    t.string "thumbnail_url"
+    t.datetime "updated_at", null: false
+    t.index ["ad_account_id", "asset_type", "asset_id"], name: "idx_ad_creatives_on_account_type_asset", unique: true
+    t.index ["ad_account_id"], name: "index_ad_creatives_on_ad_account_id"
+  end
+
   create_table "ad_daily_metrics", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.uuid "ad_account_id", null: false
     t.integer "clicks", default: 0
@@ -75,6 +93,47 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_22_164525) do
     t.datetime "updated_at", null: false
     t.index ["ad_account_id", "date"], name: "index_ad_daily_metrics_on_ad_account_id_and_date", unique: true
     t.index ["ad_account_id"], name: "index_ad_daily_metrics_on_ad_account_id"
+  end
+
+  create_table "ad_unit_daily_metrics", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "ad_unit_id", null: false
+    t.integer "add_to_cart", default: 0
+    t.integer "checkout_initiated", default: 0
+    t.integer "clicks", default: 0
+    t.decimal "conversion_value", precision: 12, scale: 2, default: "0.0"
+    t.datetime "created_at", null: false
+    t.date "date", null: false
+    t.integer "impressions", default: 0
+    t.integer "inline_link_clicks", default: 0
+    t.integer "purchases", default: 0
+    t.decimal "spend", precision: 12, scale: 2, default: "0.0"
+    t.datetime "updated_at", null: false
+    t.integer "video_continuous_2_sec_watched", default: 0
+    t.integer "video_p100_watched", default: 0
+    t.integer "video_p25_watched", default: 0
+    t.integer "video_p50_watched", default: 0
+    t.integer "video_p75_watched", default: 0
+    t.integer "video_p95_watched", default: 0
+    t.index ["ad_unit_id", "date"], name: "idx_ad_unit_metrics_on_unit_date", unique: true
+    t.index ["ad_unit_id"], name: "index_ad_unit_daily_metrics_on_ad_unit_id"
+    t.index ["date", "ad_unit_id"], name: "idx_ad_unit_metrics_on_date_unit"
+  end
+
+  create_table "ad_units", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "ad_account_id", null: false
+    t.uuid "ad_campaign_id"
+    t.uuid "ad_creative_id"
+    t.string "ad_id", null: false
+    t.string "ad_name"
+    t.string "adset_id"
+    t.datetime "created_at", null: false
+    t.boolean "multi_asset", default: false, null: false
+    t.string "status", default: "active", null: false
+    t.datetime "updated_at", null: false
+    t.index ["ad_account_id", "ad_id"], name: "index_ad_units_on_ad_account_id_and_ad_id", unique: true
+    t.index ["ad_account_id"], name: "index_ad_units_on_ad_account_id"
+    t.index ["ad_campaign_id"], name: "index_ad_units_on_ad_campaign_id"
+    t.index ["ad_creative_id"], name: "index_ad_units_on_ad_creative_id"
   end
 
   create_table "campaign_display_templates", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -805,7 +864,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_22_164525) do
   add_foreign_key "ad_accounts", "users"
   add_foreign_key "ad_campaign_daily_metrics", "ad_campaigns"
   add_foreign_key "ad_campaigns", "ad_accounts"
+  add_foreign_key "ad_creatives", "ad_accounts"
   add_foreign_key "ad_daily_metrics", "ad_accounts"
+  add_foreign_key "ad_unit_daily_metrics", "ad_units"
+  add_foreign_key "ad_units", "ad_accounts"
+  add_foreign_key "ad_units", "ad_campaigns"
+  add_foreign_key "ad_units", "ad_creatives"
   add_foreign_key "campaign_display_templates", "companies"
   add_foreign_key "campaign_display_templates", "users"
   add_foreign_key "customers", "shopify_stores"
