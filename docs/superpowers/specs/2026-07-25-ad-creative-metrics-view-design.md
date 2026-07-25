@@ -314,8 +314,12 @@ sync_creative_assets
 
 | Job | 觸發 | 範圍 |
 |-----|------|------|
-| `SyncAdCreativesJob(company_id: nil, min_lookback_days: 7)` | `config/recurring.yml`,每小時 | 滾動同步,回看天數見下 |
-| `BackfillAdCreativesJob(ad_account_id:, days: 90)` | 廣告帳號連接時 + 視圖手動按鈕 | 90 天,依時間順序分 30 天一段 |
+| `SyncAdCreativesJob(company_id: nil, min_lookback_days: 7)` | `config/recurring.yml`,每小時 | 滾動同步,回看天數見下;並為不合資格帳號補入列 backfill(§5.6) |
+| `BackfillAdCreativesJob(ad_account_id:, days: 90)` | 廣告帳號連接時、視圖手動按鈕、**`SyncAdCreativesJob` 自動補入列** | 90 天,分 30 天一段,順序依 §5.6 的模式 |
+
+第三個觸發來源是關鍵:功能上線前就存在的帳號不會有「連接」事件,
+backfill 重試耗盡後也不會有任何機制再次入列。
+由滾動同步負責補入列,使系統不依賴一次性事件即可自癒 —— 詳見 §5.6。
 
 滾動同步的回看天數**不是固定 7 天**,而是逐帳號計算:
 
@@ -360,6 +364,11 @@ backfill 加深時 `first_spend_date` 可能再往前移。
 由 §5.6 的不變式保證,`first_spend_date` 必然落在
 `[creative_synced_from_date, creative_synced_through_date]` 區間內。
 
+註:「backfill 加深」是模式 C,不在本次實作範圍(§5.6),
+本次 N 固定為 90。此處保留「可能再往前移」的敘述,是因為
+以 `first_spend_date` 為錨點的欄位本來就必須配合截斷判斷顯示,
+與是否實作加深無關。
+
 ### 5.6 同步覆蓋範圍的推進規則
 
 #### 核心不變式
@@ -373,21 +382,60 @@ backfill 加深時 `first_spend_date` 可能再往前移。
 
 因此:**不可用 min/max 更新覆蓋範圍**,且**不可寫入區間外的資料**。
 
-#### 規則
+#### 三種寫入模式
 
-- 分段一律**依時間順序**由舊至新處理,且 backfill 的終點固定為「今天」
-  (帳號時區),使 backfill 完成後覆蓋範圍必然延伸到當日
-- **任一段失敗即中止整趟 backfill**,不再送出後續分段。
-  已成功的分段保留,`_through_date` 停在最後一段成功的結尾;
-  排程重試,下次從 `_through_date + 1` 續跑
-- `_from_date` 只在往前擴張且與現有區間**相鄰或重疊**時才前移
-- **滾動同步(`SyncAdCreativesJob`)只處理覆蓋範圍已延伸到當日的帳號**
-  (`_through_date >= 帳號時區的今天 - 1`)。
-  backfill 尚未完成的帳號直接跳過 —— 否則滾動同步會在近幾天寫入資料,
-  與尚未推進到那裡的 backfill 區間之間形成洞,破壞不變式。
-  這不會漏資料:backfill 本來就會一路跑到今天
+覆蓋範圍的推進分三種模式,**每種的分段順序不同**。
+共通規則:任一段失敗即中止整趟,不再送出後續分段;已成功的分段保留;排程重試。
+每段的資料寫入與覆蓋範圍更新必須在**同一個 transaction** 內完成。
 
-不需要額外的分段狀態表 —— 單一連續區間 + 「失敗即中止」已足以維持不變式。
+| 模式 | 觸發 | 區間 | 分段順序 | 覆蓋範圍更新 |
+|------|------|------|---------|-------------|
+| A 初始化 | coverage 兩欄皆 null | `[今天 - N + 1, 今天]` | 由舊至新 | 第一段同時設定 `_from` 與 `_through`;其後每段推進 `_through` |
+| B 向前續跑 | `_through_date < 今天` | `[_through_date + 1, 今天]` | 由舊至新 | 每段推進 `_through` |
+| C 向後加深 | 需要更早的歷史 | `[目標起點, _from_date - 1]` | **由新至舊** | 每段前移 `_from` |
+
+模式 C 必須**由新至舊**處理,這樣每一段都與當前的 `_from_date` 相鄰,
+前移後區間始終連續。若比照 A/B 由舊至新,第一段會與現有區間不相鄰 ——
+既不能寫(違反不變式)也不能推進覆蓋範圍,整個加深操作無法進行。
+
+日期一律以帳號時區的「今天」為基準(§2.4)。A 與 B 的終點固定為今天,
+使 backfill 完成後覆蓋範圍必然延伸到當日。
+
+**模式 C 不在本次實作範圍** —— 回溯深度固定 90 天(N = 90)。
+規則寫在這裡是為了讓日後加深時有明確依據,不必重新推導;
+在此之前 §5.5「backfill 加深時 `first_spend_date` 可能再往前移」只是理論上的可能性。
+
+#### 空覆蓋範圍的規則
+
+**coverage 任一欄為 null 時,該帳號不得存在任何 `ad_unit_daily_metrics` 資料列** ——
+唯一的例外是模式 A 第一段那個同時寫入資料與初始化兩個邊界的 transaction 內。
+
+這條規則讓不變式在「尚未同步」的狀態下也成立,
+否則 §6.3 狀態 2(未同步)與已存在的資料列會語意衝突。
+
+#### 滾動同步的資格與自癒
+
+**滾動同步(`SyncAdCreativesJob`)只處理覆蓋範圍已延伸到昨天或今天的帳號**
+(`_through_date >= 帳號時區的今天 - 1`)。
+否則滾動同步會在近幾天寫入資料,與尚未推進到那裡的 backfill 區間之間形成洞。
+
+但**不合資格的帳號不可被靜默跳過**,否則會永遠停在跳過狀態。
+`SyncAdCreativesJob` 對每個不合資格的帳號:
+
+- coverage 為 null → 入列 `BackfillAdCreativesJob`(模式 A)
+- `_through_date < 今天 - 1` → 入列 `BackfillAdCreativesJob`(模式 B,從 `_through_date + 1` 續跑)
+- 兩者皆寫 `Rails.logger.warn`,使「長期不合資格」在 log 中可見
+
+如此滾動同步本身就是恢復路徑,不依賴任何一次性事件。
+這一點很重要,因為以下情況都不會有「帳號連接」事件:
+
+- **功能上線前就已存在的廣告帳號** —— 沒有連接事件,coverage 恆為 null
+- **backfill 重試耗盡** —— 沒有任何機制會再次入列
+
+因此**不需要**額外的 deploy-time 一次性 backfill 任務:
+第一次 `SyncAdCreativesJob` 執行時就會把所有 coverage 為 null 的既有帳號補入列。
+
+不需要額外的分段狀態表 —— 單一連續區間 + 「失敗即中止」+ 滾動同步自癒,已足以維持不變式。
 
 ## 6. 視圖層
 
@@ -502,14 +550,21 @@ end
 - **覆蓋範圍連續性(§5.6)**:第 2 段失敗時整趟中止,第 3 段**不得被送出**,
   `_through_date` 停在第 1 段結尾(這是 min/max 寫法會漏掉的情境)
 - **不變式**:任何情況下 `ad_unit_daily_metrics` 都不得存在覆蓋範圍外的 `date`
-- 滾動同步跳過 `_through_date` 落後於當日的帳號
+- coverage 為 null 時不得存在任何資料列(模式 A 第一段的 transaction 除外)
 - 回看天數依帳號歸因設定計算,取不到時 fallback 7 天
 - `sync_creative_assets` 只打未有縮圖的素材
 - rate limit 退避重試
 
 **Job spec**
 - `SyncAdCreativesJob` 跳過 token 過期帳號、per-account rescue 不中斷其他帳號
-- `BackfillAdCreativesJob` 分段呼叫
+- **自癒路徑(§5.6)**:
+  - coverage 為 null 的既有帳號(模擬功能上線前就存在)→ 入列模式 A backfill,不得靜默跳過
+  - `_through_date` 落後超過一天 → 入列模式 B backfill
+  - `_through_date` 為昨天或今天 → 正常滾動同步,**不**入列 backfill
+  - 不合資格時寫入 `Rails.logger.warn`
+- `BackfillAdCreativesJob` 分段呼叫;模式 A 第一段同時初始化兩個邊界;
+  模式 B 從 `_through_date + 1` 起算
+- 分段失敗即中止:後續分段不得被送出,且該段資料不得留下
 
 **Request spec**
 - index 的篩選 / 排序 / 日期區間
@@ -535,3 +590,5 @@ end
 7. **現有 `SyncAdCampaignsJob` / `SyncAdMetricsJob` 的時區問題未修**(§2.4)。
    新舊兩套的日期口徑會有最多一天的差異,帳號層 / campaign 層與素材層的數字對不起來時,
    這是第一個要查的原因。列為後續工作。
+8. **回溯深度固定 90 天,不支援事後加深**(§5.6 模式 C 未實作)。
+   要加深必須實作模式 C 的由新至舊分段,不可直接調大 N 重跑 —— 那會破壞覆蓋範圍的連續性。
