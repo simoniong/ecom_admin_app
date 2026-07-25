@@ -84,6 +84,24 @@ RSpec.describe "Packages", type: :request do
 
         expect(response.body).to include("id=\"#{ActionView::RecordIdentifier.dom_id(split_boxes.first)}\"")
       end
+
+      # The badge sits under the order number rather than beside the package
+      # code: the order-number cell is single-line and has the vertical room to
+      # spare, while widening the package-code cell costs horizontal space on an
+      # already-wide table. Asserting the containing cell — not just presence
+      # somewhere in the body — is what makes this a placement test.
+      it "puts the badge in the same cell as the order number" do
+        get packages_path
+
+        row = Nokogiri::HTML(response.body)
+                .at_css("tr##{ActionView::RecordIdentifier.dom_id(split_boxes.first)}")
+        badge_text = I18n.t("packages.split.badge", position: 1, total: 2)
+        order_cell = row.css("td").find { |td| td.text.include?(split_boxes.first.order.name) }
+
+        expect(order_cell.text).to include(badge_text)
+        package_code_cell = row.css("td").find { |td| td.text.include?(split_boxes.first.package_code) }
+        expect(package_code_cell.text).not_to include(badge_text)
+      end
     end
 
     describe "country filter and sorting" do
