@@ -17,7 +17,7 @@ RSpec.describe "Ad Creatives", type: :system do
 
   it "shows the empty state when there are no creatives" do
     sign_in_as(user)
-    click_link "Ad Creatives"
+    navigate_to_settings_item(I18n.t("nav.ad_creatives"), group: I18n.t("nav.ads"))
     expect(page).to have_text("No ad creatives found")
   end
 
@@ -29,7 +29,7 @@ RSpec.describe "Ad Creatives", type: :system do
     )
 
     sign_in_as(user)
-    click_link "Ad Creatives"
+    navigate_to_settings_item(I18n.t("nav.ad_creatives"), group: I18n.t("nav.ads"))
 
     expect(page).to have_text("Toy Duck Demo v1")
     expect(page).to have_text("Meta Ads")
@@ -53,7 +53,7 @@ RSpec.describe "Ad Creatives", type: :system do
       video_p50_watched: 0, video_p75_watched: 0)
 
     sign_in_as(user)
-    click_link "Ad Creatives"
+    navigate_to_settings_item(I18n.t("nav.ad_creatives"), group: I18n.t("nav.ads"))
 
     expect(page).to have_text("Static Banner")
     within("tr", text: "Static Banner") { expect(page).to have_text("—") }
@@ -63,7 +63,7 @@ RSpec.describe "Ad Creatives", type: :system do
     creative_with_metrics(name: "Old Hook", first_spend_date: Date.current - 89, spend: 40)
 
     sign_in_as(user)
-    click_link "Ad Creatives"
+    navigate_to_settings_item(I18n.t("nav.ad_creatives"), group: I18n.t("nav.ads"))
 
     within("tr", text: "Old Hook") { expect(page).to have_css("[data-anchor-state='truncated']") }
   end
@@ -73,7 +73,7 @@ RSpec.describe "Ad Creatives", type: :system do
     creative_with_metrics(name: "High Spender", first_spend_date: Date.current - 10, spend: 900)
 
     sign_in_as(user)
-    click_link "Ad Creatives"
+    navigate_to_settings_item(I18n.t("nav.ad_creatives"), group: I18n.t("nav.ads"))
     click_link "Lifetime Spend"
 
     # `page.all(...).map(&:text)` takes an unsynchronized snapshot of the DOM — it can grab
@@ -97,7 +97,7 @@ RSpec.describe "Ad Creatives", type: :system do
     creative_with_metrics(name: "In Range", first_spend_date: Date.current - 10, impressions: 4_242)
 
     sign_in_as(user)
-    click_link "Ad Creatives"
+    navigate_to_settings_item(I18n.t("nav.ad_creatives"), group: I18n.t("nav.ads"))
     fill_in "from_date", with: (Date.current - 1).to_s
     fill_in "to_date", with: Date.current.to_s
     click_button "Filter"
