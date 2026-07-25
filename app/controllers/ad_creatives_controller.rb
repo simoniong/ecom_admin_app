@@ -32,13 +32,23 @@ class AdCreativesController < AdminController
     @sort_column = SORTABLE_COLUMNS.include?(params[:sort_column]) ? params[:sort_column] : "lifetime_spend"
     @sort_direction = params[:sort_direction] == "asc" ? "asc" : "desc"
 
+    # Materialise the creative set ONCE and derive metrics from these same
+    # records. `ad_units` is written continuously by the hourly backfill
+    # (BackfillAdCreativesJob -> MetaAdsService#sync_ad_units), so the
+    # `AdUnit.attributable` predicate above is not stable across two separate
+    # queries: a creative that gains its first attributable ad_unit between
+    # query #1 and query #2 would appear in the second query but not the
+    # first, leaving `sort_creatives` looking up a metrics hash key that was
+    # never populated (nil) -> NoMethodError. Querying once removes the
+    # window entirely.
     creatives = AdCreative
       .where(ad_account: accounts)
       .where(id: AdUnit.attributable.select(:ad_creative_id))
       .includes(:ad_account)
+      .to_a
 
-    @creative_metrics = AdCreative.batch_aggregated_metrics(creatives.pluck(:id), @from_date..@to_date)
-    @creatives = sort_creatives(creatives.to_a)
+    @creative_metrics = AdCreative.batch_aggregated_metrics(creatives, @from_date..@to_date)
+    @creatives = sort_creatives(creatives)
   end
 
   private

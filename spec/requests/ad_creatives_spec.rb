@@ -85,6 +85,76 @@ RSpec.describe "AdCreatives", type: :request do
 
       expect(response.body).not_to include("Advantage Bundle Gamma")
     end
+
+    # Regression for a production 500: BackfillAdCreativesJob inserts ad_units
+    # continuously (hourly self-heal). The old controller queried the same
+    # `ad_creatives` relation twice -- once via `.pluck(:id)` to build the
+    # metrics hash, once via `.to_a` to sort -- with five metrics queries
+    # running in between. If an ad_unit became attributable in that window, the
+    # second query returned a creative the first one never saw, so the metrics
+    # hash lookup in #sort_creatives returned nil and `nil.public_send(...)`
+    # raised NoMethodError. The fix materialises the creative set once and
+    # derives both the metrics hash and the sort input from those same
+    # records, so the two can no longer disagree.
+    it "does not 500 when a creative gains its first attributable ad_unit mid-request" do
+      stable = create(:ad_creative, ad_account: ad_account, name: "Stable Alpha")
+      create(:ad_unit, ad_account: ad_account, ad_creative: stable)
+
+      # No attributable ad_unit yet -- excluded from the initial query, exactly
+      # like a creative the hourly backfill has not reached yet.
+      late_arrival = create(:ad_creative, ad_account: ad_account, name: "Late Arriving Beta")
+
+      fired = false
+      subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |*, payload|
+        sql = payload[:sql].to_s
+        if !fired && sql.match?(/\A\s*SELECT/i) && sql.include?('"ad_creatives"') &&
+            !sql.include?("INNER JOIN") && !sql.include?("GROUP BY")
+          fired = true
+          # Simulate BackfillAdCreativesJob committing a new attributable
+          # ad_unit for a creative that the first query already ran past.
+          create(:ad_unit, ad_account: ad_account, ad_creative: late_arrival)
+        end
+      end
+
+      begin
+        sign_in user
+        get ad_creatives_path, params: { store_id: store.id }
+      ensure
+        ActiveSupport::Notifications.unsubscribe(subscriber)
+      end
+
+      expect(fired).to eq(true) # sanity: the injection actually happened
+      expect(response).to have_http_status(:success)
+    end
+
+    # Cheap guard against regressing back to the two-query shape: the
+    # plain (non-aggregation) SELECT against ad_creatives must fire exactly
+    # once per index request. batch_aggregated_metrics issues its own
+    # ad_creatives-joining queries, but those all carry INNER JOIN/GROUP BY
+    # and are excluded by the filter below.
+    it "queries ad_creatives exactly once to build the index page" do
+      creative = create(:ad_creative, ad_account: ad_account, name: "Single Query Creative")
+      create(:ad_unit, ad_account: ad_account, ad_creative: creative)
+
+      select_count = 0
+      subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |*, payload|
+        sql = payload[:sql].to_s
+        if sql.match?(/\A\s*SELECT/i) && sql.include?('"ad_creatives"') &&
+            !sql.include?("INNER JOIN") && !sql.include?("GROUP BY")
+          select_count += 1
+        end
+      end
+
+      begin
+        sign_in user
+        get ad_creatives_path, params: { store_id: store.id }
+      ensure
+        ActiveSupport::Notifications.unsubscribe(subscriber)
+      end
+
+      expect(response).to have_http_status(:success)
+      expect(select_count).to eq(1)
+    end
   end
 
   describe "POST /ad_creatives/sync" do
