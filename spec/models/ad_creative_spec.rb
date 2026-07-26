@@ -21,6 +21,10 @@ RSpec.describe AdCreative do
     expect(build(:ad_creative, asset_type: "carousel")).not_to be_valid
   end
 
+  it "accepts the post asset_type (existing-post ads with no native media)" do
+    expect(build(:ad_creative, asset_type: "post", asset_id: "110994158524036_814351261565235")).to be_valid
+  end
+
   it "nullifies ad_units instead of destroying them" do
     creative = create(:ad_creative)
     unit = create(:ad_unit, ad_account: creative.ad_account, ad_creative: creative)

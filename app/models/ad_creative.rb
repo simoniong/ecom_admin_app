@@ -1,5 +1,5 @@
 class AdCreative < ApplicationRecord
-  ASSET_TYPES = %w[video image].freeze
+  ASSET_TYPES = %w[video image post].freeze
 
   belongs_to :ad_account
   # nullify, not destroy: an ad going away must not delete the creative record

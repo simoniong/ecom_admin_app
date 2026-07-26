@@ -91,15 +91,17 @@ class MetaAdsService
   end
 
   AD_FIELDS = "id,name,adset_id,campaign_id,effective_status," \
-              "creative{id,video_id,image_hash,thumbnail_url,object_story_spec,asset_feed_spec}".freeze
+              "creative{id,video_id,image_hash,thumbnail_url,object_story_spec," \
+              "object_story_id,effective_object_story_id,asset_feed_spec}".freeze
 
   def sync_ad_units
     ads = fetch_all_pages(@ad_account.account_id, "ads", fields: AD_FIELDS, limit: 500)
     campaign_ids = @ad_account.ad_campaigns.pluck(:campaign_id, :id).to_h
 
     ads.each do |data|
-      resolved = resolve_asset(data["creative"] || {})
-      creative = find_or_create_creative(resolved, data["name"])
+      creative_data = data["creative"] || {}
+      resolved = resolve_asset(creative_data)
+      creative = find_or_create_creative(resolved, data["name"], creative_data["thumbnail_url"])
 
       unit = @ad_account.ad_units.find_or_initialize_by(ad_id: data["id"])
       unit.assign_attributes(
@@ -118,17 +120,27 @@ class MetaAdsService
     end
   end
 
+  # Bounds retries on permanently-failing video lookups (e.g. a token without
+  # permission to read video nodes -- OAuthException code 10). Without a cap,
+  # `.where(thumbnail_url: nil)` would keep matching the same creative forever
+  # and every hourly rolling sync would re-issue the same doomed request.
+  THUMBNAIL_FETCH_ATTEMPT_CAP = 3
+
   def sync_creative_assets
-    @ad_account.ad_creatives.video.where(thumbnail_url: nil).find_each do |creative|
+    @ad_account.ad_creatives.video.where(thumbnail_url: nil)
+      .where("thumbnail_fetch_attempts < ?", THUMBNAIL_FETCH_ATTEMPT_CAP)
+      .find_each do |creative|
       data = @graph.get_object(creative.asset_id, fields: "title,length,thumbnails,picture")
       next if data.blank?
 
       creative.name = data["title"] if data["title"].present?
       creative.duration_seconds = data["length"].to_f.floor if data["length"].present?
       creative.thumbnail_url = data["picture"] if data["picture"].present?
+      creative.thumbnail_fetch_attempts = 0
       creative.save!
     rescue Koala::Facebook::ClientError, Koala::Facebook::APIError => e
       Rails.logger.error("[SyncCreativeAssets] video=#{creative.asset_id}: #{e.message}")
+      creative.increment(:thumbnail_fetch_attempts).save!
     end
   end
 
@@ -205,16 +217,34 @@ class MetaAdsService
                  story.dig("link_data", "image_hash").presence
     return { asset_type: "image", asset_id: image_hash, multi_asset: false } if image_hash.present?
 
+    # "Existing post" ads (boosting a Page post rather than carrying their own
+    # media): the creative exposes no video/image field at all, only the id of
+    # the post being boosted. Deliberately last, after every video and image
+    # branch above, so a creative that DOES expose a real video_id or
+    # image_hash alongside an object_story_id still resolves as video/image --
+    # some "existing post" ads have one (confirmed in production). We do not
+    # fetch the post object to find its underlying media: that is an extra
+    # Page-object API call per creative and would very likely hit the same
+    # permission wall as the video-node lookup in sync_creative_assets.
+    # Ad-level insights are keyed by ad, not by how the creative was
+    # identified, so grouping by post id still produces correct metrics.
+    post_id = creative["effective_object_story_id"].presence || creative["object_story_id"].presence
+    return { asset_type: "post", asset_id: post_id, multi_asset: false } if post_id.present?
+
     { asset_type: nil, asset_id: nil, multi_asset: false }
   end
 
-  def find_or_create_creative(resolved, fallback_name)
+  def find_or_create_creative(resolved, fallback_name, thumbnail_url)
     return nil if resolved[:asset_id].blank?
 
     creative = @ad_account.ad_creatives.find_or_initialize_by(
       asset_type: resolved[:asset_type], asset_id: resolved[:asset_id]
     )
     creative.name ||= fallback_name
+    # Only fill a blank value: a better thumbnail from the video node (if
+    # permissions are ever granted) must not be clobbered by this cheaper,
+    # zero-extra-call source on a later sync.
+    creative.thumbnail_url = thumbnail_url if creative.thumbnail_url.blank? && thumbnail_url.present?
     creative.save!
     creative
   end

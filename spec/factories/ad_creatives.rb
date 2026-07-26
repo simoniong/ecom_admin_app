@@ -7,5 +7,6 @@ FactoryBot.define do
     thumbnail_url { "https://example.com/thumb.jpg" }
     duration_seconds { 30 }
     first_spend_date { nil }
+    thumbnail_fetch_attempts { 0 }
   end
 end
