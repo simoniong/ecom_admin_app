@@ -79,8 +79,8 @@ class AdCreativeBackfillService
     # there — mode A always proceeds to the Meta calls below.
     return true if start_date > today
 
-    @meta.refresh_token_if_needed!
-    @meta.sync_ad_units
+    return false unless call_meta_phase!(:refresh_token_if_needed!)
+    return false unless call_meta_phase!(:sync_ad_units)
 
     initializing = coverage_incomplete?
     # Only set (and only ever read) in mode A: the rebuild window's start,
@@ -100,6 +100,22 @@ class AdCreativeBackfillService
 
     @meta.sync_creative_assets
     true
+  end
+
+  # Runs one of the two pre-segment Meta calls and reports its failure the
+  # same way a segment failure is reported (§ segment rescue above), so a
+  # Meta error here shows up as `[AdCreativeBackfill] ... phase=...` instead
+  # of escaping `call` as a raw exception that the job's generic `rescue`
+  # logs with no segment/phase context at all. Returning false (not
+  # re-raising) preserves the existing abort semantics: the caller returns
+  # false from `call` without advancing coverage, exactly like a failed
+  # segment does.
+  def call_meta_phase!(phase)
+    @meta.public_send(phase)
+    true
+  rescue Koala::Facebook::APIError, Koala::Facebook::ClientError => e
+    Rails.logger.error("[AdCreativeBackfill] account=#{@ad_account.account_id} phase=#{phase.to_s.delete_suffix('!')}: #{e.message}")
+    false
   end
 
   # Session-level (not transaction-scoped) because `call` deliberately commits

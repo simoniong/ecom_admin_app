@@ -68,6 +68,33 @@ RSpec.describe "Ad Creatives", type: :system do
     within("tr", text: "Old Hook") { expect(page).to have_css("[data-anchor-state='truncated']") }
   end
 
+  # Lifetime is still an accurate sum over the synced interval for a
+  # truncated creative (merely incomplete), unlike D1/D3/D5, which are
+  # anchored on a false first day and therefore actually wrong -- so only
+  # the lifetime columns should show their number alongside the ⚠ marker.
+  it "shows the lifetime figure alongside the marker, but hides D1/D3/D5, for a truncated creative" do
+    creative_with_metrics(name: "Old Hook", first_spend_date: Date.current - 89, spend: 40)
+
+    sign_in_as(user)
+    navigate_to_settings_item(I18n.t("nav.ad_creatives"), group: I18n.t("nav.ads"))
+
+    within("tr", text: "Old Hook") do
+      cells = all("td[data-anchor-state='truncated']")
+      expect(cells.size).to eq(6)
+
+      d1_spend, d1_purchases, d3_roas, d5_roas, lifetime_spend, lifetime_roas = cells
+
+      expect(d1_spend.text.strip).to eq("⚠")
+      expect(d1_purchases.text.strip).to eq("⚠")
+      expect(d3_roas.text.strip).to eq("⚠")
+      expect(d5_roas.text.strip).to eq("⚠")
+
+      expect(lifetime_spend.text).to include("⚠")
+      expect(lifetime_spend.text).to include("$40.00")
+      expect(lifetime_roas.text).to include("⚠")
+    end
+  end
+
   it "sorts by a chosen column" do
     creative_with_metrics(name: "Low Spender", first_spend_date: Date.current - 10, spend: 10)
     creative_with_metrics(name: "High Spender", first_spend_date: Date.current - 10, spend: 900)
@@ -91,6 +118,48 @@ RSpec.describe "Ad Creatives", type: :system do
     # and the opposite of the pre-navigation DOM, so the matcher cannot succeed until the sorted
     # page has actually rendered — do not "fix" this back to "High Spender".
     expect(page).to have_css("tbody tr:first-child", text: "Low Spender")
+  end
+
+  # percentage/ratio/per_mille return 0 on a zero denominator (that struct
+  # contract is unchanged -- see spec/models/ad_creative_spec.rb), but a zero
+  # denominator means "no data in the selected range", not a real 0.0%/$0.00.
+  # A creative with no impressions in range must not drown the table in a
+  # wall of misleading zeros.
+  it "shows a dash rather than 0.0%/$0.00 for range-scoped columns when the range has no impressions" do
+    creative_with_metrics(
+      name: "Idle Creative", first_spend_date: nil,
+      impressions: 0, inline_link_clicks: 0, clicks: 0, spend: 0,
+      video_3_sec_watched: 0, video_p50_watched: 0, video_p75_watched: 0
+    )
+
+    sign_in_as(user)
+    navigate_to_settings_item(I18n.t("nav.ad_creatives"), group: I18n.t("nav.ads"))
+
+    within("tr", text: "Idle Creative") do
+      expect(page).not_to have_text("0.0%")
+      expect(page).not_to have_text("$0.00")
+    end
+  end
+
+  # link_ctr's denominator is impressions, not inline_link_clicks. A creative that
+  # was seen but never clicked has a genuine 0.0% CTR -- that is real signal and
+  # must survive, unlike the undefined rate of a creative with no impressions at
+  # all. Guards against gating link_ctr on the click count (which would hide it).
+  it "shows a real 0.0% link CTR when a creative has impressions but no link clicks" do
+    # Rates chosen so no OTHER cell's text can contain "0.0%": a substring
+    # assertion would otherwise pass against "40.0%" and prove nothing. The
+    # assertion below compares whole cell text for the same reason.
+    creative_with_metrics(
+      name: "Seen Never Clicked", first_spend_date: Date.current - 10,
+      impressions: 10_000, inline_link_clicks: 0, clicks: 0, spend: 50,
+      video_3_sec_watched: 3_750, video_p50_watched: 1_230, video_p75_watched: 725
+    )
+
+    sign_in_as(user)
+    navigate_to_settings_item(I18n.t("nav.ad_creatives"), group: I18n.t("nav.ads"))
+
+    cells = find("tr", text: "Seen Never Clicked").all("td").map { |td| td.text.strip }
+    expect(cells).to include("0.0%")
   end
 
   it "filters by date range" do

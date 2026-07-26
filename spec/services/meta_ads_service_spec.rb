@@ -455,6 +455,60 @@ RSpec.describe MetaAdsService do
       service.sync_ad_units
       expect { service.sync_ad_units }.not_to change(AdUnit, :count)
     end
+
+    it "requests a conservative page size and a narrowed asset_feed_spec" do
+      expect(graph).to receive(:get_connections) do |_node, edge, **params|
+        expect(edge).to eq("ads")
+        expect(params[:limit]).to eq(MetaAdsService::AD_UNITS_PAGE_LIMIT)
+        expect(params[:fields]).to include("asset_feed_spec{videos,images}")
+        expect(params[:fields]).not_to include("promotional_metadata")
+        []
+      end
+
+      service.sync_ad_units
+    end
+
+    def reduce_data_error
+      Koala::Facebook::ServerError.new(500, nil,
+        { "code" => 1, "message" => "Please reduce the amount of data you're asking for, then retry your request" })
+    end
+
+    it "halves the page size and retries when Meta asks to reduce the payload" do
+      seen_limits = []
+      allow(graph).to receive(:get_connections) do |_node, _edge, **params|
+        seen_limits << params[:limit]
+        raise reduce_data_error if params[:limit] == MetaAdsService::AD_UNITS_PAGE_LIMIT
+
+        [ ad_payload(id: "a22", creative: { "id" => "c22", "video_id" => "v1" }) ]
+      end
+
+      service.sync_ad_units
+
+      expect(seen_limits).to eq([ MetaAdsService::AD_UNITS_PAGE_LIMIT, MetaAdsService::AD_UNITS_PAGE_LIMIT / 2 ])
+      expect(AdUnit.find_by(ad_id: "a22")).to be_present
+    end
+
+    it "stops halving at the floor and lets the error propagate" do
+      seen_limits = []
+      allow(graph).to receive(:get_connections) do |_node, _edge, **params|
+        seen_limits << params[:limit]
+        raise reduce_data_error
+      end
+
+      expect { service.sync_ad_units }.to raise_error(Koala::Facebook::ServerError)
+      expect(seen_limits).to eq([ 100, 50, 25 ])
+    end
+
+    it "does not downgrade the page size for a transient outage error" do
+      call_count = 0
+      allow(graph).to receive(:get_connections) do |*, **_params|
+        call_count += 1
+        raise Koala::Facebook::ServerError.new(500, nil, { "code" => 2, "message" => "Service temporarily unavailable" })
+      end
+
+      expect { service.sync_ad_units }.to raise_error(Koala::Facebook::ServerError, /Service temporarily unavailable/)
+      expect(call_count).to eq(1)
+    end
   end
 
   describe "#refresh_token_if_needed!" do

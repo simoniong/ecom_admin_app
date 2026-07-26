@@ -5,6 +5,19 @@ class AdCreativesController < AdminController
     lifetime_spend lifetime_roas
   ].freeze
 
+  # Maps every anchor-gated SORTABLE_COLUMN (i.e. rendered through
+  # _anchor_cell, driven by AdCreative#anchor_state) to the window length
+  # anchor_state needs. A column absent from this hash is range-scoped and
+  # never anchor-gated: three_sec_rate, p50_rate, p75_rate, link_ctr,
+  # cpc_link, cpc_all, cpm. This is the single place that mapping lives --
+  # #sort_creatives reads it rather than re-deriving it, so it cannot drift
+  # from the windows index.html.erb's `render "anchor_cell"` calls use.
+  ANCHOR_WINDOWS = {
+    "d1_spend" => 1, "d1_purchases" => 1,
+    "d3_roas" => 3, "d5_roas" => 5,
+    "lifetime_spend" => nil, "lifetime_roas" => nil
+  }.freeze
+
   BACKFILL_DAYS = 90
 
   PER_PAGE_DEFAULT = 50
@@ -105,10 +118,28 @@ class AdCreativesController < AdminController
 
   def sort_creatives(creatives)
     direction = @sort_direction == "asc" ? 1 : -1
+    window = ANCHOR_WINDOWS[@sort_column]
+    anchor_gated = ANCHOR_WINDOWS.key?(@sort_column)
 
     creatives.sort_by do |creative|
       metrics = @creative_metrics[creative.id]
-      [ direction * metrics.public_send(@sort_column).to_f, creative.name.to_s ]
+      hidden = anchor_gated && anchor_value_hidden?(creative, window)
+      # Hidden rows sort last regardless of direction: the leading 0/1 flag
+      # dominates the tuple comparison, so `direction * value` (an invisible
+      # number the user cannot see, per _anchor_cell) never gets a say for them.
+      [ hidden ? 1 : 0, hidden ? 0 : direction * metrics.public_send(@sort_column).to_f, creative.name.to_s ]
     end
+  end
+
+  # Mirrors _anchor_cell's own rendering exactly: a value is hidden from the
+  # user for every anchor_state except :ok, and -- since the lifetime columns
+  # now show their number alongside the ⚠ marker -- also except :truncated
+  # when window is nil (lifetime).
+  def anchor_value_hidden?(creative, window)
+    state = creative.anchor_state(window)
+    return false if state == :ok
+    return false if window.nil? && state == :truncated
+
+    true
   end
 end

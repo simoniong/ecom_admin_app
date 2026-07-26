@@ -61,6 +61,13 @@
                 API call -- show the columns rather than dash out real video metrics
                 for 13.8% of ads. An image-based post renders 0.0% rather than "-". %>
             <% video = %w[video post].include?(creative.asset_type) %>
+            <%# A struct-level zero denominator means "no data in range", not a real
+                zero -- percentage/ratio/per_mille return 0 either way (their contract
+                is unchanged), so the view alone tells the two apart and renders the
+                em dash for the latter instead of a wall of misleading 0.0%/$0.00. %>
+            <% no_impressions = metrics.impressions.zero? %>
+            <% no_link_clicks = metrics.inline_link_clicks.zero? %>
+            <% no_clicks = metrics.clicks.zero? %>
             <tr>
               <td class="px-3 py-2">
                 <div class="flex items-center gap-2">
@@ -72,14 +79,19 @@
               </td>
               <td class="px-3 py-2 text-gray-500"><%= creative.ad_account.platform %></td>
 
-              <%# Engagement — selected range. Video-only columns dash out for images. %>
-              <td class="px-3 py-2 text-right border-l border-gray-100"><%= video ? number_to_percentage(metrics.three_sec_rate, precision: 1) : t("ad_creatives.not_applicable") %></td>
-              <td class="px-3 py-2 text-right"><%= video ? number_to_percentage(metrics.p50_rate, precision: 1) : t("ad_creatives.not_applicable") %></td>
-              <td class="px-3 py-2 text-right"><%= video ? number_to_percentage(metrics.p75_rate, precision: 1) : t("ad_creatives.not_applicable") %></td>
-              <td class="px-3 py-2 text-right"><%= number_to_percentage(metrics.link_ctr, precision: 1) %></td>
-              <td class="px-3 py-2 text-right"><%= number_to_currency(metrics.cpc_link) %></td>
-              <td class="px-3 py-2 text-right"><%= number_to_currency(metrics.cpc_all) %></td>
-              <td class="px-3 py-2 text-right"><%= number_to_currency(metrics.cpm) %></td>
+              <%# Engagement — selected range. Video-only columns dash out for images;
+                  every column also dashes out when its own denominator is absent. %>
+              <td class="px-3 py-2 text-right border-l border-gray-100"><%= (video && !no_impressions) ? number_to_percentage(metrics.three_sec_rate, precision: 1) : t("ad_creatives.not_applicable") %></td>
+              <td class="px-3 py-2 text-right"><%= (video && !no_impressions) ? number_to_percentage(metrics.p50_rate, precision: 1) : t("ad_creatives.not_applicable") %></td>
+              <td class="px-3 py-2 text-right"><%= (video && !no_impressions) ? number_to_percentage(metrics.p75_rate, precision: 1) : t("ad_creatives.not_applicable") %></td>
+              <%# link_ctr's denominator is impressions, NOT inline_link_clicks: a creative
+                  with real impressions and genuinely zero link clicks has a true 0.0% CTR,
+                  which is meaningful signal and must not be dashed out. Only an absent
+                  denominator (no impressions) makes the rate undefined. %>
+              <td class="px-3 py-2 text-right"><%= no_impressions ? t("ad_creatives.not_applicable") : number_to_percentage(metrics.link_ctr, precision: 1) %></td>
+              <td class="px-3 py-2 text-right"><%= no_link_clicks ? t("ad_creatives.not_applicable") : number_to_currency(metrics.cpc_link) %></td>
+              <td class="px-3 py-2 text-right"><%= no_clicks ? t("ad_creatives.not_applicable") : number_to_currency(metrics.cpc_all) %></td>
+              <td class="px-3 py-2 text-right"><%= no_impressions ? t("ad_creatives.not_applicable") : number_to_currency(metrics.cpm) %></td>
 
               <%# Cold start — anchored on first_spend_date, each column carries its own window. %>
               <%= render "anchor_cell", creative: creative, window: 1, value: number_to_currency(metrics.d1_spend), first: true %>
