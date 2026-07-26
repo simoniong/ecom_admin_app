@@ -120,6 +120,27 @@ RSpec.describe "Ad Creatives", type: :system do
     expect(page).to have_css("tbody tr:first-child", text: "Low Spender")
   end
 
+  # percentage/ratio/per_mille return 0 on a zero denominator (that struct
+  # contract is unchanged -- see spec/models/ad_creative_spec.rb), but a zero
+  # denominator means "no data in the selected range", not a real 0.0%/$0.00.
+  # A creative with no impressions in range must not drown the table in a
+  # wall of misleading zeros.
+  it "shows a dash rather than 0.0%/$0.00 for range-scoped columns when the range has no impressions" do
+    creative_with_metrics(
+      name: "Idle Creative", first_spend_date: nil,
+      impressions: 0, inline_link_clicks: 0, clicks: 0, spend: 0,
+      video_3_sec_watched: 0, video_p50_watched: 0, video_p75_watched: 0
+    )
+
+    sign_in_as(user)
+    navigate_to_settings_item(I18n.t("nav.ad_creatives"), group: I18n.t("nav.ads"))
+
+    within("tr", text: "Idle Creative") do
+      expect(page).not_to have_text("0.0%")
+      expect(page).not_to have_text("$0.00")
+    end
+  end
+
   it "filters by date range" do
     creative_with_metrics(name: "In Range", first_spend_date: Date.current - 10, impressions: 4_242)
 

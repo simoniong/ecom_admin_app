@@ -238,6 +238,54 @@ RSpec.describe "AdCreatives", type: :request do
     end
   end
 
+  describe "sorting hidden anchor values" do
+    # Regression: sort_creatives used to sort every row by
+    # metrics.public_send(@sort_column) even when _anchor_cell hides that
+    # exact value from the user (any anchor_state other than :ok, or
+    # :truncated on a D1/D3/D5 column). A production screenshot showed rows
+    # rendering ⚠ with no number sorting ABOVE rows showing a real figure.
+    it "sorts a row whose D1 figure is hidden (truncated) to the end, even though its underlying value is far larger" do
+      ad_account.update!(creative_synced_from_date: Date.current - 89, creative_synced_through_date: Date.current)
+
+      visible = create(:ad_creative, ad_account: ad_account, name: "Visible Small D1", first_spend_date: Date.current - 5)
+      visible_unit = create(:ad_unit, ad_account: ad_account, ad_creative: visible)
+      create(:ad_unit_daily_metric, ad_unit: visible_unit, date: Date.current - 5, spend: 10)
+
+      # first_spend_date sits on the coverage start -> :truncated -> hidden
+      # for a D1 column, even though its underlying d1_spend (9999) dwarfs
+      # the visible creative's.
+      hidden = create(:ad_creative, ad_account: ad_account, name: "Hidden Huge D1", first_spend_date: Date.current - 89)
+      hidden_unit = create(:ad_unit, ad_account: ad_account, ad_creative: hidden)
+      create(:ad_unit_daily_metric, ad_unit: hidden_unit, date: Date.current - 89, spend: 9999)
+
+      sign_in user
+      get ad_creatives_path, params: { store_id: store.id, sort_column: "d1_spend", sort_direction: "desc" }
+
+      body = response.body
+      expect(body.index("Visible Small D1")).to be < body.index("Hidden Huge D1")
+    end
+
+    it "sorts a lifetime figure normally even when truncated, since Commit 3 shows its value" do
+      ad_account.update!(creative_synced_from_date: Date.current - 89, creative_synced_through_date: Date.current)
+
+      small = create(:ad_creative, ad_account: ad_account, name: "Small Lifetime", first_spend_date: Date.current - 5)
+      small_unit = create(:ad_unit, ad_account: ad_account, ad_creative: small)
+      create(:ad_unit_daily_metric, ad_unit: small_unit, date: Date.current - 5, spend: 10)
+
+      # Truncated, but lifetime_spend is shown (not hidden) per Commit 3, so
+      # its real, larger value must sort above the smaller visible one.
+      large = create(:ad_creative, ad_account: ad_account, name: "Large Lifetime", first_spend_date: Date.current - 89)
+      large_unit = create(:ad_unit, ad_account: ad_account, ad_creative: large)
+      create(:ad_unit_daily_metric, ad_unit: large_unit, date: Date.current - 89, spend: 9999)
+
+      sign_in user
+      get ad_creatives_path, params: { store_id: store.id, sort_column: "lifetime_spend", sort_direction: "desc" }
+
+      body = response.body
+      expect(body.index("Large Lifetime")).to be < body.index("Small Lifetime")
+    end
+  end
+
   describe "POST /ad_creatives/sync" do
     it "enqueues a backfill for each visible account" do
       ad_account
