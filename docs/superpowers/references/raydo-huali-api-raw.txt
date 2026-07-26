@@ -1,0 +1,525 @@
+以下地址为测试系统地址，对接时请直接对接货代正式环境！！(最底部有demo和Postman示例)
+
+名称接口地址
+创建订单	URL1	http://www.sz56t.com:8082
+打印标签	URL2	http://www.sz56t.com:8089
+（请注意，这里是测试环境url，正式环境url请联系货代）
+（请注意，这里是测试环境url，正式环境url请联系货代）
+（请注意，这里是测试环境url，正式环境url请联系货代）
+
+1、身份认证 （红色的是账号和密码）
+ URL1/selectAuth.htm?username=TEST&password=123456
+返回值：
+  {'customer_id':'6581','customer_userid':'6901','ack':'true'}
+ack=true则代表认证成功，customer_id和customer_userid用于新建订单
+
+2、渠道列表
+URL1/getProductList.htm
+返回
+[{"product_id":"***","product_shortname":"***小包"}]
+
+3、添加订单(UTF-8)
+ URL1/createOrderApi.htm?param=
+{
+"buyerid": "",
+"order_piece": "件数，小包默认1，快递需真实填写",
+"consignee_mobile": "手机号,选填。为方便派送最好填写",
+"order_returnsign": "退回标志，默认N表示不退回，Y标表示退回。中邮可以忽略该属性",
+"trade_type": "ZYXT",
+"duty_type":"DDU或DDP或者Other","duty_account"":"关税支付账号",
+"battery_type":"电池类型代码，联系货代提供",
+"consignee_name": "收件人,必填",
+"consignee_companyname": "收件公司名,如有最好填写",
+"consignee_address": "收件地址街道，必填",
+"consignee_telephone": "收件电话，必填",
+"country": "收件国家二字代码，必填",
+"consignee_state": "州/省",
+"consignee_city": "城市",
+"consignee_suburb": "收件区，选填",
+"consignee_postcode": "邮编，有邮编的国家必填",
+"consignee_passportno": "收件护照号，选填",
+"consignee_email": "邮箱，选填",
+"consignee_taxno": "收件人税号","consignee_taxnotype": "收件人税号类型","consignee_taxnocountry": "收件人税号国家",
+"consignee_streetno": "街道号",
+"consignee_doorno": "门牌号",
+"consignee_shortaddress": "收件人短地址",
+"consignee_type":"欧盟收件人类型，01代表企业 ， 02代表个人",
+"shipper_taxnotype":"税号类型，邮政产品可选值：IOSS,NO-IOSS,OTHER；DHL可选值：SDT、VAT、FTZ、DAN、EOR、CNP、EIN等(类型说明参照文档底部“DHL发件人税号类型”)","shipper_taxno":"发件人税号","shipper_taxnocountry":"发件人税号国家,用国家二字码",
+"customer_id": "客户ID，必填",
+"customer_userid": "登录人ID，必填",
+"order_customerinvoicecode": "原单号，必填",
+"product_id": "运输方式ID，必填",
+"weight": "总重，选填，如果sku上有单重可不填该项",
+"product_imagepath": "图片地址，多图片地址用分号隔开",
+"order_transactionurl": "产品销售地址",
+"order_cargoamount": "选填；用于DHL/FEDEX运费；或用于白关申报（订单实际金额，特殊渠道使用）；或其他用途",
+"order_insurance": "保险金额",
+"cargo_type": "包裹类型，P代表包裹，D代表文件，B代表PAK袋",
+"order_customnote": "自定义信息",
+"store_code":"店铺代码",
+"store_name":"店铺名称",
+"production_sales_suppliers_name": "生产销售供应商",
+"production_sales_suppliers_credit_code": "社会信用代码",
+"ecommerce_platform_name": "电商平台名称",
+"ecommerce_platform_code": "电商平台代码",
+
+"orderInvoiceParam": [
+{
+"invoice_amount": "申报总价值，必填",
+"invoice_pcs": "件数，必填",
+"invoice_title": "英文品名，必填",
+"invoice_weight": "单件重",
+"sku": "中文品名",
+"sku_code": "配货信息",
+"invoice_export_unitprice": "出口申报单价",
+"invoice_export_currency": "出口申报币种",
+"invoice_production_sales_suppliers_credit_code": "申报的社会信用代码",
+"invoice_production_sales_suppliers_name": "申报的生产销售供应商",
+"hs_code": "海关编码",
+"import_hs_code": "进口海关编码",
+"transaction_url": "销售地址",
+"invoiceunit_code": "申报单位",
+"invoice_imgurl": "图片地址",
+"invoice_brand": "品牌",
+"invoice_rule": "规格",
+"invoice_currency": "申报币种",
+"invoice_taxno": "税则号",
+"origin_country": "原产国",
+"invoice_material": "材质",
+"invoice_mid":"申报mid",
+"invoice_purpose": "用途",
+"invoice_mpid": "商家产品识别码",    //别称：商家产品标识码
+"invoice_nspid": "制造商产品识别码", //别称：非标准制造商产品标识码
+"invoice_spid": "国际标准商品编码"    //别称：标准制造商产品标识码
+}
+],
+"orderVolumeParam": [{//选填
+"volume_height": "高，单位CM",
+"volume_length": "长，单位CM",
+"volume_width": "宽，单位CM",
+"volume_weight": "实重"
+}]
+}
+以上请求以post方式提交
+返回值
+{"ack":"true","childList":[{"child_number":"子单号"}],"delay_type":"","is_changenumbers":"","is_delay":"是否延迟获取单号，Y代表需要延迟获取单号","is_remote":"是否偏远，N为不偏远，Y为偏远，A为fedex偏远A级，B为fedex偏远B级, C为fedex偏远C级","is_residential":"是否住宅，Y表示住宅地址","message":"如果未获取到转单号，则该列存放失败原因(该内容请urldecode后查看)","order_id":"xxxxxxx，id需要保存，用于打印标签","order_privatecode":"","order_transfercode":"特殊情况下使用，默认不用理会","post_customername":"","product_tracknoapitype":"值为3时需要调用获取跟踪号接口来更新单号","reference_number":"参考号","return_address":"","tracking_number":"跟踪号"}
+
+FBA报文请参考
+FBA-API信息.txt
+
+如有添加订单不需要系统自动分配单号，请按如下方式进行对接
+ URL1/createOrderApi.htm?getTrackingNumber=2&param=
+{
+"buyerid": "",
+"order_piece": "件数，小包默认1，快递需真实填写",
+"consignee_mobile": "手机号,选填。为方便派送最好填写",
+"order_returnsign": "退回标志，默认N表示不退回，Y标表示退回。中邮可以忽略该属性",
+"trade_type": "ZYXT","duty_type":"DDU或DDP","battery_type":"电池类型代码，联系货代提供",
+"consignee_name": "收件人,必填",
+"consignee_companyname": "收件公司名,如有最好填写",
+"consignee_address": "收件地址街道，必填",
+"consignee_telephone": "收件电话，必填",
+"country": "收件国家二字代码，必填",
+"consignee_state": "州/省",
+"consignee_city": "城市",
+"consignee_suburb": "收件区，选填",
+"consignee_postcode": "邮编，有邮编的国家必填",
+"consignee_passportno": "收件护照号，选填",
+"consignee_email": "邮箱，选填",
+"consignee_taxno": "收件人税号","consignee_taxnotype": "收件人税号类型",
+"consignee_streetno": "街道号",
+"consignee_doorno": "门牌号",
+"consignee_shortaddress": "收件人短地址",
+"shipper_taxnotype":"税号类型，邮政产品可选值：IOSS,NO-IOSS,OTHER；DHL可选值：SDT、VAT、FTZ、DAN、EOR、CNP、EIN等(类型说明参照文档底部“DHL发件人税号类型”)","shipper_taxno":"发件人税号","shipper_taxnocountry":"发件人税号国家,用国家二字码",
+"customer_id": "客户ID，必填",
+"customer_userid": "登录人ID，必填",
+"order_customerinvoicecode": "原单号，必填",
+"order_serveinvoicecode": "转单号，选填",
+"product_id": "运输方式ID，必填",
+"weight": "总重，选填，如果sku上有单重可不填该项",
+"product_imagepath": "图片地址，多图片地址用分号隔开",
+"order_transactionurl": "产品销售地址",
+"order_cargoamount": "选填；用于DHL/FEDEX运费；或用于白关申报（订单实际金额，特殊渠道使用）；或其他用途",
+"order_insurance": "保险金额",
+"cargo_type": "包裹类型，P代表包裹，D代表文件，B代表PAK袋",
+"order_customnote": "自定义信息",
+"orderInvoiceParam": [
+{
+"invoice_amount": "申报总价值，必填",
+"invoice_pcs": "件数，必填",
+"invoice_title": "英文品名，必填",
+"invoice_weight": "单件重",
+"sku": "中文品名",
+"sku_code": "配货信息",
+"hs_code": "海关编码",
+"transaction_url": "销售地址",
+"invoiceunit_code": "申报单位",
+"invoice_imgurl": "图片地址",
+"invoice_brand": "品牌",
+"invoice_rule": "规格",
+"invoice_currency": "申报币种",
+"invoice_taxno": "税则号",
+"origin_country": "原产国",
+"invoice_material": "材质",
+"invoice_purpose": "用途"
+}
+],
+"orderVolumeParam": [{//选填
+"volume_height": "高，单位CM",
+"volume_length": "长，单位CM",
+"volume_width": "宽，单位CM",
+"volume_weight": "实重"
+}]
+}
+返回值
+{"ack":"true","childList":[{"child_number":"子单号"}],"delay_type":"","is_changenumbers":"","is_delay":"是否延迟获取单号，Y代表需要延迟获取单号","is_remote":"是否偏远，N为不偏远，Y为偏远，A为fedex偏远A级，B为fedex偏远B级, C为fedex偏远C级","is_residential":"是否住宅，Y表示住宅地址","message":"如果未获取到转单号，则该列存放失败原因(该内容请urldecode后查看)","order_id":"xxxxxxx，id需要保存，用于打印标签","order_privatecode":"","order_transfercode":"特殊情况下使用，默认不用理会","post_customername":"","product_tracknoapitype":"值为3时需要调用获取跟踪号接口来更新单号","reference_number":"参考号","return_address":"","tracking_number":"跟踪号"}
+message进行了urlencode,请编程人员进行urldecode查看原始内容
+
+含发件人
+ URL1/createOrderApi.htm?param=
+{
+"buyerid": "",
+"order_piece": "件数，小包默认1，快递需真实填写",
+"consignee_mobile": "手机号,选填。为方便派送最好填写",
+"order_returnsign": "退回标志，默认N表示不退回，Y标表示退回。中邮可以忽略该属性",
+"trade_type": "ZYXT","duty_type":"DDU或DDP","battery_type":"电池类型代码，联系货代提供",
+"consignee_name": "收件人,必填",
+"consignee_companyname": "收件公司名,如有最好填写",
+"consignee_address": "收件地址街道，必填",
+"consignee_telephone": "收件电话，必填",
+"country": "收件国家二字代码，必填",
+"consignee_state": "州/省",
+"consignee_city": "城市",
+"consignee_suburb": "收件区，选填",
+"consignee_postcode": "邮编，有邮编的国家必填",
+"consignee_passportno": "收件护照号，选填",
+"consignee_email": "邮箱，选填",
+"consignee_taxno": "收件人税号",
+"consignee_streetno": "街道号",
+"consignee_doorno": "门牌号",
+"consignee_shortaddress": "收件人短地址",
+"customer_id": "客户ID，必填",
+"customer_userid": "登录人ID，必填",
+"order_customerinvoicecode": "原单号，必填",
+"product_id": "运输方式ID，必填",
+"weight": "总重，选填，如果sku上有单重可不填该项",
+"product_imagepath": "图片地址，多图片地址用分号隔开",
+"shipper_name": "发件人姓名,选填",
+"shipper_companyname": "发件人公司名,选填",
+"shipper_address1": "发件人地址1，选填",
+"shipper_address2": "发件人地址2,选填",
+"shipper_address3": "发件人地址3,选填",
+"shipper_city": "发件人城市，选填",
+"shipper_state": "发件人州，选填",
+"shipper_postcode": "发件人邮编,选填",
+"shipper_country": "发件人国家，选填",
+"shipper_telephone": "发件人电话，选填",
+"shipper_suburb": "发件人区，选填",
+"shipper_email": "发件人邮箱，选填",
+"shipper_passportno": "发件人护照号，选填",
+"consignee_type":"欧盟收件人类型",
+"shipper_reference":"发件人参考号",
+"invoice_no":"发票编号",
+"import_code":"进口商代码",
+"import_name":"进口商名称",
+"import_companyname":"进口商公司名称",
+"import_address":"进口商地址",
+"import_address2":"进口商地址2",
+"import_address3":"进口商地址3",
+"import_telephone":"进口商电话",
+"import_email":"进口商邮箱",
+"import_postcode":"进口商邮编",
+"import_city":"进口商城市",
+"import_state":"进口商州省",
+"import_country":"进口商国家",
+"import_taxno": "进口商税号",
+"import_taxtype": "进口商税号类型",
+"import_taxcountry":"进口商税号国家",
+"attachment_data":"   附件内容",
+ "attachment_type":"   附件类型：URL/BASE64",
+ "attachment_format":" 附件文件类型：PDF,PNG,JPG",
+ "attachment_applicationcode":" 附件属性：DEALPROVE：交易证明 ",
+"shipper_taxnotype":"税号类型，邮政产品可选值：IOSS,NO-IOSS,OTHER；DHL可选值：SDT、VAT、FTZ、DAN、EOR、CNP、EIN等(类型说明参照文档底部“DHL发件人税号类型”)","shipper_taxno":"发件人税号","shipper_taxnocountry":"发件人税号国家,用国家二字码",
+"order_transactionurl": "产品销售地址",
+"order_cargoamount": "选填；用于DHL/FEDEX运费；或用于白关申报（订单实际金额，特殊渠道使用）；或其他用途",
+"order_insurance": "保险金额",
+"cargo_type": "包裹类型，P代表包裹，D代表文件，B代表PAK袋",
+"order_customnote": "自定义信息",
+"production_sales_suppliers_name": "生产销售供应商",
+"production_sales_suppliers_credit_code": "社会信用代码",
+"ecommerce_platform_name": "电商平台名称",
+"ecommerce_platform_code": "电商平台代码",
+
+"orderInvoiceParam": [
+{
+"invoice_amount": "申报总价值，必填",
+"invoice_pcs": "件数，必填",
+"invoice_title": "英文品名，必填",
+"invoice_weight": "单件重",
+"sku": "中文品名",
+"sku_code": "配货信息",
+"invoice_export_unitprice": "出口申报单价",
+"invoice_export_currency": "出口申报币种",
+"invoice_production_sales_suppliers_credit_code": "申报的社会信用代码",
+"invoice_production_sales_suppliers_name": "申报的生产销售供应商",
+"hs_code": "海关编码",
+"transaction_url": "销售地址",
+"invoiceunit_code": "申报单位",
+"invoice_imgurl": "图片地址",
+"invoice_brand": "品牌",
+"invoice_rule": "规格",
+"invoice_currency": "申报币种",
+"invoice_taxno": "税则号",
+"origin_country": "原产国",
+"invoice_material": "材质",
+"invoice_purpose": "用途",
+"invoice_mpid": "商家产品识别码",
+"invoice_nspid": "制造商产品识别码",
+"invoice_spid": "国际标准商品编码"
+}
+],
+
+"orderVolumeParam": [{//选填
+"volume_height": "高，单位CM",
+"volume_length": "长，单位CM",
+"volume_width": "宽，单位CM",
+"volume_weight": "实重"
+}]
+}
+
+代收货款业务
+ URL1/createOrderApi.htm?param=
+ {
+"buyerid": "",
+"consignee_address": "收件地址街道，必填",
+"order_piece": "件数，小包默认1，快递需真实填写",
+"consignee_city": "城市",
+"consignee_mobile": "手机号,选填。为方便派送最好填写",
+"order_returnsign": "退回标志，默认N表示不退回，Y标表示退回。中邮可以忽略该属性",
+"consignee_name": "收件人,必填",
+"trade_type": "ZYXT","duty_type":"DDU或DDP","battery_type":"电池类型代码，联系货代提供",
+"consignee_postcode": "邮编，有邮编的国家必填",
+"consignee_state": "州/省",
+"consignee_telephone": "收件电话，必填",
+"country": "收件国家二字代码，必填",
+"consignee_suburb": "收件区，选填",
+"consignee_passportno": "收件护照号，选填",
+"customer_id": "客户ID，必填",
+"customer_userid": "登录人ID，必填",
+"orderInvoiceParam": [{
+"invoice_amount": "申报总价值，必填",
+"invoice_pcs": "件数，必填",
+"invoice_title": "英文品名，必填",
+"invoice_weight": "单件重",
+"item_id": "",
+"item_transactionid": "",
+"sku": "中文品名",
+"sku_code": "配货信息",
+"hs_code": "海关编码",
+"transaction_url":"销售地址",
+"invoiceunit_code":"申报单位",
+"invoice_imgurl":"图片地址",
+"invoice_brand":"品牌",
+"invoice_rule":"规格",
+"invoice_currency":"申报币种",
+"invoice_taxno":"税则号",
+"origin_country":"原产国",
+"invoice_material":"材质",
+"invoice_purpose":"用途"
+}],
+"order_customerinvoicecode": "原单号，必填",
+"product_id": "运输方式ID，必填",
+"weight": "总重，选填，如果sku上有单重可不填该项",
+"product_imagepath": "图片地址，多图片地址用分号隔开",
+"shipper_name": "发件人姓名,选填",
+"shipper_companyname": "发件人公司名,选填",
+"shipper_address1": "发件人地址1，选填",
+"shipper_address2": "发件人地址2,选填",
+"shipper_address3": "发件人地址3,选填",
+"shipper_city": "发件人城市，选填",
+"shipper_state": "发件人州，选填",
+"shipper_postcode": "发件人邮编,选填",
+"shipper_country": "发件人国家，选填",
+"shipper_telephone": "发件人电话，选填",
+"shipper_suburb": "发件人区，选填",
+"shipper_email": "发件人邮箱，选填",
+"shipper_passportno": "发件人护照号，选填",
+"shipper_taxnotype":"税号类型，邮政产品可选值：IOSS,NO-IOSS,OTHER；DHL可选值：SDT、VAT、FTZ、DAN、EOR、CNP、EIN等(类型说明参照文档底部“DHL发件人税号类型”)","shipper_taxno":"发件人税号","shipper_taxnocountry":"发件人税号国家,用国家二字码",
+"order_transactionurl": "产品销售地址",
+"consignee_email": "邮箱，选填",
+"consignee_companyname": "收件公司名,如有最好填写",
+"order_cargoamount": "选填；用于DHL/FEDEX运费；或用于白关申报（订单实际金额，特殊渠道使用）；或其他用途",
+"order_insurance": "保险金额",
+"consignee_taxno": "收件人税号",
+"consignee_doorno": "门牌号",
+"consignee_shortaddress": "收件人短地址",
+"cargo_type": "包裹类型，P代表包裹，D代表文件，B代表PAK袋",
+"order_customnote":"自定义信息","order_codamount":"cod金额","order_codcurrency":"cod币种"
+}
+
+批量下单接口
+ URL1/createOrderBatchApi.htm?param=[{"buyerid":"","consignee_address":"收件地址街道，必填","order_piece":"件数，小包默认1，快递需真实填写","consignee_city":"城市","consignee_mobile":"手机号,选填。为方便派送最好填写","order_returnsign":"退回标志，默认N表示不退回，Y标表示退回。中邮可以忽略该属性","consignee_name":"收件人,必填","trade_type":"ZYXT","consignee_postcode":"邮编，有邮编的国家必填","consignee_state":"州/省","consignee_telephone":"收件电话，必填","country":"收件国家二字代码，必填","customer_id":"客户ID，必填","customer_userid":"登录人ID，必填","orderInvoiceParam":[{"invoice_amount":"申报总价值，必填","invoice_pcs":"件数，必填","invoice_title":"英文品名，必填","invoice_weight":"单件重","item_id":"","item_transactionid":"","sku":"中文品名","sku_code":"配货信息","hs_code":"海关编码"}],"order_customerinvoicecode":"原单号，必填","product_id":"运输方式ID，必填","weight":"总重，选填，如果sku上有单重可不填该项","product_imagepath":"图片地址，多图片地址用分号隔开","shipper_name":"发件人姓名,选填","shipper_companyname":"发件人公司名,选填","shipper_address1":"发件人地址1，选填",
+"shipper_address2":"发件人地址2,选填","shipper_address3":"发件人地址3,选填","shipper_city":"发件人城市，选填","shipper_state":"发件人州，选填","shipper_postcode":"发件人邮编,选填","shipper_country":"发件人国家，选填","shipper_telephone":"发件人电话，选填","shipper_taxnotype":"税号类型，邮政产品可选值：IOSS,NO-IOSS,OTHER；DHL可选值：SDT、VAT、FTZ、DAN、EOR、CNP、EIN等(类型说明参照文档底部“DHL发件人税号类型”)","shipper_taxno":"发件人税号","shipper_taxnocountry":"发件人税号国家,用国家二字码","order_transactionurl":"产品销售地址","consignee_email":"邮箱，选填","consignee_companyname":"收件公司名,如有最好填写",
+"order_codamount":"代收金额","order_codcurrency":"币种，标准三字代码","order_cargoamount":"选填；用于DHL/FEDEX运费；或用于白关申报（订单实际金额，特殊渠道使用）；或其他用途","order_insurance":"保险金额","consignee_taxno":"收件人税号","consignee_doorno":"门牌号","consignee_shortaddress": "收件人短地址","cargo_type":"包裹类型，P代表包裹，D代表文件，B代表PAK袋"},
+{"buyerid":"","consignee_address":"收件地址街道，必填","order_piece":"件数，小包默认1，快递需真实填写","consignee_city":"城市","consignee_mobile":"手机号,选填。为方便派送最好填写","order_returnsign":"退回标志，默认N表示不退回，Y标表示退回。中邮可以忽略该属性","consignee_name":"收件人,必填","trade_type":"ZYXT","consignee_postcode":"邮编，有邮编的国家必填","consignee_state":"州/省","consignee_telephone":"收件电话，必填","country":"收件国家二字代码，必填","customer_id":"客户ID，必填","customer_userid":"登录人ID，必填","orderInvoiceParam":[{"invoice_amount":"申报总价值，必填","invoice_pcs":"件数，必填","invoice_title":"英文品名，必填","invoice_weight":"单件重","item_id":"","item_transactionid":"","sku":"中文品名","sku_code":"配货信息","hs_code":"海关编码"}],"order_customerinvoicecode":"原单号，必填","product_id":"运输方式ID，必填","weight":"总重，选填，如果sku上有单重可不填该项","product_imagepath":"图片地址，多图片地址用分号隔开","shipper_name":"发件人姓名,选填","shipper_companyname":"发件人公司名,选填","shipper_address1":"发件人地址1，选填",
+"shipper_address2":"发件人地址2,选填","shipper_address3":"发件人地址3,选填","shipper_city":"发件人城市，选填","shipper_state":"发件人州，选填","shipper_postcode":"发件人邮编,选填","shipper_country":"发件人国家，选填","shipper_telephone":"发件人电话，选填","shipper_taxnotype":"税号类型，邮政产品可选值：IOSS,NO-IOSS,OTHER；DHL可选值：SDT、VAT、FTZ、DAN、EOR、CNP、EIN等(类型说明参照文档底部“DHL发件人税号类型”)","shipper_taxno":"发件人税号","shipper_taxnocountry":"发件人税号国家,用国家二字码","shipper_email": "发件人邮箱，选填","order_transactionurl":"产品销售地址","consignee_email":"邮箱，选填","consignee_companyname":"收件公司名,如有最好填写",
+"order_codamount":"代收金额","order_codcurrency":"币种，标准三字代码","order_cargoamount":"选填；用于DHL/FEDEX运费；或用于白关申报（订单实际金额，特殊渠道使用）；或其他用途","order_insurance":"保险金额","consignee_taxno":"收件人税号","consignee_doorno":"门牌号","consignee_shortaddress": "收件人短地址","cargo_type":"包裹类型，P代表包裹，D代表文件，B代表PAK袋"}]
+返回信息：
+{
+"data": [
+{
+"ack": "true",  //下单成功或失败的标准，成功返回true，失败返回false
+"message": "", //下单失败时返回原因，urldecode解码
+"order_id": "35864", //订单id，请持久化保存，用于打印面单
+"order_transfercode": "", //特殊情况下使用，默认不用理会
+"reference_number": "SF701708290061B",  //客户的原始单号，参考号
+"tracking_number": "RF000000204DEL" //转单号/跟踪号，,"product_tracknoapitype":"值为3时需要调用获取跟踪号接口来更新单号"
+}
+],
+"message": "",   返回json不合法或未传param参数
+"resultCode": "true"  //仅当json不合法以及未传递param参数时该状态返回false,其他情况下返回true
+}
+
+trade_type 可选值，请对号入座
+SUMAI 速脉ERP
+QQZS 全球助手
+WDJL 网店精灵
+IEBAY365 IEBAY365
+STOMS 赛兔OMS
+TTERP 通途ERP
+MGDZ 芒果店长
+LRERP 懒人erp
+SUMOOL 速猫ERP
+GLBPAY 上海九赢
+DXM 店小秘
+TEMU拼多多推单
+ZYXT 客户自用系统/其他不在列表中的均使用该代码
+
+4、标记发货
+URL1/postOrderApi.htm?customer_id=**&order_customerinvoicecode=**
+
+5、客户自选标签模版 打印标签
+URL2/order/FastRpt/PDF_NEW.aspx
+参数：标签格式：format=A4_EMS_BGD.frx
+       打印类型:PrintType=1打印类型由以下对照表得到
+  需要打印的订单  order_id=308897    多个订单号以英文逗号隔开
+参考URL:  URL2/order/FastRpt/PDF_NEW.aspx?Format=A4_EMS_BGD.frx&PrintType=1&order_id=308897
+示例：
+参数format	参数PrintType	标签格式
+A4_EMS_BGD.frx	1	A4中邮+报关单8*9
+请注意，打印的接口地址和其他地址不同
+
+通过接口获取所有系统支持的打印类型
+
+URL1/selectLabelType.htm
+
+小语种打印，支持希伯来语，泰语等  URL2/order/FastRpt/PDF_NEW.aspx?Format=A4_EMS_BGD.frx&PrintType=1&order_id=308897&Print=1
+如需支持小语种，请货代设置标签的时候注意选择字体，最好是微软雅黑
+
+6、标签打印
+一键打印10*10标签（需要货代在系统设置各渠道的10*10标签)
+URL2/order/FastRpt/PDF_NEW.aspx?PrintType=lab10_10&order_id=订单ID，多个用逗号分割。
+ 一键打印A4标签（需要货代在系统设置各渠道的A4标签)
+URL2/order/FastRpt/PDF_NEW.aspx?PrintType=A4&order_id=订单ID，多个用逗号分割。
+一键打印加打配货单标签（需要货代在系统设置配货单标签)
+URL2/order/FastRpt/PDF_NEW.aspx?PrintType=lab10_10&PrintGoods=1&order_id=订单ID，多个用逗号分割。
+一键打印发票（需要货代在系统设置发票标签)
+ URL2/order/FastRpt/PDF_NEW.aspx?format=&PrintType=Invoice&InvoiceType=AutoSelect&order_id=订单ID，多个用逗号分割
+
+7、更新预报重量
+URL1/updateOrderWeightByApi.htm?customerId=客户id&orderNo=订单号&weight=重量
+注意：订单入库后不允许修改
+
+8、轨迹查询
+URL1/selectTrack.htm?documentCode=**********
+（跟踪号可传多个,用逗号隔开）建议批量请求，请求限制一秒最多请求五次
+（ http://139.186.78.151:8082/selectTrack.htm?documentCode=1910023249587113  签收单号链接参考）
+响应结果：
+[
+     {
+          "ack": "true",
+          "data": [
+               {
+                    "businessStatus": "轨迹状态",
+                    "consigneeCountry": "收件国家代码 country code",
+                    "productKindName": "物流方式 express type ",
+                    "referenceNumber": "参考号 ref number",
+                    "trackContent": "末条轨迹内容 the last track content",
+                    "trackDate": "末条轨迹时间 the last track date",
+                    "trackLocation": "上海 the last track location",
+                    "trackSignperson": "签收人 sign person,if no sign it's empty",
+                    "trackingNumber": "跟踪号 tracking number",
+                    "trackDetails": [
+                         {
+                              "track_content": "轨迹内容track conent",
+                              "track_date": "轨迹时间 track date",
+                              "track_location": "上海 track location",
+                              "track_signdate": "签收时间 sign date,if no sign it's empty",
+                              "track_signperson": "签收人 sign person,if no sign it's empty"
+                         }
+                    ]
+               }
+          ]
+     }
+]
+
+9、获取跟踪号
+URL1/getOrderTrackingNumber.htm?documentCode=订单号
+URL1/getOrderTrackingNumber.htm?order_id=订单id
+【响应结果说明】
+{
+    "childno": [                                    -- 子单号列表
+        "xxxxx"
+    ],
+    "express_type": "xxx",                          -- 快递类型
+    "msg": "获取成功",
+    "order_customerinvoicecode": "xxxx",            -- 订单号
+    "order_id": "",                                 -- 订单ID
+    "order_referencecode": "xxx",                   -- 参考号
+    "order_remark": "",                             -- 订单备注
+    "order_serveinvoicecode": "xxx",                -- 转单号（尾程单号）
+    "order_transfercode": "",
+    "orderpricetrial_amount": "",
+    "orderpricetrial_currency": "",
+    "product_note": "",
+    "product_tracknoapitype": "",
+    "status": "200"
+}10、批量获取跟踪号
+URL1/getOrderTrackingNumberBatch.htm?documentCode=订单号，多个用逗号分割
+URL1/getOrderTrackingNumberBatch.htm?order_id=订单id，多个用逗号分割
+
+11、修改保险金额
+URL1/modifyInsurance.htm?customerId=客户ID&documentCode=订单号&insuranceValue=保险金额
+订单号可传多个,用逗号隔开
+返回
+{"msg":"修改保险金额成功！","status":true}
+{"msg":"失败信息！","status":false}
+
+12、接收平台面单和跟踪号
+接口说明链接 https://apifox.com/apidoc/shared/7924c94c-4281-440b-9a05-81f89896d150/api-290561578
+接收平台单号和面单样例：
+curl --location 'http://118.25.228.118:8082/receiveTrackNumberAndLabel.htm' \
+--header 'Content-Type: application/x-www-form-urlencoded' \
+--data-urlencode 'user_name=用户名' \
+--data-urlencode 'password=密码' \
+--data-urlencode 'param_json={
+    "order_code": "订单号",
+    "track_number": "跟踪号",
+    "order_privatecode": "专线单号",
+    "label_info": {
+        "label_content": "标签内容",
+        "label_type": "标签载体来源 BASE64 URL",
+        "label_format": "标签类型 PNG PDF"
+    }
+}'
+
+为避免调用异常，以上接口请均用表单POST方式提交
+13、demo示例查看
+点击下载 java对接demo    
+点击下载 C# Demo    
+点击下载 PHP示例    
+下载 Python Demo     
+ DHL发件人税号类型.txt
+
+Postman示例
+

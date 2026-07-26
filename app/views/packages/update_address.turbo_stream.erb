@@ -1,0 +1,7 @@
+<%= turbo_stream.replace dom_id(@package, :address), partial: "packages/address_section", locals: { package: @package } %>
+<%# Aggregate indicators computed across the whole package (not just this
+    section) must refresh too, or completing the address here would leave the
+    Address tab-check and the readiness panel stale until the modal reopens. %>
+<%= turbo_stream.replace dom_id(@package, :tab_strip_mobile), partial: "packages/tab_strip", locals: { package: @package, variant: "mobile" } %>
+<%= turbo_stream.replace dom_id(@package, :tab_strip_desktop), partial: "packages/tab_strip", locals: { package: @package, variant: "desktop" } %>
+<%= turbo_stream.replace dom_id(@package, :readiness), partial: "packages/readiness", locals: { package: @package } %>

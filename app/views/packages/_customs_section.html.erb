@@ -1,0 +1,16 @@
+<div id="<%= dom_id(package, :customs) %>" class="space-y-4">
+  <div class="flex items-center justify-between">
+    <h4 class="text-sm font-semibold text-gray-900"><%= t("packages.tabs.customs") %></h4>
+    <%= render "packages/customs_status_badge", package: package %>
+  </div>
+
+  <% if package.package_items.empty? %>
+    <p class="text-sm text-gray-400"><%= t("packages.order_info.no_items") %></p>
+  <% else %>
+    <table class="w-full text-sm">
+      <tbody>
+        <%= render partial: "packages/customs_row", collection: package.package_items, as: :item, locals: { package: package } %>
+      </tbody>
+    </table>
+  <% end %>
+</div>

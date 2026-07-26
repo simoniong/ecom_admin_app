@@ -57,6 +57,11 @@
       </div>
 
       <div>
+        <label class="block text-sm font-medium text-gray-700" for="logistics_channel_label_print_type"><%= t("logistics_channels.label_print_type") %></label>
+        <%= f.select :label_print_type, [ "lab10_10", "A4" ], {}, class: "mt-1 w-full max-w-md border border-gray-300 rounded px-3 py-2 text-sm" %>
+      </div>
+
+      <div>
         <%= f.submit t("logistics_channels.save"),
               class: "inline-flex items-center px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2 cursor-pointer" %>
       </div>

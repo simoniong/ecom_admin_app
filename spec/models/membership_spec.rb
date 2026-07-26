@@ -56,6 +56,53 @@ RSpec.describe Membership, type: :model do
     end
   end
 
+  describe "#any_packing_permission?" do
+    let(:company) { create(:company) }
+
+    it "is true for an owner" do
+      m = create(:membership, company: company, role: :owner)
+      expect(m.any_packing_permission?).to be(true)
+    end
+
+    it "is true for a member with any packing permission" do
+      m = create(:membership, company: company, role: :member, permissions: [ "package_process" ], group: create(:group, company: company))
+      expect(m.any_packing_permission?).to be(true)
+    end
+
+    it "is false for a member with no packing permission" do
+      m = create(:membership, company: company, role: :member, permissions: [ "orders" ], group: create(:group, company: company))
+      expect(m.any_packing_permission?).to be(false)
+    end
+  end
+
+  describe "fine-grained packing permissions" do
+    let(:company) { create(:company) }
+
+    it "package_review? is true for owner, for a member with the perm, false otherwise" do
+      expect(create(:membership, company: company, role: :owner).package_review?).to be(true)
+      m = create(:membership, company: company, role: :member, permissions: [ "package_review" ], group: create(:group, company: company))
+      expect(m.package_review?).to be(true)
+      m2 = create(:membership, company: company, role: :member, permissions: [ "package_process" ], group: create(:group, company: company))
+      expect(m2.package_review?).to be(false)
+    end
+
+    it "package_process? mirrors it for the process permission" do
+      expect(create(:membership, company: company, role: :owner).package_process?).to be(true)
+      m = create(:membership, company: company, role: :member, permissions: [ "package_process" ], group: create(:group, company: company))
+      expect(m.package_process?).to be(true)
+      m2 = create(:membership, company: company, role: :member, permissions: [ "package_review" ], group: create(:group, company: company))
+      expect(m2.package_process?).to be(false)
+    end
+
+    it "package_shipping? is true for owner, for a member with the perm, false otherwise" do
+      expect(create(:membership, company: company, role: :owner).package_shipping?).to be(true)
+      m = create(:membership, :member_with_group, company: company, user: create(:user), permissions: [ "package_shipping" ])
+      expect(m.package_shipping?).to be(true)
+      m2 = create(:membership, :member_with_group, company: company, user: create(:user), permissions: [ "package_process" ])
+      expect(m2.package_shipping?).to be(false)
+    end
+  end
+
   describe "group assignment rules" do
     let(:company) { create(:company) }
     let(:user) { create(:user) }

@@ -66,6 +66,23 @@ module ApplicationHelper
     end
   end
 
+  # Package counts per aasm_state for the 打包 sidebar group. This nav renders
+  # on every admin page, not just /packages, so its scope has to track
+  # whichever store concept applies to the page currently being viewed: on
+  # the packages page itself that's its own store filter (#selected_store —
+  # a params[:store]-only helper_method PackagesController defines, so
+  # respond_to? only sees it in that request's view context), everywhere
+  # else it's the global switcher (current_shopify_store), matching this
+  # app's other switcher-scoped counts. Either way ids come from
+  # visible_shopify_stores, so a count can never leak another company's store.
+  def sidebar_package_counts
+    return {} unless current_membership&.any_packing_permission?
+
+    store = respond_to?(:selected_store) ? selected_store : current_shopify_store
+    store_ids = store ? [ store.id ] : visible_shopify_stores.select(:id)
+    Package.where(shopify_store_id: store_ids).group(:aasm_state).count
+  end
+
   def pagination_range(current, total, window: 2)
     return (1..total).to_a if total <= (window * 2 + 5)
 

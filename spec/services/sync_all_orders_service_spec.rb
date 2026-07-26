@@ -20,6 +20,7 @@ RSpec.describe SyncAllOrdersService do
         "total_price" => "49.99", "currency" => "USD",
         "financial_status" => "paid", "fulfillment_status" => "fulfilled",
         "created_at" => "2026-03-20",
+        "processed_at" => "2026-03-21T08:30:00Z",
         "customer" => shopify_customer,
         "fulfillments" => [
           { "id" => 300, "status" => "success", "tracking_number" => "TRACK1",
@@ -52,6 +53,36 @@ RSpec.describe SyncAllOrdersService do
       expect(order.total_price).to eq(49.99)
       expect(order.financial_status).to eq("paid")
       expect(order.customer.email).to eq("buyer@example.com")
+    end
+
+    it "stores the Shopify processed_at as the order's paid_at" do
+      service.call
+
+      order = Order.find_by(shopify_order_id: 200)
+      expect(order.paid_at).to eq(Time.utc(2026, 3, 21, 8, 30, 0))
+    end
+
+    context "when the payload has no processed_at" do
+      let(:shopify_order) do
+        {
+          "id" => 201, "email" => "buyer@example.com", "name" => "#1002",
+          "total_price" => "10.00", "currency" => "USD",
+          "financial_status" => "pending", "fulfillment_status" => nil,
+          "created_at" => "2026-03-20",
+          "customer" => shopify_customer,
+          "fulfillments" => []
+        }
+      end
+
+      before do
+        allow(shopify_service).to receive(:fetch_fulfillments).with(201).and_return([])
+      end
+
+      it "leaves paid_at nil rather than guessing" do
+        service.call
+
+        expect(Order.find_by(shopify_order_id: 201).paid_at).to be_nil
+      end
     end
 
     it "sets correct fulfillment attributes" do
@@ -576,6 +607,64 @@ RSpec.describe SyncAllOrdersService do
 
       order = Order.find_by(shopify_order_id: 200)
       expect(order.actual_shipping_cost).to be_nil
+    end
+  end
+
+  describe "package auto-build integration" do
+    let(:shopify_customer) do
+      { "id" => 100, "email" => "buyer@example.com", "first_name" => "Jane", "last_name" => "Buyer" }
+    end
+
+    let(:shopify_order_paid) do
+      {
+        "id" => 200, "email" => "buyer@example.com", "name" => "#1001",
+        "total_price" => "49.99", "currency" => "USD",
+        "financial_status" => "paid", "fulfillment_status" => "unfulfilled",
+        "created_at" => "2026-03-20",
+        "customer" => shopify_customer,
+        "line_items" => [
+          { "id" => 6001, "variant_id" => nil, "sku" => "WP10155-L", "title" => "Puzzle",
+            "quantity" => 2, "price" => "29.00" }
+        ],
+        "fulfillments" => []
+      }
+    end
+
+    before do
+      store.update!(packing_enabled: true, package_prefix: "XMBDE", package_number_start: 2013094)
+      # The paid order below was placed 2026-03-20; enabling packing stamps
+      # packing_enabled_at to Time.current, which would make the order predate
+      # the no-backfill boundary. Push the boundary into the past so these
+      # integration orders qualify (they represent orders placed after enabling).
+      store.update_columns(packing_enabled_at: 1.year.ago)
+      allow(shopify_service).to receive(:fetch_fulfillments).and_return([])
+    end
+
+    it "creates a pending_review package when sync_single_order processes a paid order on a packing-enabled store" do
+      expect { service.sync_single_order(shopify_order_paid) }
+        .to change { store.packages.count }.from(0).to(1)
+
+      order = Order.find_by(shopify_order_id: 200)
+      pkg = store.packages.find_by(order: order)
+      expect(pkg).to have_state(:pending_review)
+      expect(pkg.package_items.pluck(:sku, :quantity)).to contain_exactly([ "WP10155-L", 2 ])
+    end
+
+    it "transitions the package to refunded when a later sync detects the order is fully refunded" do
+      service.sync_single_order(shopify_order_paid)
+      order = Order.find_by(shopify_order_id: 200)
+      pkg = store.packages.find_by(order: order)
+
+      refunded_order = shopify_order_paid.merge("financial_status" => "refunded")
+      service.sync_single_order(refunded_order)
+
+      expect(pkg.reload).to have_state(:refunded)
+    end
+
+    it "does not build a package when packing is disabled on the store" do
+      store.update_columns(packing_enabled: false)
+
+      expect { service.sync_single_order(shopify_order_paid) }.not_to change { store.packages.count }
     end
   end
 end

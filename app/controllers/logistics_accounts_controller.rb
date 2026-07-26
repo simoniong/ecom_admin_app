@@ -17,10 +17,10 @@ class LogisticsAccountsController < AdminController
       return redirect_to logistics_account_path, alert: t("logistics_accounts.missing_credentials")
     end
 
-    result = RaydoService.new(@logistics_account).authenticate
+    result = FulfillmentService.for(@logistics_account).authenticate
     @logistics_account.update!(customer_id: result["customer_id"], customer_userid: result["customer_userid"])
     redirect_to logistics_account_path, notice: t("logistics_accounts.authenticate_success")
-  rescue RaydoService::Error => e
+  rescue FulfillmentService::Error => e
     redirect_to logistics_account_path, alert: t("logistics_accounts.authenticate_failed", message: e.message)
   end
 

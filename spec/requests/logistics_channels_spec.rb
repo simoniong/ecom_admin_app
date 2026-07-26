@@ -71,6 +71,13 @@ RSpec.describe "LogisticsChannels", type: :request do
       expect(response).to redirect_to(logistics_channels_path)
       expect(channel.reload.name).to eq("New name")
     end
+
+    it "persists label_print_type on update" do
+      channel = create(:logistics_channel, logistics_account: account, label_print_type: "lab10_10")
+
+      patch logistics_channel_path(id: channel.id), params: { logistics_channel: { label_print_type: "A4" } }
+      expect(channel.reload.label_print_type).to eq("A4")
+    end
   end
 
   describe "DELETE /logistics_channels/:id" do
@@ -96,7 +103,7 @@ RSpec.describe "LogisticsChannels", type: :request do
       expect(body.first["product_id"]).to eq("P1")
     end
 
-    it "returns a JSON error (never a 500) when RaydoService raises" do
+    it "returns a JSON error (never a 500) when the fulfillment adapter raises" do
       account
       stub_request(:get, "http://raydo.test:8082/getProductList.htm")
         .to_return(status: 500, body: "boom")

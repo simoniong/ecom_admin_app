@@ -1,0 +1,24 @@
+<%# Tracking-readiness summary. Extracted into its own dom_id region so the
+    edit actions (update_address/update_logistics/update_item) can turbo_stream-
+    replace it after a save — otherwise assigning the last missing piece leaves
+    this panel listing a blocker that's already resolved until the modal is
+    reopened. The outer div is ALWAYS rendered (even when empty) so the
+    turbo_stream target exists regardless of the package's state. %>
+<div id="<%= dom_id(package, :readiness) %>">
+  <% if package.pending_process? %>
+    <% if package.ready_for_tracking? %>
+      <div class="mx-6 mt-3 px-4 py-2 rounded-md bg-green-50 text-green-800 border border-green-200 text-sm font-medium">
+        <%= t("packages.readiness.ready") %>
+      </div>
+    <% else %>
+      <div class="mx-6 mt-3 px-4 py-2 rounded-md bg-amber-50 text-amber-800 border border-amber-200 text-sm">
+        <p class="font-medium"><%= t("packages.readiness.blocked_title") %></p>
+        <ul class="list-disc list-inside mt-1">
+          <% package.tracking_blockers.each do |blocker| %>
+            <li><%= blocker %></li>
+          <% end %>
+        </ul>
+      </div>
+    <% end %>
+  <% end %>
+</div>

@@ -44,6 +44,9 @@ gem "roo", "~> 2.10"
 # Country data (ISO 3166)
 gem "countries", "~> 8.0"
 
+# State machines for models (e.g. Package packing workflow)
+gem "aasm"
+
 # Error tracking [https://docs.sentry.io/platforms/ruby/guides/rails/]
 gem "sentry-ruby"
 gem "sentry-rails"

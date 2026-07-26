@@ -78,6 +78,29 @@ Rails.application.routes.draw do
         get  :export
       end
     end
+    resources :packages, only: [ :index, :show ] do
+      member do
+        patch :transition
+        patch :update_address
+        patch :update_item
+        patch :update_logistics
+        patch :update_note
+        post :split
+        post :merge
+        post :apply_tracking
+        post :retry_tracking
+        get :label
+        post :ship
+        post :sync_shipment
+      end
+      collection do
+        post :sync
+        post :submit_review_bulk
+        post :apply_tracking_bulk
+        post :labels
+        post :ship_bulk
+      end
+    end
     resources :products, only: [ :index ]
     # Task 3 builds ProductCustomsController + its view; the route is added
     # here (Task 2) so `product_customs_path` resolves for the sidebar nav-group.
@@ -105,6 +128,9 @@ Rails.application.routes.draw do
     end
     resources :ad_accounts, only: [ :index, :show, :update, :destroy ]
     resources :ad_campaigns, only: [ :index ] do
+      post :sync, on: :collection
+    end
+    resources :ad_creatives, only: [ :index ] do
       post :sync, on: :collection
     end
     resources :campaign_display_templates, only: [ :create, :update, :destroy ]

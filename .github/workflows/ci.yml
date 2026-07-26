@@ -5,6 +5,12 @@ on:
   push:
     branches: [ main, staging ]
 
+# Cancel an in-progress run when a newer commit is pushed to the same ref,
+# so self-hosted runners aren't tied up on stale work.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   scan_ruby:
     runs-on: [self-hosted, linux, x64]
@@ -68,6 +74,13 @@ jobs:
   test:
     runs-on: [self-hosted, linux, x64]
 
+    # Job-scoped, per-run database so several runners can run test and
+    # system-test concurrently without clobbering a shared test DB.
+    env:
+      RAILS_ENV: test
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/ecom_test_unit_${{ github.run_id }}
+      RAILS_MASTER_KEY: ${{ secrets.RAILS_MASTER_KEY }}
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -78,14 +91,22 @@ jobs:
           bundler-cache: true
 
       - name: Run tests
-        env:
-          RAILS_ENV: test
-          DATABASE_URL: postgres://postgres:postgres@localhost:5432
-          RAILS_MASTER_KEY: ${{ secrets.RAILS_MASTER_KEY }}
         run: bin/rails db:test:prepare && bundle exec rspec --exclude-pattern "spec/system/**/*_spec.rb"
+
+      - name: Drop the per-run test database
+        if: always()
+        run: bin/rails db:drop || true
 
   system-test:
     runs-on: [self-hosted, linux, x64]
+
+    # Separate per-run database from the `test` job so the two can run in
+    # parallel across runners without stepping on each other's db:test:prepare.
+    env:
+      RAILS_ENV: test
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/ecom_test_system_${{ github.run_id }}
+      RAILS_MASTER_KEY: ${{ secrets.RAILS_MASTER_KEY }}
+      SKIP_COVERAGE_CHECK: "1"
 
     steps:
       - name: Checkout code
@@ -100,12 +121,11 @@ jobs:
         run: bin/rails tailwindcss:build
 
       - name: Run System Tests
-        env:
-          RAILS_ENV: test
-          DATABASE_URL: postgres://postgres:postgres@localhost:5432
-          RAILS_MASTER_KEY: ${{ secrets.RAILS_MASTER_KEY }}
-          SKIP_COVERAGE_CHECK: "1"
         run: bin/rails db:test:prepare && bundle exec rspec spec/system
+
+      - name: Drop the per-run test database
+        if: always()
+        run: bin/rails db:drop || true
 
       - name: Keep screenshots from failed system tests
         uses: actions/upload-artifact@v4

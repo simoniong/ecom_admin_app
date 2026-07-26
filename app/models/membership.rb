@@ -13,14 +13,33 @@ class Membership < ApplicationRecord
 
   # Dashboard is always granted — not listed here since it's not a selectable permission
   AVAILABLE_PERMISSIONS = %w[
-    orders shipments tickets ad_campaigns
+    orders shipments tickets ad_campaigns ad_creatives
     shopify_stores ad_accounts email_accounts
     shipping_reminder_rules parcels products
     logistics_channels
+    package_review package_process package_shipping
   ].freeze
+
+  PACKING_PERMISSIONS = %w[package_review package_process package_shipping].freeze
 
   def has_permission?(controller_name)
     owner? || controller_name.to_s == "dashboard" || permissions.include?(controller_name.to_s)
+  end
+
+  def any_packing_permission?
+    owner? || PACKING_PERMISSIONS.any? { |p| permissions.include?(p) }
+  end
+
+  def package_review?
+    owner? || permissions.include?("package_review")
+  end
+
+  def package_process?
+    owner? || permissions.include?("package_process")
+  end
+
+  def package_shipping?
+    owner? || permissions.include?("package_shipping")
   end
 
   private

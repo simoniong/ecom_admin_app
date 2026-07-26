@@ -1,0 +1,23 @@
+<%#
+  Tracking-application state for an applying_tracking package. Stable dom_id
+  so the apply/retry turbo_stream (which replaces the whole modal) keeps it
+  consistent.
+%>
+<div id="<%= dom_id(package, :application_status) %>">
+  <% if package.applying_tracking? %>
+    <div class="mx-6 mt-3 px-4 py-2 rounded-md text-sm border
+      <%= package.application_status == 'failed' ? 'bg-red-50 text-red-800 border-red-200' : 'bg-blue-50 text-blue-800 border-blue-200' %>">
+      <% if package.application_status == "failed" %>
+        <p class="font-medium"><%= t("packages.apply.failed") %></p>
+        <% if package.application_message.present? %><p class="mt-1"><%= package.application_message %></p><% end %>
+      <% else %>
+        <p><%= t("packages.apply.pending") %></p>
+      <% end %>
+    </div>
+  <% end %>
+  <% if package.tracking_number.present? %>
+    <div class="mx-6 mt-3 px-4 py-2 rounded-md bg-green-50 text-green-800 border border-green-200 text-sm">
+      <%= t("packages.apply.tracking_number") %>: <span class="font-mono"><%= package.tracking_number %></span>
+    </div>
+  <% end %>
+</div>

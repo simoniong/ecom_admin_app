@@ -231,5 +231,41 @@ RSpec.describe "MetaOauth", type: :request do
       expect(account.platform).to eq("meta")
       expect(response).to redirect_to(ad_accounts_path)
     end
+
+    # The connect hook is what puts a brand-new account at attempts = 1, which
+    # is why `claim_backfill_slot!` can never use `attempts > 0` to recognise a
+    # manual click. Pinned here so a change to either side is visible.
+    describe "creative backfill enqueue" do
+      def connect_account_12345
+        state = stub_meta_oauth_flow([
+          { "account_id" => "12345", "name" => "Test Account", "account_status" => 1 }
+        ])
+        get meta_callback_path, params: { code: "test-code", state: state }
+
+        post meta_select_accounts_path, params: {
+          account_ids: [ "12345" ],
+          account_names: { "12345" => "Test Account" }
+        }
+      end
+
+      it "enqueues a 90-day backfill and claims the slot for a newly connected account" do
+        expect { connect_account_12345 }
+          .to have_enqueued_job(BackfillAdCreativesJob).with(hash_including(days: 90))
+
+        account = AdAccount.find_by(account_id: "act_12345")
+        expect(account.creative_backfill_attempts).to eq(1)
+        expect(account.creative_backfill_next_attempt_at).to be_present
+      end
+
+      it "does not enqueue again when an existing account is reconnected" do
+        connect_account_12345
+        account = AdAccount.find_by(account_id: "act_12345")
+
+        expect { connect_account_12345 }.not_to have_enqueued_job(BackfillAdCreativesJob)
+
+        expect(AdAccount.where(account_id: "act_12345").count).to eq(1)
+        expect(account.reload.creative_backfill_attempts).to eq(1)
+      end
+    end
   end
 end

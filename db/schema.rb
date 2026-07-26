@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_20_092412) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_26_043325) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -21,6 +21,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_20_092412) do
     t.string "account_name"
     t.uuid "company_id", null: false
     t.datetime "created_at", null: false
+    t.integer "creative_backfill_attempts", default: 0, null: false
+    t.datetime "creative_backfill_next_attempt_at"
+    t.date "creative_synced_from_date"
+    t.date "creative_synced_through_date"
     t.uuid "group_id"
     t.string "platform", default: "meta", null: false
     t.uuid "shopify_store_id"
@@ -63,6 +67,21 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_20_092412) do
     t.index ["ad_account_id"], name: "index_ad_campaigns_on_ad_account_id"
   end
 
+  create_table "ad_creatives", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "ad_account_id", null: false
+    t.string "asset_id", null: false
+    t.string "asset_type", null: false
+    t.datetime "created_at", null: false
+    t.integer "duration_seconds"
+    t.date "first_spend_date"
+    t.string "name"
+    t.integer "thumbnail_fetch_attempts", default: 0, null: false
+    t.string "thumbnail_url"
+    t.datetime "updated_at", null: false
+    t.index ["ad_account_id", "asset_type", "asset_id"], name: "idx_ad_creatives_on_account_type_asset", unique: true
+    t.index ["ad_account_id"], name: "index_ad_creatives_on_ad_account_id"
+  end
+
   create_table "ad_daily_metrics", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.uuid "ad_account_id", null: false
     t.integer "clicks", default: 0
@@ -75,6 +94,47 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_20_092412) do
     t.datetime "updated_at", null: false
     t.index ["ad_account_id", "date"], name: "index_ad_daily_metrics_on_ad_account_id_and_date", unique: true
     t.index ["ad_account_id"], name: "index_ad_daily_metrics_on_ad_account_id"
+  end
+
+  create_table "ad_unit_daily_metrics", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "ad_unit_id", null: false
+    t.integer "add_to_cart", default: 0
+    t.integer "checkout_initiated", default: 0
+    t.integer "clicks", default: 0
+    t.decimal "conversion_value", precision: 12, scale: 2, default: "0.0"
+    t.datetime "created_at", null: false
+    t.date "date", null: false
+    t.integer "impressions", default: 0
+    t.integer "inline_link_clicks", default: 0
+    t.integer "purchases", default: 0
+    t.decimal "spend", precision: 12, scale: 2, default: "0.0"
+    t.datetime "updated_at", null: false
+    t.integer "video_3_sec_watched", default: 0
+    t.integer "video_p100_watched", default: 0
+    t.integer "video_p25_watched", default: 0
+    t.integer "video_p50_watched", default: 0
+    t.integer "video_p75_watched", default: 0
+    t.integer "video_p95_watched", default: 0
+    t.index ["ad_unit_id", "date"], name: "idx_ad_unit_metrics_on_unit_date", unique: true
+    t.index ["ad_unit_id"], name: "index_ad_unit_daily_metrics_on_ad_unit_id"
+    t.index ["date", "ad_unit_id"], name: "idx_ad_unit_metrics_on_date_unit"
+  end
+
+  create_table "ad_units", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "ad_account_id", null: false
+    t.uuid "ad_campaign_id"
+    t.uuid "ad_creative_id"
+    t.string "ad_id", null: false
+    t.string "ad_name"
+    t.string "adset_id"
+    t.datetime "created_at", null: false
+    t.boolean "multi_asset", default: false, null: false
+    t.string "status", default: "active", null: false
+    t.datetime "updated_at", null: false
+    t.index ["ad_account_id", "ad_id"], name: "index_ad_units_on_ad_account_id_and_ad_id", unique: true
+    t.index ["ad_account_id"], name: "index_ad_units_on_ad_account_id"
+    t.index ["ad_campaign_id"], name: "index_ad_units_on_ad_campaign_id"
+    t.index ["ad_creative_id"], name: "index_ad_units_on_ad_creative_id"
   end
 
   create_table "campaign_display_templates", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -275,6 +335,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_20_092412) do
 
   create_table "logistics_channels", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.datetime "created_at", null: false
+    t.string "label_print_type", default: "lab10_10", null: false
     t.uuid "logistics_account_id", null: false
     t.string "name", null: false
     t.string "product_id", null: false
@@ -345,6 +406,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_20_092412) do
     t.string "fulfillment_status"
     t.string "name"
     t.datetime "ordered_at"
+    t.datetime "paid_at"
     t.jsonb "shopify_data", default: {}
     t.bigint "shopify_order_id", null: false
     t.uuid "shopify_store_id"
@@ -352,8 +414,64 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_20_092412) do
     t.datetime "updated_at", null: false
     t.index ["customer_id"], name: "index_orders_on_customer_id"
     t.index ["shopify_store_id", "ordered_at"], name: "idx_orders_store_ordered_at"
+    t.index ["shopify_store_id", "paid_at"], name: "idx_orders_store_paid_at"
     t.index ["shopify_store_id", "shopify_order_id"], name: "idx_orders_store_shopify_id", unique: true
     t.index ["shopify_store_id"], name: "index_orders_on_shopify_store_id"
+  end
+
+  create_table "package_items", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "customs_name_en"
+    t.string "customs_name_zh"
+    t.boolean "customs_overridden", default: false, null: false
+    t.decimal "customs_weight_grams", precision: 12, scale: 3
+    t.decimal "declared_value_usd", precision: 10, scale: 2
+    t.string "hs_code"
+    t.string "import_hs_code"
+    t.uuid "order_line_item_id"
+    t.uuid "package_id", null: false
+    t.uuid "product_variant_id"
+    t.integer "quantity", null: false
+    t.integer "refunded_quantity", default: 0, null: false
+    t.string "sku"
+    t.string "title"
+    t.datetime "updated_at", null: false
+    t.index ["order_line_item_id"], name: "index_package_items_on_order_line_item_id"
+    t.index ["package_id"], name: "index_package_items_on_package_id"
+    t.index ["product_variant_id"], name: "index_package_items_on_product_variant_id"
+  end
+
+  create_table "packages", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.string "aasm_state", null: false
+    t.boolean "address_overridden", default: false, null: false
+    t.text "application_message"
+    t.string "application_status", default: "none", null: false
+    t.datetime "applied_at"
+    t.string "carrier"
+    t.datetime "carrier_marked_at"
+    t.datetime "created_at", null: false
+    t.string "held_from"
+    t.uuid "logistics_channel_id"
+    t.text "note"
+    t.integer "number", null: false
+    t.uuid "order_id", null: false
+    t.string "raydo_order_id"
+    t.text "ship_sync_message"
+    t.string "ship_sync_status", default: "none", null: false
+    t.datetime "shipped_at"
+    t.jsonb "shipping_address_snapshot", default: {}, null: false
+    t.string "shopify_fulfillment_id"
+    t.uuid "shopify_store_id", null: false
+    t.string "tracking_number"
+    t.datetime "tracking_registered_at"
+    t.datetime "updated_at", null: false
+    t.index ["logistics_channel_id"], name: "index_packages_on_logistics_channel_id"
+    t.index ["order_id"], name: "index_packages_on_order_id"
+    t.index ["ship_sync_status"], name: "index_packages_on_ship_sync_status"
+    t.index ["shopify_fulfillment_id"], name: "index_packages_on_shopify_fulfillment_id_unique", unique: true, where: "(shopify_fulfillment_id IS NOT NULL)"
+    t.index ["shopify_store_id", "aasm_state"], name: "index_packages_on_shopify_store_id_and_aasm_state"
+    t.index ["shopify_store_id", "number"], name: "index_packages_on_shopify_store_id_and_number", unique: true
+    t.index ["shopify_store_id"], name: "index_packages_on_shopify_store_id"
   end
 
   create_table "parcel_import_batches", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -551,8 +669,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_20_092412) do
     t.datetime "installed_at"
     t.string "name"
     t.datetime "orders_synced_at"
+    t.integer "package_number_seq"
+    t.integer "package_number_start"
+    t.string "package_prefix"
+    t.boolean "packing_enabled", default: false, null: false
+    t.datetime "packing_enabled_at"
     t.datetime "products_synced_at"
     t.string "scopes"
+    t.boolean "shipping_sync_enabled", default: false, null: false
     t.string "shop_domain", null: false
     t.string "timezone", default: "UTC", null: false
     t.string "trustpilot_bcc_email"
@@ -743,7 +867,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_20_092412) do
   add_foreign_key "ad_accounts", "users"
   add_foreign_key "ad_campaign_daily_metrics", "ad_campaigns"
   add_foreign_key "ad_campaigns", "ad_accounts"
+  add_foreign_key "ad_creatives", "ad_accounts"
   add_foreign_key "ad_daily_metrics", "ad_accounts"
+  add_foreign_key "ad_unit_daily_metrics", "ad_units"
+  add_foreign_key "ad_units", "ad_accounts"
+  add_foreign_key "ad_units", "ad_campaigns"
+  add_foreign_key "ad_units", "ad_creatives"
   add_foreign_key "campaign_display_templates", "companies"
   add_foreign_key "campaign_display_templates", "users"
   add_foreign_key "customers", "shopify_stores"
@@ -771,6 +900,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_20_092412) do
   add_foreign_key "order_line_items", "product_variants"
   add_foreign_key "orders", "customers"
   add_foreign_key "orders", "shopify_stores"
+  add_foreign_key "package_items", "order_line_items"
+  add_foreign_key "package_items", "packages"
+  add_foreign_key "package_items", "product_variants"
+  add_foreign_key "packages", "logistics_channels"
+  add_foreign_key "packages", "orders"
+  add_foreign_key "packages", "shopify_stores"
   add_foreign_key "parcel_import_batches", "shopify_stores"
   add_foreign_key "parcel_import_batches", "users"
   add_foreign_key "parcels", "orders"

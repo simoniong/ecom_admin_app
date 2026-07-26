@@ -279,6 +279,221 @@ RSpec.describe "AdCampaigns", type: :request do
       body = response.body
       expect(body.index("Active Low")).to be < body.index("Paused High")
     end
+
+    # Regression for a production 500: SyncAdCampaignsJob inserts brand new
+    # AdCampaign rows every hour via MetaAdsService#sync_campaigns. The old
+    # controller queried the same `ad_campaigns` relation twice -- once via
+    # `.pluck(:id)` to build the metrics hash, once via `.to_a` to sort --
+    # with build_summary/load_display_templates running in between. If a new
+    # campaign was inserted in that window, the second query returned a
+    # campaign the first one never saw, so the metrics hash lookup in
+    # #sort_campaigns returned nil and `nil.public_send(...)` raised
+    # NoMethodError. The fix materialises the campaign set once and derives
+    # both the metrics hash and the sort input from those same records, so
+    # the two can no longer disagree.
+    it "does not 500 when a new campaign is inserted mid-request" do
+      stable = create(:ad_campaign, ad_account: ad_account, campaign_name: "Stable Alpha")
+      create(:ad_campaign_daily_metric, ad_campaign: stable, date: Date.current, spend: 10)
+
+      fired = false
+      subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |*, payload|
+        sql = payload[:sql].to_s
+        if !fired && sql.match?(/\A\s*SELECT/i) && sql.include?('"ad_campaigns"') &&
+            !sql.include?("INNER JOIN") && !sql.include?("GROUP BY")
+          fired = true
+          # Simulate SyncAdCampaignsJob committing a brand-new campaign for
+          # this ad_account between the two queries.
+          create(:ad_campaign, ad_account: ad_account, campaign_name: "Late Arriving Beta")
+        end
+      end
+
+      begin
+        sign_in user
+        get ad_campaigns_path, params: { store_id: store.id }
+      ensure
+        ActiveSupport::Notifications.unsubscribe(subscriber)
+      end
+
+      expect(fired).to eq(true) # sanity: the injection actually happened
+      expect(response).to have_http_status(:success)
+    end
+
+    # The has_spend filter compounds the same race: its extra
+    # `.where(id: AdCampaignDailyMetric...)` predicate is re-evaluated on the
+    # second query too, so a metric row that commits between the two queries
+    # (exactly like sync_campaign_insights writing seconds after
+    # sync_campaigns in the same job run) pulls a previously-invisible
+    # campaign into the sort input with no matching metrics-hash entry.
+    it "does not 500 for has_spend filter when a metric arrives mid-request" do
+      stable = create(:ad_campaign, ad_account: ad_account, campaign_name: "Stable Spend", status: "active")
+      create(:ad_campaign_daily_metric, ad_campaign: stable, date: Date.current, spend: 50)
+
+      # Campaign already exists (matches the outer ad_account scope) but has
+      # no spend yet -- excluded from the has_spend predicate until its
+      # metric commits, exactly like a campaign the same sync run hasn't
+      # reached yet.
+      late_arrival = create(:ad_campaign, ad_account: ad_account, campaign_name: "Late Spend Beta", status: "active")
+
+      fired = false
+      subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |*, payload|
+        sql = payload[:sql].to_s
+        if !fired && sql.match?(/\A\s*SELECT/i) && sql.include?('"ad_campaigns"') &&
+            !sql.include?("INNER JOIN") && !sql.include?("GROUP BY")
+          fired = true
+          create(:ad_campaign_daily_metric, ad_campaign: late_arrival, date: Date.current, spend: 75)
+        end
+      end
+
+      begin
+        sign_in user
+        get ad_campaigns_path, params: { store_id: store.id, status_filter: "has_spend" }
+      ensure
+        ActiveSupport::Notifications.unsubscribe(subscriber)
+      end
+
+      expect(fired).to eq(true) # sanity: the injection actually happened
+      expect(response).to have_http_status(:success)
+    end
+
+    # Cheap guard against regressing back to the two-query shape: the
+    # plain (non-aggregation) SELECT against ad_campaigns must fire exactly
+    # once per index request. batch_aggregated_metrics issues its own
+    # ad_campaign_daily_metrics queries, which carry GROUP BY and are
+    # excluded by the filter below.
+    it "queries ad_campaigns exactly once to build the index page" do
+      create(:ad_campaign, ad_account: ad_account, campaign_name: "Single Query Campaign")
+
+      select_count = 0
+      subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |*, payload|
+        sql = payload[:sql].to_s
+        if sql.match?(/\A\s*SELECT/i) && sql.include?('"ad_campaigns"') &&
+            !sql.include?("INNER JOIN") && !sql.include?("GROUP BY")
+          select_count += 1
+        end
+      end
+
+      begin
+        sign_in user
+        get ad_campaigns_path, params: { store_id: store.id }
+      ensure
+        ActiveSupport::Notifications.unsubscribe(subscriber)
+      end
+
+      expect(response).to have_http_status(:success)
+      expect(select_count).to eq(1)
+    end
+
+    # Pagination follows the products_controller.rb pattern (page/per_page
+    # params, PER_PAGE_OPTIONS/PER_PAGE_DEFAULT constants), mirroring
+    # 1e02cd4's fix for AdCreativesController. The sort here happens in Ruby
+    # over computed metrics (see AdCampaign::CampaignMetrics) OR the real
+    # daily_budget column, BEFORE the array is sliced into a page -- these
+    # specs exist to catch a regression back to "paginate the DB query, then
+    # sort each page separately", which would silently show the wrong rows,
+    # and a regression back to summing only the current page for the
+    # account-level summary row.
+    describe "pagination" do
+      def campaign_with_budget(name:, budget:)
+        create(:ad_campaign, ad_account: ad_account, campaign_name: name, status: "active", daily_budget: budget)
+      end
+
+      it "returns different campaigns on page 1 vs page 2" do
+        # 25 is the smallest allowed PER_PAGE_OPTIONS value, so 26 records
+        # are needed to force a real second page. Distinct daily_budget
+        # values keep the default desc sort deterministic -- Ruby's sort_by
+        # is not guaranteed stable, so tied sort values would make page
+        # membership unpredictable.
+        campaigns = Array.new(26) { |i| campaign_with_budget(name: format("Campaign %02d", i), budget: 1000 - i) }
+
+        sign_in user
+        get ad_campaigns_path, params: { store_id: store.id, per_page: 25, page: 1 }
+        page1_names = campaigns.map(&:campaign_name).select { |n| response.body.include?(n) }
+
+        get ad_campaigns_path, params: { store_id: store.id, per_page: 25, page: 2 }
+        page2_names = campaigns.map(&:campaign_name).select { |n| response.body.include?(n) }
+
+        expect(page1_names.size).to eq(25)
+        expect(page2_names.size).to eq(1)
+        expect(page1_names & page2_names).to be_empty
+      end
+
+      it "falls back to the default per_page when the value is not an allowed option" do
+        3.times { |i| campaign_with_budget(name: "Campaign #{i}", budget: 10 + i) }
+
+        sign_in user
+        get ad_campaigns_path, params: { store_id: store.id, per_page: 999 }
+
+        expect(response).to have_http_status(:success)
+        # 3 results fit on any per_page, so the pagination "showing" line (which
+        # only renders once there's more than one page) can't prove the
+        # fallback happened -- assert on the per_page selector's own selected
+        # option instead, which always renders.
+        doc = Nokogiri::HTML(response.body)
+        selected_option = doc.at_css("select#per_page option[selected]")
+        expect(selected_option.text.strip).to eq(AdCampaignsController::PER_PAGE_DEFAULT.to_s)
+      end
+
+      it "does not error on an out-of-range page" do
+        campaign_with_budget(name: "Only Campaign", budget: 50)
+
+        sign_in user
+        get ad_campaigns_path, params: { store_id: store.id, page: 999 }
+
+        expect(response).to have_http_status(:success)
+        expect(response.body).to include("Only Campaign")
+      end
+
+      it "puts the highest-metric campaign on page 1 when sorting by that metric" do
+        # Created FIRST, so a naive "paginate the DB query, then sort each
+        # page" implementation would put these on page 1 -- but they have the
+        # lowest roas, so they must not be what determines page 1's contents.
+        25.times do |i|
+          c = create(:ad_campaign, ad_account: ad_account, campaign_name: "Low ROAS #{i}", status: "active")
+          create(:ad_campaign_daily_metric, ad_campaign: c, date: Date.current, spend: 100, conversion_value: 10)
+        end
+        # Created LAST (would land on page 2 under naive DB-order
+        # pagination), but has by far the highest roas -- must appear on
+        # page 1 once sorting happens on the full set before slicing.
+        winner = create(:ad_campaign, ad_account: ad_account, campaign_name: "Winner Highest ROAS", status: "active")
+        create(:ad_campaign_daily_metric, ad_campaign: winner, date: Date.current, spend: 1, conversion_value: 500)
+
+        sign_in user
+        get ad_campaigns_path, params: {
+          store_id: store.id, sort_column: "roas", sort_direction: "desc", per_page: 25, page: 1
+        }
+
+        expect(response).to have_http_status(:success)
+        expect(response.body).to include(winner.campaign_name)
+      end
+
+      it "keeps the summary row identical between page 1 and page 2" do
+        # The summary row is the account-level total across the entire
+        # filtered set, not a per-page subtotal -- build_summary must keep
+        # summing the full materialised array even once @campaigns becomes
+        # just the current page's slice.
+        campaigns = Array.new(26) do |i|
+          c = campaign_with_budget(name: format("Campaign %02d", i), budget: 1000 - i)
+          create(:ad_campaign_daily_metric, ad_campaign: c, date: Date.current,
+            spend: 10, conversion_value: 20, impressions: 100, clicks: 5, purchases: 1)
+          c
+        end
+        total_budget = campaigns.sum { |c| c.daily_budget }
+        expected_budget = ActiveSupport::NumberHelper.number_to_currency(total_budget)
+
+        sign_in user
+        get ad_campaigns_path, params: { store_id: store.id, per_page: 25, page: 1 }
+        page1_body = response.body
+
+        get ad_campaigns_path, params: { store_id: store.id, per_page: 25, page: 2 }
+        page2_body = response.body
+
+        # Total spend $260 ($10 x 26), total conversion_value $520 => ROAS 2.0x
+        expect(page1_body).to include("2.0x")
+        expect(page2_body).to include("2.0x")
+        expect(page1_body).to include(expected_budget)
+        expect(page2_body).to include(expected_budget)
+      end
+    end
   end
 
   describe "POST /ad_campaigns/sync" do

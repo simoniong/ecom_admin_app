@@ -8,10 +8,15 @@ class AdCampaign < ApplicationRecord
   scope :active, -> { where(status: "active") }
 
   def self.batch_aggregated_metrics(campaign_ids, date_range)
-    return {} if campaign_ids.empty?
+    # Coerce defensively: a caller passing records (or a relation) rather than
+    # bare ids would otherwise silently key the returned hash on model objects
+    # while the pluck'ed totals are keyed on ids, so every lookup misses and
+    # every metric renders as zero with no error raised.
+    ids = Array(campaign_ids).map { |c| c.try(:id) || c }
+    return {} if ids.empty?
 
     rows = AdCampaignDailyMetric
-      .where(ad_campaign_id: campaign_ids, date: date_range)
+      .where(ad_campaign_id: ids, date: date_range)
       .group(:ad_campaign_id)
       .pluck(
         Arel.sql("ad_campaign_id"),
@@ -28,7 +33,7 @@ class AdCampaign < ApplicationRecord
     Array(rows).each do |row|
       result[row[0]] = CampaignMetrics.new(*row[1..])
     end
-    campaign_ids.each { |id| result[id] ||= CampaignMetrics.new(0, 0, 0, 0, 0, 0, 0) }
+    ids.each { |id| result[id] ||= CampaignMetrics.new(0, 0, 0, 0, 0, 0, 0) }
     result
   end
 

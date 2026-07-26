@@ -1,0 +1,849 @@
+require "rails_helper"
+
+RSpec.describe "Packages UI", type: :system do
+  let(:user) { create(:user) }
+  let(:company) { user.companies.first }
+  let(:store) { create(:shopify_store, user: user, company: company) }
+  let(:customer) { create(:customer, shopify_store: store) }
+
+  let!(:review_package) do
+    order = create(:order, customer: customer, shopify_store: store, name: "PKS#3001")
+    create(:package, shopify_store: store, order: order, aasm_state: "pending_review", number: 1)
+  end
+
+  let!(:process_package) do
+    order = create(:order, customer: customer, shopify_store: store, name: "PKS#3002")
+    create(:package, shopify_store: store, order: order, aasm_state: "pending_process", number: 2)
+  end
+
+  before { sign_in_as(user) }
+
+  describe "打包 nav-group" do
+    it "expands to reveal the package state links with counts, and clicking 待審核 shows its packages" do
+      visit authenticated_root_path
+
+      within "nav" do
+        expect(page).to have_no_css("#packing-menu", visible: :visible)
+        click_button I18n.t("nav.packing")
+        expect(page).to have_css("#packing-menu", visible: :visible)
+        expect(page).to have_link(I18n.t("packages.states.pending_review"))
+        expect(page).to have_link(I18n.t("packages.states.pending_process"))
+        expect(page).to have_link(I18n.t("packages.states.applying_tracking"))
+        expect(page).to have_link(I18n.t("packages.states.pending_label"))
+        expect(page).to have_link(I18n.t("packages.states.shipped"))
+        expect(page).to have_link(I18n.t("packages.states.refunded"))
+        expect(page).to have_link(I18n.t("packages.states.held"))
+
+        click_link I18n.t("packages.states.pending_review")
+      end
+
+      expect(page).to have_content("PKS#3001")
+      expect(page).to have_no_content("PKS#3002")
+    end
+
+    it "renders a count badge next to each state reflecting the number of packages in it" do
+      visit authenticated_root_path
+
+      within "nav" do
+        click_button I18n.t("nav.packing")
+        review_link = find("a", text: I18n.t("packages.states.pending_review"))
+        expect(review_link).to have_content("1")
+      end
+    end
+  end
+
+  describe "item refund warnings on the list" do
+    it "shows the do-not-ship badge for a fully-refunded item" do
+      create(:package_item, package: review_package, sku: "WP-1", quantity: 2, refunded_quantity: 2)
+
+      visit packages_path
+
+      expect(page).to have_content(I18n.t("packages.item_refunded", n: 2, total: 2))
+      expect(page).to have_content(I18n.t("packages.do_not_ship"))
+    end
+  end
+
+  describe "sync orders button" do
+    it "is visible on the packing list and shows a flash notice when clicked" do
+      visit packages_path
+
+      expect(page).to have_button(I18n.t("packages.sync_orders"))
+      click_button I18n.t("packages.sync_orders")
+
+      expect(page).to have_content(I18n.t("packages.sync_enqueued"))
+    end
+  end
+
+  describe "package detail modal" do
+    it "opens from the list, switches tabs, and closes" do
+      create(:package_item, package: review_package, sku: "SKU-MODAL", title: "Modal Widget", quantity: 1)
+
+      visit packages_path
+      click_link review_package.package_code
+
+      expect(page).to have_css("[data-modal-target='dialog']", visible: :visible)
+      expect(page).to have_content(I18n.t("packages.detail_title", code: review_package.package_code))
+      expect(page).to have_content(I18n.t("packages.states.pending_review"))
+      expect(page).to have_content(I18n.t("packages.tabs.address"))
+      expect(page).to have_content("SKU-MODAL")
+
+      within("[data-modal-target='dialog']") do
+        click_button I18n.t("packages.tabs.customs")
+      end
+      expect(page).to have_css("##{ActionView::RecordIdentifier.dom_id(review_package, :customs)}", visible: :visible)
+      expect(page).to have_no_css("##{ActionView::RecordIdentifier.dom_id(review_package, :address)}", visible: :visible)
+
+      find("[data-modal-target='dialog'] button[aria-label='#{I18n.t('packages.close')}']").click
+      expect(page).to have_css("[data-modal-target='dialog']", visible: :hidden)
+    end
+  end
+
+  describe "state operations in the detail modal" do
+    it "advances pending_review -> pending_process via the review button, then holds it" do
+      visit packages_path
+      click_link review_package.package_code
+
+      within("[data-modal-target='dialog']") do
+        expect(page).to have_content(I18n.t("packages.states.pending_review"))
+        click_button I18n.t("packages.actions.review")
+
+        expect(page).to have_content(I18n.t("packages.detail_title", code: review_package.package_code))
+        expect(page).to have_button(I18n.t("packages.actions.back_to_review"))
+      end
+      expect(review_package.reload.aasm_state).to eq("pending_process")
+
+      within("[data-modal-target='dialog']") do
+        click_button I18n.t("packages.actions.hold")
+        expect(page).to have_content(I18n.t("packages.states.held"))
+      end
+      expect(review_package.reload.aasm_state).to eq("held")
+      expect(review_package.held_from).to eq("pending_process")
+    end
+  end
+
+  describe "editing the shipping address in the detail modal" do
+    it "toggles to the edit form, saves, and shows the new value with the incomplete badge cleared" do
+      visit packages_path
+      click_link review_package.package_code
+
+      within("[data-modal-target='dialog']") do
+        expect(page).to have_content(I18n.t("packages.address_fields.incomplete"))
+
+        click_button I18n.t("packages.edit")
+        fill_in "address[name]", with: "Jane Doe"
+        fill_in "address[address1]", with: "1 Main St"
+        fill_in "address[city]", with: "Springfield"
+        fill_in "address[country_code]", with: "US"
+        fill_in "address[country]", with: "United States"
+        click_button I18n.t("packages.save")
+
+        expect(page).to have_content("Jane Doe")
+        expect(page).to have_content("1 Main St")
+        expect(page).to have_content("Springfield")
+        expect(page).to have_no_content(I18n.t("packages.address_fields.incomplete"))
+      end
+
+      review_package.reload
+      expect(review_package.address_overridden).to be(true)
+      expect(review_package.address_complete?).to be(true)
+    end
+  end
+
+  describe "editing per-item customs in the detail modal" do
+    it "saves an item's customs fields, reflects them in the row, and clears the customs badge when all items are complete" do
+      create(:package_item, package: review_package, sku: "SKU-CUSTOMS", title: "Customs Widget", quantity: 1)
+
+      visit packages_path
+      click_link review_package.package_code
+
+      within("[data-modal-target='dialog']") do
+        click_button I18n.t("packages.tabs.customs")
+      end
+
+      expect(page).to have_content(I18n.t("packages.customs_fields.incomplete"))
+
+      find("input[name='package_item[customs_name_zh]']").set("小工具")
+      find("input[name='package_item[customs_name_en]']").set("Widget")
+      find("input[name='package_item[declared_value_usd]']").set("9.99")
+      find("input[name='package_item[customs_weight_grams]']").set("88")
+      click_button I18n.t("packages.save")
+
+      expect(page).to have_field("package_item[customs_name_zh]", with: "小工具")
+      expect(page).to have_field("package_item[customs_name_en]", with: "Widget")
+      expect(page).to have_no_content(I18n.t("packages.customs_fields.incomplete"))
+
+      item = review_package.reload.package_items.find_by(sku: "SKU-CUSTOMS")
+      expect(item.customs_overridden).to be(true)
+      expect(item.customs_complete?).to be(true)
+    end
+  end
+
+  describe "assigning a logistics channel in the detail modal" do
+    let!(:logistics_account) { create(:logistics_account, company: company) }
+    let!(:channel) { create(:logistics_channel, logistics_account: logistics_account, name: "DHL Express", product_shortname: "DHL") }
+
+    it "picks a channel, saves, and reflects the new value in the section and tab" do
+      visit packages_path
+      click_link review_package.package_code
+
+      within("[data-modal-target='dialog']") do
+        click_button I18n.t("packages.tabs.logistics")
+      end
+
+      expect(page).to have_content(I18n.t("packages.logistics_fields.none"))
+
+      within("[data-modal-target='dialog']") do
+        click_button I18n.t("packages.edit")
+        select "DHL Express — DHL", from: "logistics_channel_id"
+        click_button I18n.t("packages.save")
+      end
+
+      expect(page).to have_content("DHL Express")
+      expect(page).to have_no_content(I18n.t("packages.logistics_fields.none"))
+
+      expect(review_package.reload.logistics_channel_id).to eq(channel.id)
+    end
+  end
+
+  describe "editing the note in the detail modal" do
+    it "toggles to the edit form, saves, and persists the new note" do
+      visit packages_path
+      click_link review_package.package_code
+
+      within("[data-modal-target='dialog']") do
+        click_button I18n.t("packages.tabs.note")
+        expect(page).to have_content(I18n.t("packages.note_fields.none"))
+
+        click_button I18n.t("packages.edit")
+        fill_in "note", with: "Fragile, pack with extra padding"
+        click_button I18n.t("packages.save")
+
+        expect(page).to have_content("Fragile, pack with extra padding")
+      end
+
+      expect(review_package.reload.note).to eq("Fragile, pack with extra padding")
+    end
+  end
+
+  describe "readiness + cancel display" do
+    it "shows the blockers panel for an incomplete pending_process package" do
+      order = create(:order, customer: customer, shopify_store: store, name: "PKS#3090")
+      pkg = create(:package, shopify_store: store, order: order, aasm_state: "pending_process", number: 90,
+                   shipping_address_snapshot: {})
+      create(:package_item, package: pkg, sku: "SKU-BLOCKED", title: "Widget", quantity: 1)
+
+      visit packages_path(state: "pending_process")
+      click_link pkg.package_code
+
+      within("[data-modal-target='dialog']") do
+        expect(page).to have_content(I18n.t("packages.readiness.blocked_title"))
+        expect(page).to have_content(I18n.t("packages.blockers.logistics"))
+      end
+    end
+
+    it "shows the cancelled-order warning on the list row and inside the modal" do
+      order = create(:order, customer: customer, shopify_store: store, name: "PKS#3091",
+                      shopify_data: { "cancelled_at" => "2026-07-20T00:00:00Z" }, financial_status: "paid")
+      pkg = create(:package, shopify_store: store, order: order, aasm_state: "pending_review", number: 91)
+
+      visit packages_path(state: "pending_review")
+      expect(page).to have_content(I18n.t("packages.order_cancelled"))
+
+      click_link pkg.package_code
+
+      within("[data-modal-target='dialog']") do
+        expect(page).to have_content(I18n.t("packages.order_cancelled"))
+      end
+    end
+
+    it "refreshes the readiness panel in place when the last missing piece is assigned (no modal reopen)" do
+      account = create(:logistics_account, company: company)
+      create(:logistics_channel, logistics_account: account, name: "DHL Express", product_shortname: "DHL")
+      order = create(:order, customer: customer, shopify_store: store, name: "PKS#3092")
+      # Address + customs complete, ONLY logistics missing → the readiness panel
+      # lists exactly the logistics blocker.
+      pkg = create(:package, shopify_store: store, order: order, aasm_state: "pending_process", number: 92,
+                   shipping_address_snapshot: { "name" => "Jane", "country_code" => "US", "address1" => "1 Main St", "city" => "Springfield" })
+      create(:package_item, package: pkg, sku: "SKU-RDY", title: "Widget", quantity: 1,
+             customs_name_zh: "小工具", customs_name_en: "Widget", declared_value_usd: 5, customs_weight_grams: 100)
+
+      visit packages_path(state: "pending_process")
+      click_link pkg.package_code
+
+      within("[data-modal-target='dialog']") do
+        expect(page).to have_content(I18n.t("packages.readiness.blocked_title"))
+        expect(page).to have_content(I18n.t("packages.blockers.logistics"))
+
+        click_button I18n.t("packages.tabs.logistics")
+        click_button I18n.t("packages.edit")
+        select "DHL Express — DHL", from: "logistics_channel_id"
+        click_button I18n.t("packages.save")
+
+        # Without reopening the modal, the panel flips to "ready" and the
+        # logistics blocker is gone — proving the turbo_stream refreshed the
+        # readiness region, not just the logistics section.
+        expect(page).to have_content(I18n.t("packages.readiness.ready"))
+        expect(page).to have_no_content(I18n.t("packages.blockers.logistics"))
+      end
+    end
+  end
+
+  describe "折包 / 合併" do
+    let(:split_order) { create(:order, customer: customer, shopify_store: store, name: "PKS#SPLIT1") }
+    let(:oli) { create(:order_line_item, order: split_order) }
+    let!(:source_pkg) do
+      pkg = create(:package, shopify_store: store, order: split_order, number: 700, aasm_state: "pending_process")
+      create(:package_item, package: pkg, order_line_item: oli, sku: "SPLITSKU", title: "Splittable", quantity: 3)
+      pkg
+    end
+
+    before do
+      # PackageSplitter mints new box numbers from the store's packing
+      # sequence; the factory-built store doesn't set these by default (see
+      # spec/services/package_splitter_spec.rb for the same setup).
+      store.update_columns(package_number_start: 2013094, package_number_seq: 2013094)
+    end
+
+    it "folds a package into a new sibling box via the matrix dialog" do
+      visit packages_path(state: "pending_process")
+      click_link source_pkg.package_code
+      expect(page).to have_button(I18n.t("packages.split.button"))
+
+      click_button I18n.t("packages.split.button")
+      expect(page).to have_content(I18n.t("packages.split.title"))
+
+      # allocate 1 unit to box 2; submit becomes enabled
+      fill_in_first_box_input("1")
+      # Both the dialog-opener button and the submit button are labeled
+      # "Split" (packages.split.button / packages.split.submit share the
+      # same copy), so scope to the dialog to avoid an ambiguous match —
+      # the opener button is a sibling of, not inside, the dialog container.
+      within("[data-split-target='dialog']") { click_button I18n.t("packages.split.submit") }
+
+      # A successful split now closes the modal (see the "closes the modal"
+      # example below) rather than leaving it open on the frozen notice, so
+      # that closing is what we wait on before hitting the DB — it proves the
+      # turbo_stream response landed and the count/content checks below don't
+      # race it.
+      expect(page).to have_no_css("[data-split-target='dialog']")
+      expect(store.packages.where(order_id: split_order.id).count).to eq(2)
+
+      new_box = store.packages.where(order_id: split_order.id).where.not(id: source_pkg.id).sole
+      expect(page).to have_content(new_box.package_code)
+    end
+
+    it "disables submit when a box is empty (no allocation)" do
+      visit packages_path(state: "pending_process")
+      click_link source_pkg.package_code
+      click_button I18n.t("packages.split.button")
+      expect(page).to have_button(I18n.t("packages.split.submit"), disabled: true)
+    end
+
+    it "closes the modal and folds the row into the order's boxes in place" do
+      visit packages_path(state: "pending_process")
+      # A page reload would wipe this; the assertion at the end is what proves
+      # the list updated over Turbo rather than by navigating.
+      page.execute_script("window.__notReloaded = true")
+
+      click_link source_pkg.package_code
+      click_button I18n.t("packages.split.button")
+      fill_in_first_box_input("1")
+      within("[data-split-target='dialog']") { click_button I18n.t("packages.split.submit") }
+
+      # The modal empties its frame on close, so the dialog element goes away.
+      expect(page).to have_no_css("[data-split-target='dialog']")
+
+      new_box = store.packages.where(order_id: split_order.id).where.not(id: source_pkg.id).sole
+      expect(page).to have_content(new_box.package_code)
+      expect(page).to have_content(I18n.t("packages.split.badge", position: 1, total: 2))
+      expect(page).to have_content(I18n.t("packages.split.badge", position: 2, total: 2))
+
+      expect(page.evaluate_script("window.__notReloaded")).to be(true)
+    end
+
+    # The opener button sits at the very bottom of a max-h-[88vh] overflow-y-auto
+    # modal, so the dialog it reveals lands below the fold. Nothing scrolls, the
+    # screen does not change, and the button reads as broken — which is exactly
+    # how this was reported from staging. The window is squeezed here because at
+    # the suite's default 1400x900 the dialog happens to fit on screen and the
+    # assertion would hold with or without the fix.
+    it "scrolls the split dialog into view when it opens below the fold" do
+      page.driver.browser.manage.window.resize_to(1400, 500)
+
+      visit packages_path(state: "pending_process")
+      click_link source_pkg.package_code
+      click_button I18n.t("packages.split.button")
+      expect(page).to have_content(I18n.t("packages.split.title"))
+
+      # Measured against the MODAL's visible box, not the window's. The dialog
+      # is clipped by the modal's own overflow long before it leaves the window,
+      # so a window-relative check reports "visible" for a dialog the user
+      # cannot see.
+      within_modal_viewport = page.evaluate_script(<<~JS)
+        (() => {
+          const dialog = document.querySelector("[data-split-target='dialog']");
+          let scroller = dialog.parentElement;
+          while (scroller && scroller.scrollHeight <= scroller.clientHeight + 2) {
+            scroller = scroller.parentElement;
+          }
+          const d = dialog.getBoundingClientRect();
+          const s = scroller.getBoundingClientRect();
+          return d.top < s.bottom && d.bottom > s.top;
+        })()
+      JS
+      expect(within_modal_viewport).to be(true)
+    ensure
+      page.driver.browser.manage.window.resize_to(1400, 900)
+    end
+
+    it "merges split boxes back into one and shows the survivor" do
+      other = create(:package, shopify_store: store, order: split_order, number: 701, aasm_state: "pending_process")
+      create(:package_item, package: other, order_line_item: oli, sku: "SPLITSKU", quantity: 1)
+      source_pkg.package_items.first.update!(quantity: 2)
+
+      visit packages_path(state: "pending_process")
+      click_link source_pkg.package_code
+      expect(page).to have_content(I18n.t("packages.frozen_notice"))
+
+      accept_confirm { click_button I18n.t("packages.merge.button") }
+
+      # Wait for the turbo_stream response (modal replaced with the reloaded
+      # survivor, frozen notice gone since split? is now false) before
+      # asserting on the DB — otherwise the count/quantity checks below can
+      # race the async merge request.
+      expect(page).to have_no_content(I18n.t("packages.frozen_notice"))
+
+      expect(store.packages.where(order_id: split_order.id).count).to eq(1)
+      expect(source_pkg.reload.package_items.sum(:quantity)).to eq(3)
+    end
+
+    it "closes the modal and collapses the boxes back to one row in place" do
+      other = create(:package, shopify_store: store, order: split_order, number: 701, aasm_state: "pending_process")
+      create(:package_item, package: other, order_line_item: oli, sku: "SPLITSKU", quantity: 1)
+      source_pkg.package_items.first.update!(quantity: 2)
+
+      visit packages_path(state: "pending_process")
+      page.execute_script("window.__notReloaded = true")
+      expect(page).to have_content(other.package_code)
+
+      click_link source_pkg.package_code
+      accept_confirm { click_button I18n.t("packages.merge.button") }
+
+      expect(page).to have_no_css("[data-split-target='dialog']")
+      expect(page).to have_content(source_pkg.package_code)
+      expect(page).to have_no_content(other.package_code)
+      expect(page.evaluate_script("window.__notReloaded")).to be(true)
+    end
+
+    # Regression: the split/merge POSTs never carried the list's own store
+    # param (no hidden field on the split form, no store param on the merge
+    # button), so #selected_store resolved nil for THOSE requests even though
+    # the list itself was scoped to a store — the row(s) split/merge.
+    # turbo_stream.erb replaces then rendered a timezone abbreviation (e.g.
+    # "PDT") that the list's own rows, scoped to the same store, never show
+    # (see _package_row.html.erb's show_zone).
+    it "keeps the list's store context on the row(s) a split replaces (no drifting-in timezone abbreviation)" do
+      store.update!(timezone: "America/Los_Angeles")
+
+      visit packages_path(state: "pending_process", store: store.id)
+      click_link source_pkg.package_code
+      click_button I18n.t("packages.split.button")
+      fill_in_first_box_input("1")
+      within("[data-split-target='dialog']") { click_button I18n.t("packages.split.submit") }
+
+      expect(page).to have_no_css("[data-split-target='dialog']")
+      expect(page).to have_no_content("PDT")
+    end
+
+    it "keeps the list's store context on the row a merge replaces (no drifting-in timezone abbreviation)" do
+      store.update!(timezone: "America/Los_Angeles")
+      other = create(:package, shopify_store: store, order: split_order, number: 701, aasm_state: "pending_process")
+      create(:package_item, package: other, order_line_item: oli, sku: "SPLITSKU", quantity: 1)
+      source_pkg.package_items.first.update!(quantity: 2)
+
+      visit packages_path(state: "pending_process", store: store.id)
+      click_link source_pkg.package_code
+      accept_confirm { click_button I18n.t("packages.merge.button") }
+
+      expect(page).to have_no_content(I18n.t("packages.frozen_notice"))
+      expect(page).to have_no_content("PDT")
+    end
+
+    # The standalone /packages/:id page (a bookmark or shared link, reached
+    # without going through the list first) IS the modal — there is no list
+    # row behind it for a turbo_stream.replace to hit, and its modal wrapper
+    # doesn't listen for modal:dismiss. A successful split there used to
+    # change nothing on screen; it now navigates the whole page back to the
+    # list, where the new boxes are visible.
+    it "navigates back to the list after a split submitted from the standalone page" do
+      visit package_path(id: source_pkg.id)
+      expect(page).to have_button(I18n.t("packages.split.button"))
+
+      click_button I18n.t("packages.split.button")
+      fill_in_first_box_input("1")
+      within("[data-split-target='dialog']") { click_button I18n.t("packages.split.submit") }
+
+      expect(page).to have_current_path(packages_path(state: "pending_process"))
+
+      new_box = store.packages.where(order_id: split_order.id).where.not(id: source_pkg.id).sole
+      expect(page).to have_content(new_box.package_code)
+      expect(page).to have_content(I18n.t("packages.split.badge", position: 1, total: 2))
+      expect(page).to have_content(I18n.t("packages.split.badge", position: 2, total: 2))
+    end
+
+    # Mirrors the split standalone-page test above: the standalone
+    # /packages/:id page has no list row for a merge's turbo_stream row
+    # replace/remove to hit, so a successful merge there now navigates the
+    # whole page back to the list instead of silently doing nothing.
+    it "merges split boxes back into one from the standalone page, landing on the packing list with the boxes collapsed" do
+      other = create(:package, shopify_store: store, order: split_order, number: 701, aasm_state: "pending_process")
+      create(:package_item, package: other, order_line_item: oli, sku: "SPLITSKU", quantity: 1)
+      source_pkg.package_items.first.update!(quantity: 2)
+
+      visit package_path(id: source_pkg.id)
+      expect(page).to have_content(I18n.t("packages.frozen_notice"))
+
+      accept_confirm { click_button I18n.t("packages.merge.button") }
+
+      expect(page).to have_current_path(packages_path(state: "pending_process"))
+      expect(store.packages.where(order_id: split_order.id).count).to eq(1)
+      expect(page).to have_content(source_pkg.package_code)
+      expect(page).to have_no_content(other.package_code)
+    end
+
+    # The list-page path is unaffected by the standalone fix above: it must
+    # keep dismissing the modal and replacing the row in place, no navigation.
+    it "still dismisses the modal and folds the row in place when split from the list" do
+      visit packages_path(state: "pending_process")
+      page.execute_script("window.__notReloaded = true")
+
+      click_link source_pkg.package_code
+      click_button I18n.t("packages.split.button")
+      fill_in_first_box_input("1")
+      within("[data-split-target='dialog']") { click_button I18n.t("packages.split.submit") }
+
+      expect(page).to have_no_css("[data-split-target='dialog']")
+      expect(page.evaluate_script("window.__notReloaded")).to be(true)
+      expect(page).to have_current_path(packages_path(state: "pending_process"))
+    end
+
+    # package_bulk_controller#refresh used to run only on a checkbox's own
+    # "change" event, so a Turbo Stream row replacement never recomputed it —
+    # measured on staging: split a package whose row was checked and the bar
+    # kept reading "1" with zero checkboxes actually checked.
+    it "recomputes the bulk selection bar after a split replaces the checked row" do
+      visit packages_path(state: "pending_process")
+
+      within("##{ActionView::RecordIdentifier.dom_id(source_pkg)}") do
+        find("input[name='package_ids[]']").check
+      end
+      expect(page).to have_css("[data-package-bulk-target='bar']", visible: :visible)
+      expect(find("[data-package-bulk-target='count']").text).to eq("1")
+
+      click_link source_pkg.package_code
+      click_button I18n.t("packages.split.button")
+      fill_in_first_box_input("1")
+      within("[data-split-target='dialog']") { click_button I18n.t("packages.split.submit") }
+
+      expect(page).to have_no_css("[data-split-target='dialog']")
+      # The rows that replaced the checked source row start unchecked, so the
+      # bar must recompute to zero and hide itself rather than keep reporting
+      # the "1" that was true before the split.
+      expect(page).to have_css("[data-package-bulk-target='count']", text: "0", visible: :all)
+      expect(page).to have_css("[data-package-bulk-target='bar']", visible: :hidden)
+    end
+  end
+
+  describe "申请运单号" do
+    let(:account) { create(:logistics_account, company: company, url1_base: "http://raydo.test:8082", customer_id: "1", customer_userid: "2") }
+    let(:channel) { create(:logistics_channel, logistics_account: account, product_id: "P1") }
+
+    def ready_pkg
+      order = create(:order, customer: customer, shopify_store: store, name: "PKS#APP1")
+      pkg = create(:package, shopify_store: store, order: order, number: 800, aasm_state: "pending_process", logistics_channel: channel,
+                   shipping_address_snapshot: { "name" => "A", "address1" => "x", "city" => "P", "country_code" => "FR" })
+      create(:package_item, package: pkg, order_line_item: create(:order_line_item, order: order), sku: "A", quantity: 1,
+             customs_name_en: "Art", customs_name_zh: "画", declared_value_usd: 5, customs_weight_grams: 100)
+      pkg
+    end
+
+    it "applies for a tracking number and shows the applying state" do
+      stub_request(:post, "http://raydo.test:8082/createOrderApi.htm").
+        to_return(body: { ack: "true", order_id: "R1", tracking_number: "TN1" }.to_json)
+      pkg = ready_pkg
+      visit packages_path(state: "pending_process")
+      click_link pkg.package_code
+      expect(page).to have_button(I18n.t("packages.apply.button"))
+      click_button I18n.t("packages.apply.button")
+      # Wait for the turbo_stream response (modal re-rendered past pending_process,
+      # so the apply button is gone) before hitting the DB directly — otherwise
+      # the reload below can race the async request, per this file's convention.
+      expect(page).to have_no_button(I18n.t("packages.apply.button"))
+      # job runs inline in system tests only if adapter executes; assert the state transition + tracking number surfaced via reload
+      expect(pkg.reload.aasm_state).to eq("applying_tracking").or eq("pending_label")
+    end
+
+    it "disables the apply button when the package is not ready" do
+      pkg = ready_pkg
+      pkg.update!(logistics_channel: nil)
+      visit packages_path(state: "pending_process")
+      click_link pkg.package_code
+      expect(page).to have_button(I18n.t("packages.apply.button"), disabled: true)
+    end
+
+    it "shows a bulk apply bar when a pending_process row is checked" do
+      ready_pkg
+      visit packages_path(state: "pending_process")
+      first("input[name='package_ids[]']").check
+      expect(page).to have_button(I18n.t("packages.apply.bulk_button"))
+    end
+  end
+
+  describe "印面单" do
+    let(:account) { create(:logistics_account, company: company, url1_base: "http://raydo.test:8082", url2_base: "http://raydo.test:8089", customer_id: "1", customer_userid: "2") }
+    let(:channel) { create(:logistics_channel, logistics_account: account, product_id: "P1", label_print_type: "lab10_10") }
+
+    def label_pkg(number: 900)
+      order = create(:order, customer: customer, shopify_store: store, name: "PKS#L#{number}")
+      create(:package, shopify_store: store, order: order, number: number, aasm_state: "pending_label", logistics_channel: channel, raydo_order_id: "R#{number}")
+    end
+
+    it "shows the 打印面单 button on a pending_label package modal" do
+      pkg = label_pkg
+      visit packages_path(state: "pending_label")
+      click_link pkg.package_code
+      expect(page).to have_link(I18n.t("packages.label.button"), href: label_package_path(id: pkg.id))
+    end
+
+    it "shows the bulk print bar when a pending_label row is checked" do
+      label_pkg
+      visit packages_path(state: "pending_label")
+      first("input[name='package_ids[]']").check
+      expect(page).to have_button(I18n.t("packages.label.bulk_button"))
+    end
+  end
+
+  describe "發貨" do
+    let(:account) { create(:logistics_account, company: company, url1_base: "http://raydo.test:8082", url2_base: "http://raydo.test:8089", customer_id: "1", customer_userid: "2") }
+    let(:channel) { create(:logistics_channel, logistics_account: account, product_id: "P1") }
+    def pl_pkg(number: 900)
+      order = create(:order, customer: customer, shopify_store: store, name: "PKS#S#{number}")
+      create(:package, shopify_store: store, order: order, number: number, aasm_state: "pending_label", logistics_channel: channel, raydo_order_id: "R#{number}", tracking_number: "TN#{number}")
+    end
+
+    it "ships a package (test mode) and moves it out of pending_label" do
+      store.update!(shipping_sync_enabled: false)
+      pkg = pl_pkg
+      visit packages_path(state: "pending_label")
+      click_link pkg.package_code
+
+      # Scoped to the dialog: "Ship" (packages.ship.button, en locale) is a
+      # plain substring of the ever-present sidebar nav item "Shipping"
+      # (nav.shipping), which renders on every page load — long before the
+      # Turbo Frame modal content (with the real Ship button) arrives.
+      # Unscoped have_button/click_button would be satisfied early by that
+      # sidebar match (a false positive Capybara can't distinguish from the
+      # real button), so the click lands on a covered, unrelated element.
+      # Scoping to the dialog excludes the sidebar entirely and matches this
+      # file's existing convention for modal actions.
+      within("[data-modal-target='dialog']") do
+        expect(page).to have_button(I18n.t("packages.ship.button"))
+        click_button I18n.t("packages.ship.button")
+
+        # Wait for the turbo_stream response (modal replaced with the reloaded
+        # package, past pending_label so the Ship button is gone) before
+        # hitting the DB directly — otherwise the reload below can race the
+        # request, per this file's convention.
+        expect(page).to have_no_button(I18n.t("packages.ship.button"))
+      end
+      expect(pkg.reload).to have_state(:shipped)
+    end
+
+    it "shows the bulk ship button when a pending_label row is checked" do
+      pl_pkg
+      visit packages_path(state: "pending_label")
+      first("input[name='package_ids[]']").check
+      expect(page).to have_button(I18n.t("packages.ship.bulk_button"))
+    end
+  end
+
+  describe "列表篩選與排序" do
+    # created_at and ordered_at are deliberately given OPPOSING relative
+    # orders here (us_package: old ordered_at / recent created_at; ca_package:
+    # recent ordered_at / old created_at) so the "sorts by order time" example
+    # below can only pass if it really sorts by ordered_at — if the sort_column
+    # wiring silently fell back to the default created_at column, the packages
+    # would come back in the opposite order and the example would fail.
+    let!(:us_package) do
+      order = create(:order, customer: customer, shopify_store: store, name: "PKS#7001",
+                     ordered_at: 5.days.ago, paid_at: 5.days.ago)
+      create(:package, shopify_store: store, order: order, aasm_state: "pending_review",
+             number: 71, created_at: 1.hour.ago,
+             shipping_address_snapshot: { "country_code" => "US" })
+    end
+
+    let!(:ca_package) do
+      order = create(:order, customer: customer, shopify_store: store, name: "PKS#7002",
+                     ordered_at: 1.hour.ago, paid_at: 1.hour.ago)
+      create(:package, shopify_store: store, order: order, aasm_state: "pending_review",
+             number: 72, created_at: 5.days.ago,
+             shipping_address_snapshot: { "country_code" => "CA" })
+    end
+
+    it "narrows the list when a country pill is clicked, and restores it via 全部" do
+      visit packages_path(state: "pending_review")
+
+      expect(page).to have_content("PKS#7001")
+      expect(page).to have_content("PKS#7002")
+
+      click_link "#{I18n.t('shipping_rate_cards.countries.US')}"
+      expect(page).to have_content("PKS#7001")
+      expect(page).to have_no_content("PKS#7002")
+
+      click_link I18n.t("packages.filters.all")
+      expect(page).to have_content("PKS#7002")
+    end
+
+    it "sorts by order time and toggles direction on a second click" do
+      visit packages_path(state: "pending_review")
+
+      click_link I18n.t("packages.sort.ordered_at")
+      # Turbo Drive navigates asynchronously; page.body.index below does not
+      # retry, so wait for the toggled (now-active, desc) link to render
+      # before reading the body — otherwise this can race the navigation and
+      # read the pre-click page.
+      expect(page).to have_link("#{I18n.t('packages.sort.ordered_at')} ▼")
+      expect(page.body.index("PKS#7002")).to be < page.body.index("PKS#7001")
+
+      click_link I18n.t("packages.sort.ordered_at")
+      expect(page).to have_link("#{I18n.t('packages.sort.ordered_at')} ▲")
+      expect(page.body.index("PKS#7001")).to be < page.body.index("PKS#7002")
+    end
+
+    it "shows the order and payment times on each row" do
+      visit packages_path(state: "pending_review")
+
+      expect(page).to have_content(I18n.t("packages.columns.ordered_at"))
+      expect(page).to have_content(I18n.t("packages.columns.paid_at"))
+    end
+  end
+
+  describe "批量審核" do
+    it "advances the checked packages and empties the pending_review list" do
+      visit packages_path(state: "pending_review")
+
+      check_all = find("input[data-package-bulk-target='all']")
+      check_all.check
+
+      click_button I18n.t("packages.review.bulk_button")
+
+      expect(page).to have_content(I18n.t("packages.states.pending_review"))
+      expect(page).to have_no_content("PKS#3001")
+    end
+  end
+
+  describe "店鋪篩選" do
+    let(:second_store) { create(:shopify_store, user: user, company: company) }
+    let(:second_customer) { create(:customer, shopify_store: second_store) }
+
+    let!(:second_store_package) do
+      order = create(:order, customer: second_customer, shopify_store: second_store, name: "PKS#8801")
+      create(:package, shopify_store: second_store, order: order, aasm_state: "pending_review", number: 88)
+    end
+
+    it "narrows to one store and back to all" do
+      visit packages_path(state: "pending_review")
+
+      expect(page).to have_content("PKS#3001")
+      expect(page).to have_content("PKS#8801")
+
+      within("[data-testid='store-filter']") { click_link second_store.display_name }
+      expect(page).to have_content("PKS#8801")
+      expect(page).to have_no_content("PKS#3001")
+
+      # Scoped because "全部" is shared copy with the country row — an unscoped
+      # click_link matches both and Capybara raises Ambiguous.
+      within("[data-testid='store-filter']") { click_link I18n.t("packages.filters.all") }
+      expect(page).to have_content("PKS#3001")
+    end
+  end
+
+  describe "SKU 縮圖 hover" do
+    # A real cdn.shopify.com URL makes the headless browser issue a real,
+    # unmocked outbound request for the <img> src — WebMock only intercepts
+    # Ruby-side HTTP, not the browser's own network stack. These examples only
+    # assert on node existence/position, so a self-contained data: URI (no
+    # network involved, and not a recognized image extension so
+    # shopify_image_variant returns it unchanged) is enough to render the
+    # thumbnail/preview <img> tags without ever leaving the machine.
+    let(:pixel_data_uri) { "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==" }
+    let(:product) do
+      create(:product, shopify_store: store, image_url: pixel_data_uri)
+    end
+    let(:variant) { create(:product_variant, product: product, sku: "ART-1") }
+
+    before do
+      create(:package_item, package: review_package, product_variant: variant, sku: "ART-1", quantity: 1)
+    end
+
+    it "shows the large preview on hover, mounted outside the scrolling table" do
+      visit packages_path(state: "pending_review")
+
+      expect(page).to have_no_css("#sku-image-preview")
+
+      find("img[data-controller='image-preview']").hover
+
+      expect(page).to have_css("#sku-image-preview", visible: :visible)
+
+      # The whole reason the controller mounts on body: an absolutely positioned
+      # popover inside the table would be clipped by its overflow-x-auto wrapper.
+      parent_tag = page.evaluate_script(
+        "document.getElementById('sku-image-preview').parentElement.tagName"
+      )
+      expect(parent_tag).to eq("BODY")
+    end
+
+    # The preview is 400px square with a 16px gap on each side, so any viewport
+    # shorter than 432px leaves no room to satisfy both the "gap from top" and
+    # "gap from bottom" clamps at once. A naive sequential-if clamp lets the
+    # bottom check win unconditionally and pushes the preview above y=0. 900x500
+    # is the exact size a reviewer used to reproduce top: -59 on staging.
+    # The preview is a fixed 400px square with a 16px gap, so a viewport
+    # shorter than size + 2*gap (432px of usable height) cannot fit the gap
+    # on both the top and bottom simultaneously — there is no position that
+    # is simultaneously >= 16px from the top and <= 16px from the bottom.
+    # The old sequential-if clamp resolved that impossible case by letting
+    # the bottom check win unconditionally, which is what drove `top`
+    # negative (reproduced live at -59 by a reviewer using this exact
+    # 900x500 window). The fix instead makes the near edge (top/left) win
+    # unconditionally: the preview is guaranteed to never render above or
+    # left of the viewport, even though — when the window is genuinely too
+    # short for the asset — the far edge (bottom) may still spill past it.
+    it "never positions the preview above or left of the viewport, even when the window is too short to fully contain it" do
+      page.driver.browser.manage.window.resize_to(900, 500)
+
+      visit packages_path(state: "pending_review")
+      find("img[data-controller='image-preview']").hover
+      expect(page).to have_css("#sku-image-preview", visible: :visible)
+
+      rect = page.evaluate_script(<<~JS)
+        (() => {
+          const r = document.getElementById('sku-image-preview').getBoundingClientRect();
+          return { top: r.top, left: r.left, right: r.right };
+        })()
+      JS
+      viewport_width = page.evaluate_script("window.innerWidth")
+
+      expect(rect["top"]).to be >= 0
+      expect(rect["left"]).to be >= 0
+      expect(rect["right"]).to be <= viewport_width
+    ensure
+      page.driver.browser.manage.window.resize_to(1400, 900)
+    end
+  end
+end
+
+# Fills the first box's number input for the first item row.
+def fill_in_first_box_input(value)
+  first("input[name^='allocations']").set(value)
+end

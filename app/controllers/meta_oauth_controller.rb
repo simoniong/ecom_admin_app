@@ -81,6 +81,10 @@ class MetaOauthController < AdminController
       validated_tz = ActiveSupport::TimeZone[timezone.to_s] ? timezone : "UTC"
       ad_account.assign_attributes(account_name: name, access_token: token, token_expires_at: expires_at, timezone: validated_tz)
       ad_account.save!
+
+      if ad_account.previously_new_record? && ad_account.claim_backfill_slot!
+        BackfillAdCreativesJob.perform_later(ad_account_id: ad_account.id, days: 90)
+      end
     end
 
     redirect_to ad_accounts_path, notice: t("ad_accounts.bind_success")

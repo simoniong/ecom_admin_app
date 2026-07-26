@@ -30,6 +30,13 @@ RSpec.describe "Memberships", type: :request do
       get edit_membership_path(id: member_membership.id)
       expect(response).to redirect_to(authenticated_root_path)
     end
+
+    it "renders the localized ad_creatives permission label rather than falling back to humanize" do
+      get edit_membership_path(id: member_membership.id, locale: "zh-TW")
+
+      checkbox_label = Nokogiri::HTML(response.body).at_css("#perm_ad_creatives").ancestors("label").first.text.strip
+      expect(checkbox_label).to eq("廣告素材")
+    end
   end
 
   describe "PATCH /memberships/:id" do

@@ -19,12 +19,28 @@
    Deliberately kept here (Propshaft-served as-is) rather than in
    app/assets/tailwind/application.css: that file only takes effect after
    `bin/rails tailwindcss:build` regenerates app/assets/builds/tailwind.css,
-   a step this app's CI does not run before the system-spec job, so a rule
-   placed there would silently not exist when spec/system exercises this
-   toggle. */
+   a step that has to run before the rule exists at all. (CI's system-test job
+   does run it — see .github/workflows/ci.yml — but a rule served as-is by
+   Propshaft cannot be missing in the first place.) */
 .parcels-edit-col {
   display: none;
 }
 .parcels-editing .parcels-edit-col {
   display: table-cell;
+}
+
+/* Rows a split/merge Turbo Stream just inserted or rewrote. The list changes
+   underneath the operator with no page reload, so the affected rows have to
+   announce themselves — but the colour decays rather than sticking, because it
+   means "this just changed", not a durable state of the package.
+
+   Here rather than in the Tailwind source for the same reason as the rule
+   above: Propshaft serves this file as-is, with no build step to forget. */
+@keyframes package-row-flash {
+  from { background-color: rgb(254 249 195); }
+  to   { background-color: transparent; }
+}
+
+.package-row-flash {
+  animation: package-row-flash 2s ease-out;
 }

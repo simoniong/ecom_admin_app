@@ -236,6 +236,27 @@ RSpec.describe "Sidebar navigation", type: :request do
     end
   end
 
+  # The packing nav-group's links carry #selected_store forward when the
+  # current page IS the packages controller (see the "Packing group" spec in
+  # spec/requests/packages_spec.rb for that case) — but the sidebar renders on
+  # every admin page, and PackagesController#selected_store is not defined at
+  # all outside that controller. respond_to?(:selected_store) is what tells
+  # those two situations apart; this pins the non-packages side of that gate.
+  describe "Packing group" do
+    it "renders no store param on the packing links from a non-packages page" do
+      create(:shopify_store, user: user, company: company)
+      sign_in user
+
+      get authenticated_root_path
+
+      expect(response).to have_http_status(:ok)
+      doc = Nokogiri::HTML(response.body)
+      menu = doc.at_css("#packing-menu")
+      expect(menu).to be_present
+      expect(menu.css("a").map { |a| a["href"] }).to all(satisfy { |href| !href.include?("store=") })
+    end
+  end
+
   # The Tickets entry is a collapsible nav-group (like Shipping / Settings)
   # gathering the ticket list and its Email Workflows automation under one
   # header. Email Workflows was moved here out of the Settings group.

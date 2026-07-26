@@ -1,0 +1,44 @@
+<%# One tab strip for the detail modal. Rendered twice with different
+    `variant`s: "mobile" (horizontal, shown below md) and "desktop" (vertical
+    sidebar, shown from md up). Both carry data-tabs-target="tab" and drive the
+    SAME panels via the `tabs` Stimulus controller, so only one section is
+    visible at a time regardless of which strip the user uses.
+
+    Each strip lives in its own dom_id region so the edit actions can
+    turbo_stream-replace it after a save — that keeps the per-tab green
+    completeness checks fresh (e.g. picking a logistics channel immediately
+    ticks the Logistics tab). Because a replace re-inserts the tab buttons,
+    tabs_controller#tabTargetConnected re-applies the active-tab styling to the
+    freshly connected buttons (the controller root, which holds activeValue,
+    is NOT replaced). %>
+<%
+  container_class =
+    if variant == "mobile"
+      "flex md:hidden overflow-x-auto gap-1 px-4 py-2 border-b border-gray-100"
+    else
+      "hidden md:flex md:flex-col md:w-40 shrink-0 border-r border-gray-100 py-3"
+    end
+  button_class =
+    if variant == "mobile"
+      "shrink-0 px-3 py-1.5 rounded-md text-xs font-medium text-gray-500"
+    else
+      "text-left px-4 py-2 text-sm font-medium text-gray-500"
+    end
+  tab_complete = {
+    "address" => package.address_complete?,
+    "customs" => package.customs_complete?,
+    "logistics" => package.logistics_assigned?,
+    "note" => nil
+  }
+%>
+<div id="<%= dom_id(package, "tab_strip_#{variant}") %>" class="<%= container_class %>">
+  <% %w[address customs logistics note].each do |name| %>
+    <button type="button" data-tabs-target="tab" data-action="click->tabs#select" data-tabs-name-param="<%= name %>"
+            class="<%= button_class %>">
+      <%= t("packages.tabs.#{name}") %>
+      <% if tab_complete[name] %>
+        <span class="text-green-600">&#10003;</span>
+      <% end %>
+    </button>
+  <% end %>
+</div>

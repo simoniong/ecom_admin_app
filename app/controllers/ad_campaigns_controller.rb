@@ -7,6 +7,9 @@ class AdCampaignsController < AdminController
     spend conversion_value roas
   ].freeze
 
+  PER_PAGE_DEFAULT = 50
+  PER_PAGE_OPTIONS = [ 25, 50, 100, 200, 300, 500 ].freeze
+
   def sync
     SyncAdCampaignsJob.perform_later(company_id: current_company.id)
     respond_to do |format|
@@ -46,6 +49,10 @@ class AdCampaignsController < AdminController
     @sort_column = SORTABLE_COLUMNS.include?(params[:sort_column]) ? params[:sort_column] : "daily_budget"
     @sort_direction = params[:sort_direction] == "asc" ? "asc" : "desc"
 
+    @page = [ params[:page].to_i, 1 ].max
+    per_page = Integer(params[:per_page], exception: false)
+    @per_page = PER_PAGE_OPTIONS.include?(per_page) ? per_page : PER_PAGE_DEFAULT
+
     campaigns = AdCampaign.where(ad_account: accounts).includes(:ad_account)
     if @status_filter == "has_spend"
       campaigns = campaigns.where(
@@ -55,11 +62,44 @@ class AdCampaignsController < AdminController
       campaigns = campaigns.where(status: @status_filter)
     end
 
-    @campaign_metrics = AdCampaign.batch_aggregated_metrics(campaigns.pluck(:id), date_range)
+    # Materialise the campaign set ONCE and derive metrics from these same
+    # records. SyncAdCampaignsJob (MetaAdsService#sync_campaigns) inserts new
+    # AdCampaign rows into this same ad_account scope every hour, and when
+    # status_filter == "has_spend" the same job also writes the
+    # AdCampaignDailyMetric rows the extra predicate depends on. Either can
+    # commit between two separate queries against `campaigns`, so a campaign
+    # that appears in a second query but not the first leaves
+    # `sort_campaigns` looking up a metrics hash key that was never
+    # populated (nil) -> NoMethodError. Querying once removes the window
+    # entirely.
+    campaigns = campaigns.to_a
 
-    @campaigns = sort_campaigns(campaigns.to_a)
+    @campaign_metrics = AdCampaign.batch_aggregated_metrics(campaigns, date_range)
 
-    build_summary
+    # Sort BEFORE paginating, in Ruby, over the whole set: @sort_column is
+    # either the real `daily_budget` column or one of SORTABLE_COLUMNS'
+    # CampaignMetrics methods computed from the aggregation query above, not
+    # something an `ORDER BY` could express. Slicing a DB-ordered page first
+    # and sorting only that page would show arbitrary rows -- e.g. the
+    # highest-roas campaign could land on page 4. @total_count is read off
+    # this same in-memory array (not a fresh COUNT query against
+    # `ad_campaigns`) so the single-SELECT guarantee from 45343f6 still
+    # holds.
+    sorted = sort_campaigns(campaigns)
+    @total_count = sorted.size
+    @total_pages = (@total_count.to_f / @per_page).ceil
+    @page = [ @page, @total_pages ].min if @total_pages > 0
+    @campaigns = sorted.drop((@page - 1) * @per_page).first(@per_page)
+
+    # build_summary must total the entire filtered set, not just the current
+    # page -- the summary row is the account-level total, not a per-page
+    # subtotal. @campaign_metrics is already keyed by the full materialised
+    # `campaigns` array (built above, before sort/slice), so its `.values`
+    # naturally cover every campaign regardless of pagination. The budget sum
+    # is the one figure build_summary previously read off `@campaigns`
+    # itself, which is now the page slice, so it's passed `sorted` (the full
+    # set) explicitly instead.
+    build_summary(sorted)
 
     load_display_templates
   end
@@ -81,7 +121,7 @@ class AdCampaignsController < AdminController
     end
   end
 
-  def build_summary
+  def build_summary(all_campaigns)
     totals = @campaign_metrics.values.each_with_object(
       { impressions: 0, clicks: 0, add_to_cart: 0, checkout_initiated: 0, purchases: 0, spend: 0, conversion_value: 0 }
     ) do |m, acc|
@@ -98,7 +138,7 @@ class AdCampaignsController < AdminController
       totals[:impressions], totals[:clicks], totals[:add_to_cart],
       totals[:checkout_initiated], totals[:purchases], totals[:spend], totals[:conversion_value]
     )
-    @summary_budget = @campaigns.sum(&:daily_budget)
+    @summary_budget = all_campaigns.sum(&:daily_budget)
   end
 
   def load_display_templates

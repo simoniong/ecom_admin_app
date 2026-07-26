@@ -30,4 +30,16 @@ RSpec.describe "Shopify stores", type: :system do
     # "credentials required" validation error.
     expect(page).not_to have_content(I18n.t("shopify_stores.credentials_required"))
   end
+
+  it "shows packing prefix and start number as read-only once the store has packages" do
+    store = create(:shopify_store, user: user, company: user.companies.first,
+                   packing_enabled: true, package_prefix: "PK", package_number_start: 1)
+    create(:package, shopify_store: store)
+
+    visit shopify_store_path(id: store.id)
+
+    expect(page).to have_content(I18n.t("shopify_stores.packing_locked_hint"))
+    expect(page).to have_field("shopify_store_package_prefix", disabled: true)
+    expect(page).to have_field("shopify_store_package_number_start", disabled: true)
+  end
 end

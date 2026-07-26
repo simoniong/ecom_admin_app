@@ -6,4 +6,5 @@ class LogisticsChannel < ApplicationRecord
   validates :product_id, presence: true
   validates :shopify_carrier_name, presence: true
   validates :tracking_url_template, presence: true
+  validates :label_print_type, presence: true
 end

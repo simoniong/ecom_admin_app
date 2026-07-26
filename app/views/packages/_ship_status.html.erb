@@ -1,0 +1,14 @@
+<%#
+  Shopify fulfillment-sync status for a shipped package. Stable dom_id so the
+  ship/sync_now turbo_stream (which replaces the whole modal) keeps it
+  consistent, mirroring _application_status.html.erb's pattern.
+%>
+<div id="<%= dom_id(package, :ship_status) %>">
+  <% if package.shipped? && package.ship_sync_status != "none" %>
+    <div class="mx-6 mt-3 px-4 py-2 rounded-md text-sm border
+      <%= package.ship_sync_status == 'failed' ? 'bg-red-50 text-red-800 border-red-200' : (package.ship_sync_status == 'succeeded' ? 'bg-green-50 text-green-800 border-green-200' : 'bg-blue-50 text-blue-800 border-blue-200') %>">
+      <p class="font-medium"><%= t("packages.ship_sync.#{package.ship_sync_status}", default: t("packages.ship_sync.pending")) %></p>
+      <% if package.ship_sync_message.present? %><p class="mt-1"><%= package.ship_sync_message %></p><% end %>
+    </div>
+  <% end %>
+</div>

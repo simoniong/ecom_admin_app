@@ -1,0 +1,140 @@
+<tr id="<%= dom_id(package) %>" class="<%= "package-row-flash" if local_assigns[:flash_highlight] %>">
+  <% if local_assigns[:bulk] %>
+    <td class="px-4 py-3 align-top">
+      <input type="checkbox" name="package_ids[]" value="<%= package.id %>"
+             data-package-bulk-target="checkbox" data-action="change->package-bulk#refresh">
+    </td>
+  <% end %>
+  <td class="px-4 py-3 text-sm font-medium align-top whitespace-nowrap">
+    <%# store: selected_store&.id is hop 1 of 3 that carries the list's store
+        context into the modal (and from there, via _split_dialog/
+        _siblings_strip's own hidden fields, into the split/merge POSTs) —
+        without it #selected_store resolves nil inside the modal and any
+        turbo_stream row it replaces drifts from the list's own store scope
+        (see e.g. _package_row's show_zone below). %>
+    <%= link_to package.package_code, package_path(id: package.id, store: selected_store&.id),
+        data: { turbo_frame: "package-modal" },
+        class: "text-blue-600 hover:underline font-medium" %>
+  </td>
+  <td class="px-4 py-3 text-sm text-gray-700 align-top">
+    <% if package.package_items.any? %>
+      <% package.package_items.each do |item| %>
+        <% image_url = item.product_variant&.product&.image_url %>
+        <div class="flex items-center gap-2 whitespace-nowrap">
+          <% if image_url.present? %>
+            <%# The preview is mounted on document.body by the controller: this
+                table sits inside overflow-x-auto, which would clip an absolutely
+                positioned popover. %>
+            <img src="<%= shopify_image_variant(image_url, "100x100") %>"
+                 data-controller="image-preview"
+                 data-action="mouseenter->image-preview#show mouseleave->image-preview#hide"
+                 data-image-preview-url-value="<%= shopify_image_variant(image_url, "400x400") %>"
+                 alt="" loading="lazy"
+                 class="w-12 h-12 shrink-0 rounded object-cover border border-gray-200 bg-gray-50">
+          <% else %>
+            <div data-testid="sku-thumb-placeholder"
+                 class="w-12 h-12 shrink-0 rounded border border-gray-200 bg-gray-100"></div>
+          <% end %>
+          <div>
+            <span class="font-mono text-xs text-gray-500"><%= item.sku.presence || "—" %></span>
+            <span class="text-gray-400">&times;<%= item.quantity %></span>
+            <span class="text-gray-700"><%= item.title %></span>
+            <% if item.refunded_quantity.positive? %>
+              <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium <%= item.fully_refunded? ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800' %>">
+                <%= t("packages.item_refunded", n: item.refunded_quantity, total: item.quantity) %><% if item.fully_refunded? %> · <%= t("packages.do_not_ship") %><% end %>
+              </span>
+            <% end %>
+          </div>
+        </div>
+      <% end %>
+    <% else %>
+      <span class="text-gray-400">—</span>
+    <% end %>
+  </td>
+  <td class="px-4 py-3 text-sm text-right text-gray-900 align-top whitespace-nowrap">
+    <%= number_to_currency(package.order.total_price, unit: "#{package.order.currency} ") %>
+  </td>
+  <td class="px-4 py-3 text-sm text-gray-700 align-top whitespace-nowrap">
+    <%# Prefer the package's own address snapshot so a manual override (which
+        sets address_overridden and may change the country) shows here too;
+        fall back to the order's raw Shopify shipping address otherwise. %>
+    <%# Normalized the same way PackageListQuery::COUNTRY_SQL normalizes it —
+        #update_address accepts hand-typed country codes, so " us " is possible
+        and must render as 美國, not as a raw code the filter pills don't match. %>
+    <% country = (package.shipping_address_snapshot["country_code"].to_s.strip.presence ||
+                  package.order.shopify_data&.dig("shipping_address", "country_code").to_s.strip.presence)&.upcase %>
+    <% if country.present? %>
+      <%= parcel_country_flag(country) %> <%= parcel_country_name(country) %>
+    <% else %>
+      <span class="text-gray-400">—</span>
+    <% end %>
+  </td>
+  <td class="px-4 py-3 text-sm text-gray-700 align-top whitespace-nowrap">
+    <div><%= package.order.name %></div>
+    <%# Under the order number, not beside the package code: this cell is
+        single-line and has the vertical room to spare, whereas widening the
+        package-code cell costs horizontal space on an already-wide table. The
+        badge also reads better here — it is a fact about the ORDER (this is box
+        1 of the 3 that order was folded into), not about the package code.
+
+        Rendered only for an order folded into more than one box —
+        PackageSiblingIndex omits single-box orders entirely, so no extra
+        split? check is needed. %>
+    <% if local_assigns[:sibling_index] %>
+      <div class="mt-0.5">
+        <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-orange-100 text-orange-800">
+          <%= t("packages.split.badge", position: sibling_index.first, total: sibling_index.last) %>
+        </span>
+      </div>
+    <% end %>
+  </td>
+  <%# Times render in the STORE's timezone, matching the orders list. The old
+      bare strftime here printed UTC, so the same order showed two different
+      times on two pages. packages.shopify_store_id is NOT NULL and the
+      association is eager-loaded by index, so this costs no extra query.
+
+      In the all-stores view, stores in different zones each render their own
+      local time while the sort runs on absolute time — the list would look
+      mis-sorted. Appending the zone abbreviation there explains it. In
+      single-store mode every row would repeat the same abbreviation, so it is
+      left off. %>
+  <% tz = package.shopify_store.active_timezone %>
+  <%# Same rule as before, now driven by the list's own store filter: in the
+      all-stores view different stores render different local times against an
+      absolute-time sort, and the abbreviation is what explains that. %>
+  <% show_zone = selected_store.nil? %>
+  <td class="px-4 py-3 text-sm text-gray-500 align-top whitespace-nowrap">
+    <% [ [ "ordered_at", package.order.ordered_at ], [ "paid_at", package.order.paid_at ] ].each do |label, value| %>
+      <div>
+        <%= t("packages.columns.#{label}") %>：
+        <% if value %>
+          <% local = value.in_time_zone(tz) %>
+          <%= local.strftime("%Y-%m-%d %H:%M") %><%= " #{local.zone}" if show_zone %>
+        <% else %>
+          —
+        <% end %>
+      </div>
+    <% end %>
+  </td>
+  <td class="px-4 py-3 text-sm text-gray-700 align-top whitespace-nowrap"><%= package.logistics_channel&.name || "—" %></td>
+  <td class="px-4 py-3 text-sm align-top whitespace-nowrap">
+    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
+      <%= t("packages.states.#{package.aasm_state}") %>
+    </span>
+    <% if package.aasm_state == "applying_tracking" && package.application_status != "none" %>
+      <span class="ml-1 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700">
+        <%= t("packages.application_status.#{package.application_status}") %>
+      </span>
+    <% end %>
+    <% if package.aasm_state == "held" && package.held_from.present? %>
+      <span class="ml-1 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-50 text-yellow-700">
+        <%= t("packages.held_from_label", state: t("packages.states.#{package.held_from}")) %>
+      </span>
+    <% end %>
+    <% if package.order_cancelled? %>
+      <span class="ml-1 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+        <%= t("packages.order_cancelled") %>
+      </span>
+    <% end %>
+  </td>
+</tr>

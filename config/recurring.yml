@@ -5,6 +5,9 @@ production:
   tracking_refresh:
     class: TrackingRefreshJob
     schedule: every 3 hours
+  poll_tracking_numbers:
+    class: PollTrackingNumbersJob
+    schedule: every 5 minutes
   sync_ad_metrics:
     class: SyncAdMetricsJob
     schedule: every 30 minutes
@@ -16,6 +19,9 @@ production:
     schedule: every 1 hour
   sync_ad_campaigns:
     class: SyncAdCampaignsJob
+    schedule: every 1 hour
+  sync_ad_creatives:
+    class: SyncAdCreativesJob
     schedule: every 1 hour
   sync_all_shopify_orders:
     class: SyncAllShopifyOrdersRecurringJob
@@ -37,6 +43,9 @@ development:
   tracking_refresh:
     class: TrackingRefreshJob
     schedule: every 3 hours
+  poll_tracking_numbers:
+    class: PollTrackingNumbersJob
+    schedule: every 5 minutes
   sync_ad_metrics:
     class: SyncAdMetricsJob
     schedule: every 30 minutes
@@ -48,6 +57,9 @@ development:
     schedule: every 1 hour
   sync_ad_campaigns:
     class: SyncAdCampaignsJob
+    schedule: every 1 hour
+  sync_ad_creatives:
+    class: SyncAdCreativesJob
     schedule: every 1 hour
   sync_all_shopify_orders:
     class: SyncAllShopifyOrdersRecurringJob
