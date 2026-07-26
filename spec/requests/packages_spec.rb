@@ -321,13 +321,23 @@ RSpec.describe "Packages", type: :request do
         store.update!(timezone: "America/Los_Angeles")
 
         get packages_path
-        cross_store_body = response.body
+        multi_store_body = response.body
 
+        # store_id (not the new `store` param) is used deliberately here: the timezone label's
+        # show_zone flag and the store column still read current_shopify_store, which only
+        # store_id feeds. Switching this to `store` would silently stop exercising that path
+        # until the view call sites are converted in the next task.
         get packages_path, params: { store_id: store.id }
-        single_store_body = response.body
+        vestigial_store_id_body = response.body
 
-        expect(cross_store_body).to include(Time.current.in_time_zone("America/Los_Angeles").zone)
-        expect(single_store_body).not_to include(Time.current.in_time_zone("America/Los_Angeles").zone)
+        expect(multi_store_body).to include(Time.current.in_time_zone("America/Los_Angeles").zone)
+        expect(vestigial_store_id_body).not_to include(Time.current.in_time_zone("America/Los_Angeles").zone)
+
+        # store_id only suppresses the timezone label -- it does not narrow the package list,
+        # since the list itself is filtered by the new `store` param. The other store's package
+        # is still present. This assertion should start failing once the next task converts the
+        # view call sites off current_shopify_store, which is the expected signal to update it.
+        expect(vestigial_store_id_body).to include("PKS#6001")
       end
     end
 
