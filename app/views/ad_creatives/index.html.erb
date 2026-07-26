@@ -84,7 +84,11 @@
               <td class="px-3 py-2 text-right border-l border-gray-100"><%= (video && !no_impressions) ? number_to_percentage(metrics.three_sec_rate, precision: 1) : t("ad_creatives.not_applicable") %></td>
               <td class="px-3 py-2 text-right"><%= (video && !no_impressions) ? number_to_percentage(metrics.p50_rate, precision: 1) : t("ad_creatives.not_applicable") %></td>
               <td class="px-3 py-2 text-right"><%= (video && !no_impressions) ? number_to_percentage(metrics.p75_rate, precision: 1) : t("ad_creatives.not_applicable") %></td>
-              <td class="px-3 py-2 text-right"><%= no_link_clicks ? t("ad_creatives.not_applicable") : number_to_percentage(metrics.link_ctr, precision: 1) %></td>
+              <%# link_ctr's denominator is impressions, NOT inline_link_clicks: a creative
+                  with real impressions and genuinely zero link clicks has a true 0.0% CTR,
+                  which is meaningful signal and must not be dashed out. Only an absent
+                  denominator (no impressions) makes the rate undefined. %>
+              <td class="px-3 py-2 text-right"><%= no_impressions ? t("ad_creatives.not_applicable") : number_to_percentage(metrics.link_ctr, precision: 1) %></td>
               <td class="px-3 py-2 text-right"><%= no_link_clicks ? t("ad_creatives.not_applicable") : number_to_currency(metrics.cpc_link) %></td>
               <td class="px-3 py-2 text-right"><%= no_clicks ? t("ad_creatives.not_applicable") : number_to_currency(metrics.cpc_all) %></td>
               <td class="px-3 py-2 text-right"><%= no_impressions ? t("ad_creatives.not_applicable") : number_to_currency(metrics.cpm) %></td>

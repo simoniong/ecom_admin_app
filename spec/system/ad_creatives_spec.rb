@@ -141,6 +141,27 @@ RSpec.describe "Ad Creatives", type: :system do
     end
   end
 
+  # link_ctr's denominator is impressions, not inline_link_clicks. A creative that
+  # was seen but never clicked has a genuine 0.0% CTR -- that is real signal and
+  # must survive, unlike the undefined rate of a creative with no impressions at
+  # all. Guards against gating link_ctr on the click count (which would hide it).
+  it "shows a real 0.0% link CTR when a creative has impressions but no link clicks" do
+    # Rates chosen so no OTHER cell's text can contain "0.0%": a substring
+    # assertion would otherwise pass against "40.0%" and prove nothing. The
+    # assertion below compares whole cell text for the same reason.
+    creative_with_metrics(
+      name: "Seen Never Clicked", first_spend_date: Date.current - 10,
+      impressions: 10_000, inline_link_clicks: 0, clicks: 0, spend: 50,
+      video_3_sec_watched: 3_750, video_p50_watched: 1_230, video_p75_watched: 725
+    )
+
+    sign_in_as(user)
+    navigate_to_settings_item(I18n.t("nav.ad_creatives"), group: I18n.t("nav.ads"))
+
+    cells = find("tr", text: "Seen Never Clicked").all("td").map { |td| td.text.strip }
+    expect(cells).to include("0.0%")
+  end
+
   it "filters by date range" do
     creative_with_metrics(name: "In Range", first_spend_date: Date.current - 10, impressions: 4_242)
 
