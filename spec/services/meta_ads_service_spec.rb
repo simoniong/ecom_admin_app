@@ -373,6 +373,63 @@ RSpec.describe MetaAdsService do
       expect(unit.multi_asset).to be(false)
     end
 
+    it "resolves an existing-post ad via effective_object_story_id as asset_type post" do
+      stub_ads(ad_payload(id: "a17", creative: {
+        "id" => "c17", "effective_object_story_id" => "110994158524036_814351261565235"
+      }))
+
+      service.sync_ad_units
+
+      creative = AdUnit.find_by(ad_id: "a17").ad_creative
+      expect(creative.asset_type).to eq("post")
+      expect(creative.asset_id).to eq("110994158524036_814351261565235")
+    end
+
+    it "falls back to object_story_id when effective_object_story_id is absent" do
+      stub_ads(ad_payload(id: "a18", creative: {
+        "id" => "c18", "object_story_id" => "110994158524036_999"
+      }))
+
+      service.sync_ad_units
+
+      expect(AdUnit.find_by(ad_id: "a18").ad_creative.asset_id).to eq("110994158524036_999")
+    end
+
+    it "resolves as video, not post, when a creative carries both a real video_id and an object_story_id" do
+      stub_ads(ad_payload(id: "a19", creative: {
+        "id" => "c19", "video_id" => "v20",
+        "object_story_id" => "110994158524036_111", "effective_object_story_id" => "110994158524036_111"
+      }))
+
+      service.sync_ad_units
+
+      creative = AdUnit.find_by(ad_id: "a19").ad_creative
+      expect(creative.asset_type).to eq("video")
+      expect(creative.asset_id).to eq("v20")
+    end
+
+    it "populates thumbnail_url from the ads payload's creative.thumbnail_url" do
+      stub_ads(ad_payload(id: "a20", creative: {
+        "id" => "c20", "video_id" => "v21", "thumbnail_url" => "https://x/from-ad.jpg"
+      }))
+
+      service.sync_ad_units
+
+      expect(AdUnit.find_by(ad_id: "a20").ad_creative.thumbnail_url).to eq("https://x/from-ad.jpg")
+    end
+
+    it "does not overwrite an existing non-blank thumbnail_url on resync" do
+      existing = create(:ad_creative, ad_account: ad_account, asset_type: "video",
+        asset_id: "v22", thumbnail_url: "https://x/better.jpg")
+      stub_ads(ad_payload(id: "a21", creative: {
+        "id" => "c21", "video_id" => "v22", "thumbnail_url" => "https://x/from-ad.jpg"
+      }))
+
+      service.sync_ad_units
+
+      expect(existing.reload.thumbnail_url).to eq("https://x/better.jpg")
+    end
+
     it "links the ad unit to an existing campaign" do
       campaign = create(:ad_campaign, ad_account: ad_account, campaign_id: "camp_1")
       stub_ads(ad_payload(id: "a13", creative: { "id" => "c13", "video_id" => "v1" }))
@@ -609,6 +666,46 @@ RSpec.describe MetaAdsService do
 
       expect { service.sync_creative_assets }.not_to raise_error
       expect(call).to eq(2)
+    end
+
+    it "increments thumbnail_fetch_attempts on failure" do
+      creative = create(:ad_creative, ad_account: ad_account, asset_type: "video",
+        asset_id: "v5", thumbnail_url: nil, thumbnail_fetch_attempts: 0)
+      allow(graph).to receive(:get_object).and_raise(Koala::Facebook::ClientError.new(400, "OAuthException code 10"))
+
+      service.sync_creative_assets
+
+      expect(creative.reload.thumbnail_fetch_attempts).to eq(1)
+    end
+
+    it "resets thumbnail_fetch_attempts to zero on success" do
+      creative = create(:ad_creative, ad_account: ad_account, asset_type: "video",
+        asset_id: "v6", thumbnail_url: nil, thumbnail_fetch_attempts: 2)
+      allow(graph).to receive(:get_object).and_return({ "picture" => "https://x/ok.jpg" })
+
+      service.sync_creative_assets
+
+      expect(creative.reload.thumbnail_fetch_attempts).to eq(0)
+    end
+
+    it "skips a creative that has exceeded the retry cap" do
+      create(:ad_creative, ad_account: ad_account, asset_type: "video",
+        asset_id: "v7", thumbnail_url: nil,
+        thumbnail_fetch_attempts: MetaAdsService::THUMBNAIL_FETCH_ATTEMPT_CAP)
+      expect(graph).not_to receive(:get_object)
+
+      service.sync_creative_assets
+    end
+
+    it "still retries a creative one attempt below the cap" do
+      creative = create(:ad_creative, ad_account: ad_account, asset_type: "video",
+        asset_id: "v8", thumbnail_url: nil,
+        thumbnail_fetch_attempts: MetaAdsService::THUMBNAIL_FETCH_ATTEMPT_CAP - 1)
+      allow(graph).to receive(:get_object).and_raise(Koala::Facebook::ClientError.new(400, "gone"))
+
+      service.sync_creative_assets
+
+      expect(creative.reload.thumbnail_fetch_attempts).to eq(MetaAdsService::THUMBNAIL_FETCH_ATTEMPT_CAP)
     end
   end
 end

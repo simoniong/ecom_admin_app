@@ -56,7 +56,11 @@
         <tbody class="divide-y divide-gray-100">
           <% @creatives.each do |creative| %>
             <% metrics = @creative_metrics[creative.id] %>
-            <% video = creative.asset_type == "video" %>
+            <%# "post" (existing-post ads) may be backed by a video or an image on the
+                boosted post, and there is no cheap way to tell which without an extra
+                API call -- show the columns rather than dash out real video metrics
+                for 13.8% of ads. An image-based post renders 0.0% rather than "-". %>
+            <% video = %w[video post].include?(creative.asset_type) %>
             <tr>
               <td class="px-3 py-2">
                 <div class="flex items-center gap-2">

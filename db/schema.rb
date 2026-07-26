@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_25_165555) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_26_043325) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -75,6 +75,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_25_165555) do
     t.integer "duration_seconds"
     t.date "first_spend_date"
     t.string "name"
+    t.integer "thumbnail_fetch_attempts", default: 0, null: false
     t.string "thumbnail_url"
     t.datetime "updated_at", null: false
     t.index ["ad_account_id", "asset_type", "asset_id"], name: "idx_ad_creatives_on_account_type_asset", unique: true
