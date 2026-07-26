@@ -733,6 +733,35 @@ RSpec.describe "Packages UI", type: :system do
       expect(page).to have_content("PKS#3001")
     end
   end
+
+  describe "SKU 縮圖 hover" do
+    let(:product) do
+      create(:product, shopify_store: store,
+             image_url: "https://cdn.shopify.com/s/files/1/art.jpg?v=42")
+    end
+    let(:variant) { create(:product_variant, product: product, sku: "ART-1") }
+
+    before do
+      create(:package_item, package: review_package, product_variant: variant, sku: "ART-1", quantity: 1)
+    end
+
+    it "shows the large preview on hover, mounted outside the scrolling table" do
+      visit packages_path(state: "pending_review")
+
+      expect(page).to have_no_css("#sku-image-preview")
+
+      find("img[data-controller='image-preview']").hover
+
+      expect(page).to have_css("#sku-image-preview", visible: :visible)
+
+      # The whole reason the controller mounts on body: an absolutely positioned
+      # popover inside the table would be clipped by its overflow-x-auto wrapper.
+      parent_tag = page.evaluate_script(
+        "document.getElementById('sku-image-preview').parentElement.tagName"
+      )
+      expect(parent_tag).to eq("BODY")
+    end
+  end
 end
 
 # Fills the first box's number input for the first item row.

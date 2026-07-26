@@ -560,6 +560,48 @@ RSpec.describe "Packages", type: :request do
         expect(response).to redirect_to(authenticated_root_path)
       end
     end
+
+    describe "SKU thumbnails" do
+      let(:product) do
+        create(:product, shopify_store: store,
+               image_url: "https://cdn.shopify.com/s/files/1/art.jpg?v=42")
+      end
+      let(:variant) { create(:product_variant, product: product, sku: "ART-1") }
+
+      it "renders a CDN-resized thumbnail for an item with a product image" do
+        create(:package_item, package: review_package, product_variant: variant, sku: "ART-1", quantity: 1)
+
+        get packages_path
+
+        expect(response.body).to include("https://cdn.shopify.com/s/files/1/art_100x100.jpg?v=42")
+      end
+
+      it "exposes the larger preview url for the hover controller" do
+        create(:package_item, package: review_package, product_variant: variant, sku: "ART-1", quantity: 1)
+
+        get packages_path
+
+        expect(response.body).to include("https://cdn.shopify.com/s/files/1/art_400x400.jpg?v=42")
+      end
+
+      it "renders a placeholder for an item with no product variant" do
+        create(:package_item, package: review_package, product_variant: nil, sku: "NOVARIANT", quantity: 1)
+
+        get packages_path
+
+        expect(response.body).to include("data-testid=\"sku-thumb-placeholder\"")
+      end
+
+      it "renders a placeholder when the product has no image" do
+        imageless = create(:product, shopify_store: store, image_url: nil)
+        imageless_variant = create(:product_variant, product: imageless, sku: "NOIMG")
+        create(:package_item, package: review_package, product_variant: imageless_variant, sku: "NOIMG", quantity: 1)
+
+        get packages_path
+
+        expect(response.body).to include("data-testid=\"sku-thumb-placeholder\"")
+      end
+    end
   end
 
   describe "item refund warnings on the list" do

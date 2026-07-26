@@ -13,15 +13,32 @@
   <td class="px-4 py-3 text-sm text-gray-700 align-top">
     <% if package.package_items.any? %>
       <% package.package_items.each do |item| %>
-        <div class="whitespace-nowrap">
-          <span class="font-mono text-xs text-gray-500"><%= item.sku.presence || "—" %></span>
-          <span class="text-gray-400">&times;<%= item.quantity %></span>
-          <span class="text-gray-700"><%= item.title %></span>
-          <% if item.refunded_quantity.positive? %>
-            <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium <%= item.fully_refunded? ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800' %>">
-              <%= t("packages.item_refunded", n: item.refunded_quantity, total: item.quantity) %><% if item.fully_refunded? %> · <%= t("packages.do_not_ship") %><% end %>
-            </span>
+        <% image_url = item.product_variant&.product&.image_url %>
+        <div class="flex items-center gap-2 whitespace-nowrap">
+          <% if image_url.present? %>
+            <%# The preview is mounted on document.body by the controller: this
+                table sits inside overflow-x-auto, which would clip an absolutely
+                positioned popover. %>
+            <img src="<%= shopify_image_variant(image_url, "100x100") %>"
+                 data-controller="image-preview"
+                 data-action="mouseenter->image-preview#show mouseleave->image-preview#hide"
+                 data-image-preview-url-value="<%= shopify_image_variant(image_url, "400x400") %>"
+                 alt="" loading="lazy"
+                 class="w-12 h-12 shrink-0 rounded object-cover border border-gray-200 bg-gray-50">
+          <% else %>
+            <div data-testid="sku-thumb-placeholder"
+                 class="w-12 h-12 shrink-0 rounded border border-gray-200 bg-gray-100"></div>
           <% end %>
+          <div>
+            <span class="font-mono text-xs text-gray-500"><%= item.sku.presence || "—" %></span>
+            <span class="text-gray-400">&times;<%= item.quantity %></span>
+            <span class="text-gray-700"><%= item.title %></span>
+            <% if item.refunded_quantity.positive? %>
+              <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium <%= item.fully_refunded? ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800' %>">
+                <%= t("packages.item_refunded", n: item.refunded_quantity, total: item.quantity) %><% if item.fully_refunded? %> · <%= t("packages.do_not_ship") %><% end %>
+              </span>
+            <% end %>
+          </div>
         </div>
       <% end %>
     <% else %>

@@ -37,7 +37,11 @@ class PackagesController < AdminController
     @total_count = filtered.count
     @total_pages = (@total_count.to_f / PER_PAGE).ceil
     @page = [ @page, @total_pages ].min if @total_pages > 0
-    @packages = filtered.includes(:order, :package_items, :shopify_store, :logistics_channel)
+    # package_items -> product_variant -> product is what the SKU thumbnails
+    # read; without it each SKU costs two more queries and a 50-row page turns
+    # into hundreds.
+    @packages = filtered.includes(:order, :shopify_store, :logistics_channel,
+                                  package_items: { product_variant: :product })
                         .offset((@page - 1) * PER_PAGE).limit(PER_PAGE)
     # One query for the whole page's box numbering — see PackageSiblingIndex.
     # Must come after @packages is materialized; it reads their order_ids.
