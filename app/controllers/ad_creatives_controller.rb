@@ -18,6 +18,21 @@ class AdCreativesController < AdminController
     "lifetime_spend" => nil, "lifetime_roas" => nil
   }.freeze
 
+  # Range-scoped columns are the SORTABLE_COLUMNS entries absent from
+  # ANCHOR_WINDOWS above: three_sec_rate, p50_rate, p75_rate, link_ctr,
+  # cpc_link, cpc_all, cpm. Unlike the anchor columns, hiding these is never
+  # about first_spend_date/coverage -- it is about this cell's own
+  # denominator (or, for the completion-rate trio, the creative's asset
+  # type) being meaningless right now. #range_value_hidden? is the ONE place
+  # that decision lives: the view calls it (via helper_method) to decide
+  # whether to render the dash, and #sort_creatives calls it to decide
+  # whether to force the row last. Before this, the view computed its own
+  # `video`/`no_impressions`/`no_link_clicks`/`no_clicks` locals and the
+  # sorter didn't check any of it -- two copies of the same rule that could
+  # (and did) drift apart. Adding or regating a column now means editing
+  # this method only.
+  VIDEO_ISH_ASSET_TYPES = %w[video post].freeze
+
   BACKFILL_DAYS = 90
 
   PER_PAGE_DEFAULT = 50
@@ -123,10 +138,11 @@ class AdCreativesController < AdminController
 
     creatives.sort_by do |creative|
       metrics = @creative_metrics[creative.id]
-      hidden = anchor_gated && anchor_value_hidden?(creative, window)
+      hidden = anchor_gated ? anchor_value_hidden?(creative, window) : range_value_hidden?(@sort_column, creative, metrics)
       # Hidden rows sort last regardless of direction: the leading 0/1 flag
       # dominates the tuple comparison, so `direction * value` (an invisible
-      # number the user cannot see, per _anchor_cell) never gets a say for them.
+      # number the user cannot see, per _anchor_cell/range_value_hidden?)
+      # never gets a say for them.
       [ hidden ? 1 : 0, hidden ? 0 : direction * metrics.public_send(@sort_column).to_f, creative.name.to_s ]
     end
   end
@@ -142,4 +158,25 @@ class AdCreativesController < AdminController
 
     true
   end
+
+  # The single gating rule for every range-scoped (non-anchor) sortable
+  # column, per the table in index.html.erb's column group. Both the view
+  # (rendering the dash) and #sort_creatives (forcing the row last) call
+  # this instead of each re-deriving the condition, so the two cannot drift
+  # apart the way they did before this method existed.
+  def range_value_hidden?(column, creative, metrics)
+    case column
+    when "three_sec_rate", "p50_rate", "p75_rate"
+      metrics.impressions.zero? || !VIDEO_ISH_ASSET_TYPES.include?(creative.asset_type)
+    when "link_ctr", "cpm"
+      metrics.impressions.zero?
+    when "cpc_link"
+      metrics.inline_link_clicks.zero?
+    when "cpc_all"
+      metrics.clicks.zero?
+    else
+      false
+    end
+  end
+  helper_method :range_value_hidden?
 end

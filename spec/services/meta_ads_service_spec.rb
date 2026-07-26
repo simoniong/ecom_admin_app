@@ -499,15 +499,40 @@ RSpec.describe MetaAdsService do
       expect(seen_limits).to eq([ 100, 50, 25 ])
     end
 
-    it "does not downgrade the page size for a transient outage error" do
-      call_count = 0
-      allow(graph).to receive(:get_connections) do |*, **_params|
-        call_count += 1
+    # Before fetch_all_pages had any rescue at all, EVERY error (transient or
+    # reduce-data) raised straight through on the very first call, so
+    # `call_count == 1` alone passed regardless of which error was raised --
+    # it could not tell "we correctly declined to retry this error" apart
+    # from "we never retry anything". Asserting on the requested page size
+    # across calls, and pairing the transient case against the reduce-data
+    # case that DOES halve, is what makes this discriminate: only an
+    # implementation that scopes the retry to REDUCE_DATA_ERROR_PATTERN
+    # satisfies both halves.
+    it "downgrades the page size only for the reduce-data error, not a transient outage error" do
+      seen_limits = []
+      allow(graph).to receive(:get_connections) do |*, **params|
+        seen_limits << params[:limit]
         raise Koala::Facebook::ServerError.new(500, nil, { "code" => 2, "message" => "Service temporarily unavailable" })
       end
 
       expect { service.sync_ad_units }.to raise_error(Koala::Facebook::ServerError, /Service temporarily unavailable/)
-      expect(call_count).to eq(1)
+      # A single call at the ORIGINAL limit: no halving, no retry attempted.
+      expect(seen_limits).to eq([ MetaAdsService::AD_UNITS_PAGE_LIMIT ])
+
+      seen_limits.clear
+      allow(graph).to receive(:get_connections) do |*, **params|
+        seen_limits << params[:limit]
+        raise reduce_data_error
+      end
+
+      expect { service.sync_ad_units }.to raise_error(Koala::Facebook::ServerError)
+      # Same account, same method, a DIFFERENT error -- and this one halves
+      # down to the floor across three calls, unlike the transient case above.
+      expect(seen_limits).to eq([
+        MetaAdsService::AD_UNITS_PAGE_LIMIT,
+        MetaAdsService::AD_UNITS_PAGE_LIMIT / 2,
+        MetaAdsService::MIN_PAGE_LIMIT
+      ])
     end
   end
 

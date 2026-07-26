@@ -265,7 +265,13 @@ RSpec.describe "AdCreatives", type: :request do
       expect(body.index("Visible Small D1")).to be < body.index("Hidden Huge D1")
     end
 
-    it "sorts a lifetime figure normally even when truncated, since Commit 3 shows its value" do
+    # The :truncated exception only means something if it is compared against
+    # a case the rule DOES apply to. A spec that only ever exercises the
+    # lifetime/:truncated case cannot tell "the exception fired" apart from
+    # "the hidden-last rule never fires at all" -- so this pairs the lifetime
+    # :truncated row (shown, sorts by value) against a D3 :insufficient row
+    # (hidden, must sort last) in the same request.
+    it "sorts a truncated lifetime figure by its real value, while an insufficient-window D3 figure still sorts last" do
       ad_account.update!(creative_synced_from_date: Date.current - 89, creative_synced_through_date: Date.current)
 
       small = create(:ad_creative, ad_account: ad_account, name: "Small Lifetime", first_spend_date: Date.current - 5)
@@ -283,6 +289,71 @@ RSpec.describe "AdCreatives", type: :request do
 
       body = response.body
       expect(body.index("Large Lifetime")).to be < body.index("Small Lifetime")
+
+      # Same request, D3 column: first_spend_date is too recent for the D3
+      # window to be complete under creative_synced_through_date (Date.current)
+      # -> :insufficient -> hidden, even though its raw d3_roas value (from a
+      # huge conversion_value) dwarfs the visible creative's. Unlike lifetime,
+      # D3 has no shown-while-hidden exception, so it must sort last.
+      visible_d3 = create(:ad_creative, ad_account: ad_account, name: "Visible Small D3", first_spend_date: Date.current - 10)
+      visible_d3_unit = create(:ad_unit, ad_account: ad_account, ad_creative: visible_d3)
+      create(:ad_unit_daily_metric, ad_unit: visible_d3_unit, date: Date.current - 10, spend: 10, conversion_value: 10)
+
+      insufficient_d3 = create(:ad_creative, ad_account: ad_account, name: "Insufficient Huge D3", first_spend_date: Date.current - 1)
+      insufficient_d3_unit = create(:ad_unit, ad_account: ad_account, ad_creative: insufficient_d3)
+      create(:ad_unit_daily_metric, ad_unit: insufficient_d3_unit, date: Date.current - 1, spend: 1, conversion_value: 9999)
+
+      get ad_creatives_path, params: { store_id: store.id, sort_column: "d3_roas", sort_direction: "desc" }
+
+      body = response.body
+      expect(body.index("Visible Small D3")).to be < body.index("Insufficient Huge D3")
+    end
+  end
+
+  describe "sorting hidden range values" do
+    # Regression: sort_creatives only forced ANCHOR-gated columns (d1/d3/d5/
+    # lifetime) to sort last when hidden. The seven range-scoped columns
+    # (three_sec_rate, p50_rate, p75_rate, link_ctr, cpc_link, cpc_all, cpm)
+    # are hidden by the view under their own conditions that the sorter never
+    # consulted, so a hidden row's invisible zero value could sort ABOVE a
+    # row with a real, visible rate on an ascending sort.
+    it "sorts a zero-impressions row after a row with a visible three_sec_rate, ascending" do
+      visible = create(:ad_creative, ad_account: ad_account, asset_type: "video", name: "Visible ThreeSec Video")
+      visible_unit = create(:ad_unit, ad_account: ad_account, ad_creative: visible)
+      create(:ad_unit_daily_metric, ad_unit: visible_unit, date: Date.current, impressions: 10_000, video_3_sec_watched: 3_000)
+
+      # No daily metric at all -> impressions.zero? -> hidden ("-" in the
+      # view), even though the underlying three_sec_rate computes to 0.0,
+      # which an ascending sort by raw value would otherwise place FIRST.
+      hidden = create(:ad_creative, ad_account: ad_account, asset_type: "video", name: "Hidden ZeroImpressions Video")
+      create(:ad_unit, ad_account: ad_account, ad_creative: hidden)
+
+      sign_in user
+      get ad_creatives_path, params: { store_id: store.id, sort_column: "three_sec_rate", sort_direction: "asc" }
+
+      body = response.body
+      expect(body.index("Visible ThreeSec Video")).to be < body.index("Hidden ZeroImpressions Video")
+    end
+
+    it "sorts an image creative after a video creative with a visible p50_rate, ascending (the asset-type reason)" do
+      video = create(:ad_creative, ad_account: ad_account, asset_type: "video", name: "Visible P50 Video")
+      video_unit = create(:ad_unit, ad_account: ad_account, ad_creative: video)
+      create(:ad_unit_daily_metric, ad_unit: video_unit, date: Date.current, impressions: 10_000, video_p50_watched: 1_200)
+
+      # Image creatives are never video-ish, so p50_rate is dashed out
+      # regardless of impressions -- and this creative HAS real impressions,
+      # so it is the asset-type reason (not the impressions reason) hiding
+      # it, and its raw p50_rate computes to 0.0 (no video watch data),
+      # which an ascending sort by raw value would otherwise place FIRST.
+      image = create(:ad_creative, ad_account: ad_account, asset_type: "image", name: "Hidden Image Creative")
+      image_unit = create(:ad_unit, ad_account: ad_account, ad_creative: image)
+      create(:ad_unit_daily_metric, ad_unit: image_unit, date: Date.current, impressions: 10_000, video_p50_watched: 0)
+
+      sign_in user
+      get ad_creatives_path, params: { store_id: store.id, sort_column: "p50_rate", sort_direction: "asc" }
+
+      body = response.body
+      expect(body.index("Visible P50 Video")).to be < body.index("Hidden Image Creative")
     end
   end
 
