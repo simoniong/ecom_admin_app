@@ -8,7 +8,17 @@
   <% when :unsynced %>
     <span class="text-gray-300" title="<%= t("ad_creatives.states.unsynced_hint") %>">·</span>
   <% when :truncated %>
-    <span class="text-amber-500" title="<%= t("ad_creatives.states.truncated_hint") %>">⚠</span>
+    <% if window.nil? %>
+      <%# Lifetime columns: the sum is still an accurate total over the synced
+          interval, merely incomplete for a creative that predates it -- unlike
+          the D1/D3/D5 columns (anchored on a false first day, and therefore
+          actually wrong), so show the number alongside the marker instead of
+          hiding it. %>
+      <span class="text-amber-500" title="<%= t("ad_creatives.states.truncated_hint") %>">⚠</span>
+      <%= value %>
+    <% else %>
+      <span class="text-amber-500" title="<%= t("ad_creatives.states.truncated_hint") %>">⚠</span>
+    <% end %>
   <% when :insufficient %>
     <span class="text-gray-300"></span>
   <% else %>

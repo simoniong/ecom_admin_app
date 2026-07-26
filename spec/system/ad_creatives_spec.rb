@@ -68,6 +68,33 @@ RSpec.describe "Ad Creatives", type: :system do
     within("tr", text: "Old Hook") { expect(page).to have_css("[data-anchor-state='truncated']") }
   end
 
+  # Lifetime is still an accurate sum over the synced interval for a
+  # truncated creative (merely incomplete), unlike D1/D3/D5, which are
+  # anchored on a false first day and therefore actually wrong -- so only
+  # the lifetime columns should show their number alongside the ⚠ marker.
+  it "shows the lifetime figure alongside the marker, but hides D1/D3/D5, for a truncated creative" do
+    creative_with_metrics(name: "Old Hook", first_spend_date: Date.current - 89, spend: 40)
+
+    sign_in_as(user)
+    navigate_to_settings_item(I18n.t("nav.ad_creatives"), group: I18n.t("nav.ads"))
+
+    within("tr", text: "Old Hook") do
+      cells = all("td[data-anchor-state='truncated']")
+      expect(cells.size).to eq(6)
+
+      d1_spend, d1_purchases, d3_roas, d5_roas, lifetime_spend, lifetime_roas = cells
+
+      expect(d1_spend.text.strip).to eq("⚠")
+      expect(d1_purchases.text.strip).to eq("⚠")
+      expect(d3_roas.text.strip).to eq("⚠")
+      expect(d5_roas.text.strip).to eq("⚠")
+
+      expect(lifetime_spend.text).to include("⚠")
+      expect(lifetime_spend.text).to include("$40.00")
+      expect(lifetime_roas.text).to include("⚠")
+    end
+  end
+
   it "sorts by a chosen column" do
     creative_with_metrics(name: "Low Spender", first_spend_date: Date.current - 10, spend: 10)
     creative_with_metrics(name: "High Spender", first_spend_date: Date.current - 10, spend: 900)
