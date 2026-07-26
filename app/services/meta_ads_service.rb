@@ -90,12 +90,26 @@ class MetaAdsService
     end
   end
 
+  # `asset_feed_spec` is sub-selected down to just `videos`/`images` --
+  # `resolve_asset` below is the only reader of that object and it only ever
+  # touches those two keys. Without narrowing, Meta returns the full object
+  # (every ad-copy variant, optimization_type, promotional_metadata, ...),
+  # which is what makes large accounts' `/ads` pages too big to serve (see
+  # AD_UNITS_PAGE_LIMIT).
   AD_FIELDS = "id,name,adset_id,campaign_id,effective_status," \
               "creative{id,video_id,image_hash,thumbnail_url,object_story_spec," \
-              "object_story_id,effective_object_story_id,asset_feed_spec}".freeze
+              "object_story_id,effective_object_story_id,asset_feed_spec{videos,images}}".freeze
+
+  # 500 ads/page times the full creative payload is what triggers Meta's
+  # "reduce the amount of data you're asking for" 500 on our largest accounts.
+  # 100 keeps a normal page well under that ceiling while still being large
+  # enough that a full account rarely needs more than a handful of pages.
+  # `fetch_all_pages` will still adapt this down further (see
+  # REDUCE_DATA_ERROR) for accounts where even 100 is too much.
+  AD_UNITS_PAGE_LIMIT = 100
 
   def sync_ad_units
-    ads = fetch_all_pages(@ad_account.account_id, "ads", fields: AD_FIELDS, limit: 500)
+    ads = fetch_all_pages(@ad_account.account_id, "ads", fields: AD_FIELDS, limit: AD_UNITS_PAGE_LIMIT)
     campaign_ids = @ad_account.ad_campaigns.pluck(:campaign_id, :id).to_h
 
     ads.each do |data|
@@ -249,6 +263,17 @@ class MetaAdsService
     creative
   end
 
+  # Meta returns this specific 500 (code 1) when one page's payload is too
+  # large to serve -- distinct from a transient outage (e.g. code 2, "Service
+  # temporarily unavailable"), which a smaller page size would not fix and
+  # which must be allowed to raise straight through instead of being retried
+  # into a masked outage.
+  REDUCE_DATA_ERROR_PATTERN = /reduce the amount of data/i
+
+  # Floor below which we stop halving and let the error propagate: a request
+  # that still fails at 25 rows/page is failing for some other reason.
+  MIN_PAGE_LIMIT = 25
+
   def fetch_all_pages(node, edge, **params)
     page = @graph.get_connections(node, edge, **params)
     results = page.to_a
@@ -259,6 +284,18 @@ class MetaAdsService
       end
     end
     results
+  rescue Koala::Facebook::ServerError => e
+    raise unless e.message.to_s.match?(REDUCE_DATA_ERROR_PATTERN)
+
+    current_limit = params[:limit]
+    raise if current_limit.blank? || current_limit <= MIN_PAGE_LIMIT
+
+    new_limit = [ current_limit / 2, MIN_PAGE_LIMIT ].max
+    Rails.logger.warn(
+      "[MetaAdsService] account=#{@ad_account.account_id} #{node}/#{edge}: " \
+      "reducing page size #{current_limit} -> #{new_limit} after: #{e.message}"
+    )
+    fetch_all_pages(node, edge, **params.merge(limit: new_limit))
   end
 
   def map_campaign_status(effective_status)
