@@ -310,8 +310,8 @@ RSpec.describe "Packages", type: :request do
         expect(response.body).to include(other_store.display_name)
       end
 
-      it "narrows to one store when store_id is given" do
-        get packages_path, params: { store_id: store.id }
+      it "narrows to one store when the store param is given" do
+        get packages_path, params: { store: store.id }
 
         expect(response.body).to include("PKS#1001")
         expect(response.body).not_to include("PKS#6001")
@@ -331,16 +331,65 @@ RSpec.describe "Packages", type: :request do
       end
     end
 
+    describe "store filter" do
+      let(:other_store) { create(:shopify_store, user: user, company: company) }
+      let(:other_customer) { create(:customer, shopify_store: other_store) }
+
+      let!(:other_store_package) do
+        order = create(:order, customer: other_customer, shopify_store: other_store, name: "PKS#7701")
+        create(:package, shopify_store: other_store, order: order, aasm_state: "pending_review", number: 77)
+      end
+
+      it "lists every visible store by default" do
+        get packages_path
+
+        expect(response.body).to include("PKS#1001")
+        expect(response.body).to include("PKS#7701")
+      end
+
+      it "narrows to the store named by the store param" do
+        get packages_path, params: { store: other_store.id }
+
+        expect(response.body).to include("PKS#7701")
+        expect(response.body).not_to include("PKS#1001")
+      end
+
+      it "falls back to every store for an unknown store id" do
+        get packages_path, params: { store: SecureRandom.uuid }
+
+        expect(response.body).to include("PKS#1001")
+        expect(response.body).to include("PKS#7701")
+      end
+
+      it "ignores a store belonging to another company" do
+        foreign_user = create(:user)
+        foreign_store = create(:shopify_store, user: foreign_user, company: foreign_user.companies.first)
+
+        get packages_path, params: { store: foreign_store.id }
+
+        expect(response).to have_http_status(:ok)
+        expect(response.body).to include("PKS#1001")
+        expect(response.body).to include("PKS#7701")
+      end
+
+      # The whole point of moving off the global switcher: selecting a store here
+      # must not follow the user to the orders page.
+      it "does not write the selection into the session" do
+        get packages_path, params: { store: other_store.id }
+
+        expect(session[:store_id]).to be_nil
+      end
+    end
+
     describe "store switcher scoping" do
-      # Codex finding 2 (superseded by Task 4): the packages list + sidebar
-      # counts must respect the currently-selected store
-      # (current_shopify_store) the same way OrdersController#index does.
-      # Task 4 additionally adds packages to STORE_ALL_ALLOWED_CONTROLLERS,
-      # which flips the *default* (no store_id param/session) from "first
-      # store" to "all visible stores" — current_shopify_store now resolves
-      # to nil in that case, and scoped_packages' nil branch aggregates
-      # across every visible store on purpose. Explicitly selecting a store
-      # (via store_id) still narrows to just that store.
+      # Task 2: the packing list no longer participates in the global store
+      # switcher (packages is absent from STORE_SWITCHER_CONTROLLERS) — it
+      # owns its own store filter via params[:store]/#selected_store instead.
+      # The list + sidebar counts follow #selected_store: nil (no store
+      # param, or one that resolves to nothing) aggregates every visible
+      # store; a store id narrows to just that store. Nothing here is ever
+      # persisted to session[:store_id], so a selection can't leak into
+      # another page (see the "store filter" examples above for that).
       let!(:store_b) { create(:shopify_store, user: user, company: company) }
       let!(:customer_b) { create(:customer, shopify_store: store_b) }
 
@@ -356,10 +405,9 @@ RSpec.describe "Packages", type: :request do
       end
 
       it "defaults to an aggregate of every visible store when none is explicitly selected" do
-        # Packages is now in STORE_ALL_ALLOWED_CONTROLLERS (Task 4), so with
-        # no store_id param/session, current_shopify_store resolves to nil —
-        # scoped_packages' nil branch then aggregates every visible store's
-        # packages, and the sidebar badge counts follow the same scope.
+        # No store param, #selected_store resolves to nil — scoped_packages'
+        # nil branch then aggregates every visible store's packages, and the
+        # sidebar badge counts follow the same scope.
         get packages_path
         expect(response).to have_http_status(:ok)
         expect(response.body).to include("PKS#1001")
@@ -368,19 +416,25 @@ RSpec.describe "Packages", type: :request do
       end
 
       it "scopes the list and sidebar counts to the selected store" do
-        get packages_path, params: { store_id: store.id }
+        get packages_path, params: { store: store.id }
         expect(response.body).to include("PKS#1001")
         expect(response.body).not_to include("PKS#STOREB")
         expect(sidebar_badge_count(response.body, "Pending Review")).to eq(1)
       end
 
-      it "adds packages to STORE_SWITCHER_CONTROLLERS so the switcher persists a selection" do
-        get packages_path, params: { store_id: store_b.id }
-        expect(session[:store_id]).to eq(store_b.id)
+      # This intentionally replaces the old "adds packages to
+      # STORE_SWITCHER_CONTROLLERS so the switcher persists a selection"
+      # example: that assertion (session[:store_id] set from a packages-page
+      # request) is exactly the cross-page leak this task removes. See the
+      # "store filter" describe above for the "does not write the selection
+      # into the session" coverage that replaces it.
+      it "does not add packages back to the global store switcher" do
+        get packages_path, params: { store: store_b.id }
+        expect(session[:store_id]).to be_nil
 
         get packages_path
+        expect(response.body).to include("PKS#1001")
         expect(response.body).to include("PKS#STOREB")
-        expect(response.body).not_to include("PKS#1001")
       end
     end
 
@@ -398,7 +452,7 @@ RSpec.describe "Packages", type: :request do
         expect(response.body).not_to include("OTHER#9999")
       end
 
-      it "never leaks another company's package even when its store_id is passed explicitly via the switcher" do
+      it "never leaks another company's package even when its store param is passed explicitly" do
         other_user = create(:user)
         other_company = other_user.companies.first
         other_store = create(:shopify_store, user: other_user, company: other_company)
@@ -406,10 +460,10 @@ RSpec.describe "Packages", type: :request do
         other_order = create(:order, customer: other_customer, shopify_store: other_store, name: "OTHER#8888")
         create(:package, shopify_store: other_store, order: other_order, aasm_state: "pending_review", number: 1)
 
-        # current_shopify_store resolves store_id against visible_shopify_stores
-        # (scoped to the current company), so a foreign store_id can never
-        # select a foreign store — it falls back within the current company.
-        get packages_path, params: { store_id: other_store.id }
+        # #selected_store resolves params[:store] against visible_shopify_stores
+        # (scoped to the current company), so a foreign store id can never
+        # select a foreign store — it falls back to every visible store.
+        get packages_path, params: { store: other_store.id }
         expect(response).to have_http_status(:ok)
         expect(response.body).not_to include("OTHER#8888")
       end

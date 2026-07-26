@@ -45,7 +45,7 @@ class PackagesController < AdminController
   end
 
   def sync
-    stores = current_shopify_store ? [ current_shopify_store ] : visible_shopify_stores
+    stores = selected_store ? [ selected_store ] : visible_shopify_stores
     stores.each { |s| SyncAllShopifyOrdersJob.perform_later(s.id) }
     redirect_back fallback_location: packages_path, notice: t("packages.sync_enqueued")
   end
@@ -559,14 +559,27 @@ class PackagesController < AdminController
     redirect_to authenticated_root_path, alert: t("companies.no_permission")
   end
 
-  # Scoped to the currently-selected store (via the store switcher) when one
-  # is chosen, else to every store the membership can see — mirrors
-  # OrdersController#index so the packages list respects the switcher the
-  # same way orders do. current_shopify_store is still derived from
-  # visible_shopify_stores, so cross-company/cross-group isolation holds
-  # either way.
+  # The packing list's own store filter. Unlike current_shopify_store this reads
+  # ONLY the URL — nothing is persisted, so choosing a store here cannot follow
+  # the user to another page (see AdminController#persist_store_selection, which
+  # no longer fires for this controller).
+  #
+  # nil means "every visible store". An unknown id, or one belonging to another
+  # company, resolves to nil rather than 404ing: visible_shopify_stores is the
+  # isolation boundary, so a foreign id simply finds nothing.
+  def selected_store
+    return @selected_store if defined?(@selected_store)
+
+    @selected_store = visible_shopify_stores.find_by(id: params[:store])
+  end
+  helper_method :selected_store
+
+  # Scoped to the store chosen in the list's own store filter (params[:store])
+  # when one is chosen, else to every store the membership can see. Either way
+  # the ids come from visible_shopify_stores, so cross-company/cross-group
+  # isolation holds.
   def scoped_packages
-    store_ids = current_shopify_store ? [ current_shopify_store.id ] : visible_shopify_stores.select(:id)
+    store_ids = selected_store ? [ selected_store.id ] : visible_shopify_stores.select(:id)
     Package.where(shopify_store_id: store_ids)
   end
 end

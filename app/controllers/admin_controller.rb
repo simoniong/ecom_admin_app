@@ -25,7 +25,12 @@ class AdminController < ApplicationController
     "logistics_accounts" => "logistics_channels"
   }.freeze
 
-  STORE_SWITCHER_CONTROLLERS = %w[dashboard orders shipments tickets ad_campaigns ad_creatives packages].freeze
+  # packages is deliberately absent: the packing list owns its own store filter
+  # (a URL param, rendered as pills in its filter bar). Listing it here would
+  # both render a second, competing control and let persist_store_selection
+  # write the choice into the shared session[:store_id], which is exactly what
+  # that filter exists to avoid.
+  STORE_SWITCHER_CONTROLLERS = %w[dashboard orders shipments tickets ad_campaigns ad_creatives].freeze
   STORE_ALL_ALLOWED_CONTROLLERS = %w[dashboard shipments packages].freeze
 
   private
