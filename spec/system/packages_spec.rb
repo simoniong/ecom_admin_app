@@ -435,6 +435,40 @@ RSpec.describe "Packages UI", type: :system do
       expect(page.evaluate_script("window.__notReloaded")).to be(true)
     end
 
+    # Regression: the split/merge POSTs never carried the list's own store
+    # param (no hidden field on the split form, no store param on the merge
+    # button), so #selected_store resolved nil for THOSE requests even though
+    # the list itself was scoped to a store — the row(s) split/merge.
+    # turbo_stream.erb replaces then rendered a timezone abbreviation (e.g.
+    # "PDT") that the list's own rows, scoped to the same store, never show
+    # (see _package_row.html.erb's show_zone).
+    it "keeps the list's store context on the row(s) a split replaces (no drifting-in timezone abbreviation)" do
+      store.update!(timezone: "America/Los_Angeles")
+
+      visit packages_path(state: "pending_process", store: store.id)
+      click_link source_pkg.package_code
+      click_button I18n.t("packages.split.button")
+      fill_in_first_box_input("1")
+      within("[data-split-target='dialog']") { click_button I18n.t("packages.split.submit") }
+
+      expect(page).to have_no_css("[data-split-target='dialog']")
+      expect(page).to have_no_content("PDT")
+    end
+
+    it "keeps the list's store context on the row a merge replaces (no drifting-in timezone abbreviation)" do
+      store.update!(timezone: "America/Los_Angeles")
+      other = create(:package, shopify_store: store, order: split_order, number: 701, aasm_state: "pending_process")
+      create(:package_item, package: other, order_line_item: oli, sku: "SPLITSKU", quantity: 1)
+      source_pkg.package_items.first.update!(quantity: 2)
+
+      visit packages_path(state: "pending_process", store: store.id)
+      click_link source_pkg.package_code
+      accept_confirm { click_button I18n.t("packages.merge.button") }
+
+      expect(page).to have_no_content(I18n.t("packages.frozen_notice"))
+      expect(page).to have_no_content("PDT")
+    end
+
     # The standalone /packages/:id page (a bookmark or shared link, reached
     # without going through the list first) IS the modal — there is no list
     # row behind it for a turbo_stream.replace to hit, and its modal wrapper
@@ -705,6 +739,106 @@ RSpec.describe "Packages UI", type: :system do
 
       expect(page).to have_content(I18n.t("packages.states.pending_review"))
       expect(page).to have_no_content("PKS#3001")
+    end
+  end
+
+  describe "店鋪篩選" do
+    let(:second_store) { create(:shopify_store, user: user, company: company) }
+    let(:second_customer) { create(:customer, shopify_store: second_store) }
+
+    let!(:second_store_package) do
+      order = create(:order, customer: second_customer, shopify_store: second_store, name: "PKS#8801")
+      create(:package, shopify_store: second_store, order: order, aasm_state: "pending_review", number: 88)
+    end
+
+    it "narrows to one store and back to all" do
+      visit packages_path(state: "pending_review")
+
+      expect(page).to have_content("PKS#3001")
+      expect(page).to have_content("PKS#8801")
+
+      within("[data-testid='store-filter']") { click_link second_store.display_name }
+      expect(page).to have_content("PKS#8801")
+      expect(page).to have_no_content("PKS#3001")
+
+      # Scoped because "全部" is shared copy with the country row — an unscoped
+      # click_link matches both and Capybara raises Ambiguous.
+      within("[data-testid='store-filter']") { click_link I18n.t("packages.filters.all") }
+      expect(page).to have_content("PKS#3001")
+    end
+  end
+
+  describe "SKU 縮圖 hover" do
+    # A real cdn.shopify.com URL makes the headless browser issue a real,
+    # unmocked outbound request for the <img> src — WebMock only intercepts
+    # Ruby-side HTTP, not the browser's own network stack. These examples only
+    # assert on node existence/position, so a self-contained data: URI (no
+    # network involved, and not a recognized image extension so
+    # shopify_image_variant returns it unchanged) is enough to render the
+    # thumbnail/preview <img> tags without ever leaving the machine.
+    let(:pixel_data_uri) { "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==" }
+    let(:product) do
+      create(:product, shopify_store: store, image_url: pixel_data_uri)
+    end
+    let(:variant) { create(:product_variant, product: product, sku: "ART-1") }
+
+    before do
+      create(:package_item, package: review_package, product_variant: variant, sku: "ART-1", quantity: 1)
+    end
+
+    it "shows the large preview on hover, mounted outside the scrolling table" do
+      visit packages_path(state: "pending_review")
+
+      expect(page).to have_no_css("#sku-image-preview")
+
+      find("img[data-controller='image-preview']").hover
+
+      expect(page).to have_css("#sku-image-preview", visible: :visible)
+
+      # The whole reason the controller mounts on body: an absolutely positioned
+      # popover inside the table would be clipped by its overflow-x-auto wrapper.
+      parent_tag = page.evaluate_script(
+        "document.getElementById('sku-image-preview').parentElement.tagName"
+      )
+      expect(parent_tag).to eq("BODY")
+    end
+
+    # The preview is 400px square with a 16px gap on each side, so any viewport
+    # shorter than 432px leaves no room to satisfy both the "gap from top" and
+    # "gap from bottom" clamps at once. A naive sequential-if clamp lets the
+    # bottom check win unconditionally and pushes the preview above y=0. 900x500
+    # is the exact size a reviewer used to reproduce top: -59 on staging.
+    # The preview is a fixed 400px square with a 16px gap, so a viewport
+    # shorter than size + 2*gap (432px of usable height) cannot fit the gap
+    # on both the top and bottom simultaneously — there is no position that
+    # is simultaneously >= 16px from the top and <= 16px from the bottom.
+    # The old sequential-if clamp resolved that impossible case by letting
+    # the bottom check win unconditionally, which is what drove `top`
+    # negative (reproduced live at -59 by a reviewer using this exact
+    # 900x500 window). The fix instead makes the near edge (top/left) win
+    # unconditionally: the preview is guaranteed to never render above or
+    # left of the viewport, even though — when the window is genuinely too
+    # short for the asset — the far edge (bottom) may still spill past it.
+    it "never positions the preview above or left of the viewport, even when the window is too short to fully contain it" do
+      page.driver.browser.manage.window.resize_to(900, 500)
+
+      visit packages_path(state: "pending_review")
+      find("img[data-controller='image-preview']").hover
+      expect(page).to have_css("#sku-image-preview", visible: :visible)
+
+      rect = page.evaluate_script(<<~JS)
+        (() => {
+          const r = document.getElementById('sku-image-preview').getBoundingClientRect();
+          return { top: r.top, left: r.left, right: r.right };
+        })()
+      JS
+      viewport_width = page.evaluate_script("window.innerWidth")
+
+      expect(rect["top"]).to be >= 0
+      expect(rect["left"]).to be >= 0
+      expect(rect["right"]).to be <= viewport_width
+    ensure
+      page.driver.browser.manage.window.resize_to(1400, 900)
     end
   end
 end

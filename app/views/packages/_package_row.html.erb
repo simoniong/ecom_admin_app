@@ -5,28 +5,46 @@
              data-package-bulk-target="checkbox" data-action="change->package-bulk#refresh">
     </td>
   <% end %>
-  <%# Only rendered in the all-stores view — in single-store mode the column
-      would repeat the same name on every row for no information. %>
-  <% unless current_shopify_store %>
-    <td class="px-4 py-3 text-sm text-gray-700 align-top whitespace-nowrap"><%= package.shopify_store.display_name %></td>
-  <% end %>
   <td class="px-4 py-3 text-sm font-medium align-top whitespace-nowrap">
-    <%= link_to package.package_code, package_path(id: package.id),
+    <%# store: selected_store&.id is hop 1 of 3 that carries the list's store
+        context into the modal (and from there, via _split_dialog/
+        _siblings_strip's own hidden fields, into the split/merge POSTs) —
+        without it #selected_store resolves nil inside the modal and any
+        turbo_stream row it replaces drifts from the list's own store scope
+        (see e.g. _package_row's show_zone below). %>
+    <%= link_to package.package_code, package_path(id: package.id, store: selected_store&.id),
         data: { turbo_frame: "package-modal" },
         class: "text-blue-600 hover:underline font-medium" %>
   </td>
   <td class="px-4 py-3 text-sm text-gray-700 align-top">
     <% if package.package_items.any? %>
       <% package.package_items.each do |item| %>
-        <div class="whitespace-nowrap">
-          <span class="font-mono text-xs text-gray-500"><%= item.sku.presence || "—" %></span>
-          <span class="text-gray-400">&times;<%= item.quantity %></span>
-          <span class="text-gray-700"><%= item.title %></span>
-          <% if item.refunded_quantity.positive? %>
-            <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium <%= item.fully_refunded? ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800' %>">
-              <%= t("packages.item_refunded", n: item.refunded_quantity, total: item.quantity) %><% if item.fully_refunded? %> · <%= t("packages.do_not_ship") %><% end %>
-            </span>
+        <% image_url = item.product_variant&.product&.image_url %>
+        <div class="flex items-center gap-2 whitespace-nowrap">
+          <% if image_url.present? %>
+            <%# The preview is mounted on document.body by the controller: this
+                table sits inside overflow-x-auto, which would clip an absolutely
+                positioned popover. %>
+            <img src="<%= shopify_image_variant(image_url, "100x100") %>"
+                 data-controller="image-preview"
+                 data-action="mouseenter->image-preview#show mouseleave->image-preview#hide"
+                 data-image-preview-url-value="<%= shopify_image_variant(image_url, "400x400") %>"
+                 alt="" loading="lazy"
+                 class="w-12 h-12 shrink-0 rounded object-cover border border-gray-200 bg-gray-50">
+          <% else %>
+            <div data-testid="sku-thumb-placeholder"
+                 class="w-12 h-12 shrink-0 rounded border border-gray-200 bg-gray-100"></div>
           <% end %>
+          <div>
+            <span class="font-mono text-xs text-gray-500"><%= item.sku.presence || "—" %></span>
+            <span class="text-gray-400">&times;<%= item.quantity %></span>
+            <span class="text-gray-700"><%= item.title %></span>
+            <% if item.refunded_quantity.positive? %>
+              <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium <%= item.fully_refunded? ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800' %>">
+                <%= t("packages.item_refunded", n: item.refunded_quantity, total: item.quantity) %><% if item.fully_refunded? %> · <%= t("packages.do_not_ship") %><% end %>
+              </span>
+            <% end %>
+          </div>
         </div>
       <% end %>
     <% else %>
@@ -81,7 +99,10 @@
       single-store mode every row would repeat the same abbreviation, so it is
       left off. %>
   <% tz = package.shopify_store.active_timezone %>
-  <% show_zone = current_shopify_store.nil? %>
+  <%# Same rule as before, now driven by the list's own store filter: in the
+      all-stores view different stores render different local times against an
+      absolute-time sort, and the abbreviation is what explains that. %>
+  <% show_zone = selected_store.nil? %>
   <td class="px-4 py-3 text-sm text-gray-500 align-top whitespace-nowrap">
     <% [ [ "ordered_at", package.order.ordered_at ], [ "paid_at", package.order.paid_at ] ].each do |label, value| %>
       <div>

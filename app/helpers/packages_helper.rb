@@ -10,4 +10,30 @@ module PackagesHelper
   def packages_list_path(overrides)
     packages_path(request.query_parameters.symbolize_keys.merge(overrides).compact)
   end
+
+  # Shopify's CDN serves a resized copy when the dimensions are spliced into the
+  # filename: painting.jpg -> painting_100x100.jpg. The packing list renders up
+  # to 50 rows of several SKUs each, so linking the originals would be tens of
+  # megabytes per page.
+  #
+  # An unrecognized URL shape is returned UNCHANGED rather than guessed at: the
+  # cost of being wrong here is a broken link (no image at all), while the cost
+  # of not transforming is a slow image. Slow beats missing.
+  #
+  # Not idempotent: callers must always pass the ORIGINAL (un-resized) url —
+  # calling this on an already-resized result (e.g. "..._100x100.jpg") appends
+  # a second suffix ("..._100x100_400x400.jpg") instead of replacing the first.
+  IMAGE_EXTENSIONS = %w[jpg jpeg png webp gif].freeze
+
+  def shopify_image_variant(url, size)
+    return nil if url.blank?
+
+    # Split the query off first — ?v= is Shopify's cache buster and must survive.
+    path, _, query = url.to_s.partition("?")
+    extension = File.extname(path).delete_prefix(".")
+    return url unless IMAGE_EXTENSIONS.include?(extension.downcase)
+
+    resized = "#{path.delete_suffix(".#{extension}")}_#{size}.#{extension}"
+    query.present? ? "#{resized}?#{query}" : resized
+  end
 end

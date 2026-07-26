@@ -47,6 +47,16 @@ RSpec.describe "Packages", type: :request do
       expect(response.body).to include("PKS#1001")
     end
 
+    it "hides the store filter row when only one store is visible" do
+      get packages_path
+
+      # A bare text match on "Store" would also catch the sidebar's "Shopify
+      # Stores" nav link (always rendered for an owner membership), so this
+      # scopes to the filter bar's own element instead.
+      doc = Nokogiri::HTML(response.body)
+      expect(doc.at_css("[data-testid='store-filter']")).to be_nil
+    end
+
     describe "split badge" do
       let!(:split_boxes) do
         order = create(:order, customer: customer, shopify_store: store, name: "PKS#9001")
@@ -303,15 +313,19 @@ RSpec.describe "Packages", type: :request do
         expect(response.body).to include("PKS#6001")
       end
 
-      it "shows the store name column when no single store is selected" do
+      it "shows the store name in a pill instead of a column when no single store is selected" do
         get packages_path
 
-        expect(response.body).to include(I18n.t("packages.columns.store"))
+        # A bare text match on "Store" would also catch the sidebar's "Shopify
+        # Stores" nav link (always rendered for an owner membership), so this
+        # scopes the column-removal check to the table header.
+        doc = Nokogiri::HTML(response.body)
+        expect(doc.css("thead th").map(&:text)).not_to include(I18n.t("packages.columns.store"))
         expect(response.body).to include(other_store.display_name)
       end
 
-      it "narrows to one store when store_id is given" do
-        get packages_path, params: { store_id: store.id }
+      it "narrows to one store when the store param is given" do
+        get packages_path, params: { store: store.id }
 
         expect(response.body).to include("PKS#1001")
         expect(response.body).not_to include("PKS#6001")
@@ -321,26 +335,125 @@ RSpec.describe "Packages", type: :request do
         store.update!(timezone: "America/Los_Angeles")
 
         get packages_path
-        cross_store_body = response.body
+        multi_store_body = response.body
 
-        get packages_path, params: { store_id: store.id }
+        # `store` (not the old store_id) is the param that drives this view now:
+        # #selected_store reads only params[:store], and both show_zone and the
+        # package list scoping read #selected_store.
+        get packages_path, params: { store: store.id }
         single_store_body = response.body
 
-        expect(cross_store_body).to include(Time.current.in_time_zone("America/Los_Angeles").zone)
+        expect(multi_store_body).to include(Time.current.in_time_zone("America/Los_Angeles").zone)
         expect(single_store_body).not_to include(Time.current.in_time_zone("America/Los_Angeles").zone)
+
+        # Narrowing to one store via `store` also narrows the package list
+        # itself now that show_zone and the list scoping share #selected_store —
+        # the other store's package is gone, not just unlabeled.
+        expect(single_store_body).not_to include("PKS#6001")
+      end
+    end
+
+    describe "store filter" do
+      let(:other_store) { create(:shopify_store, user: user, company: company) }
+      let(:other_customer) { create(:customer, shopify_store: other_store) }
+
+      let!(:other_store_package) do
+        order = create(:order, customer: other_customer, shopify_store: other_store, name: "PKS#7701")
+        create(:package, shopify_store: other_store, order: order, aasm_state: "pending_review", number: 77)
+      end
+
+      it "lists every visible store by default" do
+        get packages_path
+
+        expect(response.body).to include("PKS#1001")
+        expect(response.body).to include("PKS#7701")
+      end
+
+      it "narrows to the store named by the store param" do
+        get packages_path, params: { store: other_store.id }
+
+        expect(response.body).to include("PKS#7701")
+        expect(response.body).not_to include("PKS#1001")
+      end
+
+      it "falls back to every store for an unknown store id" do
+        get packages_path, params: { store: SecureRandom.uuid }
+
+        expect(response.body).to include("PKS#1001")
+        expect(response.body).to include("PKS#7701")
+      end
+
+      it "ignores a store belonging to another company" do
+        foreign_user = create(:user)
+        foreign_store = create(:shopify_store, user: foreign_user, company: foreign_user.companies.first)
+
+        get packages_path, params: { store: foreign_store.id }
+
+        expect(response).to have_http_status(:ok)
+        expect(response.body).to include("PKS#1001")
+        expect(response.body).to include("PKS#7701")
+      end
+
+      # The whole point of moving off the global switcher: selecting a store here
+      # must not follow the user to the orders page.
+      it "does not write the selection into the session" do
+        get packages_path, params: { store: other_store.id }
+
+        expect(session[:store_id]).to be_nil
+      end
+
+      it "renders a pill for every visible store" do
+        get packages_path
+
+        expect(response.body).to include(I18n.t("packages.filters.store"))
+        expect(response.body).to include(store.display_name)
+        expect(response.body).to include(other_store.display_name)
+      end
+
+      it "drops the store column from the table" do
+        get packages_path
+
+        # A bare text match on "Store" would also catch the sidebar's "Shopify
+        # Stores" nav link (always rendered for an owner membership), so this
+        # scopes the check to the table header.
+        doc = Nokogiri::HTML(response.body)
+        expect(doc.css("thead th").map(&:text)).not_to include(I18n.t("packages.columns.store"))
+      end
+
+      # Regression: the bulk form only mirrored :country/:sort_column/
+      # :sort_direction as hidden fields, so submitting a bulk action while a
+      # store was selected silently widened the operator back to every
+      # visible store on the redirect (see list_filter_params, which the
+      # same fix extends).
+      it "carries the store filter into the bulk form as a hidden field" do
+        get packages_path, params: { store: other_store.id, state: "pending_review" }
+
+        doc = Nokogiri::HTML(response.body)
+        hidden = doc.at_css("form#packages-bulk-form input[type='hidden'][name='store']")
+        expect(hidden).to be_present
+        expect(hidden["value"]).to eq(other_store.id)
+      end
+
+      it "keeps the header and body cell counts in agreement" do
+        get packages_path
+
+        doc = Nokogiri::HTML(response.body)
+        header_cells = doc.css("thead th").size
+        body_cells = doc.css("tbody tr").first.css("td").size
+
+        expect(body_cells).to eq(header_cells)
       end
     end
 
     describe "store switcher scoping" do
-      # Codex finding 2 (superseded by Task 4): the packages list + sidebar
-      # counts must respect the currently-selected store
-      # (current_shopify_store) the same way OrdersController#index does.
-      # Task 4 additionally adds packages to STORE_ALL_ALLOWED_CONTROLLERS,
-      # which flips the *default* (no store_id param/session) from "first
-      # store" to "all visible stores" — current_shopify_store now resolves
-      # to nil in that case, and scoped_packages' nil branch aggregates
-      # across every visible store on purpose. Explicitly selecting a store
-      # (via store_id) still narrows to just that store.
+      # Task 2: the packing list no longer participates in the global store
+      # switcher (packages is absent from STORE_SWITCHER_CONTROLLERS) — it
+      # owns its own store filter via params[:store]/#selected_store instead.
+      # The list + sidebar counts follow #selected_store: nil (no store
+      # param, or one that resolves to nothing) aggregates every visible
+      # store; a store id narrows to just that store. Nothing here is ever
+      # persisted to session[:store_id], so a selection can't leak into
+      # another page (see the "store filter" examples above for that).
       let!(:store_b) { create(:shopify_store, user: user, company: company) }
       let!(:customer_b) { create(:customer, shopify_store: store_b) }
 
@@ -356,10 +469,9 @@ RSpec.describe "Packages", type: :request do
       end
 
       it "defaults to an aggregate of every visible store when none is explicitly selected" do
-        # Packages is now in STORE_ALL_ALLOWED_CONTROLLERS (Task 4), so with
-        # no store_id param/session, current_shopify_store resolves to nil —
-        # scoped_packages' nil branch then aggregates every visible store's
-        # packages, and the sidebar badge counts follow the same scope.
+        # No store param, #selected_store resolves to nil — scoped_packages'
+        # nil branch then aggregates every visible store's packages, and the
+        # sidebar badge counts follow the same scope.
         get packages_path
         expect(response).to have_http_status(:ok)
         expect(response.body).to include("PKS#1001")
@@ -368,19 +480,43 @@ RSpec.describe "Packages", type: :request do
       end
 
       it "scopes the list and sidebar counts to the selected store" do
-        get packages_path, params: { store_id: store.id }
+        get packages_path, params: { store: store.id }
         expect(response.body).to include("PKS#1001")
         expect(response.body).not_to include("PKS#STOREB")
         expect(sidebar_badge_count(response.body, "Pending Review")).to eq(1)
       end
 
-      it "adds packages to STORE_SWITCHER_CONTROLLERS so the switcher persists a selection" do
-        get packages_path, params: { store_id: store_b.id }
-        expect(session[:store_id]).to eq(store_b.id)
+      # This intentionally replaces the old "adds packages to
+      # STORE_SWITCHER_CONTROLLERS so the switcher persists a selection"
+      # example: that assertion (session[:store_id] set from a packages-page
+      # request) is exactly the cross-page leak this task removes. See the
+      # "store filter" describe above for the "does not write the selection
+      # into the session" coverage that replaces it.
+      it "does not add packages back to the global store switcher" do
+        get packages_path, params: { store: store_b.id }
+        expect(session[:store_id]).to be_nil
 
         get packages_path
+        expect(response.body).to include("PKS#1001")
         expect(response.body).to include("PKS#STOREB")
-        expect(response.body).not_to include("PKS#1001")
+      end
+
+      # Regression: sidebar_package_counts (ApplicationHelper) scopes the
+      # badge to #selected_store, but the link the badge sits inside used to
+      # be a bare packages_path(state: state) with no store param — so the
+      # badge and the page it links to disagreed (badge said 1, the link's
+      # target showed 2). Following the badge's own link must land on
+      # exactly what the badge promised.
+      it "keeps the sidebar link's target in agreement with its own badge count" do
+        get packages_path, params: { store: store.id }
+        expect(sidebar_badge_count(response.body, "Pending Review")).to eq(1)
+
+        doc = Nokogiri::HTML(response.body)
+        link = doc.at_xpath("//a[.//span[normalize-space(text())='Pending Review']]")
+
+        get link["href"]
+        expect(response.body).to include("PKS#1001")
+        expect(response.body).not_to include("PKS#STOREB")
       end
     end
 
@@ -398,7 +534,7 @@ RSpec.describe "Packages", type: :request do
         expect(response.body).not_to include("OTHER#9999")
       end
 
-      it "never leaks another company's package even when its store_id is passed explicitly via the switcher" do
+      it "never leaks another company's package even when its store param is passed explicitly" do
         other_user = create(:user)
         other_company = other_user.companies.first
         other_store = create(:shopify_store, user: other_user, company: other_company)
@@ -406,10 +542,10 @@ RSpec.describe "Packages", type: :request do
         other_order = create(:order, customer: other_customer, shopify_store: other_store, name: "OTHER#8888")
         create(:package, shopify_store: other_store, order: other_order, aasm_state: "pending_review", number: 1)
 
-        # current_shopify_store resolves store_id against visible_shopify_stores
-        # (scoped to the current company), so a foreign store_id can never
-        # select a foreign store — it falls back within the current company.
-        get packages_path, params: { store_id: other_store.id }
+        # #selected_store resolves params[:store] against visible_shopify_stores
+        # (scoped to the current company), so a foreign store id can never
+        # select a foreign store — it falls back to every visible store.
+        get packages_path, params: { store: other_store.id }
         expect(response).to have_http_status(:ok)
         expect(response.body).not_to include("OTHER#8888")
       end
@@ -454,6 +590,48 @@ RSpec.describe "Packages", type: :request do
 
         get packages_path
         expect(response).to redirect_to(authenticated_root_path)
+      end
+    end
+
+    describe "SKU thumbnails" do
+      let(:product) do
+        create(:product, shopify_store: store,
+               image_url: "https://cdn.shopify.com/s/files/1/art.jpg?v=42")
+      end
+      let(:variant) { create(:product_variant, product: product, sku: "ART-1") }
+
+      it "renders a CDN-resized thumbnail for an item with a product image" do
+        create(:package_item, package: review_package, product_variant: variant, sku: "ART-1", quantity: 1)
+
+        get packages_path
+
+        expect(response.body).to include("https://cdn.shopify.com/s/files/1/art_100x100.jpg?v=42")
+      end
+
+      it "exposes the larger preview url for the hover controller" do
+        create(:package_item, package: review_package, product_variant: variant, sku: "ART-1", quantity: 1)
+
+        get packages_path
+
+        expect(response.body).to include("https://cdn.shopify.com/s/files/1/art_400x400.jpg?v=42")
+      end
+
+      it "renders a placeholder for an item with no product variant" do
+        create(:package_item, package: review_package, product_variant: nil, sku: "NOVARIANT", quantity: 1)
+
+        get packages_path
+
+        expect(response.body).to include("data-testid=\"sku-thumb-placeholder\"")
+      end
+
+      it "renders a placeholder when the product has no image" do
+        imageless = create(:product, shopify_store: store, image_url: nil)
+        imageless_variant = create(:product_variant, product: imageless, sku: "NOIMG")
+        create(:package_item, package: review_package, product_variant: imageless_variant, sku: "NOIMG", quantity: 1)
+
+        get packages_path
+
+        expect(response.body).to include("data-testid=\"sku-thumb-placeholder\"")
       end
     end
   end
@@ -532,6 +710,28 @@ RSpec.describe "Packages", type: :request do
 
       post sync_packages_path
       expect(response).to redirect_to(authenticated_root_path)
+    end
+
+    # Regression: #sync already branched correctly on params[:store] — the
+    # bug was the button never SENT it (a bare button_to sync_packages_path
+    # with no params), so the existing example above (a single-store
+    # fixture) passed either way. Extracting the real rendered <form>'s
+    # action from a two-store list and posting to exactly that URL is what
+    # proves the button itself carries the selection, not just the
+    # controller's ability to read it if given one.
+    it "only syncs the store selected on the list, via the button's own rendered URL" do
+      other_store = create(:shopify_store, user: user, company: company)
+
+      get packages_path, params: { store: store.id }
+      doc = Nokogiri::HTML(response.body)
+      form = doc.at_xpath("//form[starts-with(@action, '#{sync_packages_path}')]")
+      sync_url = form["action"]
+
+      expect {
+        post sync_url
+      }.to have_enqueued_job(SyncAllShopifyOrdersJob).with(store.id)
+
+      expect(enqueued_jobs.size).to eq(1)
     end
   end
 
@@ -1280,6 +1480,32 @@ RSpec.describe "Packages", type: :request do
       expect(response).to have_http_status(:not_found)
     end
 
+    # Regression: split.turbo_stream.erb's eager load was left over from
+    # before the SKU thumbnails shipped — it still loaded :package_items
+    # bare, not package_items: { product_variant: :product }, which is what
+    # _package_row now reads per item. Pins the query count for this exact
+    # 1-item, 2-box split (the src package_item gets a product_variant here)
+    # so a regressed include starts failing this example rather than only
+    # showing up as a slow page later.
+    it "does not N+1 the product_variant/product association per sibling row" do
+      variant = create(:product_variant, sku: "A")
+      src.package_items.first.update!(product_variant: variant)
+
+      count = 0
+      subscription = ActiveSupport::Notifications.subscribe("sql.active_record") do |*, payload|
+        count += 1 unless payload[:name].to_s.match?(/SCHEMA|TRANSACTION/)
+      end
+      begin
+        post split_package_path(id: src.id), params: { allocations: { oli.id => [ "1" ] } },
+             headers: { "Accept" => "text/vnd.turbo-stream.html" }
+      ensure
+        ActiveSupport::Notifications.unsubscribe(subscription)
+      end
+
+      expect(response).to have_http_status(:ok)
+      expect(count).to eq(29)
+    end
+
     describe "from the standalone show page (context=standalone)" do
       # _split_dialog only renders this hidden field when show.html.erb
       # rendered the modal with standalone: true — see that view and
@@ -1369,6 +1595,30 @@ RSpec.describe "Packages", type: :request do
       sign_in stranger
       post merge_package_path(id: other.id)
       expect(response).to have_http_status(:not_found)
+    end
+
+    # Regression: merge.turbo_stream.erb reloaded the survivor with a bare
+    # @survivor.reload — no includes at all — so the row it renders N+1s the
+    # product_variant/product association #index eager-loads for the same
+    # partial. Pins the query count for this exact merge (the survivor's
+    # package_item gets a product_variant here) so a regressed reload starts
+    # failing this example rather than only showing up as a slow page later.
+    it "does not N+1 the product_variant/product association on the reloaded survivor row" do
+      variant = create(:product_variant, sku: "A")
+      survivor.package_items.first.update!(product_variant: variant)
+
+      count = 0
+      subscription = ActiveSupport::Notifications.subscribe("sql.active_record") do |*, payload|
+        count += 1 unless payload[:name].to_s.match?(/SCHEMA|TRANSACTION/)
+      end
+      begin
+        post merge_package_path(id: other.id), headers: { "Accept" => "text/vnd.turbo-stream.html" }
+      ensure
+        ActiveSupport::Notifications.unsubscribe(subscription)
+      end
+
+      expect(response).to have_http_status(:ok)
+      expect(count).to eq(26)
     end
 
     describe "from the standalone show page (context=standalone)" do
@@ -1576,12 +1826,12 @@ RSpec.describe "Packages", type: :request do
         expect(second.reload).to have_state(:applying_tracking)
       end
 
-      it "carries the current filters back to the list" do
+      it "carries the current filters, including the store filter, back to the list" do
         post apply_tracking_bulk_packages_path,
-             params: { package_ids: [ process_package.id ], country: "US", sort_column: "ordered_at" }
+             params: { package_ids: [ process_package.id ], country: "US", sort_column: "ordered_at", store: store.id }
 
         expect(response).to redirect_to(
-          packages_path(country: "US", sort_column: "ordered_at", state: "pending_process")
+          packages_path(country: "US", sort_column: "ordered_at", store: store.id, state: "pending_process")
         )
       end
     end
@@ -1769,12 +2019,12 @@ RSpec.describe "Packages", type: :request do
         expect(b.reload).to have_state(:shipped)
       end
 
-      it "carries the current filters back to the list" do
+      it "carries the current filters, including the store filter, back to the list" do
         post ship_bulk_packages_path,
-             params: { package_ids: [], country: "US", sort_column: "ordered_at" }
+             params: { package_ids: [], country: "US", sort_column: "ordered_at", store: store.id }
 
         expect(response).to redirect_to(
-          packages_path(country: "US", sort_column: "ordered_at", state: "pending_label")
+          packages_path(country: "US", sort_column: "ordered_at", store: store.id, state: "pending_label")
         )
       end
     end
@@ -1867,13 +2117,13 @@ RSpec.describe "Packages", type: :request do
       expect(flash[:notice]).to eq(I18n.t("packages.review.bulk_result", reviewed: 1, skipped: 0))
     end
 
-    it "carries the current filters back to the list" do
+    it "carries the current filters, including the store filter, back to the list" do
       post submit_review_bulk_packages_path,
            params: { package_ids: [ review_package.id ], country: "US",
-                     sort_column: "paid_at", sort_direction: "asc" }
+                     sort_column: "paid_at", sort_direction: "asc", store: store.id }
 
       expect(response).to redirect_to(
-        packages_path(country: "US", sort_column: "paid_at", sort_direction: "asc", state: "pending_review")
+        packages_path(country: "US", sort_column: "paid_at", sort_direction: "asc", store: store.id, state: "pending_review")
       )
     end
   end

@@ -23,11 +23,17 @@
               mirrors _split_dialog's hidden :context field, but button_to has no
               form block to nest one in, so it goes through the `params:` option
               instead (added as an extra hidden input on the generated form). Not
-              inferred from the referer. %>
+              inferred from the referer.
+
+              store: hop 3 of 3 (see _package_row's package-code link and
+              _split_dialog's hidden field) — without it the #merge POST carries
+              no store param, #selected_store resolves nil for THAT request, and
+              merge.turbo_stream.erb's replaced survivor row drifts from the
+              list's own store context. %>
           <%= button_to t("packages.merge.button"),
                 merge_package_path(id: package.id), method: :post,
                 form: { data: { turbo_frame: "package-modal" } },
-                params: (local_assigns[:standalone] ? { context: "standalone" } : nil),
+                params: { context: (local_assigns[:standalone] ? "standalone" : nil), store: selected_store&.id }.compact,
                 data: { turbo_confirm: PackageMerger.new(package).conflict? ? t("packages.merge.confirm_conflict") : t("packages.merge.confirm") },
                 class: "ml-auto px-3 py-1 bg-indigo-600 text-white text-xs rounded hover:bg-indigo-700" %>
         <% end %>

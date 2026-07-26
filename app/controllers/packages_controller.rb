@@ -37,7 +37,11 @@ class PackagesController < AdminController
     @total_count = filtered.count
     @total_pages = (@total_count.to_f / PER_PAGE).ceil
     @page = [ @page, @total_pages ].min if @total_pages > 0
-    @packages = filtered.includes(:order, :package_items, :shopify_store, :logistics_channel)
+    # package_items -> product_variant -> product is what the SKU thumbnails
+    # read; without it each SKU costs two more queries and a 50-row page turns
+    # into hundreds.
+    @packages = filtered.includes(:order, :shopify_store, :logistics_channel,
+                                  package_items: { product_variant: :product })
                         .offset((@page - 1) * PER_PAGE).limit(PER_PAGE)
     # One query for the whole page's box numbering — see PackageSiblingIndex.
     # Must come after @packages is materialized; it reads their order_ids.
@@ -45,7 +49,7 @@ class PackagesController < AdminController
   end
 
   def sync
-    stores = current_shopify_store ? [ current_shopify_store ] : visible_shopify_stores
+    stores = selected_store ? [ selected_store ] : visible_shopify_stores
     stores.each { |s| SyncAllShopifyOrdersJob.perform_later(s.id) }
     redirect_back fallback_location: packages_path, notice: t("packages.sync_enqueued")
   end
@@ -441,9 +445,11 @@ class PackagesController < AdminController
   # The list filters, carried back through a bulk action's redirect. Without
   # this, one click on a bulk button silently resets the user's country/sort
   # selection. Values are re-validated by PackageListQuery on the way back in,
-  # so this only has to move them.
+  # so this only has to move them. :store is included for the same reason —
+  # #selected_store reads params[:store] only, so a redirect that dropped it
+  # would silently widen the operator back to every visible store.
   def list_filter_params
-    params.permit(:country, :sort_column, :sort_direction).to_h.compact_blank.symbolize_keys
+    params.permit(:country, :sort_column, :sort_direction, :store).to_h.compact_blank.symbolize_keys
   end
 
   # Atomically transition to shipped + set status + decide enqueue (Codex: row
@@ -559,14 +565,27 @@ class PackagesController < AdminController
     redirect_to authenticated_root_path, alert: t("companies.no_permission")
   end
 
-  # Scoped to the currently-selected store (via the store switcher) when one
-  # is chosen, else to every store the membership can see — mirrors
-  # OrdersController#index so the packages list respects the switcher the
-  # same way orders do. current_shopify_store is still derived from
-  # visible_shopify_stores, so cross-company/cross-group isolation holds
-  # either way.
+  # The packing list's own store filter. Unlike current_shopify_store this reads
+  # ONLY the URL — nothing is persisted, so choosing a store here cannot follow
+  # the user to another page (see AdminController#persist_store_selection, which
+  # no longer fires for this controller).
+  #
+  # nil means "every visible store". An unknown id, or one belonging to another
+  # company, resolves to nil rather than 404ing: visible_shopify_stores is the
+  # isolation boundary, so a foreign id simply finds nothing.
+  def selected_store
+    return @selected_store if defined?(@selected_store)
+
+    @selected_store = visible_shopify_stores.find_by(id: params[:store])
+  end
+  helper_method :selected_store
+
+  # Scoped to the store chosen in the list's own store filter (params[:store])
+  # when one is chosen, else to every store the membership can see. Either way
+  # the ids come from visible_shopify_stores, so cross-company/cross-group
+  # isolation holds.
   def scoped_packages
-    store_ids = current_shopify_store ? [ current_shopify_store.id ] : visible_shopify_stores.select(:id)
+    store_ids = selected_store ? [ selected_store.id ] : visible_shopify_stores.select(:id)
     Package.where(shopify_store_id: store_ids)
   end
 end

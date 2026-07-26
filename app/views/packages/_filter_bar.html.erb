@@ -1,6 +1,25 @@
-<%# 國家區域 + 排序方式。兩者都是純連結（Turbo Drive 負責導覽），不需要 Stimulus。
-    國家清單只列出這個狀態下實際存在的國家，所以不會出現點了沒有結果的膠囊。 %>
+<%# 店鋪 + 國家區域 + 排序方式。三者都是純連結（Turbo Drive 負責導覽），不需要
+    Stimulus。國家清單只列出這個狀態下實際存在的國家，所以不會出現點了沒有結果
+    的膠囊。 %>
 <div class="bg-white rounded-lg border border-gray-200 px-4 py-3 mb-4 space-y-2">
+  <%# Only worth a row when there is a choice to make — a filter with one
+      permanent option is noise. %>
+  <% if stores.size > 1 %>
+    <%# data-testid because "全部" is shared copy with the country row — tests
+        need to say WHICH row's 全部 they mean. %>
+    <div data-testid="store-filter" class="flex items-start gap-3">
+      <span class="shrink-0 pt-1 text-sm text-gray-500"><%= t("packages.filters.store") %></span>
+      <div class="flex flex-wrap gap-1.5">
+        <%= link_to t("packages.filters.all"), packages_list_path(store: nil, page: nil),
+              class: "px-2.5 py-1 text-sm rounded #{selected_store.nil? ? 'bg-blue-600 text-white' : 'text-gray-700 hover:bg-gray-100'}" %>
+        <% stores.each do |store| %>
+          <%= link_to store.display_name, packages_list_path(store: store.id, page: nil),
+                class: "px-2.5 py-1 text-sm rounded #{selected_store&.id == store.id ? 'bg-blue-600 text-white' : 'text-gray-700 hover:bg-gray-100'}" %>
+        <% end %>
+      </div>
+    </div>
+  <% end %>
+
   <% if countries.any? %>
     <div class="flex items-start gap-3">
       <span class="shrink-0 pt-1 text-sm text-gray-500"><%= t("packages.filters.country") %></span>
