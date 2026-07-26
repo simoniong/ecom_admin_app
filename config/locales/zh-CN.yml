@@ -648,6 +648,7 @@
       all: "全部"
       country: "国家区域"
       sort: "排序方式"
+      store: "店铺"
     sort:
       created_at: "按建包时间"
       ordered_at: "按下单时间"

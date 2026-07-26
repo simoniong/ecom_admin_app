@@ -47,6 +47,16 @@ RSpec.describe "Packages", type: :request do
       expect(response.body).to include("PKS#1001")
     end
 
+    it "hides the store filter row when only one store is visible" do
+      get packages_path
+
+      # A bare text match on "Store" would also catch the sidebar's "Shopify
+      # Stores" nav link (always rendered for an owner membership), so this
+      # scopes to the filter bar's own element instead.
+      doc = Nokogiri::HTML(response.body)
+      expect(doc.at_css("[data-testid='store-filter']")).to be_nil
+    end
+
     describe "split badge" do
       let!(:split_boxes) do
         order = create(:order, customer: customer, shopify_store: store, name: "PKS#9001")
@@ -303,10 +313,14 @@ RSpec.describe "Packages", type: :request do
         expect(response.body).to include("PKS#6001")
       end
 
-      it "shows the store name column when no single store is selected" do
+      it "shows the store name in a pill instead of a column when no single store is selected" do
         get packages_path
 
-        expect(response.body).to include(I18n.t("packages.columns.store"))
+        # A bare text match on "Store" would also catch the sidebar's "Shopify
+        # Stores" nav link (always rendered for an owner membership), so this
+        # scopes the column-removal check to the table header.
+        doc = Nokogiri::HTML(response.body)
+        expect(doc.css("thead th").map(&:text)).not_to include(I18n.t("packages.columns.store"))
         expect(response.body).to include(other_store.display_name)
       end
 
@@ -323,21 +337,19 @@ RSpec.describe "Packages", type: :request do
         get packages_path
         multi_store_body = response.body
 
-        # store_id (not the new `store` param) is used deliberately here: the timezone label's
-        # show_zone flag and the store column still read current_shopify_store, which only
-        # store_id feeds. Switching this to `store` would silently stop exercising that path
-        # until the view call sites are converted in the next task.
-        get packages_path, params: { store_id: store.id }
-        vestigial_store_id_body = response.body
+        # `store` (not the old store_id) is the param that drives this view now:
+        # #selected_store reads only params[:store], and both show_zone and the
+        # package list scoping read #selected_store.
+        get packages_path, params: { store: store.id }
+        single_store_body = response.body
 
         expect(multi_store_body).to include(Time.current.in_time_zone("America/Los_Angeles").zone)
-        expect(vestigial_store_id_body).not_to include(Time.current.in_time_zone("America/Los_Angeles").zone)
+        expect(single_store_body).not_to include(Time.current.in_time_zone("America/Los_Angeles").zone)
 
-        # store_id only suppresses the timezone label -- it does not narrow the package list,
-        # since the list itself is filtered by the new `store` param. The other store's package
-        # is still present. This assertion should start failing once the next task converts the
-        # view call sites off current_shopify_store, which is the expected signal to update it.
-        expect(vestigial_store_id_body).to include("PKS#6001")
+        # Narrowing to one store via `store` also narrows the package list
+        # itself now that show_zone and the list scoping share #selected_store —
+        # the other store's package is gone, not just unlabeled.
+        expect(single_store_body).not_to include("PKS#6001")
       end
     end
 
@@ -388,6 +400,34 @@ RSpec.describe "Packages", type: :request do
         get packages_path, params: { store: other_store.id }
 
         expect(session[:store_id]).to be_nil
+      end
+
+      it "renders a pill for every visible store" do
+        get packages_path
+
+        expect(response.body).to include(I18n.t("packages.filters.store"))
+        expect(response.body).to include(store.display_name)
+        expect(response.body).to include(other_store.display_name)
+      end
+
+      it "drops the store column from the table" do
+        get packages_path
+
+        # A bare text match on "Store" would also catch the sidebar's "Shopify
+        # Stores" nav link (always rendered for an owner membership), so this
+        # scopes the check to the table header.
+        doc = Nokogiri::HTML(response.body)
+        expect(doc.css("thead th").map(&:text)).not_to include(I18n.t("packages.columns.store"))
+      end
+
+      it "keeps the header and body cell counts in agreement" do
+        get packages_path
+
+        doc = Nokogiri::HTML(response.body)
+        header_cells = doc.css("thead th").size
+        body_cells = doc.css("tbody tr").first.css("td").size
+
+        expect(body_cells).to eq(header_cells)
       end
     end
 

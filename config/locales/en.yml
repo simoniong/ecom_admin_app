@@ -650,6 +650,7 @@ en:
       all: "All"
       country: "Country"
       sort: "Sort by"
+      store: "Store"
     sort:
       created_at: "Packed time"
       ordered_at: "Order time"

@@ -20,7 +20,8 @@
   <% end %>
 
   <%= render "packages/filter_bar", countries: @countries, country: @country,
-        sort_column: @sort_column, sort_direction: @sort_direction %>
+        sort_column: @sort_column, sort_direction: @sort_direction,
+        stores: visible_shopify_stores.to_a %>
 
   <% bulk = %w[pending_review pending_process pending_label].include?(@state) %>
   <%
@@ -56,9 +57,6 @@
               <% if bulk %>
                 <th class="px-4 py-3"><input type="checkbox" data-action="change->package-bulk#toggleAll" data-package-bulk-target="all"></th>
               <% end %>
-              <% unless current_shopify_store %>
-                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase"><%= t("packages.columns.store") %></th>
-              <% end %>
               <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase"><%= t("packages.columns.package_code") %></th>
               <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase"><%= t("packages.columns.items") %></th>
               <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase"><%= t("packages.columns.order_total") %></th>
@@ -72,7 +70,7 @@
           <tbody class="divide-y divide-gray-100" data-package-bulk-target="<%= "rows" if bulk %>">
             <% if @total_count.zero? %>
               <tr>
-                <td colspan="<%= 8 + (bulk ? 1 : 0) + (current_shopify_store ? 0 : 1) %>" class="px-4 py-8 text-center text-sm text-gray-500"><%= t("packages.no_packages") %></td>
+                <td colspan="<%= 8 + (bulk ? 1 : 0) %>" class="px-4 py-8 text-center text-sm text-gray-500"><%= t("packages.no_packages") %></td>
               </tr>
             <% else %>
               <% @packages.each do |package| %>

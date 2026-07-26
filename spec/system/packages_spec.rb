@@ -707,6 +707,32 @@ RSpec.describe "Packages UI", type: :system do
       expect(page).to have_no_content("PKS#3001")
     end
   end
+
+  describe "店鋪篩選" do
+    let(:second_store) { create(:shopify_store, user: user, company: company) }
+    let(:second_customer) { create(:customer, shopify_store: second_store) }
+
+    let!(:second_store_package) do
+      order = create(:order, customer: second_customer, shopify_store: second_store, name: "PKS#8801")
+      create(:package, shopify_store: second_store, order: order, aasm_state: "pending_review", number: 88)
+    end
+
+    it "narrows to one store and back to all" do
+      visit packages_path(state: "pending_review")
+
+      expect(page).to have_content("PKS#3001")
+      expect(page).to have_content("PKS#8801")
+
+      within("[data-testid='store-filter']") { click_link second_store.display_name }
+      expect(page).to have_content("PKS#8801")
+      expect(page).to have_no_content("PKS#3001")
+
+      # Scoped because "全部" is shared copy with the country row — an unscoped
+      # click_link matches both and Capybara raises Ambiguous.
+      within("[data-testid='store-filter']") { click_link I18n.t("packages.filters.all") }
+      expect(page).to have_content("PKS#3001")
+    end
+  end
 end
 
 # Fills the first box's number input for the first item row.
