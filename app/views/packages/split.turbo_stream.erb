@@ -27,10 +27,12 @@
   <turbo-stream action="dismiss_modal"></turbo-stream>
   <%# The source package survives a split — it becomes box 1, the remainder —
       so this is one row becoming N, never a delete plus inserts. Eager-load
-      the same associations _package_row reads that #index loads for the same
-      partial (:order, :package_items, :shopify_store, :logistics_channel) —
-      without it this N+1s per sibling. %>
-  <% siblings = @package.order_packages.includes(:order, :package_items, :shopify_store, :logistics_channel).to_a %>
+      the same associations #index loads for the same partial (:order,
+      :shopify_store, :logistics_channel, package_items: { product_variant:
+      :product } — the last one is what the SKU thumbnails read) — without it
+      this N+1s per sibling. %>
+  <% siblings = @package.order_packages.includes(:order, :shopify_store, :logistics_channel,
+                                                  package_items: { product_variant: :product }).to_a %>
   <% sibling_index = PackageSiblingIndex.new(siblings).call %>
   <%= turbo_stream.replace dom_id(@package) do %>
     <% siblings.each do |sibling| %>

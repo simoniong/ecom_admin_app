@@ -31,7 +31,11 @@ class AdminController < ApplicationController
   # write the choice into the shared session[:store_id], which is exactly what
   # that filter exists to avoid.
   STORE_SWITCHER_CONTROLLERS = %w[dashboard orders shipments tickets ad_campaigns ad_creatives].freeze
-  STORE_ALL_ALLOWED_CONTROLLERS = %w[dashboard shipments packages].freeze
+  # packages is deliberately absent here too: every store_all_allowed? call
+  # site sits behind a store_switcher_visible? guard, and packages is already
+  # absent from STORE_SWITCHER_CONTROLLERS above — so a "packages" entry here
+  # could never be reached.
+  STORE_ALL_ALLOWED_CONTROLLERS = %w[dashboard shipments].freeze
 
   private
 

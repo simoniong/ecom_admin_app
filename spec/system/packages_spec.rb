@@ -435,6 +435,40 @@ RSpec.describe "Packages UI", type: :system do
       expect(page.evaluate_script("window.__notReloaded")).to be(true)
     end
 
+    # Regression: the split/merge POSTs never carried the list's own store
+    # param (no hidden field on the split form, no store param on the merge
+    # button), so #selected_store resolved nil for THOSE requests even though
+    # the list itself was scoped to a store — the row(s) split/merge.
+    # turbo_stream.erb replaces then rendered a timezone abbreviation (e.g.
+    # "PDT") that the list's own rows, scoped to the same store, never show
+    # (see _package_row.html.erb's show_zone).
+    it "keeps the list's store context on the row(s) a split replaces (no drifting-in timezone abbreviation)" do
+      store.update!(timezone: "America/Los_Angeles")
+
+      visit packages_path(state: "pending_process", store: store.id)
+      click_link source_pkg.package_code
+      click_button I18n.t("packages.split.button")
+      fill_in_first_box_input("1")
+      within("[data-split-target='dialog']") { click_button I18n.t("packages.split.submit") }
+
+      expect(page).to have_no_css("[data-split-target='dialog']")
+      expect(page).to have_no_content("PDT")
+    end
+
+    it "keeps the list's store context on the row a merge replaces (no drifting-in timezone abbreviation)" do
+      store.update!(timezone: "America/Los_Angeles")
+      other = create(:package, shopify_store: store, order: split_order, number: 701, aasm_state: "pending_process")
+      create(:package_item, package: other, order_line_item: oli, sku: "SPLITSKU", quantity: 1)
+      source_pkg.package_items.first.update!(quantity: 2)
+
+      visit packages_path(state: "pending_process", store: store.id)
+      click_link source_pkg.package_code
+      accept_confirm { click_button I18n.t("packages.merge.button") }
+
+      expect(page).to have_no_content(I18n.t("packages.frozen_notice"))
+      expect(page).to have_no_content("PDT")
+    end
+
     # The standalone /packages/:id page (a bookmark or shared link, reached
     # without going through the list first) IS the modal — there is no list
     # row behind it for a turbo_stream.replace to hit, and its modal wrapper
@@ -735,9 +769,16 @@ RSpec.describe "Packages UI", type: :system do
   end
 
   describe "SKU 縮圖 hover" do
+    # A real cdn.shopify.com URL makes the headless browser issue a real,
+    # unmocked outbound request for the <img> src — WebMock only intercepts
+    # Ruby-side HTTP, not the browser's own network stack. These examples only
+    # assert on node existence/position, so a self-contained data: URI (no
+    # network involved, and not a recognized image extension so
+    # shopify_image_variant returns it unchanged) is enough to render the
+    # thumbnail/preview <img> tags without ever leaving the machine.
+    let(:pixel_data_uri) { "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==" }
     let(:product) do
-      create(:product, shopify_store: store,
-             image_url: "https://cdn.shopify.com/s/files/1/art.jpg?v=42")
+      create(:product, shopify_store: store, image_url: pixel_data_uri)
     end
     let(:variant) { create(:product_variant, product: product, sku: "ART-1") }
 

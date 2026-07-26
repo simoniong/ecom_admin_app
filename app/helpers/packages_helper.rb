@@ -19,6 +19,10 @@ module PackagesHelper
   # An unrecognized URL shape is returned UNCHANGED rather than guessed at: the
   # cost of being wrong here is a broken link (no image at all), while the cost
   # of not transforming is a slow image. Slow beats missing.
+  #
+  # Not idempotent: callers must always pass the ORIGINAL (un-resized) url —
+  # calling this on an already-resized result (e.g. "..._100x100.jpg") appends
+  # a second suffix ("..._100x100_400x400.jpg") instead of replacing the first.
   IMAGE_EXTENSIONS = %w[jpg jpeg png webp gif].freeze
 
   def shopify_image_variant(url, size)

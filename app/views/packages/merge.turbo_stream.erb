@@ -17,7 +17,12 @@
   <turbo-stream action="visit" data-url="<%= packages_path(state: @survivor.aasm_state) %>"></turbo-stream>
 <% else %>
   <turbo-stream action="dismiss_modal"></turbo-stream>
-  <% survivor = @survivor.reload %>
+  <%# Reload with the same eager load #index uses for this partial (:order,
+      :shopify_store, :logistics_channel, package_items: { product_variant:
+      :product } — the last one is what the SKU thumbnails read) — a bare
+      @survivor.reload carries none of it and N+1s per item. %>
+  <% survivor = Package.includes(:order, :shopify_store, :logistics_channel,
+                                  package_items: { product_variant: :product }).find(@survivor.id) %>
   <% sibling_index = PackageSiblingIndex.new([ survivor ]).call %>
   <%= turbo_stream.replace dom_id(survivor) do %>
     <%= render "packages/package_row", package: survivor, bulk: true,

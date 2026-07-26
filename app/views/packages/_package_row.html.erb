@@ -6,7 +6,13 @@
     </td>
   <% end %>
   <td class="px-4 py-3 text-sm font-medium align-top whitespace-nowrap">
-    <%= link_to package.package_code, package_path(id: package.id),
+    <%# store: selected_store&.id is hop 1 of 3 that carries the list's store
+        context into the modal (and from there, via _split_dialog/
+        _siblings_strip's own hidden fields, into the split/merge POSTs) —
+        without it #selected_store resolves nil inside the modal and any
+        turbo_stream row it replaces drifts from the list's own store scope
+        (see e.g. _package_row's show_zone below). %>
+    <%= link_to package.package_code, package_path(id: package.id, store: selected_store&.id),
         data: { turbo_frame: "package-modal" },
         class: "text-blue-600 hover:underline font-medium" %>
   </td>

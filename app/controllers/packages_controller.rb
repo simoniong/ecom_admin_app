@@ -445,9 +445,11 @@ class PackagesController < AdminController
   # The list filters, carried back through a bulk action's redirect. Without
   # this, one click on a bulk button silently resets the user's country/sort
   # selection. Values are re-validated by PackageListQuery on the way back in,
-  # so this only has to move them.
+  # so this only has to move them. :store is included for the same reason —
+  # #selected_store reads params[:store] only, so a redirect that dropped it
+  # would silently widen the operator back to every visible store.
   def list_filter_params
-    params.permit(:country, :sort_column, :sort_direction).to_h.compact_blank.symbolize_keys
+    params.permit(:country, :sort_column, :sort_direction, :store).to_h.compact_blank.symbolize_keys
   end
 
   # Atomically transition to shipped + set status + decide enqueue (Codex: row

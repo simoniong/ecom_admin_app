@@ -34,6 +34,12 @@
             see show.html.erb, which is the only place "standalone" is true. Not
             inferred from the referer. %>
         <%= hidden_field_tag :context, "standalone" if local_assigns[:standalone] %>
+        <%# Hop 2 of 3 (see _package_row's package-code link): without this the
+            #split POST carries no store param, #selected_store resolves nil for
+            THAT request, and split.turbo_stream.erb's replaced row(s) drift from
+            the list's own store context (e.g. gain a timezone abbreviation the
+            list's other rows don't show). %>
+        <%= hidden_field_tag :store, selected_store.id if selected_store %>
         <table class="w-full text-xs border-collapse">
           <thead>
             <tr class="text-left text-gray-500 border-b border-gray-200" data-split-target="headerRow">

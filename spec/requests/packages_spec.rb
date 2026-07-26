@@ -420,6 +420,20 @@ RSpec.describe "Packages", type: :request do
         expect(doc.css("thead th").map(&:text)).not_to include(I18n.t("packages.columns.store"))
       end
 
+      # Regression: the bulk form only mirrored :country/:sort_column/
+      # :sort_direction as hidden fields, so submitting a bulk action while a
+      # store was selected silently widened the operator back to every
+      # visible store on the redirect (see list_filter_params, which the
+      # same fix extends).
+      it "carries the store filter into the bulk form as a hidden field" do
+        get packages_path, params: { store: other_store.id, state: "pending_review" }
+
+        doc = Nokogiri::HTML(response.body)
+        hidden = doc.at_css("form#packages-bulk-form input[type='hidden'][name='store']")
+        expect(hidden).to be_present
+        expect(hidden["value"]).to eq(other_store.id)
+      end
+
       it "keeps the header and body cell counts in agreement" do
         get packages_path
 
@@ -485,6 +499,24 @@ RSpec.describe "Packages", type: :request do
         get packages_path
         expect(response.body).to include("PKS#1001")
         expect(response.body).to include("PKS#STOREB")
+      end
+
+      # Regression: sidebar_package_counts (ApplicationHelper) scopes the
+      # badge to #selected_store, but the link the badge sits inside used to
+      # be a bare packages_path(state: state) with no store param — so the
+      # badge and the page it links to disagreed (badge said 1, the link's
+      # target showed 2). Following the badge's own link must land on
+      # exactly what the badge promised.
+      it "keeps the sidebar link's target in agreement with its own badge count" do
+        get packages_path, params: { store: store.id }
+        expect(sidebar_badge_count(response.body, "Pending Review")).to eq(1)
+
+        doc = Nokogiri::HTML(response.body)
+        link = doc.at_xpath("//a[.//span[normalize-space(text())='Pending Review']]")
+
+        get link["href"]
+        expect(response.body).to include("PKS#1001")
+        expect(response.body).not_to include("PKS#STOREB")
       end
     end
 
@@ -678,6 +710,28 @@ RSpec.describe "Packages", type: :request do
 
       post sync_packages_path
       expect(response).to redirect_to(authenticated_root_path)
+    end
+
+    # Regression: #sync already branched correctly on params[:store] — the
+    # bug was the button never SENT it (a bare button_to sync_packages_path
+    # with no params), so the existing example above (a single-store
+    # fixture) passed either way. Extracting the real rendered <form>'s
+    # action from a two-store list and posting to exactly that URL is what
+    # proves the button itself carries the selection, not just the
+    # controller's ability to read it if given one.
+    it "only syncs the store selected on the list, via the button's own rendered URL" do
+      other_store = create(:shopify_store, user: user, company: company)
+
+      get packages_path, params: { store: store.id }
+      doc = Nokogiri::HTML(response.body)
+      form = doc.at_xpath("//form[starts-with(@action, '#{sync_packages_path}')]")
+      sync_url = form["action"]
+
+      expect {
+        post sync_url
+      }.to have_enqueued_job(SyncAllShopifyOrdersJob).with(store.id)
+
+      expect(enqueued_jobs.size).to eq(1)
     end
   end
 
@@ -1426,6 +1480,32 @@ RSpec.describe "Packages", type: :request do
       expect(response).to have_http_status(:not_found)
     end
 
+    # Regression: split.turbo_stream.erb's eager load was left over from
+    # before the SKU thumbnails shipped — it still loaded :package_items
+    # bare, not package_items: { product_variant: :product }, which is what
+    # _package_row now reads per item. Pins the query count for this exact
+    # 1-item, 2-box split (the src package_item gets a product_variant here)
+    # so a regressed include starts failing this example rather than only
+    # showing up as a slow page later.
+    it "does not N+1 the product_variant/product association per sibling row" do
+      variant = create(:product_variant, sku: "A")
+      src.package_items.first.update!(product_variant: variant)
+
+      count = 0
+      subscription = ActiveSupport::Notifications.subscribe("sql.active_record") do |*, payload|
+        count += 1 unless payload[:name].to_s.match?(/SCHEMA|TRANSACTION/)
+      end
+      begin
+        post split_package_path(id: src.id), params: { allocations: { oli.id => [ "1" ] } },
+             headers: { "Accept" => "text/vnd.turbo-stream.html" }
+      ensure
+        ActiveSupport::Notifications.unsubscribe(subscription)
+      end
+
+      expect(response).to have_http_status(:ok)
+      expect(count).to eq(29)
+    end
+
     describe "from the standalone show page (context=standalone)" do
       # _split_dialog only renders this hidden field when show.html.erb
       # rendered the modal with standalone: true — see that view and
@@ -1515,6 +1595,30 @@ RSpec.describe "Packages", type: :request do
       sign_in stranger
       post merge_package_path(id: other.id)
       expect(response).to have_http_status(:not_found)
+    end
+
+    # Regression: merge.turbo_stream.erb reloaded the survivor with a bare
+    # @survivor.reload — no includes at all — so the row it renders N+1s the
+    # product_variant/product association #index eager-loads for the same
+    # partial. Pins the query count for this exact merge (the survivor's
+    # package_item gets a product_variant here) so a regressed reload starts
+    # failing this example rather than only showing up as a slow page later.
+    it "does not N+1 the product_variant/product association on the reloaded survivor row" do
+      variant = create(:product_variant, sku: "A")
+      survivor.package_items.first.update!(product_variant: variant)
+
+      count = 0
+      subscription = ActiveSupport::Notifications.subscribe("sql.active_record") do |*, payload|
+        count += 1 unless payload[:name].to_s.match?(/SCHEMA|TRANSACTION/)
+      end
+      begin
+        post merge_package_path(id: other.id), headers: { "Accept" => "text/vnd.turbo-stream.html" }
+      ensure
+        ActiveSupport::Notifications.unsubscribe(subscription)
+      end
+
+      expect(response).to have_http_status(:ok)
+      expect(count).to eq(26)
     end
 
     describe "from the standalone show page (context=standalone)" do
@@ -1722,12 +1826,12 @@ RSpec.describe "Packages", type: :request do
         expect(second.reload).to have_state(:applying_tracking)
       end
 
-      it "carries the current filters back to the list" do
+      it "carries the current filters, including the store filter, back to the list" do
         post apply_tracking_bulk_packages_path,
-             params: { package_ids: [ process_package.id ], country: "US", sort_column: "ordered_at" }
+             params: { package_ids: [ process_package.id ], country: "US", sort_column: "ordered_at", store: store.id }
 
         expect(response).to redirect_to(
-          packages_path(country: "US", sort_column: "ordered_at", state: "pending_process")
+          packages_path(country: "US", sort_column: "ordered_at", store: store.id, state: "pending_process")
         )
       end
     end
@@ -1915,12 +2019,12 @@ RSpec.describe "Packages", type: :request do
         expect(b.reload).to have_state(:shipped)
       end
 
-      it "carries the current filters back to the list" do
+      it "carries the current filters, including the store filter, back to the list" do
         post ship_bulk_packages_path,
-             params: { package_ids: [], country: "US", sort_column: "ordered_at" }
+             params: { package_ids: [], country: "US", sort_column: "ordered_at", store: store.id }
 
         expect(response).to redirect_to(
-          packages_path(country: "US", sort_column: "ordered_at", state: "pending_label")
+          packages_path(country: "US", sort_column: "ordered_at", store: store.id, state: "pending_label")
         )
       end
     end
@@ -2013,13 +2117,13 @@ RSpec.describe "Packages", type: :request do
       expect(flash[:notice]).to eq(I18n.t("packages.review.bulk_result", reviewed: 1, skipped: 0))
     end
 
-    it "carries the current filters back to the list" do
+    it "carries the current filters, including the store filter, back to the list" do
       post submit_review_bulk_packages_path,
            params: { package_ids: [ review_package.id ], country: "US",
-                     sort_column: "paid_at", sort_direction: "asc" }
+                     sort_column: "paid_at", sort_direction: "asc", store: store.id }
 
       expect(response).to redirect_to(
-        packages_path(country: "US", sort_column: "paid_at", sort_direction: "asc", state: "pending_review")
+        packages_path(country: "US", sort_column: "paid_at", sort_direction: "asc", store: store.id, state: "pending_review")
       )
     end
   end

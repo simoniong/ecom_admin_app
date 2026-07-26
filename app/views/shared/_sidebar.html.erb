@@ -158,6 +158,15 @@
     <% if current_membership&.any_packing_permission? %>
       <% packing_active = controller_name == "packages" %>
       <% package_counts = sidebar_package_counts %>
+      <%# sidebar_package_counts scopes the badges to #selected_store when this
+          IS the packages page (see that helper). The links below have to
+          carry the same store or the badge and the list it links to disagree
+          (e.g. badge reads 1 filtered to a store while the link's target
+          shows every store's packages). respond_to?(:selected_store) is only
+          true on PackagesController, so every other page's links stay store-
+          param-free — nil is omitted from the URL entirely, not rendered as
+          an empty ?store=. %>
+      <% packing_store_param = respond_to?(:selected_store) ? selected_store&.id : nil %>
       <div data-controller="nav-group" data-nav-group-open-value="<%= packing_active %>">
         <button type="button" data-action="click->nav-group#toggle"
                 aria-expanded="<%= packing_active %>" aria-controls="packing-menu"
@@ -173,7 +182,7 @@
 
         <div id="packing-menu" data-nav-group-target="menu" class="ml-4 mt-1 space-y-1 <%= packing_active ? '' : 'hidden' %>">
           <% %w[pending_review pending_process applying_tracking pending_label shipped].each do |state| %>
-            <%= link_to packages_path(state: state), data: { action: "click->sidebar#close" },
+            <%= link_to packages_path(state: state, store: packing_store_param), data: { action: "click->sidebar#close" },
                 class: "flex items-center justify-between gap-2 px-3 py-2 text-sm font-medium rounded-md #{controller_name == 'packages' && (params[:state].presence || 'pending_review') == state ? 'bg-gray-100 text-gray-900' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'}" do %>
               <span><%= t("packages.states.#{state}") %></span>
               <span class="text-xs text-gray-400"><%= package_counts[state].to_i %></span>
@@ -183,7 +192,7 @@
           <div class="pt-2 mt-1 border-t border-gray-100">
             <p class="px-3 pb-1 text-[11px] font-semibold text-gray-400 uppercase tracking-wide"><%= t("packages.other_states") %></p>
             <% %w[refunded held].each do |state| %>
-              <%= link_to packages_path(state: state), data: { action: "click->sidebar#close" },
+              <%= link_to packages_path(state: state, store: packing_store_param), data: { action: "click->sidebar#close" },
                   class: "flex items-center justify-between gap-2 px-3 py-2 text-sm font-medium rounded-md #{controller_name == 'packages' && (params[:state].presence || 'pending_review') == state ? 'bg-gray-100 text-gray-900' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'}" do %>
                 <span><%= t("packages.states.#{state}") %></span>
                 <span class="text-xs text-gray-400"><%= package_counts[state].to_i %></span>
