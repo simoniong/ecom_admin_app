@@ -56,8 +56,11 @@ export default class extends Controller {
     return preview
   }
 
-  // Prefer the right of the thumbnail, flip left when that would overflow the
-  // viewport, and clamp vertically so the preview is never half off-screen.
+  // Prefers the right of the thumbnail (flipping left on overflow) and
+  // centers vertically on it, but on both axes the final value is clamped to
+  // [gap, viewport - size - gap] with the lower bound applied last — so on a
+  // viewport shorter/narrower than size + 2*gap the preview is pinned to the
+  // gap-from-top-left edge rather than pushed off-screen.
   #position(preview) {
     const anchor = this.element.getBoundingClientRect()
     const size = this.constructor.SIZE
@@ -65,11 +68,10 @@ export default class extends Controller {
 
     let left = anchor.right + gap
     if (left + size > window.innerWidth) left = anchor.left - size - gap
-    if (left < gap) left = gap
+    left = Math.max(gap, Math.min(left, window.innerWidth - size - gap))
 
     let top = anchor.top + anchor.height / 2 - size / 2
-    if (top < gap) top = gap
-    if (top + size > window.innerHeight - gap) top = window.innerHeight - size - gap
+    top = Math.max(gap, Math.min(top, window.innerHeight - size - gap))
 
     preview.style.left = `${left}px`
     preview.style.top = `${top}px`

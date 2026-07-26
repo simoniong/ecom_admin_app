@@ -761,6 +761,44 @@ RSpec.describe "Packages UI", type: :system do
       )
       expect(parent_tag).to eq("BODY")
     end
+
+    # The preview is 400px square with a 16px gap on each side, so any viewport
+    # shorter than 432px leaves no room to satisfy both the "gap from top" and
+    # "gap from bottom" clamps at once. A naive sequential-if clamp lets the
+    # bottom check win unconditionally and pushes the preview above y=0. 900x500
+    # is the exact size a reviewer used to reproduce top: -59 on staging.
+    # The preview is a fixed 400px square with a 16px gap, so a viewport
+    # shorter than size + 2*gap (432px of usable height) cannot fit the gap
+    # on both the top and bottom simultaneously — there is no position that
+    # is simultaneously >= 16px from the top and <= 16px from the bottom.
+    # The old sequential-if clamp resolved that impossible case by letting
+    # the bottom check win unconditionally, which is what drove `top`
+    # negative (reproduced live at -59 by a reviewer using this exact
+    # 900x500 window). The fix instead makes the near edge (top/left) win
+    # unconditionally: the preview is guaranteed to never render above or
+    # left of the viewport, even though — when the window is genuinely too
+    # short for the asset — the far edge (bottom) may still spill past it.
+    it "never positions the preview above or left of the viewport, even when the window is too short to fully contain it" do
+      page.driver.browser.manage.window.resize_to(900, 500)
+
+      visit packages_path(state: "pending_review")
+      find("img[data-controller='image-preview']").hover
+      expect(page).to have_css("#sku-image-preview", visible: :visible)
+
+      rect = page.evaluate_script(<<~JS)
+        (() => {
+          const r = document.getElementById('sku-image-preview').getBoundingClientRect();
+          return { top: r.top, left: r.left, right: r.right };
+        })()
+      JS
+      viewport_width = page.evaluate_script("window.innerWidth")
+
+      expect(rect["top"]).to be >= 0
+      expect(rect["left"]).to be >= 0
+      expect(rect["right"]).to be <= viewport_width
+    ensure
+      page.driver.browser.manage.window.resize_to(1400, 900)
+    end
   end
 end
 
