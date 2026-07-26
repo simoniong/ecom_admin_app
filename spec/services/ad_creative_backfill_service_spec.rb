@@ -109,6 +109,42 @@ RSpec.describe AdCreativeBackfillService do
     end
   end
 
+  describe "pre-segment Meta failure" do
+    # Regression: refresh_token_if_needed! and sync_ad_units used to sit
+    # outside the per-segment rescue, so a Meta failure there escaped `call`
+    # as a raw exception instead of returning false -- the job's generic
+    # `rescue => e` then logged it tagged `[BackfillAdCreatives]` with no
+    # `segment=`/`phase=` at all, instead of the service's own log line.
+    it "returns false and logs a phase-tagged error when refresh_token_if_needed! raises, without advancing coverage" do
+      allow(meta).to receive(:refresh_token_if_needed!).and_raise(Koala::Facebook::APIError.new(500, "boom"))
+      allow(Rails.logger).to receive(:error)
+
+      expect(service.call(days: 90)).to be(false)
+
+      expect(meta).not_to have_received(:sync_ad_units)
+      ad_account.reload
+      expect(ad_account.creative_synced_from_date).to be_nil
+      expect(ad_account.creative_synced_through_date).to be_nil
+      expect(Rails.logger).to have_received(:error).with(
+        a_string_including("[AdCreativeBackfill]", "account=#{ad_account.account_id}", "phase=refresh_token_if_needed")
+      )
+    end
+
+    it "returns false and logs a phase-tagged error when sync_ad_units raises, without advancing coverage" do
+      allow(meta).to receive(:sync_ad_units).and_raise(Koala::Facebook::APIError.new(500, "boom"))
+      allow(Rails.logger).to receive(:error)
+
+      expect(service.call(days: 90)).to be(false)
+
+      ad_account.reload
+      expect(ad_account.creative_synced_from_date).to be_nil
+      expect(ad_account.creative_synced_through_date).to be_nil
+      expect(Rails.logger).to have_received(:error).with(
+        a_string_including("[AdCreativeBackfill]", "account=#{ad_account.account_id}", "phase=sync_ad_units")
+      )
+    end
+  end
+
   describe "segment failure" do
     it "aborts the run, keeps earlier segments and never sends later ones" do
       calls = []
