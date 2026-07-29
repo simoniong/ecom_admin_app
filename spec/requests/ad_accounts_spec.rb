@@ -80,6 +80,27 @@ RSpec.describe "AdAccounts", type: :request do
       }.to change(AdDailyMetric, :count).by(-1)
     end
 
+    # Regression: a synced account always has ad_units pointing at ad_campaigns,
+    # and destroying the campaigns first raised ActiveRecord::InvalidForeignKey,
+    # so disconnecting any real account 500'd.
+    it "disconnects an account that has campaigns and ad_units" do
+      account = create(:ad_account, user: user)
+      campaign = create(:ad_campaign, ad_account: account)
+      unit = create(:ad_unit, ad_account: account, ad_campaign: campaign)
+      create(:ad_unit_daily_metric, ad_unit: unit)
+      create(:ad_campaign_daily_metric, ad_campaign: campaign)
+      sign_in user
+
+      expect {
+        delete ad_account_path(id: account.id)
+      }.to change(AdAccount, :count).by(-1)
+        .and change(AdCampaign, :count).by(-1)
+        .and change(AdUnit, :count).by(-1)
+        .and change(AdCreative, :count).by(-1)
+
+      expect(response).to redirect_to(ad_accounts_path)
+    end
+
     it "returns 404 for another user's account" do
       account = create(:ad_account, user: other_user)
       sign_in user
