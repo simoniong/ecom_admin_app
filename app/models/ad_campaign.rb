@@ -1,6 +1,11 @@
 class AdCampaign < ApplicationRecord
   belongs_to :ad_account
   has_many :ad_campaign_daily_metrics, dependent: :destroy
+  # Meta's hierarchy is campaign -> adset -> ad, so an ad cannot outlive its
+  # campaign. Declaring this is also what keeps AdAccount#destroy working at
+  # all: ad_campaigns is destroyed before ad_units there, and without a
+  # dependent option the ad_units.ad_campaign_id foreign key rejects it.
+  has_many :ad_units, dependent: :destroy
 
   validates :campaign_id, presence: true, uniqueness: { scope: :ad_account_id }
   validates :status, presence: true, inclusion: { in: %w[active paused deleted] }
