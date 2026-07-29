@@ -113,6 +113,25 @@ RSpec.describe AdAccount, type: :model do
       expect { ad_account.destroy }.to change(AdDailyMetric, :count).by(-1)
     end
 
+    # Regression: ad_campaigns is declared before ad_units, so the campaign rows
+    # were deleted while ad_units still pointed at them and Postgres rejected
+    # the whole transaction with a foreign key violation.
+    it "destroys campaign-linked ad_units on destroy" do
+      campaign = create(:ad_campaign, ad_account: ad_account)
+      unit = create(:ad_unit, ad_account: ad_account, ad_campaign: campaign)
+      create(:ad_unit_daily_metric, ad_unit: unit)
+
+      expect { ad_account.destroy }.to change(AdUnit, :count).by(-1)
+        .and change(AdCampaign, :count).by(-1)
+        .and change(AdUnitDailyMetric, :count).by(-1)
+    end
+
+    it "destroys ad_units that have no campaign on destroy" do
+      create(:ad_unit, ad_account: ad_account, ad_campaign: nil)
+
+      expect { ad_account.destroy }.to change(AdUnit, :count).by(-1)
+    end
+
     it "optionally belongs to shopify_store" do
       expect(build(:ad_account, user: user, shopify_store: nil)).to be_valid
     end

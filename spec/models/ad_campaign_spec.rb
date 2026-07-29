@@ -64,6 +64,19 @@ RSpec.describe AdCampaign, type: :model do
       create(:ad_campaign_daily_metric, ad_campaign: campaign)
       expect { campaign.destroy }.to change(AdCampaignDailyMetric, :count).by(-1)
     end
+
+    it "has many ad_units" do
+      unit = create(:ad_unit, ad_account: campaign.ad_account, ad_campaign: campaign)
+      expect(campaign.ad_units).to include(unit)
+    end
+
+    it "destroys associated ad_units on destroy" do
+      unit = create(:ad_unit, ad_account: campaign.ad_account, ad_campaign: campaign)
+      create(:ad_unit_daily_metric, ad_unit: unit)
+
+      expect { campaign.destroy }.to change(AdUnit, :count).by(-1)
+        .and change(AdUnitDailyMetric, :count).by(-1)
+    end
   end
 
   describe "#aggregated_metrics" do
