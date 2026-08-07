@@ -189,6 +189,46 @@ RSpec.describe "Tickets", type: :system do
     end
   end
 
+  describe "collapsible thread pane", :js do
+    let(:ticket) { create(:ticket, :draft, email_account: email_account, subject: "Collapse me", draft_reply: "Draft body") }
+
+    def centre_pane_width
+      page.evaluate_script(
+        "document.querySelector('[data-ticket-center-pane]').getBoundingClientRect().width"
+      )
+    end
+
+    it "widens the centre column when the thread pane is collapsed" do
+      sign_in_as(user)
+      visit ticket_path(id: ticket.id)
+
+      expanded_width = centre_pane_width
+      expect(page).to have_css("[data-pane-collapse-target='panel']", visible: true)
+
+      find("button[aria-label='#{I18n.t("tickets.show.collapse_threads")}']").click
+
+      expect(page).to have_css("[data-pane-collapse-target='rail']", visible: true)
+      expect(centre_pane_width).to be > expanded_width + 200
+    end
+
+    it "remembers the collapsed state across reloads and expands again" do
+      sign_in_as(user)
+      visit ticket_path(id: ticket.id)
+      find("button[aria-label='#{I18n.t("tickets.show.collapse_threads")}']").click
+      expect(page).to have_css("[data-pane-collapse-target='rail']", visible: true)
+
+      visit ticket_path(id: ticket.id)
+      expect(page).to have_css("[data-pane-collapse-target='rail']", visible: true)
+      expect(page).to have_css("[data-pane-collapse-target='panel']", visible: false)
+
+      find("button[aria-label='#{I18n.t("tickets.show.expand_threads")}']").click
+      expect(page).to have_css("[data-pane-collapse-target='panel']", visible: true)
+
+      visit ticket_path(id: ticket.id)
+      expect(page).to have_css("[data-pane-collapse-target='panel']", visible: true)
+    end
+  end
+
   describe "Trustpilot BCC opt-in", :js do
     let(:user) { create(:user) }
 

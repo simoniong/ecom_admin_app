@@ -276,6 +276,8 @@ en:
       reverse_bind_hint: "Binding an order will auto-link its customer."
       threads_heading: "Threads"
       open_new_thread: "New thread"
+      collapse_threads: "Collapse thread list"
+      expand_threads: "Expand thread list"
       trustpilot_invited_badge: "Trustpilot invite sent"
     reopened_reasons:
       customer_inquiry: "Customer Inquiry"
