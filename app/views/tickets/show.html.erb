@@ -83,21 +83,55 @@
   </div>
 
   <%# 3-pane grid: Thread list | Conversation + actions | Info panel %>
-  <div class="mt-6 grid grid-cols-1 lg:grid-cols-[300px_1fr_330px] gap-6">
-    <%# Left pane: Thread list (desktop only) %>
+  <%# The left column width is a CSS variable so the collapse toggle only bites at lg. %>
+  <% threads_collapsed = cookies[:ticket_threads_pane] == "collapsed" %>
+  <div class="mt-6 grid grid-cols-1 lg:grid-cols-[var(--left-col)_minmax(0,1fr)_330px] gap-6"
+       style="--left-col: <%= threads_collapsed ? "44px" : "300px" %>;"
+       data-controller="pane-collapse"
+       data-pane-collapse-collapsed-value="<%= threads_collapsed %>">
+    <%# Left pane: Thread list (desktop only), collapsible into a rail %>
     <div class="hidden lg:flex flex-col bg-white rounded-lg border border-gray-200 overflow-hidden" style="max-height: calc(100vh - 140px);">
-      <div class="flex items-center justify-between px-4 py-3 border-b border-gray-200 shrink-0">
-        <h3 class="text-sm font-semibold text-gray-700"><%= t("tickets.show.threads_heading") %></h3>
-        <% if @ticket.new_ticket? || @ticket.draft? %>
-          <a href="#draft-reply"
-             onclick="window.dispatchEvent(new CustomEvent('reply-target:use-new'))"
-             class="text-xs font-medium text-blue-600 hover:text-blue-800">
-            + <%= t("tickets.show.open_new_thread") %>
-          </a>
-        <% end %>
-      </div>
-      <div class="overflow-y-auto flex-1">
-        <%= render "tickets/thread_list" %>
+      <%# Collapsed state: vertical rail %>
+      <button type="button"
+              data-pane-collapse-target="rail"
+              data-action="click->pane-collapse#expand"
+              aria-label="<%= t("tickets.show.expand_threads") %>"
+              title="<%= t("tickets.show.expand_threads") %>"
+              class="<%= "hidden" unless threads_collapsed %> flex flex-col items-center gap-3 w-full py-3 text-gray-400 hover:text-gray-700 hover:bg-gray-50 cursor-pointer">
+        <svg class="w-4 h-4 shrink-0" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="m5.25 4.5 7.5 7.5-7.5 7.5m6-15 7.5 7.5-7.5 7.5" />
+        </svg>
+        <span class="[writing-mode:vertical-rl] text-xs font-semibold tracking-wide text-gray-600">
+          <%= t("tickets.show.threads_heading") %> (<%= @customer_threads.size %>)
+        </span>
+      </button>
+
+      <%# Expanded state: full thread list %>
+      <div data-pane-collapse-target="panel" class="<%= "hidden" if threads_collapsed %> flex flex-col flex-1 min-h-0">
+        <div class="flex items-center justify-between gap-2 px-4 py-3 border-b border-gray-200 shrink-0">
+          <h3 class="text-sm font-semibold text-gray-700 truncate"><%= t("tickets.show.threads_heading") %></h3>
+          <div class="flex items-center gap-2 shrink-0">
+            <% if @ticket.new_ticket? || @ticket.draft? %>
+              <a href="#draft-reply"
+                 onclick="window.dispatchEvent(new CustomEvent('reply-target:use-new'))"
+                 class="text-xs font-medium text-blue-600 hover:text-blue-800">
+                + <%= t("tickets.show.open_new_thread") %>
+              </a>
+            <% end %>
+            <button type="button"
+                    data-action="click->pane-collapse#collapse"
+                    aria-label="<%= t("tickets.show.collapse_threads") %>"
+                    title="<%= t("tickets.show.collapse_threads") %>"
+                    class="text-gray-400 hover:text-gray-600 cursor-pointer">
+              <svg class="w-4 h-4" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="m18.75 4.5-7.5 7.5 7.5 7.5m-6-15L5.25 12l7.5 7.5" />
+              </svg>
+            </button>
+          </div>
+        </div>
+        <div class="overflow-y-auto flex-1">
+          <%= render "tickets/thread_list" %>
+        </div>
       </div>
     </div>
 
