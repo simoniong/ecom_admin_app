@@ -153,6 +153,42 @@ RSpec.describe "Tickets", type: :system do
     end
   end
 
+  describe "message history height on desktop", :js do
+    # Regression: the centre pane used to pin the draft/instruct boxes with shrink-0 and
+    # hand the leftover height to a flex-1 scroller, which collapsed the history to a
+    # ~10px sliver on a laptop viewport. The whole column scrolls as one now.
+    let(:ticket) { create(:ticket, :draft, email_account: email_account, subject: "Long history", draft_reply: "Draft body") }
+
+    before do
+      12.times do |i|
+        create(:message, ticket: ticket, from: "customer@example.com",
+                         body: "Message body number #{i}", sent_at: (12 - i).days.ago)
+      end
+    end
+
+    it "gives the history a readable height instead of a sliver" do
+      sign_in_as(user)
+      visit ticket_path(id: ticket.id)
+
+      expect(page).to have_css("[data-ticket-messages-list]")
+      height = page.evaluate_script(
+        "document.querySelector('[data-ticket-messages-list]').getBoundingClientRect().height"
+      )
+      expect(height).to be > 300
+    end
+
+    it "scrolls the whole centre column so the oldest message is reachable" do
+      sign_in_as(user)
+      visit ticket_path(id: ticket.id)
+
+      pane = "document.querySelector('[data-ticket-center-pane]')"
+      expect(page.evaluate_script("#{pane}.scrollHeight > #{pane}.clientHeight")).to be true
+
+      page.execute_script("#{pane}.scrollTop = #{pane}.scrollHeight")
+      expect(page).to have_text("Message body number 0")
+    end
+  end
+
   describe "Trustpilot BCC opt-in", :js do
     let(:user) { create(:user) }
 

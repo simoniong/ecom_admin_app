@@ -85,7 +85,7 @@
   <%# 3-pane grid: Thread list | Conversation + actions | Info panel %>
   <div class="mt-6 grid grid-cols-1 lg:grid-cols-[300px_1fr_330px] gap-6">
     <%# Left pane: Thread list (desktop only) %>
-    <div class="hidden lg:flex flex-col bg-white rounded-lg border border-gray-200 overflow-hidden" style="max-height: calc(100vh - 200px);">
+    <div class="hidden lg:flex flex-col bg-white rounded-lg border border-gray-200 overflow-hidden" style="max-height: calc(100vh - 140px);">
       <div class="flex items-center justify-between px-4 py-3 border-b border-gray-200 shrink-0">
         <h3 class="text-sm font-semibold text-gray-700"><%= t("tickets.show.threads_heading") %></h3>
         <% if @ticket.new_ticket? || @ticket.draft? %>
@@ -101,8 +101,8 @@
       </div>
     </div>
 
-    <%# Center pane: status actions (top) · messages (scroll) · draft & action box (bottom) %>
-    <div class="flex flex-col min-w-0 lg:max-h-[calc(100vh-200px)] lg:overflow-hidden">
+    <%# Center pane: status actions · draft & action box · messages — the whole column scrolls as one %>
+    <div data-ticket-center-pane class="flex flex-col min-w-0 lg:max-h-[calc(100vh-140px)] lg:overflow-y-auto">
       <%# Status Action Buttons %>
       <% unless @ticket.closed? %>
         <div class="shrink-0 mb-4 flex flex-wrap gap-2">
@@ -214,7 +214,7 @@
               <input type="hidden" name="ticket[customer_email]"   value="<%= @ticket.customer_email %>" />
               <input type="hidden" name="ticket[customer_name]"    value="<%= @ticket.customer_name %>" />
               <%= render "tickets/reply_target" %>
-              <%= f.text_area :draft_reply, rows: 6, placeholder: t("tickets.show.draft_placeholder"),
+              <%= f.text_area :draft_reply, rows: 10, placeholder: t("tickets.show.draft_placeholder"),
                   class: "w-full px-3 py-2 border #{@ticket.draft? ? 'border-yellow-300' : 'border-blue-300'} rounded-md shadow-sm text-sm focus:outline-none focus:ring-2 #{@ticket.draft? ? 'focus:ring-yellow-500' : 'focus:ring-blue-500'} focus:border-transparent resize-y" %>
               <div class="flex justify-end">
                 <%= f.submit t("tickets.show.save_draft"),
@@ -281,10 +281,10 @@
         <% end %>
       </div>
 
-      <%# Messages (history, newest first — fills remaining height and scrolls on desktop) %>
-      <h2 class="shrink-0 text-lg font-medium text-gray-900 mb-3"><%= t("tickets.show.messages") %></h2>
+      <%# Messages (history, newest first — scrolls with the rest of the center column) %>
+      <h2 class="shrink-0 lg:sticky lg:top-0 lg:z-10 lg:bg-gray-50 text-lg font-medium text-gray-900 mb-3 lg:py-2"><%= t("tickets.show.messages") %></h2>
       <% if @messages.any? %>
-        <div class="space-y-4 lg:flex-1 lg:overflow-y-auto lg:pr-2">
+        <div data-ticket-messages-list class="space-y-4 lg:pr-2">
         <% @messages.each do |message| %>
           <% is_customer = parse_email_address(message.from)&.downcase != @ticket.email_account.email.downcase %>
           <div>
@@ -309,12 +309,12 @@
         <% end %>
         </div>
       <% else %>
-        <p class="lg:flex-1 text-sm text-gray-500"><%= t("tickets.show.no_messages") %></p>
+        <p class="text-sm text-gray-500"><%= t("tickets.show.no_messages") %></p>
       <% end %>
     </div>
 
     <%# Right pane: Info panel (desktop only) %>
-    <div class="hidden lg:block space-y-6 overflow-y-auto" style="max-height: calc(100vh - 200px);">
+    <div class="hidden lg:block space-y-6 overflow-y-auto" style="max-height: calc(100vh - 140px);">
       <% if @ticket.customer.nil? %>
         <%= render "tickets/unlinked_banner" %>
       <% end %>
