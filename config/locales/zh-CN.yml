@@ -276,6 +276,8 @@
       reverse_bind_hint: "绑定订单后客户将自动关联。"
       threads_heading: "Thread 列表"
       open_new_thread: "新建 Thread"
+      collapse_threads: "收起 Thread 列表"
+      expand_threads: "展开 Thread 列表"
       trustpilot_invited_badge: "已发送 Trustpilot 邀请"
     reopened_reasons:
       customer_inquiry: "顾客查询"
