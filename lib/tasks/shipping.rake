@@ -27,4 +27,43 @@ namespace :shipping do
       puts "  skipped #{d[:order_name] || d[:order_id]} [#{d[:country] || '?'}] — #{reasons[d[:reason]] || d[:reason]}"
     end
   end
+
+  desc "Repair estimates frozen against only part of an order (post-purchase upsell). Reports only unless APPLY=1. ENV: APPLY, FROM (ISO date), STORE (store id)"
+  task repair_partial_estimates: :environment do
+    from =
+      if ENV["FROM"].present?
+        begin
+          Date.iso8601(ENV["FROM"])
+        rescue ArgumentError
+          abort "shipping:repair_partial_estimates: FROM must be an ISO date (YYYY-MM-DD), got #{ENV['FROM'].inspect}"
+        end
+      end
+    store_ids = ENV["STORE"].present? ? [ ENV["STORE"] ] : nil
+    apply = ENV["APPLY"] == "1"
+
+    r = RepairPartialShippingEstimatesService.new(apply: apply, store_ids: store_ids, from: from).call
+
+    puts apply ? "APPLIED — estimates were written" : "DRY RUN — nothing written (re-run with APPLY=1 to write)"
+    puts "scanned=#{r[:scanned]} repairable=#{r[:repairs].size} unexplained=#{r[:unexplained].size}"
+
+    if r[:repairs].any?
+      puts
+      puts "Repairable (frozen value proven to price only part of the order):"
+      r[:repairs].each do |x|
+        puts format("  %-12s %8s -> %8s   proven by %d/%d items (%.3f kg of %.3f kg)",
+                    x.order_name, x.frozen.to_s, x.repaired.to_s,
+                    x.proven_item_count, x.total_item_count,
+                    x.proven_weight_kg, x.full_weight_kg)
+      end
+    end
+
+    if r[:unexplained].any?
+      puts
+      puts "Unexplained — NOT touched, no subset of the line items reproduces the frozen value."
+      puts "These diverge for some other reason (SKU weight, rate card or fx moved). Review by hand:"
+      r[:unexplained].each do |x|
+        puts format("  %-12s frozen=%-8s recomputed=%-8s", x.order_name, x.frozen.to_s, x.recomputed.to_s)
+      end
+    end
+  end
 end
