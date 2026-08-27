@@ -145,4 +145,66 @@ RSpec.describe "Shipping variance report", type: :system do
     expect(orphan.reload.order_id).to eq(distant.id)
     expect(distant.reload.actual_shipping_cost).to eq(5)
   end
+
+  # A single parcel weighed lighter than the goods on the order. Both labels on
+  # this screen used to misdescribe it: the weight badge said "matches" (its
+  # check only ever detected a HEAVIER parcel) and the reconciliation credited
+  # the resulting gap to "split cost" even though nothing was split. Production
+  # order PKS#4113 showed exactly this — 1.207 kg billed against 1.26 kg of
+  # goods, labelled as matching, with the ¥4.88 difference called a split cost.
+  describe "a parcel lighter than the order contents" do
+    let!(:light_store) do
+      create(:shopify_store, user: user, company: company, currency: "USD",
+             cost_fx_rate: 7.0, default_service_type: "with_battery", timezone: "UTC")
+    end
+    let(:light_customer) { create(:customer, shopify_store: light_store) }
+
+    before do
+      version = create(:shipping_rate_card_version, company: company, country_code: "US",
+                       service_type: "with_battery", effective_from: Date.new(2026, 1, 1))
+      create(:shipping_rate_card_rate, version: version, zone: nil,
+             weight_min_kg: 0, weight_max_kg: 5, per_kg_rate_cny: 100, flat_fee_cny: 20)
+
+      order = create(:order, customer: light_customer, shopify_store: light_store, name: "PKS#7001",
+                     ordered_at: 1.day.ago,
+                     shopify_data: { "shipping_address" => { "country_code" => "US" } },
+                     estimated_shipping_cost: 17.43) # 1.00 kg -> (100 + 20 + 2) / 7.0
+      product = create(:product, shopify_store: light_store)
+      [ 600, 400 ].each do |grams|
+        variant = create(:product_variant, product: product, weight_grams: grams)
+        create(:order_line_item, order: order, product_variant: variant, quantity: 1)
+      end
+      # Billed 0.95 kg against 1.00 kg of goods: 50 g lighter.
+      create(:parcel, shopify_store: light_store, order: order, identifier: "LIGHT1",
+             billed_weight_g: 950, cost_cny: 117, cost_amount: 16.71)
+    end
+
+    it "labels the parcel as lighter instead of claiming the weights match" do
+      visit parcels_path
+      find("tr", text: "PKS#7001").click
+
+      # Scoped to the totals row: "· matches estimate basis" elsewhere on the
+      # page also contains the word, and is a different (correct) statement.
+      within("[data-parcel-totals-row]") do
+        expect(page).to have_content("−0.05↓")
+        expect(page).not_to have_content(I18n.t("parcels.parcel_table.weight_flat"))
+      end
+    end
+
+    it "calls the gap a weight difference, not a split cost" do
+      visit parcels_path
+      find("tr", text: "PKS#7001").click
+
+      expect(page).to have_content(I18n.t("parcels.recon.weight_diff_label"))
+      expect(page).not_to have_content(I18n.t("parcels.recon.split_label"))
+    end
+
+    it "names the estimate the breakdown is measured against" do
+      visit parcels_path
+      find("tr", text: "PKS#7001").click
+
+      expect(page).to have_content(I18n.t("parcels.recon.total_label"))
+      expect(page).to have_content(I18n.t("parcels.recon.cny_native_note"))
+    end
+  end
 end
