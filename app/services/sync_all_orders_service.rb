@@ -107,9 +107,9 @@ class SyncAllOrdersService
       order.update!(attrs)
     end
 
-    sync_line_items(order, shopify_order)
+    weight_changed = sync_line_items(order, shopify_order)
     PackageAutoBuilder.new(order).call
-    sync_estimated_shipping_cost(order)
+    sync_estimated_shipping_cost(order, recompute: weight_changed)
     sync_fulfillments(order, shopify_order)
 
     trigger_email_workflows(order, is_new_order, old_fulfillment_status)
@@ -117,7 +117,14 @@ class SyncAllOrdersService
     order
   end
 
+  # Returns true when this sync added a line item, or moved an existing one's
+  # quantity or variant — i.e. when the order's total shipping weight can have
+  # changed. A re-sync that only churns prices, discounts or fulfilment status
+  # must report false: recomputing the estimate on that noise would silently
+  # reprice every order against today's variant weights and rate card.
   def sync_line_items(order, shopify_order)
+    weight_changed = false
+
     (shopify_order["line_items"] || []).each do |li|
       variant = variant_lookup[li["variant_id"]]
 
@@ -138,6 +145,12 @@ class SyncAllOrdersService
         shopify_data: li
       )
 
+      # Checked after assign_attributes and before save! — this is the only
+      # point where the incoming payload and the stored row can be compared.
+      weight_changed ||= line_item.new_record? ||
+                         line_item.will_save_change_to_quantity? ||
+                         line_item.will_save_change_to_product_variant_id?
+
       if line_item.unit_cost_snapshot.nil? && variant&.unit_cost.present? && @store.cost_fx_rate&.positive?
         # unit_cost + packaging_cost are in CNY; divide by CNY-per-store-currency rate.
         # Snapshot is always in store currency (matches shop_money above).
@@ -147,10 +160,29 @@ class SyncAllOrdersService
 
       line_item.save!
     end
+
+    weight_changed
   end
 
-  def sync_estimated_shipping_cost(order)
-    return if order.estimated_shipping_cost.present? # frozen once set
+  # The estimate is frozen once set so the variance report compares actuals
+  # against the price quoted for the order, not a moving target that drifts
+  # every time a SKU weight or rate card is edited.
+  #
+  # But the ORDER itself still changes after that first sync: a post-purchase
+  # upsell (Loox, Shopify order edit) appends line items seconds to minutes
+  # later, arriving as a second webhook. Freezing unconditionally priced only
+  # the goods that happened to be in the first payload — production order
+  # PKS#4113 froze at 0.81 kg / $14.56 seventeen seconds before its upsell item
+  # landed, and the variance report then read a $5 overrun that never happened.
+  # The estimate has to follow the goods it is pricing, so `recompute` reopens
+  # it for exactly the syncs that moved the order's weight.
+  def sync_estimated_shipping_cost(order, recompute: false)
+    return if order.estimated_shipping_cost.present? && !recompute
+
+    # The line-item set was just written through the association; drop any
+    # cached target so the calculator weighs the order as it now stands.
+    order.order_line_items.reset
+
     cost = ShippingCostCalculator.estimate(order)
     order.update!(estimated_shipping_cost: cost) if cost
   end

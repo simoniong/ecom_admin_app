@@ -541,6 +541,12 @@ RSpec.describe SyncAllOrdersService do
       create(:product_variant, product: product, shopify_variant_id: 8001, weight_grams: 300)
     end
 
+    # The post-purchase upsell item. Kept light so every combination below
+    # still lands inside the single 0.201–0.45 kg band declared under it.
+    let!(:variant_50g) do
+      create(:product_variant, product: product, shopify_variant_id: 8002, weight_grams: 50)
+    end
+
     # Rate card: 0.3 kg * 92.0 CNY/kg + 23.0 CNY flat + 2 CNY op fee = 52.6 CNY / 7.0 = 7.51 USD
     let!(:rate_card_version) do
       create(:shipping_rate_card_version,
@@ -598,6 +604,60 @@ RSpec.describe SyncAllOrdersService do
       order.update!(estimated_shipping_cost: 99.99)
 
       described_class.new(store).sync_single_order(shopify_order_with_weight)
+
+      expect(order.reload.estimated_shipping_cost).to eq(99.99)
+    end
+
+    # A post-purchase upsell (Loox, Shopify order edit) appends a line item to
+    # an order that has ALREADY been synced. Production order PKS#4113 hit this:
+    # the order/create webhook froze the estimate against the first item alone
+    # (0.81 kg → $14.56) 17 seconds before the upsell item arrived, and the
+    # estimate never caught up with the real 1.26 kg order ($19.65) — making the
+    # variance report read a $5 overrun that never happened.
+    let(:shopify_order_with_upsell) do
+      shopify_order_with_weight.deep_dup.tap do |payload|
+        payload["line_items"] << {
+          "id" => 6002, "variant_id" => 8002, "sku" => "PK-UP", "title" => "Upsell / Brush",
+          "quantity" => 1, "price" => "24.56"
+        }
+      end
+    end
+
+    it "recomputes estimated_shipping_cost when a post-purchase item is added after the first sync" do
+      service.sync_single_order(shopify_order_with_weight)
+      order = Order.find_by(shopify_order_id: 200)
+      expect(order.estimated_shipping_cost).to eq(7.51)
+
+      described_class.new(store).sync_single_order(shopify_order_with_upsell)
+
+      # 0.3 + 0.05 = 0.35 kg → 0.35 * 92.0 + 23.0 + 2.0 = 57.2 CNY / 7.0 = 8.17
+      expect(order.reload.estimated_shipping_cost).to eq(8.17)
+    end
+
+    it "recomputes estimated_shipping_cost when a line item quantity changes" do
+      service.sync_single_order(shopify_order_with_upsell)
+      order = Order.find_by(shopify_order_id: 200)
+      expect(order.estimated_shipping_cost).to eq(8.17)
+
+      bumped = shopify_order_with_upsell.deep_dup
+      bumped["line_items"].last["quantity"] = 2
+
+      described_class.new(store).sync_single_order(bumped)
+
+      # 0.3 + 0.10 = 0.40 kg → 0.40 * 92.0 + 23.0 + 2.0 = 61.8 CNY / 7.0 = 8.83
+      expect(order.reload.estimated_shipping_cost).to eq(8.83)
+    end
+
+    it "leaves the estimate alone when a re-sync changes nothing weight-relevant" do
+      service.sync_single_order(shopify_order_with_weight)
+      order = Order.find_by(shopify_order_id: 200)
+      order.update!(estimated_shipping_cost: 99.99)
+
+      noisy = shopify_order_with_weight.deep_dup
+      noisy["fulfillment_status"] = "fulfilled"
+      noisy["line_items"].first["price"] = "59.99"
+
+      described_class.new(store).sync_single_order(noisy)
 
       expect(order.reload.estimated_shipping_cost).to eq(99.99)
     end
