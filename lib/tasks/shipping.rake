@@ -83,4 +83,22 @@ namespace :shipping do
       puts "the original weights were never recorded and cannot be recovered."
     end
   end
+
+  desc "Fill orders.estimated/actual_shipping_cost_cny. Reports only unless APPLY=1. ENV: APPLY, STORE (store id)"
+  task backfill_cny_costs: :environment do
+    apply = ENV["APPLY"] == "1"
+    store_ids = ENV["STORE"].present? ? [ ENV["STORE"] ] : nil
+
+    r = BackfillCnyShippingCostsService.new(apply: apply, store_ids: store_ids).call
+
+    puts apply ? "APPLIED — CNY amounts were written" : "DRY RUN — nothing written (re-run with APPLY=1 to write)"
+    puts "scanned=#{r[:scanned]} actual_filled=#{r[:actual_filled]}"
+    puts "estimate: proven=#{r[:estimate_proven]} converted=#{r[:estimate_converted]} unavailable=#{r[:estimate_unavailable]}"
+    puts
+    puts "  proven      — recomputation still matches the frozen figure exactly, so the"
+    puts "                rate card's own CNY was stored (removes the rounding drift)."
+    puts "  converted   — recomputation disagrees or is unavailable; stored the same"
+    puts "                store-currency × fx the row already displays, so nothing moves."
+    puts "  unavailable — no usable fx rate; left NULL and still converted per request."
+  end
 end

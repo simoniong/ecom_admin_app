@@ -50,9 +50,11 @@ class BackfillOrderLineItemsService
 
   def backfill_estimated_shipping(order)
     return if order.estimated_shipping_cost.present?
-    cost = ShippingCostCalculator.estimate(order)
+    basis = ShippingCostCalculator.basis(order)
+    cost = basis&.order_estimate
     return unless cost
-    order.update!(estimated_shipping_cost: cost)
+    order.update!(estimated_shipping_cost: cost,
+                  estimated_shipping_cost_cny: basis.order_estimate_cny)
     @shipping_filled += 1
   end
 

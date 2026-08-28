@@ -159,12 +159,17 @@
                 store-currency figure converted at the store's current fx. The
                 expanded detail below still recomputes per-parcel live; run
                 shipping:reestimate after a rate change to re-align the two. %>
-            <% fx = order.shopify_store&.cost_fx_rate %>
             <% est_store = order.estimated_shipping_cost %>
             <% act_store = order.actual_shipping_cost %>
             <% var_store = order.shipping_variance %>
             <% order_variance_pct = order.shipping_variance_pct %>
-            <% to_cny = ->(v) { (v && fx) ? v * fx : nil } %>
+            <%# CNY comes from the stored native amounts (see Order#*_in_cny), not
+                from converting the rounded store-currency figure back — that
+                round trip is what made this row read ¥132.95 against the
+                estimate basis's ¥132.92 directly below it. %>
+            <% est_cny = order.estimated_shipping_cost_in_cny %>
+            <% act_cny = order.actual_shipping_cost_in_cny %>
+            <% var_cny = order.shipping_variance_cny %>
             <%# Recon (in the expanded detail) decomposes the LIVE recomputed
                 order variance, not the frozen order-row one — the per-parcel
                 split/overcharge it explains are themselves recomputed. %>
@@ -189,9 +194,9 @@
                     <span class="ml-1 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-red-50 text-red-600"><%= t("parcels.remote_recon.badge") %></span>
                   <% end %>
                 </td>
-                <td class="px-4 py-3 text-right"><%= dual_currency(to_cny.call(est_store), est_store) %></td>
-                <td class="px-4 py-3 text-right"><%= dual_currency(to_cny.call(act_store), act_store) %></td>
-                <td class="px-4 py-3 text-right"><%= dual_currency(to_cny.call(var_store), var_store, over: var_store.to_f.positive?, sign: true) %></td>
+                <td class="px-4 py-3 text-right"><%= dual_currency(est_cny, est_store) %></td>
+                <td class="px-4 py-3 text-right"><%= dual_currency(act_cny, act_store) %></td>
+                <td class="px-4 py-3 text-right"><%= dual_currency(var_cny, var_store, over: var_store.to_f.positive?, sign: true) %></td>
                 <td class="px-4 py-3 text-right text-sm <%= "text-red-600 font-medium" if order_variance_pct && order_variance_pct.positive? %>">
                   <%= order_variance_pct ? "#{order_variance_pct}%" : "—" %>
                 </td>
@@ -246,7 +251,7 @@
                         </span>
                       <% end %>
                       <span class="ml-auto font-semibold text-gray-900 text-sm whitespace-nowrap">
-                        = <%= dual_currency(result.order_estimate_cny, result.order_estimate) %>
+                        = <span data-estimate-basis-total><%= dual_currency(result.order_estimate_cny, result.order_estimate) %></span>
                       </span>
                     </div>
                   <% end %>

@@ -540,7 +540,7 @@
       weight_diff_label: "重量差異 · 計費重 vs 商品重"
       overcharge_label: "物流商可能超收"
       unavailable: "部分包裹缺計費重，無法拆解"
-      cny_native_note: "此處直接以上方估價基準的人民幣計價。訂單列是由店鋪幣別換算回人民幣，因此兩者可能相差一兩分。"
+      cny_native_note: "以人民幣計價 —— 費率卡報價與物流商帳單的原生幣別。"
     remote_recon:
       badge: "⚠ 偏遠費不符"
       title_mismatch: "⚠ 偏遠費不符"

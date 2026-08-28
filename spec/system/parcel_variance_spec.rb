@@ -207,4 +207,62 @@ RSpec.describe "Shipping variance report", type: :system do
       expect(page).to have_content(I18n.t("parcels.recon.cny_native_note"))
     end
   end
+
+  # The order row used to render CNY by converting the rounded store-currency
+  # figure back, so a rate card that priced ¥35.01 showed ¥35.00 in the row
+  # while the estimate basis directly below it showed ¥35.01. (In production
+  # PKS#4113 the same round trip read ¥132.95 against a basis of ¥132.92.)
+  describe "CNY shown natively rather than converted back" do
+    let!(:exact_store) do
+      create(:shopify_store, user: user, company: company, currency: "USD",
+             cost_fx_rate: 7.0, default_service_type: "with_battery", timezone: "UTC")
+    end
+    let(:exact_customer) { create(:customer, shopify_store: exact_store) }
+
+    before do
+      version = create(:shipping_rate_card_version, company: company, country_code: "US",
+                       service_type: "with_battery", effective_from: Date.new(2026, 1, 1))
+      # 1 kg -> 10.00 + 23.01 + 2.00 = ¥35.01. /7.0 = $5.0014 -> $5.00,
+      # and $5.00 * 7.0 = ¥35.00: the cent the old round trip lost.
+      create(:shipping_rate_card_rate, version: version, zone: nil,
+             weight_min_kg: 0, weight_max_kg: 5, per_kg_rate_cny: 10, flat_fee_cny: 23.01)
+
+      order = create(:order, customer: exact_customer, shopify_store: exact_store, name: "PKS#7002",
+                     ordered_at: 1.day.ago,
+                     shopify_data: { "shipping_address" => { "country_code" => "US" } },
+                     estimated_shipping_cost: 5.00, estimated_shipping_cost_cny: 35.01)
+      product = create(:product, shopify_store: exact_store)
+      variant = create(:product_variant, product: product, weight_grams: 1000)
+      create(:order_line_item, order: order, product_variant: variant, quantity: 1,
+             weight_grams_snapshot: 1000)
+      create(:parcel, shopify_store: exact_store, order: order, identifier: "EXACT1",
+             billed_weight_g: 1000, cost_cny: 35.01, cost_amount: 5.00)
+    end
+
+    it "renders the same CNY estimate in the order row as in the estimate basis" do
+      visit parcels_path
+      find("tr", text: "PKS#7002").click
+
+      within("tr", text: "PKS#7002") do
+        expect(page).to have_content("¥35.01")
+        expect(page).not_to have_content("¥35.00")
+      end
+      within("[data-estimate-basis-total]") { expect(page).to have_content("¥35.01") }
+    end
+
+    it "sums stored and converted CNY alike in the summary bar" do
+      visit parcels_path
+
+      # PKS#3052 predates the CNY columns and is converted (18.20 * 7.2 = 131.04);
+      # PKS#7002 carries a stored ¥35.01. The bar has to add both kinds.
+      expect(page).to have_content("¥166.05")
+    end
+
+    it "takes the actual from the parcel's own CNY rather than converting" do
+      order = Order.find_by!(name: "PKS#7002")
+      # refresh_actual_shipping_cost! stores both currencies off the same parcels.
+      expect(order.actual_shipping_cost).to eq(5.00)
+      expect(order.actual_shipping_cost_cny).to eq(35.01)
+    end
+  end
 end

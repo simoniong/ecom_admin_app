@@ -191,8 +191,15 @@ class SyncAllOrdersService
     # cached target so the calculator weighs the order as it now stands.
     order.order_line_items.reset
 
-    cost = ShippingCostCalculator.estimate(order)
-    order.update!(estimated_shipping_cost: cost) if cost
+    # Resolve the Basis rather than calling .estimate: it carries the CNY the
+    # rate card actually priced, which is stored alongside the store-currency
+    # figure so no display has to convert back and lose a cent.
+    basis = ShippingCostCalculator.basis(order)
+    cost = basis&.order_estimate
+    return unless cost
+
+    order.update!(estimated_shipping_cost: cost,
+                  estimated_shipping_cost_cny: basis.order_estimate_cny)
   end
 
   def variant_lookup

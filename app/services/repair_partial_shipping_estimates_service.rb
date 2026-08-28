@@ -75,7 +75,8 @@ class RepairPartialShippingEstimatesService
       # update_column, not update!: this corrects a denormalized figure and must
       # not fire callbacks or touch updated_at-driven sync logic — the same call
       # ReestimateShippingCostsService uses for the same reason.
-      order.update_column(:estimated_shipping_cost, full_estimate) if @apply
+      order.update_columns(estimated_shipping_cost: full_estimate,
+                           estimated_shipping_cost_cny: basis.estimate_cny_for(full_weight)) if @apply
     end
 
     { scanned: scanned, applied: @apply, repairs: repairs, unexplained: unexplained }
