@@ -393,7 +393,7 @@
                         <% actual_sum_usd = result.parcel_lines.sum(&:actual) %>
                         <% total_variance_cny = result.actual_total_cny - result.parcels_estimate_cny %>
                         <% total_variance_usd = actual_sum_usd - estimate_sum_usd %>
-                        <tr class="border-t-2 border-gray-300 font-semibold text-gray-900">
+                        <tr data-parcel-totals-row class="border-t-2 border-gray-300 font-semibold text-gray-900">
                           <td class="py-2 text-left text-gray-500 font-medium" colspan="3">
                             <%= t("parcels.parcel_table.totals", count: result.parcel_lines.size) %>
                           </td>
@@ -401,13 +401,19 @@
                             <% if result.billed_weight_total_kg %>
                               <%= number_with_precision(result.billed_weight_total_kg, precision: 2) %> kg
                               <% if result.order_weight_kg %>
-                                <% heavier = result.billed_weight_total_kg > result.order_weight_kg %>
-                                <span class="ml-1 inline-block px-1.5 py-0.5 rounded-full text-[10px] font-semibold <%= heavier ? "bg-red-50 text-red-600" : "bg-gray-100 text-gray-500" %>">
+                                <%# Three-state: a parcel lighter than the goods used to be labelled
+                                    "matches", hiding the very difference the estimate columns show. %>
+                                <% weight_state = parcel_weight_comparison(result.billed_weight_total_kg, result.order_weight_kg) %>
+                                <% weight_delta = (result.billed_weight_total_kg - result.order_weight_kg).abs %>
+                                <span class="ml-1 inline-block px-1.5 py-0.5 rounded-full text-[10px] font-semibold <%= weight_state == :heavier ? "bg-red-50 text-red-600" : "bg-gray-100 text-gray-500" %>">
                                   <%= t("parcels.parcel_table.weight_estimate_note", weight: number_with_precision(result.order_weight_kg, precision: 2)) %>
-                                  <% if heavier %>
-                                    &middot; <%= t("parcels.parcel_table.weight_delta", delta: number_with_precision(result.billed_weight_total_kg - result.order_weight_kg, precision: 2)) %>
+                                  &middot;
+                                  <% if weight_state == :heavier %>
+                                    <%= t("parcels.parcel_table.weight_delta_over", delta: number_with_precision(weight_delta, precision: 2)) %>
+                                  <% elsif weight_state == :lighter %>
+                                    <%= t("parcels.parcel_table.weight_delta_under", delta: number_with_precision(weight_delta, precision: 2)) %>
                                   <% else %>
-                                    &middot; <%= t("parcels.parcel_table.weight_flat") %>
+                                    <%= t("parcels.parcel_table.weight_flat") %>
                                   <% end %>
                                 </span>
                               <% end %>
@@ -462,7 +468,9 @@
                         <span class="flex flex-col">
                           <span class="font-semibold text-purple-600"><%= signed_cny(result.split_cost_cny) %></span>
                           <span class="text-[10px] text-gray-400">
-                            <%= result.parcel_lines.size > 1 ? t("parcels.recon.split_label") : t("parcels.recon.split_label_single") %>
+                            <%# With one parcel nothing was split, so this figure is entirely the
+                                gap between its billed weight and the weight of the goods. %>
+                            <%= result.parcel_lines.size > 1 ? t("parcels.recon.split_label") : t("parcels.recon.weight_diff_label") %>
                             &middot; <%= signed_usd(split_usd) %>
                           </span>
                         </span>
@@ -478,6 +486,7 @@
                           </span>
                         </span>
                       </div>
+                      <p class="mt-2 text-[10px] text-gray-400"><%= t("parcels.recon.cny_native_note") %></p>
                     </div>
                   <% elsif result.order_estimate_cny.present? && result.parcel_lines.present? %>
                     <p class="mt-2 text-[11px] text-gray-400"><%= t("parcels.recon.unavailable") %></p>
