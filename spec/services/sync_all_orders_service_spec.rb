@@ -662,6 +662,42 @@ RSpec.describe SyncAllOrdersService do
       expect(order.reload.estimated_shipping_cost).to eq(99.99)
     end
 
+    it "snapshots the variant weight onto each line item" do
+      service.sync_single_order(shopify_order_with_weight)
+
+      li = Order.find_by(shopify_order_id: 200).order_line_items.first
+      expect(li.weight_grams_snapshot).to eq(300)
+    end
+
+    it "does not overwrite an existing weight snapshot on re-sync" do
+      service.sync_single_order(shopify_order_with_weight)
+      li = Order.find_by(shopify_order_id: 200).order_line_items.first
+      li.update_column(:weight_grams_snapshot, 250)
+
+      described_class.new(store).sync_single_order(shopify_order_with_weight)
+
+      expect(li.reload.weight_grams_snapshot).to eq(250)
+    end
+
+    # The two halves have to hold together: #256 reopens the estimate whenever
+    # the order's contents move, and the snapshot is what stops that
+    # recomputation from quietly repricing the ORIGINAL goods at today's SKU
+    # weights. Without it, editing variant_300g below would leak into the
+    # recomputed estimate (0.45 kg → 9.49) even though nothing about the first
+    # item changed.
+    it "reprices an upsell against the original items' snapshots, not the variant's new weight" do
+      service.sync_single_order(shopify_order_with_weight)
+      order = Order.find_by(shopify_order_id: 200)
+      expect(order.estimated_shipping_cost).to eq(7.51)
+
+      variant_300g.update!(weight_grams: 400)
+
+      described_class.new(store).sync_single_order(shopify_order_with_upsell)
+
+      # 0.30 (snapshot) + 0.05 = 0.35 kg → 8.17, not 0.40 + 0.05 = 0.45 kg → 9.49
+      expect(order.reload.estimated_shipping_cost).to eq(8.17)
+    end
+
     it "never sets actual_shipping_cost during sync" do
       service.sync_single_order(shopify_order_with_weight)
 

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_26_043325) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_28_143933) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -391,6 +391,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_26_043325) do
     t.decimal "unit_cost_snapshot", precision: 10, scale: 2
     t.decimal "unit_price", precision: 10, scale: 2
     t.datetime "updated_at", null: false
+    t.decimal "weight_grams_snapshot", precision: 12, scale: 3
     t.index ["order_id", "shopify_line_item_id"], name: "idx_line_items_order_shopify_id", unique: true
     t.index ["product_variant_id"], name: "index_order_line_items_on_product_variant_id"
   end

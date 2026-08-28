@@ -442,4 +442,48 @@ RSpec.describe ShippingCostCalculator do
       expect(version_queries).to eq(1)
     end
   end
+
+  describe "weight source" do
+    # The frozen estimate has to stay reproducible. Reading the live variant
+    # weight meant editing one SKU silently repriced every past order that
+    # contained it, and the frozen figure could then be explained by nothing on
+    # the order — which is exactly what made PKS#4113's divergence take three
+    # wrong hypotheses to diagnose.
+    it "prices the snapshot rather than the variant's current weight" do
+      build_version_with_band
+      order = build_order(weight_grams: 300)
+      order.order_line_items.first.update_column(:weight_grams_snapshot, 300)
+
+      order.order_line_items.first.product_variant.update!(weight_grams: 400)
+
+      # 0.3 kg, not the 0.4 kg the variant now claims.
+      expect(described_class.estimate(order.reload)).to eq(described_class.basis(order).order_estimate)
+      expect(described_class.basis(order.reload).order_weight_kg).to eq(0.3)
+    end
+
+    it "falls back to the variant weight when no snapshot was taken" do
+      build_version_with_band
+      order = build_order(weight_grams: 300)
+      expect(order.order_line_items.first.weight_grams_snapshot).to be_nil
+
+      expect(described_class.basis(order).order_weight_kg).to eq(0.3)
+    end
+
+    it "refuses to estimate when a line has neither a snapshot nor a variant weight" do
+      build_version_with_band
+      order = build_order(weight_grams: 300)
+      order.order_line_items.first.product_variant.update!(weight_grams: nil)
+
+      expect(described_class.estimate(order.reload)).to be_nil
+    end
+
+    it "uses the snapshot even when the variant has since lost its weight" do
+      build_version_with_band
+      order = build_order(weight_grams: 300)
+      order.order_line_items.first.update_column(:weight_grams_snapshot, 300)
+      order.order_line_items.first.product_variant.update!(weight_grams: nil)
+
+      expect(described_class.basis(order.reload).order_weight_kg).to eq(0.3)
+    end
+  end
 end

@@ -47,7 +47,7 @@ class RepairPartialShippingEstimatesService
       items = order.order_line_items.sort_by { |li| [ li.created_at, li.id ] }
       next if items.size < 2
       # A missing weight makes every figure below nil; nothing to prove or repair.
-      next unless items.all? { |li| li.product_variant&.weight_grams&.positive? }
+      next unless items.all? { |li| li.shipping_weight_grams&.positive? }
 
       basis = ShippingCostCalculator.basis(order, cache: cache)
       next unless basis
@@ -94,7 +94,7 @@ class RepairPartialShippingEstimatesService
   end
 
   def weight_kg(items)
-    items.sum { |li| li.product_variant.weight_grams * li.quantity } / 1000.0
+    items.sum { |li| li.shipping_weight_grams * li.quantity } / 1000.0
   end
 
   # Mirrors Basis#order_estimate exactly (CNY priced, then converted and rounded

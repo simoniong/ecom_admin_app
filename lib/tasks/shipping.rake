@@ -66,4 +66,21 @@ namespace :shipping do
       end
     end
   end
+
+  desc "Fill order_line_items.weight_grams_snapshot from current variant weights. ENV: REFRESH=1 (overwrite existing), STORE (store id)"
+  task backfill_weight_snapshots: :environment do
+    refresh = ENV["REFRESH"] == "1"
+    store_ids = ENV["STORE"].present? ? [ ENV["STORE"] ] : nil
+
+    r = BackfillWeightSnapshotsService.new(refresh: refresh, store_ids: store_ids).call
+
+    puts "shipping:backfill_weight_snapshots scanned=#{r[:scanned]} filled=#{r[:filled]} skipped_no_weight=#{r[:skipped_no_weight]}"
+    if refresh
+      puts "REFRESH=1 — existing snapshots were overwritten with today's variant weights."
+      puts "Re-run shipping:reestimate for the affected orders to re-baseline their estimates."
+    else
+      puts "Snapshots hold the variant weight as of NOW, not as of the order date —"
+      puts "the original weights were never recorded and cannot be recovered."
+    end
+  end
 end

@@ -314,8 +314,8 @@
 
                   <% line_items = order.order_line_items.to_a %>
                   <% if line_items.any? %>
-                    <% any_missing = line_items.any? { |li| !li.product_variant&.weight_grams&.positive? } %>
-                    <% total_g = line_items.sum { |li| li.product_variant&.weight_grams&.positive? ? li.product_variant.weight_grams * li.quantity : 0 } %>
+                    <% any_missing = line_items.any? { |li| !li.shipping_weight_grams&.positive? } %>
+                    <% total_g = line_items.sum { |li| li.shipping_weight_grams&.positive? ? li.shipping_weight_grams * li.quantity : 0 } %>
                     <div class="bg-white border border-gray-200 rounded-lg mb-3 overflow-hidden">
                       <div class="flex items-center gap-2 px-3 py-2 border-b border-gray-100">
                         <span class="text-[11px] font-semibold text-gray-700"><%= t("parcels.contents.title") %></span>
@@ -334,7 +334,7 @@
                           </thead>
                           <tbody>
                             <% line_items.each do |li| %>
-                              <% w = li.product_variant&.weight_grams %>
+                              <% w = li.shipping_weight_grams %>
                               <% has_w = w&.positive? %>
                               <tr class="border-t border-gray-50">
                                 <td class="px-3 py-1.5 font-mono text-[11px] text-gray-700"><%= li.sku_at_sale.presence || "—" %></td>

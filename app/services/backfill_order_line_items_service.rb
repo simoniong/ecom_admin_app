@@ -31,6 +31,14 @@ class BackfillOrderLineItemsService
       currency: order.currency,
       shopify_data: li
     )
+    # Snapshot the weight beside the cost, and for the same reason: both are
+    # variant attributes the order's frozen money figures were computed from,
+    # and both must survive a later edit to that variant. Set-once (nil check)
+    # so a re-sync never overwrites the value the estimate was priced at.
+    if line_item.weight_grams_snapshot.nil? && variant&.weight_grams&.positive?
+      line_item.weight_grams_snapshot = variant.weight_grams
+    end
+
     if line_item.unit_cost_snapshot.nil? && variant&.unit_cost.present? && @store.cost_fx_rate&.positive?
       # unit_cost + packaging_cost are in CNY; divide by CNY-per-store-currency rate.
       line_item.unit_cost_snapshot =
