@@ -47,7 +47,7 @@ class RepairPartialShippingEstimatesService
       items = order.order_line_items.sort_by { |li| [ li.created_at, li.id ] }
       next if items.size < 2
       # A missing weight makes every figure below nil; nothing to prove or repair.
-      next unless items.all? { |li| li.product_variant&.weight_grams&.positive? }
+      next unless items.all? { |li| li.shipping_weight_grams&.positive? }
 
       basis = ShippingCostCalculator.basis(order, cache: cache)
       next unless basis
@@ -75,7 +75,8 @@ class RepairPartialShippingEstimatesService
       # update_column, not update!: this corrects a denormalized figure and must
       # not fire callbacks or touch updated_at-driven sync logic — the same call
       # ReestimateShippingCostsService uses for the same reason.
-      order.update_column(:estimated_shipping_cost, full_estimate) if @apply
+      order.update_columns(estimated_shipping_cost: full_estimate,
+                           estimated_shipping_cost_cny: basis.estimate_cny_for(full_weight)) if @apply
     end
 
     { scanned: scanned, applied: @apply, repairs: repairs, unexplained: unexplained }
@@ -94,7 +95,7 @@ class RepairPartialShippingEstimatesService
   end
 
   def weight_kg(items)
-    items.sum { |li| li.product_variant.weight_grams * li.quantity } / 1000.0
+    items.sum { |li| li.shipping_weight_grams * li.quantity } / 1000.0
   end
 
   # Mirrors Basis#order_estimate exactly (CNY priced, then converted and rounded

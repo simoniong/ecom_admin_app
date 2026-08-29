@@ -540,7 +540,7 @@ en:
       weight_diff_label: "Weight difference · billed weight vs order contents"
       overcharge_label: "Possible carrier overcharge"
       unavailable: "Some parcels are missing billed weight, so this order cannot be decomposed"
-      cny_native_note: "Priced in CNY from the estimate basis above. The order row converts a store-currency figure back to CNY, so the two can differ by a cent or two."
+      cny_native_note: "Priced in CNY — the currency the rate card quotes and the carrier bills in."
     remote_recon:
       badge: "⚠ Remote-fee mismatch"
       title_mismatch: "⚠ Remote-fee mismatch"

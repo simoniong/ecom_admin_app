@@ -151,6 +151,14 @@ class SyncAllOrdersService
                          line_item.will_save_change_to_quantity? ||
                          line_item.will_save_change_to_product_variant_id?
 
+      # Snapshot the weight beside the cost, and for the same reason: both are
+      # variant attributes the order's frozen money figures were computed from,
+      # and both must survive a later edit to that variant. Set-once (nil check)
+      # so a re-sync never overwrites the value the estimate was priced at.
+      if line_item.weight_grams_snapshot.nil? && variant&.weight_grams&.positive?
+        line_item.weight_grams_snapshot = variant.weight_grams
+      end
+
       if line_item.unit_cost_snapshot.nil? && variant&.unit_cost.present? && @store.cost_fx_rate&.positive?
         # unit_cost + packaging_cost are in CNY; divide by CNY-per-store-currency rate.
         # Snapshot is always in store currency (matches shop_money above).
@@ -183,8 +191,15 @@ class SyncAllOrdersService
     # cached target so the calculator weighs the order as it now stands.
     order.order_line_items.reset
 
-    cost = ShippingCostCalculator.estimate(order)
-    order.update!(estimated_shipping_cost: cost) if cost
+    # Resolve the Basis rather than calling .estimate: it carries the CNY the
+    # rate card actually priced, which is stored alongside the store-currency
+    # figure so no display has to convert back and lose a cent.
+    basis = ShippingCostCalculator.basis(order)
+    cost = basis&.order_estimate
+    return unless cost
+
+    order.update!(estimated_shipping_cost: cost,
+                  estimated_shipping_cost_cny: basis.order_estimate_cny)
   end
 
   def variant_lookup

@@ -418,11 +418,17 @@ class ParcelsController < AdminController
         # contradict itself. Excluding those rows keeps both totals over the
         # exact same set. (A store with no fx rate can't be shown in CNY anyway.)
         .where("shopify_stores.cost_fx_rate > 0")
+        # The CNY sums prefer the stored native amounts (what the rate card and
+        # the carrier actually priced) and fall back to converting the
+        # store-currency figure, so a row written before those columns existed
+        # still counts in both totals rather than only in one.
         .pick(Arel.sql(
           "COALESCE(SUM(orders.estimated_shipping_cost), 0), " \
           "COALESCE(SUM(orders.actual_shipping_cost), 0), " \
-          "COALESCE(SUM(orders.estimated_shipping_cost * shopify_stores.cost_fx_rate), 0), " \
-          "COALESCE(SUM(orders.actual_shipping_cost * shopify_stores.cost_fx_rate), 0)"
+          "COALESCE(SUM(COALESCE(orders.estimated_shipping_cost_cny, " \
+          "orders.estimated_shipping_cost * shopify_stores.cost_fx_rate)), 0), " \
+          "COALESCE(SUM(COALESCE(orders.actual_shipping_cost_cny, " \
+          "orders.actual_shipping_cost * shopify_stores.cost_fx_rate)), 0)"
         ))
 
     {
