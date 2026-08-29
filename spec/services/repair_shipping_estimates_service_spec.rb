@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe RepairPartialShippingEstimatesService do
+RSpec.describe RepairShippingEstimatesService do
   let(:company) { create(:company) }
   let(:user)    { create(:user) }
   let(:store) do
@@ -37,7 +37,7 @@ RSpec.describe RepairPartialShippingEstimatesService do
     order
   end
 
-  describe "an estimate frozen against only the first line item" do
+  describe "the partial-order proof" do
     # 0.8 kg alone prices to the frozen value; the real order is 0.8 + 0.4 kg.
     let!(:order) { build_order(weights_grams: [ 800, 400 ], estimated_shipping_cost: usd_for(0.8)) }
 
@@ -52,8 +52,8 @@ RSpec.describe RepairPartialShippingEstimatesService do
       expect(repair.order_name).to eq(order.name)
       expect(repair.frozen).to eq(usd_for(0.8))
       expect(repair.repaired).to eq(usd_for(1.2))
-      expect(repair.proven_item_count).to eq(1)
-      expect(repair.total_item_count).to eq(2)
+      expect(repair.proof).to eq(:partial_order)
+      expect(repair.detail).to include("priced 1/2 items")
 
       expect(order.reload.estimated_shipping_cost).to eq(usd_for(0.8))
     end
@@ -79,7 +79,7 @@ RSpec.describe RepairPartialShippingEstimatesService do
 
     result = described_class.new(apply: true).call
 
-    expect(result[:repairs].first.proven_item_count).to eq(2)
+    expect(result[:repairs].first.detail).to include("priced 2/3 items")
     expect(order.reload.estimated_shipping_cost).to eq(usd_for(1.5))
   end
 
@@ -105,13 +105,13 @@ RSpec.describe RepairPartialShippingEstimatesService do
     expect(order.reload.estimated_shipping_cost).to eq(usd_for(1.2))
   end
 
-  it "ignores single-item orders, which cannot have lost a line item" do
+  it "cannot prove a single-item order by prefix, and reports it unexplained" do
     order = build_order(weights_grams: [ 800 ], estimated_shipping_cost: 99.99)
 
     result = described_class.new(apply: true).call
 
     expect(result[:repairs]).to be_empty
-    expect(result[:unexplained]).to be_empty
+    expect(result[:unexplained].map(&:order_name)).to eq([ order.name ])
     expect(order.reload.estimated_shipping_cost).to eq(99.99)
   end
 
@@ -144,5 +144,77 @@ RSpec.describe RepairPartialShippingEstimatesService do
 
     expect(result[:scanned]).to eq(0)
     expect(result[:repairs]).to be_empty
+  end
+
+  describe "the operation-fee proof" do
+    # OPERATION_FEE_CNY was folded into every priced parcel on 2026-07-17 so an
+    # on-target order would read ~¥0 variance instead of a standing phantom
+    # overcharge. Estimates frozen before that never got it, and on staging
+    # 2517 orders sat exactly one fee short (12 heavier ones exactly two, being
+    # split into two parcels).
+    let(:fee) { ShippingCostCalculator::OPERATION_FEE_CNY }
+
+    # 0.8 kg: 0.8 * 10 + 23 + 2 = ¥33.00 -> $4.71. Without the fee, ¥31.00 -> $4.43.
+    def frozen_without_fees(weight_kg, fees)
+      ((BigDecimal(weight_kg.to_s) * 10 + 23 + 2 - (fee * fees)) / 7.0).round(2)
+    end
+
+    it "proves and repairs an estimate missing one handling fee" do
+      order = build_order(weights_grams: [ 800 ], estimated_shipping_cost: frozen_without_fees(0.8, 1))
+
+      result = described_class.new(apply: true).call
+
+      repair = result[:repairs].first
+      expect(repair.proof).to eq(:operation_fee)
+      expect(repair.detail).to include("missing 1 × ¥2 handling fee")
+      expect(order.reload.estimated_shipping_cost).to eq(usd_for(0.8))
+    end
+
+    it "proves an estimate missing two handling fees (an order split over two parcels)" do
+      order = build_order(weights_grams: [ 800 ], estimated_shipping_cost: frozen_without_fees(0.8, 2))
+
+      result = described_class.new(apply: true).call
+
+      expect(result[:repairs].first.detail).to include("missing 2 × ¥2 handling fees")
+      expect(order.reload.estimated_shipping_cost).to eq(usd_for(0.8))
+    end
+
+    it "applies to single-item orders, which the prefix proof can never reach" do
+      order = build_order(weights_grams: [ 800 ], estimated_shipping_cost: frozen_without_fees(0.8, 1))
+
+      described_class.new(apply: true).call
+
+      expect(order.reload.estimated_shipping_cost).to eq(usd_for(0.8))
+    end
+
+    it "does not invent a proof for an arbitrary shortfall" do
+      order = build_order(weights_grams: [ 800 ], estimated_shipping_cost: 4.00)
+
+      result = described_class.new(apply: true).call
+
+      expect(result[:repairs]).to be_empty
+      expect(result[:unexplained].map(&:order_name)).to eq([ order.name ])
+      expect(order.reload.estimated_shipping_cost).to eq(4.00)
+    end
+
+    it "prefers the partial-order proof when both could match" do
+      # Two items where the first alone reproduces the frozen value: the more
+      # specific proof wins, though both would write the same repaired figure.
+      order = build_order(weights_grams: [ 800, 400 ], estimated_shipping_cost: usd_for(0.8))
+
+      result = described_class.new(apply: true).call
+
+      expect(result[:repairs].first.proof).to eq(:partial_order)
+      expect(order.reload.estimated_shipping_cost).to eq(usd_for(1.2))
+    end
+  end
+
+  it "stores the repaired CNY alongside the store-currency figure" do
+    order = build_order(weights_grams: [ 800, 400 ], estimated_shipping_cost: usd_for(0.8))
+
+    described_class.new(apply: true).call
+
+    # 1.2 kg -> 1.2 * 10 + 23 + 2 = ¥37.00, not a back-conversion of $5.29.
+    expect(order.reload.estimated_shipping_cost_cny).to eq(37.00)
   end
 end
