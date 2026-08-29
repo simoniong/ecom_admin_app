@@ -53,7 +53,8 @@ class ReestimateShippingCostsService
         next
       end
 
-      order.update_column(:estimated_shipping_cost, estimate)
+      order.update_columns(estimated_shipping_cost: estimate,
+                           estimated_shipping_cost_cny: resolution.basis.order_estimate_cny)
       updated += 1
     end
 

@@ -103,11 +103,35 @@ class Order < ApplicationRecord
   # just a race. FOR NO KEY UPDATE is exclusive enough to serialize this method
   # against itself, while staying compatible with FOR KEY SHARE, so it never
   # has to fight the insert that triggered it.
+  # Both currencies come off the same parcels in the same locked read, so the
+  # CNY total is the carrier's own billing figure rather than a back-conversion
+  # of the rounded store-currency sum.
   def refresh_actual_shipping_cost!
     with_lock("FOR NO KEY UPDATE") do
-      total = parcels.exists? ? parcels.sum(:cost_amount) : nil
-      update_column(:actual_shipping_cost, total)
+      any = parcels.exists?
+      update_columns(
+        actual_shipping_cost: any ? parcels.sum(:cost_amount) : nil,
+        actual_shipping_cost_cny: any ? parcels.sum(:cost_cny) : nil
+      )
     end
+  end
+
+  # The CNY figures the variance report displays. Prefer the stored native
+  # amount; fall back to converting the store-currency one for rows written
+  # before those columns existed (or not yet backfilled).
+  def estimated_shipping_cost_in_cny
+    estimated_shipping_cost_cny || convert_to_cny(estimated_shipping_cost)
+  end
+
+  def actual_shipping_cost_in_cny
+    actual_shipping_cost_cny || convert_to_cny(actual_shipping_cost)
+  end
+
+  def shipping_variance_cny
+    est = estimated_shipping_cost_in_cny
+    act = actual_shipping_cost_in_cny
+    return nil unless est && act
+    act - est
   end
 
   def parcel_count
@@ -123,5 +147,13 @@ class Order < ApplicationRecord
     return nil unless estimated_shipping_cost&.positive?
     return nil unless shipping_variance
     (shipping_variance / estimated_shipping_cost * 100).round(2)
+  end
+
+  private
+
+  def convert_to_cny(amount)
+    fx = shopify_store&.cost_fx_rate
+    return nil unless amount && fx&.positive?
+    (amount * fx).round(2)
   end
 end

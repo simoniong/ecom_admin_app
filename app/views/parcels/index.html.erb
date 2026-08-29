@@ -159,12 +159,17 @@
                 store-currency figure converted at the store's current fx. The
                 expanded detail below still recomputes per-parcel live; run
                 shipping:reestimate after a rate change to re-align the two. %>
-            <% fx = order.shopify_store&.cost_fx_rate %>
             <% est_store = order.estimated_shipping_cost %>
             <% act_store = order.actual_shipping_cost %>
             <% var_store = order.shipping_variance %>
             <% order_variance_pct = order.shipping_variance_pct %>
-            <% to_cny = ->(v) { (v && fx) ? v * fx : nil } %>
+            <%# CNY comes from the stored native amounts (see Order#*_in_cny), not
+                from converting the rounded store-currency figure back — that
+                round trip is what made this row read ¥132.95 against the
+                estimate basis's ¥132.92 directly below it. %>
+            <% est_cny = order.estimated_shipping_cost_in_cny %>
+            <% act_cny = order.actual_shipping_cost_in_cny %>
+            <% var_cny = order.shipping_variance_cny %>
             <%# Recon (in the expanded detail) decomposes the LIVE recomputed
                 order variance, not the frozen order-row one — the per-parcel
                 split/overcharge it explains are themselves recomputed. %>
@@ -189,9 +194,9 @@
                     <span class="ml-1 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-red-50 text-red-600"><%= t("parcels.remote_recon.badge") %></span>
                   <% end %>
                 </td>
-                <td class="px-4 py-3 text-right"><%= dual_currency(to_cny.call(est_store), est_store) %></td>
-                <td class="px-4 py-3 text-right"><%= dual_currency(to_cny.call(act_store), act_store) %></td>
-                <td class="px-4 py-3 text-right"><%= dual_currency(to_cny.call(var_store), var_store, over: var_store.to_f.positive?, sign: true) %></td>
+                <td class="px-4 py-3 text-right"><%= dual_currency(est_cny, est_store) %></td>
+                <td class="px-4 py-3 text-right"><%= dual_currency(act_cny, act_store) %></td>
+                <td class="px-4 py-3 text-right"><%= dual_currency(var_cny, var_store, over: var_store.to_f.positive?, sign: true) %></td>
                 <td class="px-4 py-3 text-right text-sm <%= "text-red-600 font-medium" if order_variance_pct && order_variance_pct.positive? %>">
                   <%= order_variance_pct ? "#{order_variance_pct}%" : "—" %>
                 </td>
@@ -246,7 +251,7 @@
                         </span>
                       <% end %>
                       <span class="ml-auto font-semibold text-gray-900 text-sm whitespace-nowrap">
-                        = <%= dual_currency(result.order_estimate_cny, result.order_estimate) %>
+                        = <span data-estimate-basis-total><%= dual_currency(result.order_estimate_cny, result.order_estimate) %></span>
                       </span>
                     </div>
                   <% end %>
@@ -314,8 +319,8 @@
 
                   <% line_items = order.order_line_items.to_a %>
                   <% if line_items.any? %>
-                    <% any_missing = line_items.any? { |li| !li.product_variant&.weight_grams&.positive? } %>
-                    <% total_g = line_items.sum { |li| li.product_variant&.weight_grams&.positive? ? li.product_variant.weight_grams * li.quantity : 0 } %>
+                    <% any_missing = line_items.any? { |li| !li.shipping_weight_grams&.positive? } %>
+                    <% total_g = line_items.sum { |li| li.shipping_weight_grams&.positive? ? li.shipping_weight_grams * li.shipping_quantity : 0 } %>
                     <div class="bg-white border border-gray-200 rounded-lg mb-3 overflow-hidden">
                       <div class="flex items-center gap-2 px-3 py-2 border-b border-gray-100">
                         <span class="text-[11px] font-semibold text-gray-700"><%= t("parcels.contents.title") %></span>
@@ -334,17 +339,17 @@
                           </thead>
                           <tbody>
                             <% line_items.each do |li| %>
-                              <% w = li.product_variant&.weight_grams %>
+                              <% w = li.shipping_weight_grams %>
                               <% has_w = w&.positive? %>
                               <tr class="border-t border-gray-50">
                                 <td class="px-3 py-1.5 font-mono text-[11px] text-gray-700"><%= li.sku_at_sale.presence || "—" %></td>
                                 <td class="px-3 py-1.5 text-gray-500"><%= li.title_at_sale %></td>
-                                <td class="px-3 py-1.5 text-right text-gray-700">×<%= li.quantity %></td>
+                                <td class="px-3 py-1.5 text-right text-gray-700">×<%= li.shipping_quantity %></td>
                                 <td class="px-3 py-1.5 text-right <%= has_w ? "text-gray-700" : "text-gray-400" %>">
                                   <%= has_w ? "#{number_with_precision(w, precision: 3, strip_insignificant_zeros: true)} g" : "—" %>
                                 </td>
                                 <td class="px-3 py-1.5 text-right <%= has_w ? "text-gray-900 font-medium" : "text-gray-400" %>">
-                                  <%= has_w ? "#{number_with_precision(w * li.quantity, precision: 3, strip_insignificant_zeros: true)} g" : "—" %>
+                                  <%= has_w ? "#{number_with_precision(w * li.shipping_quantity, precision: 3, strip_insignificant_zeros: true)} g" : "—" %>
                                 </td>
                               </tr>
                             <% end %>
@@ -393,7 +398,7 @@
                         <% actual_sum_usd = result.parcel_lines.sum(&:actual) %>
                         <% total_variance_cny = result.actual_total_cny - result.parcels_estimate_cny %>
                         <% total_variance_usd = actual_sum_usd - estimate_sum_usd %>
-                        <tr class="border-t-2 border-gray-300 font-semibold text-gray-900">
+                        <tr data-parcel-totals-row class="border-t-2 border-gray-300 font-semibold text-gray-900">
                           <td class="py-2 text-left text-gray-500 font-medium" colspan="3">
                             <%= t("parcels.parcel_table.totals", count: result.parcel_lines.size) %>
                           </td>
@@ -401,13 +406,19 @@
                             <% if result.billed_weight_total_kg %>
                               <%= number_with_precision(result.billed_weight_total_kg, precision: 2) %> kg
                               <% if result.order_weight_kg %>
-                                <% heavier = result.billed_weight_total_kg > result.order_weight_kg %>
-                                <span class="ml-1 inline-block px-1.5 py-0.5 rounded-full text-[10px] font-semibold <%= heavier ? "bg-red-50 text-red-600" : "bg-gray-100 text-gray-500" %>">
+                                <%# Three-state: a parcel lighter than the goods used to be labelled
+                                    "matches", hiding the very difference the estimate columns show. %>
+                                <% weight_state = parcel_weight_comparison(result.billed_weight_total_kg, result.order_weight_kg) %>
+                                <% weight_delta = (result.billed_weight_total_kg - result.order_weight_kg).abs %>
+                                <span class="ml-1 inline-block px-1.5 py-0.5 rounded-full text-[10px] font-semibold <%= weight_state == :heavier ? "bg-red-50 text-red-600" : "bg-gray-100 text-gray-500" %>">
                                   <%= t("parcels.parcel_table.weight_estimate_note", weight: number_with_precision(result.order_weight_kg, precision: 2)) %>
-                                  <% if heavier %>
-                                    &middot; <%= t("parcels.parcel_table.weight_delta", delta: number_with_precision(result.billed_weight_total_kg - result.order_weight_kg, precision: 2)) %>
+                                  &middot;
+                                  <% if weight_state == :heavier %>
+                                    <%= t("parcels.parcel_table.weight_delta_over", delta: number_with_precision(weight_delta, precision: 2)) %>
+                                  <% elsif weight_state == :lighter %>
+                                    <%= t("parcels.parcel_table.weight_delta_under", delta: number_with_precision(weight_delta, precision: 2)) %>
                                   <% else %>
-                                    &middot; <%= t("parcels.parcel_table.weight_flat") %>
+                                    <%= t("parcels.parcel_table.weight_flat") %>
                                   <% end %>
                                 </span>
                               <% end %>
@@ -462,7 +473,9 @@
                         <span class="flex flex-col">
                           <span class="font-semibold text-purple-600"><%= signed_cny(result.split_cost_cny) %></span>
                           <span class="text-[10px] text-gray-400">
-                            <%= result.parcel_lines.size > 1 ? t("parcels.recon.split_label") : t("parcels.recon.split_label_single") %>
+                            <%# With one parcel nothing was split, so this figure is entirely the
+                                gap between its billed weight and the weight of the goods. %>
+                            <%= result.parcel_lines.size > 1 ? t("parcels.recon.split_label") : t("parcels.recon.weight_diff_label") %>
                             &middot; <%= signed_usd(split_usd) %>
                           </span>
                         </span>
@@ -478,6 +491,7 @@
                           </span>
                         </span>
                       </div>
+                      <p class="mt-2 text-[10px] text-gray-400"><%= t("parcels.recon.cny_native_note") %></p>
                     </div>
                   <% elsif result.order_estimate_cny.present? && result.parcel_lines.present? %>
                     <p class="mt-2 text-[11px] text-gray-400"><%= t("parcels.recon.unavailable") %></p>

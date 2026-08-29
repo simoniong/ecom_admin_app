@@ -662,6 +662,113 @@ RSpec.describe SyncAllOrdersService do
       expect(order.reload.estimated_shipping_cost).to eq(99.99)
     end
 
+    it "snapshots the variant weight onto each line item" do
+      service.sync_single_order(shopify_order_with_weight)
+
+      li = Order.find_by(shopify_order_id: 200).order_line_items.first
+      expect(li.weight_grams_snapshot).to eq(300)
+    end
+
+    it "does not overwrite an existing weight snapshot on re-sync" do
+      service.sync_single_order(shopify_order_with_weight)
+      li = Order.find_by(shopify_order_id: 200).order_line_items.first
+      li.update_column(:weight_grams_snapshot, 250)
+
+      described_class.new(store).sync_single_order(shopify_order_with_weight)
+
+      expect(li.reload.weight_grams_snapshot).to eq(250)
+    end
+
+    # The two halves have to hold together: #256 reopens the estimate whenever
+    # the order's contents move, and the snapshot is what stops that
+    # recomputation from quietly repricing the ORIGINAL goods at today's SKU
+    # weights. Without it, editing variant_300g below would leak into the
+    # recomputed estimate (0.45 kg → 9.49) even though nothing about the first
+    # item changed.
+    it "reprices an upsell against the original items' snapshots, not the variant's new weight" do
+      service.sync_single_order(shopify_order_with_weight)
+      order = Order.find_by(shopify_order_id: 200)
+      expect(order.estimated_shipping_cost).to eq(7.51)
+
+      variant_300g.update!(weight_grams: 400)
+
+      described_class.new(store).sync_single_order(shopify_order_with_upsell)
+
+      # 0.30 (snapshot) + 0.05 = 0.35 kg → 8.17, not 0.40 + 0.05 = 0.45 kg → 9.49
+      expect(order.reload.estimated_shipping_cost).to eq(8.17)
+    end
+
+    # Shopify never removes a line item; it zeroes current_quantity. That reads
+    # identically whether the item was pulled before the order shipped or
+    # refunded after delivery, and only the order's fulfilment state separates
+    # the two in time.
+    describe "current_quantity and the fulfilment gate" do
+      def payload_with(current_quantity:, fulfillment_status:)
+        shopify_order_with_weight.deep_dup.tap do |p|
+          p["fulfillment_status"] = fulfillment_status
+          p["line_items"].first["current_quantity"] = current_quantity
+        end
+      end
+
+      it "drops an item pulled from an order that has not shipped" do
+        service.sync_single_order(payload_with(current_quantity: 1, fulfillment_status: "unfulfilled"))
+        order = Order.find_by(shopify_order_id: 200)
+        expect(order.estimated_shipping_cost).to eq(7.51)
+
+        described_class.new(store).sync_single_order(
+          payload_with(current_quantity: 0, fulfillment_status: "unfulfilled")
+        )
+
+        li = order.order_line_items.first
+        expect(li.reload.quantity_snapshot).to eq(0)
+        expect(li.quantity).to eq(1) # what was ordered never moves
+        # Nothing left to weigh, so there is no estimate to compute. The previous
+        # value is left rather than cleared — the same convention every other
+        # writer follows when the calculator comes back empty.
+        expect(ShippingCostCalculator.estimate(order.reload)).to be_nil
+        expect(order.estimated_shipping_cost).to eq(7.51)
+      end
+
+      it "keeps the shipped quantity when an item is refunded after delivery" do
+        service.sync_single_order(payload_with(current_quantity: 1, fulfillment_status: "fulfilled"))
+        order = Order.find_by(shopify_order_id: 200)
+
+        described_class.new(store).sync_single_order(
+          payload_with(current_quantity: 0, fulfillment_status: "fulfilled")
+        )
+
+        li = order.order_line_items.first
+        expect(li.reload.quantity_snapshot).to eq(1)
+        expect(order.reload.estimated_shipping_cost).to eq(7.51)
+      end
+
+      it "fills a fulfilled line's snapshot from the ordered quantity, moving nothing" do
+        # A row that predates the column: filling it in must not reprice the order.
+        service.sync_single_order(payload_with(current_quantity: 0, fulfillment_status: "fulfilled"))
+
+        order = Order.find_by(shopify_order_id: 200)
+        expect(order.order_line_items.first.quantity_snapshot).to eq(1)
+        expect(order.estimated_shipping_cost).to eq(7.51)
+      end
+
+      it "reopens the estimate when only the snapshot moves" do
+        # The upsell item is pulled before the order ships. Its `quantity` stays
+        # 1 in both payloads, so the estimate can only reopen off the snapshot.
+        service.sync_single_order(shopify_order_with_upsell)
+        order = Order.find_by(shopify_order_id: 200)
+        expect(order.estimated_shipping_cost).to eq(8.17) # 0.30 + 0.05 kg
+
+        pulled = shopify_order_with_upsell.deep_dup
+        pulled["line_items"].last["current_quantity"] = 0
+        described_class.new(store).sync_single_order(pulled)
+
+        upsell_line = order.order_line_items.find_by(shopify_line_item_id: 6002)
+        expect(upsell_line.reload.quantity).to eq(1)
+        expect(upsell_line.quantity_snapshot).to eq(0)
+        expect(order.reload.estimated_shipping_cost).to eq(7.51) # 0.30 kg alone
+      end
+    end
+
     it "never sets actual_shipping_cost during sync" do
       service.sync_single_order(shopify_order_with_weight)
 

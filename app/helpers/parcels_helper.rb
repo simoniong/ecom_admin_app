@@ -99,6 +99,26 @@ module ParcelsHelper
   # side, or a carrier bill that simply doesn't carry a zone) — no special
   # "hide the whole cell for unzoned countries" branch, since dashing each
   # side on its own merits already produces the right look for that case.
+  # How the carrier's billed weight compares to the weight of the goods we
+  # recorded on the order: :heavier, :lighter or :matches.
+  #
+  # The old check was a bare `billed > order`, which sent every other case —
+  # including a parcel LIGHTER than the order contents — down the "matches"
+  # branch. A parcel 53 g under its order then displayed "1.21 kg Est. 1.26 kg
+  # · matches" while the estimate columns either side of it differed by ¥4.88
+  # precisely because they do not match.
+  #
+  # TOLERANCE is half of the last displayed digit, so "matches" means "no
+  # difference at the precision shown" rather than "not heavier".
+  WEIGHT_MATCH_TOLERANCE_KG = 0.005
+
+  def parcel_weight_comparison(billed_kg, order_kg)
+    return :matches unless billed_kg && order_kg
+    delta = billed_kg - order_kg
+    return :matches if delta.abs < WEIGHT_MATCH_TOLERANCE_KG
+    delta.positive? ? :heavier : :lighter
+  end
+
   def dual_zone(estimated_zone, billed_zone, mismatch: false)
     est_text = estimated_zone.presence || "—"
     act_text = billed_zone.presence || "—"

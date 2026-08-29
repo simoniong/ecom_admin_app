@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_26_043325) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_29_145453) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -384,6 +384,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_26_043325) do
     t.uuid "order_id", null: false
     t.uuid "product_variant_id"
     t.integer "quantity", null: false
+    t.integer "quantity_snapshot"
     t.jsonb "shopify_data", default: {}
     t.bigint "shopify_line_item_id", null: false
     t.string "sku_at_sale"
@@ -391,17 +392,20 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_26_043325) do
     t.decimal "unit_cost_snapshot", precision: 10, scale: 2
     t.decimal "unit_price", precision: 10, scale: 2
     t.datetime "updated_at", null: false
+    t.decimal "weight_grams_snapshot", precision: 12, scale: 3
     t.index ["order_id", "shopify_line_item_id"], name: "idx_line_items_order_shopify_id", unique: true
     t.index ["product_variant_id"], name: "index_order_line_items_on_product_variant_id"
   end
 
   create_table "orders", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.decimal "actual_shipping_cost", precision: 10, scale: 2
+    t.decimal "actual_shipping_cost_cny", precision: 12, scale: 2
     t.datetime "created_at", null: false
     t.string "currency"
     t.uuid "customer_id", null: false
     t.string "email"
     t.decimal "estimated_shipping_cost", precision: 10, scale: 2
+    t.decimal "estimated_shipping_cost_cny", precision: 12, scale: 2
     t.string "financial_status"
     t.string "fulfillment_status"
     t.string "name"

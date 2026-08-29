@@ -272,4 +272,57 @@ RSpec.describe Order, type: :model do
       expect(order.reload.shipping_variance_pct).to be_nil
     end
   end
+
+  describe "CNY shipping amounts" do
+    let(:store) { create(:shopify_store, cost_fx_rate: 7.0) }
+
+    it "prefers the stored native amount over converting" do
+      order = create(:order, shopify_store: store,
+                     estimated_shipping_cost: 5.00, estimated_shipping_cost_cny: 35.01,
+                     actual_shipping_cost: 6.00, actual_shipping_cost_cny: 42.03)
+
+      expect(order.estimated_shipping_cost_in_cny).to eq(35.01)
+      expect(order.actual_shipping_cost_in_cny).to eq(42.03)
+      expect(order.shipping_variance_cny).to eq(7.02)
+    end
+
+    it "converts when the native amount has not been backfilled yet" do
+      order = create(:order, shopify_store: store,
+                     estimated_shipping_cost: 5.00, actual_shipping_cost: 6.00)
+
+      expect(order.estimated_shipping_cost_in_cny).to eq(35.00)
+      expect(order.actual_shipping_cost_in_cny).to eq(42.00)
+      expect(order.shipping_variance_cny).to eq(7.00)
+    end
+
+    it "is nil when the store has no usable fx rate and nothing was stored" do
+      order = create(:order, shopify_store: create(:shopify_store, cost_fx_rate: nil),
+                     estimated_shipping_cost: 5.00)
+
+      expect(order.estimated_shipping_cost_in_cny).to be_nil
+      expect(order.shipping_variance_cny).to be_nil
+    end
+
+    it "rolls both currencies up from the parcels themselves" do
+      order = create(:order, shopify_store: store)
+      create(:parcel, shopify_store: store, order: order, cost_cny: 128.04, cost_amount: 18.92)
+
+      order.refresh_actual_shipping_cost!
+
+      # 18.92 * 7.0 = 132.44; the CNY total is the carrier's own figure instead.
+      expect(order.reload.actual_shipping_cost).to eq(18.92)
+      expect(order.actual_shipping_cost_cny).to eq(128.04)
+    end
+
+    it "clears both currencies when the last parcel goes" do
+      order = create(:order, shopify_store: store)
+      parcel = create(:parcel, shopify_store: store, order: order, cost_cny: 128.04, cost_amount: 18.92)
+
+      parcel.destroy!
+      order.refresh_actual_shipping_cost!
+
+      expect(order.reload.actual_shipping_cost).to be_nil
+      expect(order.actual_shipping_cost_cny).to be_nil
+    end
+  end
 end
