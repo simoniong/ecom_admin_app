@@ -145,10 +145,16 @@ class SyncAllOrdersService
         shopify_data: li
       )
 
+      apply_shipping_quantity(order, line_item, li)
+
       # Checked after assign_attributes and before save! — this is the only
       # point where the incoming payload and the stored row can be compared.
+      # quantity_snapshot matters as much as quantity here: pulling an item from
+      # an unshipped order moves only the snapshot, and that has to reopen the
+      # estimate just as adding a line does.
       weight_changed ||= line_item.new_record? ||
                          line_item.will_save_change_to_quantity? ||
+                         line_item.will_save_change_to_quantity_snapshot? ||
                          line_item.will_save_change_to_product_variant_id?
 
       # Snapshot the weight beside the cost, and for the same reason: both are
@@ -184,6 +190,27 @@ class SyncAllOrdersService
   # landed, and the variance report then read a $5 overrun that never happened.
   # The estimate has to follow the goods it is pricing, so `recompute` reopens
   # it for exactly the syncs that moved the order's weight.
+  # Shopify keeps a removed line item in the payload and zeroes its
+  # current_quantity, so current_quantity is the only signal that an item left
+  # the order — but it reads identically whether the item was pulled BEFORE the
+  # order shipped (the parcel never carried it, weight should drop) or refunded
+  # AFTER delivery (it did, weight must not). On staging 138 of 185 zeroed lines
+  # were the latter, so following current_quantity unconditionally would rewrite
+  # far more history than it corrected.
+  #
+  # The order's own fulfilment state is the one thing that separates them in
+  # time, so the snapshot tracks current_quantity while the order is unshipped
+  # and is frozen the moment it is fulfilled. A fulfilled line that never got a
+  # snapshot falls back to the ordered quantity — the same figure it is priced
+  # at today, so filling the column in never moves a shipped order's estimate.
+  def apply_shipping_quantity(order, line_item, payload_item)
+    if order.fulfillment_status == "fulfilled"
+      line_item.quantity_snapshot ||= payload_item["quantity"]
+    else
+      line_item.quantity_snapshot = payload_item["current_quantity"] || payload_item["quantity"]
+    end
+  end
+
   def sync_estimated_shipping_cost(order, recompute: false)
     return if order.estimated_shipping_cost.present? && !recompute
 

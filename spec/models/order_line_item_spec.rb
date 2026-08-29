@@ -69,4 +69,21 @@ RSpec.describe OrderLineItem, type: :model do
       expect(li.shipping_weight_grams).to be_nil
     end
   end
+
+  describe "#shipping_quantity" do
+    it "prefers the snapshot over the originally ordered quantity" do
+      li = build(:order_line_item, quantity: 2, quantity_snapshot: 1)
+      expect(li.shipping_quantity).to eq(1)
+    end
+
+    it "falls back to the ordered quantity when no snapshot was taken" do
+      li = build(:order_line_item, quantity: 2, quantity_snapshot: nil)
+      expect(li.shipping_quantity).to eq(2)
+    end
+
+    it "honours a snapshot of zero rather than treating it as absent" do
+      li = build(:order_line_item, quantity: 1, quantity_snapshot: 0)
+      expect(li.shipping_quantity).to eq(0)
+    end
+  end
 end

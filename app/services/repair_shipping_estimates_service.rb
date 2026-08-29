@@ -132,7 +132,7 @@ class RepairShippingEstimatesService
   end
 
   def weight_kg(items)
-    items.sum { |li| li.shipping_weight_grams * li.quantity } / 1000.0
+    items.sum { |li| li.shipping_weight_grams * li.shipping_quantity } / 1000.0
   end
 
   def estimate_for(basis, weight_kg)
