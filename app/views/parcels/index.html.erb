@@ -320,7 +320,7 @@
                   <% line_items = order.order_line_items.to_a %>
                   <% if line_items.any? %>
                     <% any_missing = line_items.any? { |li| !li.shipping_weight_grams&.positive? } %>
-                    <% total_g = line_items.sum { |li| li.shipping_weight_grams&.positive? ? li.shipping_weight_grams * li.quantity : 0 } %>
+                    <% total_g = line_items.sum { |li| li.shipping_weight_grams&.positive? ? li.shipping_weight_grams * li.shipping_quantity : 0 } %>
                     <div class="bg-white border border-gray-200 rounded-lg mb-3 overflow-hidden">
                       <div class="flex items-center gap-2 px-3 py-2 border-b border-gray-100">
                         <span class="text-[11px] font-semibold text-gray-700"><%= t("parcels.contents.title") %></span>
@@ -344,12 +344,12 @@
                               <tr class="border-t border-gray-50">
                                 <td class="px-3 py-1.5 font-mono text-[11px] text-gray-700"><%= li.sku_at_sale.presence || "—" %></td>
                                 <td class="px-3 py-1.5 text-gray-500"><%= li.title_at_sale %></td>
-                                <td class="px-3 py-1.5 text-right text-gray-700">×<%= li.quantity %></td>
+                                <td class="px-3 py-1.5 text-right text-gray-700">×<%= li.shipping_quantity %></td>
                                 <td class="px-3 py-1.5 text-right <%= has_w ? "text-gray-700" : "text-gray-400" %>">
                                   <%= has_w ? "#{number_with_precision(w, precision: 3, strip_insignificant_zeros: true)} g" : "—" %>
                                 </td>
                                 <td class="px-3 py-1.5 text-right <%= has_w ? "text-gray-900 font-medium" : "text-gray-400" %>">
-                                  <%= has_w ? "#{number_with_precision(w * li.quantity, precision: 3, strip_insignificant_zeros: true)} g" : "—" %>
+                                  <%= has_w ? "#{number_with_precision(w * li.shipping_quantity, precision: 3, strip_insignificant_zeros: true)} g" : "—" %>
                                 </td>
                               </tr>
                             <% end %>

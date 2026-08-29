@@ -14,6 +14,17 @@ class OrderLineItem < ApplicationRecord
   # order containing it, and the frozen figure could no longer be explained by
   # anything on the order. Every caller that weighs an order for money must go
   # through here, not through product_variant.weight_grams.
+  # The quantity this line should be PRICED at. `quantity` is what Shopify says
+  # was originally ordered and never moves; the snapshot is what the order still
+  # contained when it last mattered — see the migration for why the two differ
+  # and why following current_quantity blindly would be wrong.
+  #
+  # Falls back to `quantity` for rows written before the column existed, which
+  # is exactly the behaviour they had.
+  def shipping_quantity
+    quantity_snapshot || quantity
+  end
+
   def shipping_weight_grams
     weight_grams_snapshot || product_variant&.weight_grams
   end

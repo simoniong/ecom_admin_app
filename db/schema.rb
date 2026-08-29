@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_28_144618) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_29_145453) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -384,6 +384,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_28_144618) do
     t.uuid "order_id", null: false
     t.uuid "product_variant_id"
     t.integer "quantity", null: false
+    t.integer "quantity_snapshot"
     t.jsonb "shopify_data", default: {}
     t.bigint "shopify_line_item_id", null: false
     t.string "sku_at_sale"

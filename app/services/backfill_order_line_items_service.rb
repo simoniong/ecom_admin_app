@@ -31,6 +31,14 @@ class BackfillOrderLineItemsService
       currency: order.currency,
       shopify_data: li
     )
+    # Same fulfilment gate as SyncAllOrdersService#apply_shipping_quantity: track
+    # current_quantity while the order is unshipped, freeze it once fulfilled.
+    if order.fulfillment_status == "fulfilled"
+      line_item.quantity_snapshot ||= li["quantity"]
+    else
+      line_item.quantity_snapshot = li["current_quantity"] || li["quantity"]
+    end
+
     # Snapshot the weight beside the cost, and for the same reason: both are
     # variant attributes the order's frozen money figures were computed from,
     # and both must survive a later edit to that variant. Set-once (nil check)
