@@ -47,6 +47,15 @@
         <%= text_field_tag :q, params[:q], placeholder: t("parcels.search_order_placeholder"), class: "w-40 #{field_cls}" %>
       </div>
       <div>
+        <label for="date_basis" class="block text-xs font-medium text-gray-500 mb-1"><%= t("parcels.date_basis.label") %></label>
+        <%= select_tag :date_basis,
+              options_for_select([
+                [ t("parcels.date_basis.ordered"), "ordered" ],
+                [ t("parcels.date_basis.shipped"), "shipped" ]
+              ], @date_basis),
+              class: field_cls %>
+      </div>
+      <div>
         <label for="from_date" class="block text-xs font-medium text-gray-500 mb-1"><%= t("parcels.from_date") %></label>
         <%= date_field_tag :from_date, @from_date, class: field_cls %>
       </div>
@@ -120,6 +129,22 @@
           <%= @summary[:variance_pct] ? "#{@summary[:variance_pct]}%" : "—" %>
         </div>
       </div>
+      <% if @shipped_summary %>
+        <%# Parcel-level, for reconciling against the carrier bill — see ParcelsController#shipped_parcels_summary. %>
+        <div id="shipped_parcels_summary" class="basis-full pt-3 border-t border-gray-100 text-sm text-gray-600">
+          <%= t("parcels.shipped_summary.line",
+                count: @shipped_summary[:count],
+                total: number_to_currency(@shipped_summary[:cost_cny], unit: "¥"),
+                excl_fee: number_to_currency(@shipped_summary[:cost_cny_excl_fee], unit: "¥")) %>
+          <% if @shipped_summary[:unmatched_count].positive? %>
+            <span class="text-amber-700">
+              <%= t("parcels.shipped_summary.unmatched",
+                    count: @shipped_summary[:unmatched_count],
+                    total: number_to_currency(@shipped_summary[:unmatched_cost_cny], unit: "¥")) %>
+            </span>
+          <% end %>
+        </div>
+      <% end %>
     </div>
 
     <div data-controller="edit-mode" data-edit-mode-editing-class="parcels-editing" class="bg-white rounded-lg border border-gray-200 overflow-hidden">

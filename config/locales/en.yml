@@ -459,6 +459,13 @@ en:
     title: "Shipping variance"
     tab_orders: "Order variance"
     tab_unmatched: "Unmatched parcels"
+    date_basis:
+      label: "Date by"
+      ordered: "Order date"
+      shipped: "Ship date"
+    shipped_summary:
+      line: "Parcels shipped in range: %{count} · %{total} (%{excl_fee} excl. ¥2 handling fee — compare this with the carrier bill)"
+      unmatched: "· plus %{count} unmatched parcels, %{total} (see the Unmatched parcels tab)"
     from_date: "From"
     to_date: "To"
     multi_parcel_only: "Multi-parcel orders only"
