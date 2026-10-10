@@ -18,6 +18,7 @@ class ParcelsController < AdminController
     "estimated" => "orders.estimated_shipping_cost"
   }.freeze
   PER_PAGE = 25
+  DATE_BASES = %w[ordered shipped].freeze
   MAX_UPLOAD_BYTES = 20.megabytes
 
   # An order's DESTINATION country code, resolved from shopify_data exactly the
@@ -71,6 +72,7 @@ class ParcelsController < AdminController
                       .sort
 
     @summary = shipping_variance_summary
+    @shipped_summary = shipped_parcels_summary if @date_basis == "shipped"
 
     @orders = paginate(filtered_orders_base)
       .includes(:parcels, :shopify_store, order_line_items: :product_variant)
@@ -169,6 +171,9 @@ class ParcelsController < AdminController
 
         comparison.parcel_lines.each do |line|
           parcel = line.parcel
+          # By ship date the file is one carrier bill's worth of rows, so a
+          # multi-parcel order's parcel shipped in another month stays out.
+          next if @date_basis == "shipped" && !shipped_window.cover?(parcel.shipped_at)
 
           sheet.add_row [
             order.name,
@@ -500,6 +505,7 @@ class ParcelsController < AdminController
   end
 
   def parse_dates
+    @date_basis = DATE_BASES.include?(params[:date_basis]) ? params[:date_basis] : "ordered"
     today = Time.current.in_time_zone(store_timezone).to_date
     @from_date = params[:from_date].present? ? Date.parse(params[:from_date]) : today - 30
     @to_date   = params[:to_date].present?   ? Date.parse(params[:to_date])   : today
@@ -515,7 +521,13 @@ class ParcelsController < AdminController
   # can't do this: this controller has no store switcher, so with more than one
   # visible store current_shopify_store is nil and store_timezone falls back to
   # UTC, shifting every boundary by the store's UTC offset.
+  #
+  # With date_basis=shipped the window applies to parcels.shipped_at instead:
+  # the orders that had a parcel shipped in the range, which is the set a
+  # carrier's monthly bill covers.
   def orders_in_date_window
+    return orders_with_parcels_shipped_in_window if @date_basis == "shipped"
+
     windows = visible_shopify_stores.map do |store|
       tz = store.active_timezone
       Order.where(shopify_store_id: store.id)
@@ -524,6 +536,43 @@ class ParcelsController < AdminController
     end
 
     windows.reduce { |scope, window| scope.or(window) } || Order.none
+  end
+
+  # ParcelBillParser stores the bill's 发货时间 as written — China wall-clock
+  # time — in a UTC column, so the stored date IS the bill's date. Windowing on
+  # it in UTC is what makes this page add up to the bill; converting to
+  # Asia/Shanghai first would shift every parcel 8 hours later.
+  def shipped_window
+    @shipped_window ||= Time.utc(@from_date.year, @from_date.month, @from_date.day)..
+                        Time.utc(@to_date.year, @to_date.month, @to_date.day).end_of_day
+  end
+
+  def parcels_shipped_in_window
+    Parcel.where(shopify_store_id: visible_shopify_stores.select(:id), shipped_at: shipped_window)
+  end
+
+  def orders_with_parcels_shipped_in_window
+    Order.where(shopify_store_id: visible_shopify_stores.select(:id))
+         .where(id: parcels_shipped_in_window.where.not(order_id: nil).select(:order_id))
+  end
+
+  # Parcel-level totals for the ship-date view, for reconciling against the
+  # carrier bill. Only parcels shipped in the window count — a multi-parcel
+  # order can straddle two bills — and they are limited to the filtered orders
+  # so the line follows the other filters. The bill has no handling fee, which
+  # ParcelBillParser adds per parcel, so the total is also shown without it.
+  # Unmatched parcels are on the bill too but belong to no order, so they are
+  # reported on their own rather than silently left out.
+  def shipped_parcels_summary
+    matched = parcels_shipped_in_window.where(order_id: filtered_orders_base.select(:id))
+    unmatched = parcels_shipped_in_window.unmatched
+    count, cost, fee = matched.pick(Arel.sql("COUNT(*), COALESCE(SUM(cost_cny), 0), COALESCE(SUM(operation_fee_cny), 0)"))
+    unmatched_count, unmatched_cost = unmatched.pick(Arel.sql("COUNT(*), COALESCE(SUM(cost_cny), 0)"))
+
+    {
+      count: count, cost_cny: cost, cost_cny_excl_fee: cost - fee,
+      unmatched_count: unmatched_count, unmatched_cost_cny: unmatched_cost
+    }
   end
 
   def summarise(store, rows)

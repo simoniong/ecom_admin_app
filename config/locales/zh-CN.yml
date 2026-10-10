@@ -459,6 +459,13 @@
     title: "运费差异"
     tab_orders: "订单差异"
     tab_unmatched: "未匹配包裹"
+    date_basis:
+      label: "日期依据"
+      ordered: "下单日期"
+      shipped: "发货日期"
+    shipped_summary:
+      line: "此期间发货包裹：%{count} 个 · %{total}（不含每件 ¥2 操作费为 %{excl_fee}，可直接与物流账单对账）"
+      unmatched: "· 另有 %{count} 个未配对包裹，%{total}（见“未配对包裹”标签页）"
     from_date: "起始日期"
     to_date: "结束日期"
     multi_parcel_only: "只看多包裹订单"

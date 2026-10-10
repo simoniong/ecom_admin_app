@@ -79,6 +79,90 @@ RSpec.describe "Parcels", type: :request do
       end
     end
 
+    describe "date_basis=shipped" do
+      # Placed in August, shipped in September: on September's carrier bill.
+      let!(:aug_order) do
+        o = create(:order, customer: customer, shopify_store: store, name: "PKS#5001",
+                           estimated_shipping_cost: 10, ordered_at: Time.utc(2026, 8, 30, 12))
+        create(:parcel, shopify_store: store, order: o, identifier: "SHIP-A",
+                        shipped_at: Time.utc(2026, 9, 2, 17), cost_cny: 102, operation_fee_cny: 2, cost_amount: 14)
+        o
+      end
+
+      # Placed in September, shipped in October: not on September's bill.
+      let!(:late_ship) do
+        o = create(:order, customer: customer, shopify_store: store, name: "PKS#5002",
+                           estimated_shipping_cost: 10, ordered_at: Time.utc(2026, 9, 29, 12))
+        create(:parcel, shopify_store: store, order: o, identifier: "SHIP-B",
+                        shipped_at: Time.utc(2026, 10, 7, 9), cost_cny: 72, operation_fee_cny: 2, cost_amount: 10)
+        o
+      end
+
+      # Second parcel shipped in October: one order straddling two bills.
+      let!(:split) do
+        o = create(:order, customer: customer, shopify_store: store, name: "PKS#5003",
+                           estimated_shipping_cost: 20, ordered_at: Time.utc(2026, 9, 20, 12))
+        create(:parcel, shopify_store: store, order: o, identifier: "SHIP-C1",
+                        shipped_at: Time.utc(2026, 9, 30, 23, 30), cost_cny: 52, operation_fee_cny: 2, cost_amount: 7)
+        create(:parcel, shopify_store: store, order: o, identifier: "SHIP-C2",
+                        shipped_at: Time.utc(2026, 10, 1, 0, 30), cost_cny: 62, operation_fee_cny: 2, cost_amount: 8)
+        o
+      end
+
+      let(:september) { { date_basis: "shipped", from_date: "2026-09-01", to_date: "2026-09-30" } }
+
+      it "lists orders by when their parcels shipped, not when they were placed" do
+        get parcels_path(september)
+
+        expect(response.body).to include("PKS#5001")
+        expect(response.body).to include("PKS#5003")
+        expect(response.body).not_to include("PKS#5002")
+      end
+
+      it "totals only the parcels shipped in range, with and without the handling fee" do
+        get parcels_path(september)
+
+        line = Nokogiri::HTML(response.body).at_css("#shipped_parcels_summary").text.squish
+        # SHIP-A + SHIP-C1; SHIP-C2 is on October's bill.
+        expect(line).to include("2")
+        expect(line).to include("¥154.00")
+        expect(line).to include("¥150.00")
+      end
+
+      it "reports unmatched parcels shipped in range separately" do
+        create(:parcel, shopify_store: store, order: nil, identifier: "SHIP-ORPHAN",
+                        shipped_at: Time.utc(2026, 9, 15), cost_cny: 30, cost_amount: 4)
+
+        get parcels_path(september)
+
+        line = Nokogiri::HTML(response.body).at_css("#shipped_parcels_summary").text.squish
+        expect(line).to include("¥30.00")
+      end
+
+      it "exports only the parcels shipped in range" do
+        get export_parcels_path(september)
+
+        sheet = Roo::Excelx.new(StringIO.new(response.body)).sheet(0)
+        identifiers = (2..sheet.last_row).map { |row| sheet.cell(row, 2) }
+        expect(identifiers).to contain_exactly("SHIP-A", "SHIP-C1")
+      end
+
+      it "keeps the order-date view as the default" do
+        get parcels_path(from_date: "2026-09-01", to_date: "2026-09-30")
+
+        expect(response.body).to include("PKS#5002")
+        expect(response.body).not_to include("PKS#5001")
+        expect(response.body).not_to include("shipped_parcels_summary")
+      end
+
+      it "falls back to the order-date view for an unknown basis" do
+        get parcels_path(september.merge(date_basis: "bogus"))
+
+        expect(response.body).to include("PKS#5002")
+        expect(response.body).not_to include("shipped_parcels_summary")
+      end
+    end
+
     describe "sorting by variance %" do
       # Small absolute overrun (+10) but a HIGH percentage (100%).
       let!(:high_pct) do
