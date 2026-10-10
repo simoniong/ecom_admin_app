@@ -63,10 +63,8 @@ class ParcelsController < AdminController
     # filters) so the option list stays stable as the operator narrows by
     # country/overrun — picking a country must never make the other options
     # vanish. DISTINCT on the same resolved-country expression the filter uses.
-    store_ids = visible_shopify_stores.pluck(:id)
-    @countries = Order.where(shopify_store_id: store_ids)
+    @countries = orders_in_date_window
                       .where.not(actual_shipping_cost: nil)
-                      .ordered_between(@from_time, @to_time)
                       .distinct
                       .pluck(Arel.sql(DEST_COUNTRY_SQL))
                       .compact_blank
@@ -367,15 +365,11 @@ class ParcelsController < AdminController
   # min_over_pct), extracted so index and export apply the EXACT same scope —
   # export exists to reconcile "what's on screen right now" with a carrier
   # bill, so it must never silently include or exclude an order the operator
-  # can't also see on the page they filtered. Requires @from_time/@to_time
+  # can't also see on the page they filtered. Requires @from_date/@to_date
   # (parse_dates) to already be set. Unlike index, the caller decides whether
   # to paginate the result — export deliberately doesn't.
   def filtered_orders_base
-    store_ids = visible_shopify_stores.pluck(:id)
-
-    base = Order.where(shopify_store_id: store_ids)
-                .where.not(actual_shipping_cost: nil)
-                .ordered_between(@from_time, @to_time)
+    base = orders_in_date_window.where.not(actual_shipping_cost: nil)
 
     base = base.name_matching(params[:q]) if params[:q].present?
     base = base.where(id: Parcel.group(:order_id).having("COUNT(*) > 1").select(:order_id)) if params[:multi_parcel_only].present?
@@ -506,17 +500,30 @@ class ParcelsController < AdminController
   end
 
   def parse_dates
-    tz = store_timezone
-    today = Time.current.in_time_zone(tz).to_date
+    today = Time.current.in_time_zone(store_timezone).to_date
     @from_date = params[:from_date].present? ? Date.parse(params[:from_date]) : today - 30
     @to_date   = params[:to_date].present?   ? Date.parse(params[:to_date])   : today
-    @from_time = tz.parse(@from_date.to_s).beginning_of_day.utc
-    @to_time   = tz.parse(@to_date.to_s).end_of_day.utc
   rescue Date::Error
     @from_date = today - 30
     @to_date   = today
-    @from_time = tz.parse(@from_date.to_s).beginning_of_day.utc
-    @to_time   = tz.parse(@to_date.to_s).end_of_day.utc
+  end
+
+  # Orders placed between @from_date and @to_date, with each store's dates read
+  # in THAT store's own timezone — the same windowing DashboardMetricsService
+  # uses, so the dashboard's "View variance detail" link lands on the same
+  # order set the dashboard just totalled. A single window in store_timezone
+  # can't do this: this controller has no store switcher, so with more than one
+  # visible store current_shopify_store is nil and store_timezone falls back to
+  # UTC, shifting every boundary by the store's UTC offset.
+  def orders_in_date_window
+    windows = visible_shopify_stores.map do |store|
+      tz = store.active_timezone
+      Order.where(shopify_store_id: store.id)
+           .ordered_between(tz.local(@from_date.year, @from_date.month, @from_date.day).utc,
+                            tz.local(@to_date.year, @to_date.month, @to_date.day).end_of_day.utc)
+    end
+
+    windows.reduce { |scope, window| scope.or(window) } || Order.none
   end
 
   def summarise(store, rows)

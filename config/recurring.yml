@@ -26,6 +26,9 @@ production:
   sync_all_shopify_orders:
     class: SyncAllShopifyOrdersRecurringJob
     schedule: every 1 hour
+  sync_all_shopify_products:
+    class: SyncAllShopifyProductsRecurringJob
+    schedule: every day at 4am
   shipping_reminder_check:
     class: ShippingReminderCheckJob
     schedule: every 15 minutes

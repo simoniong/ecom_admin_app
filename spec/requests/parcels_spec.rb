@@ -36,6 +36,49 @@ RSpec.describe "Parcels", type: :request do
       expect(response.body.index("PKS#3052")).to be < response.body.index("PKS#3001")
     end
 
+    describe "date window with more than one store" do
+      # Two visible stores means no current_shopify_store on this page, so
+      # store_timezone is UTC. The window must still be read in each store's
+      # own timezone, as the dashboard does, or the two pages disagree.
+      before do
+        store.update!(timezone: "America/Juneau")
+        create(:shopify_store, user: user, company: company, cost_fx_rate: 7.2)
+      end
+
+      let!(:late_local) do
+        # 2026-09-30 22:00 in Juneau — already 2026-10-01 in UTC.
+        o = create(:order, customer: customer, shopify_store: store, name: "PKS#4001",
+                           estimated_shipping_cost: 10,
+                           ordered_at: ActiveSupport::TimeZone["America/Juneau"].local(2026, 9, 30, 22))
+        create(:parcel, shopify_store: store, order: o, identifier: "TZ1", cost_amount: 10)
+        o
+      end
+
+      let!(:early_utc) do
+        # 2026-09-01 00:30 UTC — still 2026-08-31 in Juneau.
+        o = create(:order, customer: customer, shopify_store: store, name: "PKS#4002",
+                           estimated_shipping_cost: 10,
+                           ordered_at: Time.utc(2026, 9, 1, 0, 30))
+        create(:parcel, shopify_store: store, order: o, identifier: "TZ2", cost_amount: 10)
+        o
+      end
+
+      it "reads each store's dates in that store's timezone" do
+        get parcels_path(from_date: "2026-09-01", to_date: "2026-09-30")
+
+        expect(response.body).to include("PKS#4001")
+        expect(response.body).not_to include("PKS#4002")
+      end
+
+      it "exports the same order set the page shows" do
+        get export_parcels_path(from_date: "2026-09-01", to_date: "2026-09-30")
+
+        sheet = Roo::Excelx.new(StringIO.new(response.body)).sheet(0)
+        names = (2..sheet.last_row).map { |row| sheet.cell(row, 1) }
+        expect(names).to eq([ "PKS#4001" ])
+      end
+    end
+
     describe "sorting by variance %" do
       # Small absolute overrun (+10) but a HIGH percentage (100%).
       let!(:high_pct) do
