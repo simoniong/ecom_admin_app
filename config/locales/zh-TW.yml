@@ -459,6 +459,13 @@
     title: "運費差異"
     tab_orders: "訂單差異"
     tab_unmatched: "未配對包裹"
+    date_basis:
+      label: "日期依據"
+      ordered: "下單日期"
+      shipped: "出貨日期"
+    shipped_summary:
+      line: "此期間出貨包裹：%{count} 個 · %{total}（不含每件 ¥2 操作費為 %{excl_fee}，可直接與物流帳單對帳）"
+      unmatched: "· 另有 %{count} 個未配對包裹，%{total}（見「未配對包裹」分頁）"
     from_date: "起始日期"
     to_date: "結束日期"
     multi_parcel_only: "只看多包裹訂單"

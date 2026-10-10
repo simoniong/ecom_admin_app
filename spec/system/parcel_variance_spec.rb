@@ -42,6 +42,29 @@ RSpec.describe "Shipping variance report", type: :system do
     expect(page).to have_content("B2")
   end
 
+  it "switches the report to ship dates for reconciling against a carrier bill" do
+    # Placed before the range, shipped inside it.
+    early = create(:order, customer: customer, shopify_store: store, name: "PKS#6001",
+                            estimated_shipping_cost: 10, ordered_at: 40.days.ago)
+    create(:parcel, shopify_store: store, order: early, identifier: "SHIP1",
+                    shipped_at: 2.days.ago, cost_cny: 102, operation_fee_cny: 2, cost_amount: 14)
+
+    visit parcels_path(from_date: 7.days.ago.to_date, to_date: Date.current)
+    expect(page).not_to have_content("PKS#6001")
+    expect(page).not_to have_css("#shipped_parcels_summary")
+
+    select I18n.t("parcels.date_basis.shipped"), from: "date_basis"
+    click_button I18n.t("parcels.filter")
+
+    expect(page).to have_content("PKS#6001")
+    expect(page).to have_select("date_basis", selected: I18n.t("parcels.date_basis.shipped"))
+    within("#shipped_parcels_summary") do
+      # SHIP1 plus blown's B1/B2 (factory shipped_at 3 days ago): 102 + 144 + 144.72.
+      expect(page).to have_content("¥390.72")
+      expect(page).to have_content("¥384.72")
+    end
+  end
+
   it "edits a parcel cost inline via Turbo Stream and re-rolls up the order" do
     parcel = Parcel.find_by!(shopify_store: store, identifier: "B1")
 
