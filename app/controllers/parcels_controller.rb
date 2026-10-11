@@ -514,13 +514,23 @@ class ParcelsController < AdminController
     @to_date   = today
   end
 
+  # The stores the orders tab reports on: the one picked in the store filter
+  # (?store_id=, resolved by AdminController#current_shopify_store, which only
+  # ever returns a visible store and ignores an unknown id), else every visible
+  # store. Reconciling a carrier bill needs a single store's figures — a bill
+  # is per store, and once a second store ships, an all-stores total would mix
+  # two bills together.
+  def report_stores
+    current_shopify_store ? visible_shopify_stores.where(id: current_shopify_store.id) : visible_shopify_stores
+  end
+
   # Orders placed between @from_date and @to_date, with each store's dates read
   # in THAT store's own timezone — the same windowing DashboardMetricsService
   # uses, so the dashboard's "View variance detail" link lands on the same
   # order set the dashboard just totalled. A single window in store_timezone
-  # can't do this: this controller has no store switcher, so with more than one
-  # visible store current_shopify_store is nil and store_timezone falls back to
-  # UTC, shifting every boundary by the store's UTC offset.
+  # can't do this: with no store picked and more than one visible store,
+  # current_shopify_store is nil and store_timezone falls back to UTC, shifting
+  # every boundary by the store's UTC offset.
   #
   # With date_basis=shipped the window applies to parcels.shipped_at instead:
   # the orders that had a parcel shipped in the range, which is the set a
@@ -528,7 +538,7 @@ class ParcelsController < AdminController
   def orders_in_date_window
     return orders_with_parcels_shipped_in_window if @date_basis == "shipped"
 
-    windows = visible_shopify_stores.map do |store|
+    windows = report_stores.map do |store|
       tz = store.active_timezone
       Order.where(shopify_store_id: store.id)
            .ordered_between(tz.local(@from_date.year, @from_date.month, @from_date.day).utc,
@@ -548,11 +558,11 @@ class ParcelsController < AdminController
   end
 
   def parcels_shipped_in_window
-    Parcel.where(shopify_store_id: visible_shopify_stores.select(:id), shipped_at: shipped_window)
+    Parcel.where(shopify_store_id: report_stores.select(:id), shipped_at: shipped_window)
   end
 
   def orders_with_parcels_shipped_in_window
-    Order.where(shopify_store_id: visible_shopify_stores.select(:id))
+    Order.where(shopify_store_id: report_stores.select(:id))
          .where(id: parcels_shipped_in_window.where.not(order_id: nil).select(:order_id))
   end
 

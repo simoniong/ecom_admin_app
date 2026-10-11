@@ -47,7 +47,8 @@
         frame, and render "Content missing" — the link went nowhere. %>
     <%= link_to t("dashboard.view_variance"),
           parcels_path(from_date: metrics[:date_range].first, to_date: metrics[:date_range].last,
-                       sort_column: "variance", sort_direction: "desc"),
+                       sort_column: "variance", sort_direction: "desc",
+                       store_id: current_shopify_store&.id),
           data: { turbo_frame: "_top" },
           class: "text-sm font-medium text-gray-900 hover:underline" %>
   </div>

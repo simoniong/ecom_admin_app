@@ -473,6 +473,8 @@
     min_over_pct: "超支 ≥"
     country_filter: "国家"
     all_countries: "全部国家"
+    store_filter: "店铺"
+    all_stores: "全部店铺"
     search_order: "订单编号"
     search_order_placeholder: "如 PKS#1234"
     sort_by: "排序"

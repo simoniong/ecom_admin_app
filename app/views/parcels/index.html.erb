@@ -46,6 +46,16 @@
         <label for="q" class="block text-xs font-medium text-gray-500 mb-1"><%= t("parcels.search_order") %></label>
         <%= text_field_tag :q, params[:q], placeholder: t("parcels.search_order_placeholder"), class: "w-40 #{field_cls}" %>
       </div>
+      <% if visible_shopify_stores.many? %>
+        <div>
+          <label for="store_id" class="block text-xs font-medium text-gray-500 mb-1"><%= t("parcels.store_filter") %></label>
+          <%= select_tag :store_id,
+                options_for_select(
+                  [ [ t("parcels.all_stores"), "" ] ] + visible_shopify_stores.order(:name).map { |s| [ s.name, s.id ] },
+                  current_shopify_store&.id),
+                class: field_cls %>
+        </div>
+      <% end %>
       <div>
         <label for="date_basis" class="block text-xs font-medium text-gray-500 mb-1"><%= t("parcels.date_basis.label") %></label>
         <%= select_tag :date_basis,
