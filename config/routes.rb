@@ -19,6 +19,9 @@ Rails.application.routes.draw do
   get "meta/auth", to: "meta_oauth#auth", as: :meta_auth
   get "meta/callback", to: "meta_oauth#callback", as: :meta_callback
   post "meta/select_accounts", to: "meta_oauth#select_accounts", as: :meta_select_accounts
+  get "google_ads/auth", to: "google_ads_oauth#auth", as: :google_ads_auth
+  get "google_ads/callback", to: "google_ads_oauth#callback", as: :google_ads_callback
+  post "google_ads/select_accounts", to: "google_ads_oauth#select_accounts", as: :google_ads_select_accounts
 
   # Invitation accept (outside locale scope — token-based URLs, no auth required)
   get "invitations/:token", to: "invitation_acceptances#show", as: :accept_invitation
