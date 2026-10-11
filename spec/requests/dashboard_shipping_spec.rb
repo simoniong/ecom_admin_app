@@ -29,6 +29,17 @@ RSpec.describe "Dashboard shipping section", type: :request do
     expect(response.body).to include("to_date=#{range.last}")
   end
 
+  it "carries the dashboard's store into the variance report link" do
+    other = create(:shopify_store, user: user, company: company, cost_fx_rate: 7.2, timezone: "UTC")
+
+    get authenticated_root_path(store_id: other.id)
+    expect(response.body).to include("store_id=#{other.id}")
+
+    get authenticated_root_path(store_id: "all")
+    expect(response.body).not_to include("store_id=#{other.id}")
+    expect(response.body).not_to include("store_id=#{store.id}")
+  end
+
   # Scope assertions to the shipping section's own markup so they can't be
   # satisfied by the unrelated coverage footnote elsewhere on the dashboard
   # (dashboard/show.html.erb renders its own "actual: X% · estimated: Y%"

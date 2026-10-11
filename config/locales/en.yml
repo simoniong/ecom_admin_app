@@ -473,6 +473,8 @@ en:
     min_over_pct: "Overrun ≥"
     country_filter: "Country"
     all_countries: "All countries"
+    store_filter: "Store"
+    all_stores: "All stores"
     search_order: "Order ID"
     search_order_placeholder: "e.g. PKS#1234"
     sort_by: "Sort by"
