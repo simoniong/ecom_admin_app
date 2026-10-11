@@ -65,6 +65,24 @@ RSpec.describe "Shipping variance report", type: :system do
     end
   end
 
+  it "narrows the report to one store" do
+    other = create(:shopify_store, user: user, company: company, name: "Opus Puzzles", cost_fx_rate: 7.0, timezone: "UTC")
+    other_order = create(:order, customer: create(:customer, shopify_store: other), shopify_store: other,
+                                 name: "OP#7001", estimated_shipping_cost: 10, ordered_at: 1.day.ago)
+    create(:parcel, shopify_store: other, order: other_order, identifier: "OP1", cost_cny: 80, cost_amount: 11)
+
+    visit parcels_path
+    expect(page).to have_content("PKS#3052")
+    expect(page).to have_content("OP#7001")
+
+    select "Opus Puzzles", from: "store_id"
+    click_button I18n.t("parcels.filter")
+
+    expect(page).to have_content("OP#7001")
+    expect(page).not_to have_content("PKS#3052")
+    expect(page).to have_select("store_id", selected: "Opus Puzzles")
+  end
+
   it "edits a parcel cost inline via Turbo Stream and re-rolls up the order" do
     parcel = Parcel.find_by!(shopify_store: store, identifier: "B1")
 

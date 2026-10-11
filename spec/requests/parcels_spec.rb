@@ -163,6 +163,72 @@ RSpec.describe "Parcels", type: :request do
       end
     end
 
+    describe "store filter" do
+      let(:other_store) { create(:shopify_store, user: user, company: company, name: "Opus Puzzles", cost_fx_rate: 7.0) }
+      let(:other_customer) { create(:customer, shopify_store: other_store) }
+
+      let!(:other_order) do
+        o = create(:order, customer: other_customer, shopify_store: other_store, name: "OP#9001",
+                           estimated_shipping_cost: 10, ordered_at: Time.utc(2026, 9, 10, 12))
+        create(:parcel, shopify_store: other_store, order: o, identifier: "OP-1",
+                        shipped_at: Time.utc(2026, 9, 11), cost_cny: 80, operation_fee_cny: 2, cost_amount: 11)
+        create(:parcel, shopify_store: other_store, order: nil, identifier: "OP-ORPHAN",
+                        shipped_at: Time.utc(2026, 9, 12), cost_cny: 40, cost_amount: 6)
+        o
+      end
+
+      let!(:own_order) do
+        o = create(:order, customer: customer, shopify_store: store, name: "PKS#9002",
+                           estimated_shipping_cost: 10, ordered_at: Time.utc(2026, 9, 10, 12))
+        create(:parcel, shopify_store: store, order: o, identifier: "PK-1",
+                        shipped_at: Time.utc(2026, 9, 11), cost_cny: 102, operation_fee_cny: 2, cost_amount: 14)
+        o
+      end
+
+      let(:september) { { from_date: "2026-09-01", to_date: "2026-09-30" } }
+
+      it "shows every store's orders when no store is picked" do
+        get parcels_path(september)
+
+        expect(response.body).to include("PKS#9002")
+        expect(response.body).to include("OP#9001")
+        expect(Nokogiri::HTML(response.body).at_css("select#store_id")).to be_present
+      end
+
+      it "limits the orders to the picked store" do
+        get parcels_path(september.merge(store_id: other_store.id))
+
+        expect(response.body).to include("OP#9001")
+        expect(response.body).not_to include("PKS#9002")
+      end
+
+      it "limits the ship-date parcel totals, unmatched included, to the picked store" do
+        get parcels_path(september.merge(date_basis: "shipped", store_id: store.id))
+
+        line = Nokogiri::HTML(response.body).at_css("#shipped_parcels_summary").text.squish
+        expect(line).to include("¥102.00")
+        expect(line).to include("¥100.00")
+        expect(line).not_to include("¥40.00")
+      end
+
+      it "exports only the picked store's parcels" do
+        get export_parcels_path(september.merge(store_id: other_store.id))
+
+        sheet = Roo::Excelx.new(StringIO.new(response.body)).sheet(0)
+        identifiers = (2..sheet.last_row).map { |row| sheet.cell(row, 2) }
+        expect(identifiers).to eq([ "OP-1" ])
+      end
+
+      it "ignores a store the user cannot see" do
+        foreign = create(:shopify_store)
+
+        get parcels_path(september.merge(store_id: foreign.id))
+
+        expect(response.body).to include("PKS#9002")
+        expect(response.body).to include("OP#9001")
+      end
+    end
+
     describe "sorting by variance %" do
       # Small absolute overrun (+10) but a HIGH percentage (100%).
       let!(:high_pct) do
