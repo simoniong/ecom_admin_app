@@ -367,6 +367,15 @@ RSpec.describe "AdCreatives", type: :request do
       }.to have_enqueued_job(BackfillAdCreativesJob).with(ad_account_id: ad_account.id, days: 90)
     end
 
+    it "leaves Google accounts out (creative analysis is Meta-only)" do
+      ad_account
+      google = create(:ad_account, :google, user: user, company: ad_account.company)
+      sign_in user
+
+      expect { post sync_ad_creatives_path }
+        .not_to have_enqueued_job(BackfillAdCreativesJob).with(ad_account_id: google.id, days: 90)
+    end
+
     it "redirects back with a notice" do
       ad_account
       sign_in user
