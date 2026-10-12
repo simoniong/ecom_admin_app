@@ -106,6 +106,8 @@
     cpa: "获客成本"
     new_customer_cpa: "新客获客成本"
     ad_platform_metric: "%{platform} %{metric}"
+    ad_claimed_orders: "声称订单数"
+    ad_shopify_orders: "Shopify 实际订单数"
     ad_platform_names:
       meta: "Meta"
       google: "Google"

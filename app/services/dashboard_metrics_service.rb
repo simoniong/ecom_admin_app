@@ -131,6 +131,7 @@ class DashboardMetricsService
       spend, purchases, value = totals.fetch(platform, [ 0, 0, 0 ]).map { |v| v || 0 }
       [ platform, {
         spend: spend,
+        orders: purchases,
         roas: spend > 0 ? (value / spend).round(2) : 0,
         cpa: (purchases > 0 && spend > 0) ? (spend / purchases).round(2) : nil
       } ]
