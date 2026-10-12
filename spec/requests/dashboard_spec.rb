@@ -63,6 +63,28 @@ RSpec.describe "Dashboard", type: :request do
       expect(response).to have_http_status(:success)
     end
 
+    it "shows a row per ad platform followed by the totals row" do
+      sign_in user
+      meta = create(:ad_account, user: user)
+      google = create(:ad_account, :google, user: user)
+      create(:ad_daily_metric, ad_account: meta, date: Date.current, spend: 120, conversions: 3, conversion_value: 360)
+      create(:ad_daily_metric, ad_account: google, date: Date.current, spend: 80, conversions: 2, conversion_value: 100)
+
+      get authenticated_root_path(range: "today")
+
+      html = Nokogiri::HTML(response.body)
+      rows = html.css("[data-ad-platform]").map { |row| row["data-ad-platform"] }
+      expect(rows).to eq(%w[meta google total])
+
+      meta_row = html.at_css("[data-ad-platform='meta']").text.squish
+      expect(meta_row).to include("Meta #{I18n.t('dashboard.ad_spend')}", "$120.00", "3.0x", "$40.00",
+                                  "Meta #{I18n.t('dashboard.new_customer_cpa')} —")
+      google_row = html.at_css("[data-ad-platform='google']").text.squish
+      expect(google_row).to include("Google #{I18n.t('dashboard.ad_spend')}", "$80.00", "1.25x", "$40.00")
+      total_row = html.at_css("[data-ad-platform='total']").text.squish
+      expect(total_row).to include("#{I18n.t('dashboard.ad_platform_names.total')} #{I18n.t('dashboard.ad_spend')}", "$200.00")
+    end
+
     it "displays CPA and new customer CPA card titles" do
       sign_in user
       get authenticated_root_path
@@ -80,7 +102,7 @@ RSpec.describe "Dashboard", type: :request do
       # Scope the assertion to the CPA card so the page-level em-dash on the
       # date range separator can't make this test pass trivially.
       doc = Nokogiri::HTML(response.body)
-      cpa_title = I18n.t("dashboard.cpa")
+      cpa_title = I18n.t("dashboard.ad_platform_metric", platform: I18n.t("dashboard.ad_platform_names.total"), metric: I18n.t("dashboard.cpa"))
       cpa_card = doc.xpath("//div[contains(@class, 'rounded-lg')][.//p[normalize-space(text())='#{cpa_title}']]").first
       expect(cpa_card).not_to be_nil, "CPA card not rendered"
       expect(cpa_card.text).to include("—")

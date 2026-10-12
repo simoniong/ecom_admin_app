@@ -497,11 +497,13 @@ RSpec.describe "AdCampaigns", type: :request do
   end
 
   describe "POST /ad_campaigns/sync" do
-    it "enqueues SyncAdCampaignsJob and redirects" do
+    it "enqueues the Meta and Google syncs for the company and redirects" do
       sign_in user
+      company_id = user.companies.first.id
       expect {
         post sync_ad_campaigns_path
-      }.to have_enqueued_job(SyncAdCampaignsJob).with(company_id: user.companies.first.id)
+      }.to have_enqueued_job(SyncAdCampaignsJob).with(company_id: company_id)
+        .and have_enqueued_job(SyncGoogleAdMetricsJob).with(company_id: company_id)
       expect(response).to redirect_to(ad_campaigns_path)
       expect(flash[:notice]).to eq(I18n.t("ad_campaigns.sync_enqueued"))
     end

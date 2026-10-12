@@ -93,6 +93,7 @@ class DashboardMetricsService
       roas: ad_spend > 0 ? (revenue / ad_spend).round(2) : 0,
       cpa: (orders > 0 && ad_spend > 0) ? (ad_spend / orders).round(2) : nil,
       new_customer_cpa: (new_customer_orders > 0 && ad_spend > 0) ? (ad_spend / new_customer_orders).round(2) : nil,
+      ad_platforms: aggregate_ad_platforms(ad, ad_scope),
       cogs: cogs,
       gross_profit: gross_profit,
       gross_margin_pct: net_revenue > 0 ? (gross_profit / net_revenue * 100).round(2) : nil,
@@ -110,6 +111,30 @@ class DashboardMetricsService
       shipping_comparable_pct: shipping_breakdown[:comparable],
       multi_parcel_orders_count: shipping_breakdown[:multi_parcel_orders]
     }
+  end
+
+  PLATFORM_ORDER = %w[meta google].freeze
+
+  # Per-platform spend with the platform's own reported purchases and
+  # purchase value. Shopify orders carry no ad attribution, so a platform's
+  # ROAS and CPA can only come from what that platform claims; the two
+  # platforms may both claim one order, so these don't add up to the blended
+  # totals above. Keyed by every platform the scope has an account on, so a
+  # platform with no spend in the range still gets its row.
+  def aggregate_ad_platforms(ad, ad_scope)
+    totals = ad.joins(:ad_account).group("ad_accounts.platform")
+               .pluck(Arel.sql("ad_accounts.platform"), Arel.sql("SUM(ad_daily_metrics.spend)"),
+                      Arel.sql("SUM(ad_daily_metrics.conversions)"), Arel.sql("SUM(ad_daily_metrics.conversion_value)"))
+               .to_h { |platform, *sums| [ platform, sums ] }
+
+    ad_scope.distinct.pluck(:platform).sort_by { |p| PLATFORM_ORDER.index(p) || PLATFORM_ORDER.size }.to_h do |platform|
+      spend, purchases, value = totals.fetch(platform, [ 0, 0, 0 ]).map { |v| v || 0 }
+      [ platform, {
+        spend: spend,
+        roas: spend > 0 ? (value / spend).round(2) : 0,
+        cpa: (purchases > 0 && spend > 0) ? (spend / purchases).round(2) : nil
+      } ]
+    end
   end
 
   def aggregate_cogs(store_scope, range)
