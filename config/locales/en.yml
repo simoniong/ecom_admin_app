@@ -106,6 +106,8 @@ en:
     cpa: "CPA"
     new_customer_cpa: "New Customer CPA"
     ad_platform_metric: "%{platform} %{metric}"
+    ad_claimed_orders: "Claimed Orders"
+    ad_shopify_orders: "Shopify Orders"
     ad_platform_names:
       meta: "Meta"
       google: "Google"
