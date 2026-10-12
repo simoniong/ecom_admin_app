@@ -94,29 +94,65 @@
     <%# ===== Advertising ===== %>
     <section class="mb-8">
       <%= render "dashboard/section_header", title: t("dashboard.section_advertising") %>
-      <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <%# One row per ad platform, from the platform's own reported purchases
+          (Shopify orders carry no ad attribution, so no new-customer split),
+          then the blended totals against Shopify revenue and orders. %>
+      <% @metrics[:current][:ad_platforms].each do |platform, current| %>
+        <% previous = @metrics[:previous][:ad_platforms].fetch(platform, {}) %>
+        <% platform_name = t("dashboard.ad_platform_names.#{platform}", default: platform.titleize) %>
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4" data-ad-platform="<%= platform %>">
+          <%= render "dashboard/metric_card",
+              title: t("dashboard.ad_platform_metric", platform: platform_name, metric: t("dashboard.ad_spend")),
+              value: number_to_currency(current[:spend]),
+              previous: previous[:spend],
+              current_raw: current[:spend],
+              invert_color: true %>
+
+          <%= render "dashboard/metric_card",
+              title: t("dashboard.ad_platform_metric", platform: platform_name, metric: t("dashboard.roas")),
+              value: "#{current[:roas]}x",
+              previous: previous[:roas],
+              current_raw: current[:roas] %>
+
+          <%= render "dashboard/metric_card",
+              title: t("dashboard.ad_platform_metric", platform: platform_name, metric: t("dashboard.cpa")),
+              value: current[:cpa] ? number_to_currency(current[:cpa]) : "—",
+              previous: previous[:cpa],
+              current_raw: current[:cpa],
+              invert_color: true %>
+
+          <%= render "dashboard/metric_card",
+              title: t("dashboard.ad_platform_metric", platform: platform_name, metric: t("dashboard.new_customer_cpa")),
+              value: "—",
+              previous: nil,
+              current_raw: nil %>
+        </div>
+      <% end %>
+
+      <% total_name = t("dashboard.ad_platform_names.total") %>
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-4" data-ad-platform="total">
         <%= render "dashboard/metric_card",
-            title: t("dashboard.ad_spend"),
+            title: t("dashboard.ad_platform_metric", platform: total_name, metric: t("dashboard.ad_spend")),
             value: number_to_currency(@metrics[:current][:ad_spend]),
             previous: @metrics[:previous][:ad_spend],
             current_raw: @metrics[:current][:ad_spend],
             invert_color: true %>
 
         <%= render "dashboard/metric_card",
-            title: t("dashboard.roas"),
+            title: t("dashboard.ad_platform_metric", platform: total_name, metric: t("dashboard.roas")),
             value: "#{@metrics[:current][:roas]}x",
             previous: @metrics[:previous][:roas],
             current_raw: @metrics[:current][:roas] %>
 
         <%= render "dashboard/metric_card",
-            title: t("dashboard.cpa"),
+            title: t("dashboard.ad_platform_metric", platform: total_name, metric: t("dashboard.cpa")),
             value: @metrics[:current][:cpa] ? number_to_currency(@metrics[:current][:cpa]) : "—",
             previous: @metrics[:previous][:cpa],
             current_raw: @metrics[:current][:cpa],
             invert_color: true %>
 
         <%= render "dashboard/metric_card",
-            title: t("dashboard.new_customer_cpa"),
+            title: t("dashboard.ad_platform_metric", platform: total_name, metric: t("dashboard.new_customer_cpa")),
             value: @metrics[:current][:new_customer_cpa] ? number_to_currency(@metrics[:current][:new_customer_cpa]) : "—",
             previous: @metrics[:previous][:new_customer_cpa],
             current_raw: @metrics[:current][:new_customer_cpa],

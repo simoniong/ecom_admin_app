@@ -20,6 +20,29 @@ RSpec.describe DashboardMetricsService do
       expect(result[:current][:ad_spend]).to eq(125)
     end
 
+    it "splits ad spend by platform with each platform's own reported purchases" do
+      create(:shopify_daily_metric, shopify_store: store, date: Date.current, orders_count: 10, new_customer_orders_count: 4, revenue: 1000)
+      create(:ad_daily_metric, ad_account: ad_account, date: Date.current, spend: 300, conversions: 6, conversion_value: 900)
+      google = create(:ad_account, :google, user: user)
+      create(:ad_daily_metric, ad_account: google, date: Date.current, spend: 100, conversions: 0, conversion_value: 0)
+
+      result = described_class.new(user, range_key: "today").call[:current]
+
+      expect(result[:ad_platforms].keys).to eq(%w[meta google])
+      expect(result[:ad_platforms]["meta"]).to eq(spend: 300, roas: 3.0, cpa: 50)
+      expect(result[:ad_platforms]["google"]).to eq(spend: 100, roas: 0, cpa: nil)
+      # The blended totals stay Shopify-based over all platforms' spend.
+      expect(result).to include(ad_spend: 400, roas: 2.5, cpa: 40, new_customer_cpa: 100)
+    end
+
+    it "keeps a row for a platform with no spend in range and leaves out platforms without accounts" do
+      create(:ad_daily_metric, ad_account: ad_account, date: 30.days.ago, spend: 50)
+
+      platforms = described_class.new(user, range_key: "today").call[:current][:ad_platforms]
+
+      expect(platforms).to eq("meta" => { spend: 0, roas: 0, cpa: nil })
+    end
+
     it "calculates conversion rate" do
       create(:shopify_daily_metric, shopify_store: store, date: Date.current, sessions: 200, orders_count: 10, revenue: 500)
 
