@@ -1,0 +1,36 @@
+<div class="max-w-4xl mx-auto">
+  <h1 class="text-2xl font-semibold text-gray-900"><%= t("ad_accounts.select_accounts") %></h1>
+  <p class="mt-2 text-sm text-gray-600"><%= t("ad_accounts.select_accounts_description") %></p>
+
+  <%= form_tag google_ads_select_accounts_path, method: :post, data: { turbo: false }, class: "mt-6" do %>
+    <div class="bg-white shadow-sm rounded-lg border border-gray-200 divide-y divide-gray-200">
+      <% @ad_accounts.each do |account| %>
+        <% active = account[:status] == "ENABLED" %>
+        <label class="flex items-center gap-4 px-6 py-4 hover:bg-gray-50 cursor-pointer">
+          <%= check_box_tag "account_ids[]", account[:id], active, id: "google_account_#{account[:id]}",
+                class: "h-4 w-4 rounded border-gray-300 text-gray-900 focus:ring-gray-900" %>
+          <%= hidden_field_tag "account_names[#{account[:id]}]", account[:name], id: nil %>
+          <%= hidden_field_tag "account_timezones[#{account[:id]}]", account[:time_zone], id: nil %>
+          <%= hidden_field_tag "account_login_ids[#{account[:id]}]", account[:login_customer_id], id: nil %>
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="text-sm font-medium <%= active ? "text-gray-900" : "text-gray-500" %>"><%= account[:name].presence || t("ad_accounts.unnamed_account") %></span>
+            <span class="text-xs text-gray-500 font-mono"><%= account[:id].to_s.sub(/\A(\d{3})(\d{3})(\d+)\z/, '\1-\2-\3') %></span>
+            <% if account[:currency].present? %>
+              <span class="text-xs text-gray-500"><%= account[:currency] %></span>
+            <% end %>
+            <% unless active %>
+              <span class="text-[11px] font-medium px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+                <%= t("ad_accounts.status.unknown") %>
+              </span>
+            <% end %>
+          </div>
+        </label>
+      <% end %>
+    </div>
+
+    <div class="mt-4 flex justify-end">
+      <%= submit_tag t("ad_accounts.select_accounts_submit"),
+          class: "inline-flex items-center px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2 cursor-pointer" %>
+    </div>
+  <% end %>
+</div>

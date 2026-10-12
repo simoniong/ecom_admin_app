@@ -11,11 +11,12 @@ class AdAccount < ApplicationRecord
 
   encrypts :access_token, deterministic: false
 
-  validates :platform, presence: true, inclusion: { in: %w[meta] }
+  validates :platform, presence: true, inclusion: { in: %w[meta google] }
   validates :account_id, presence: true, uniqueness: { scope: [ :platform, :user_id ] }
   validates :access_token, presence: true
 
   scope :meta, -> { where(platform: "meta") }
+  scope :google, -> { where(platform: "google") }
 
   def token_expired?
     token_expires_at.present? && token_expires_at < Time.current
@@ -25,7 +26,7 @@ class AdAccount < ApplicationRecord
     token_expires_at.present? && token_expires_at < 7.days.from_now
   end
 
-  # Meta insights dates are in the ad account's own timezone, never the app's.
+  # Meta and Google report dates in the ad account's own timezone, never the app's.
   def today_in_zone
     (ActiveSupport::TimeZone[timezone.to_s] || ActiveSupport::TimeZone["UTC"]).today
   end

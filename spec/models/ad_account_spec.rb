@@ -31,6 +31,14 @@ RSpec.describe AdAccount, type: :model do
     expect(ad_account).not_to be_valid
   end
 
+  it "accepts google as a platform and scopes accounts by platform" do
+    google = create(:ad_account, :google, user: user)
+
+    expect(google).to be_valid
+    expect(AdAccount.google).to eq([ google ])
+    expect(AdAccount.meta).to eq([ ad_account ])
+  end
+
   it "requires account_id" do
     ad_account.account_id = ""
     expect(ad_account).not_to be_valid

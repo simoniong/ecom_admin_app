@@ -11,6 +11,9 @@ production:
   sync_ad_metrics:
     class: SyncAdMetricsJob
     schedule: every 30 minutes
+  sync_google_ad_metrics:
+    class: SyncGoogleAdMetricsJob
+    schedule: every 1 hour
   refresh_meta_tokens:
     class: RefreshMetaTokensJob
     schedule: every day at 3am

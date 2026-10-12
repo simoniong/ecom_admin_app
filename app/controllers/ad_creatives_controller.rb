@@ -43,7 +43,8 @@ class AdCreativesController < AdminController
   # a sync of store A suppress the automatic heal of an unrelated broken
   # account in store B for an hour.
   def sync
-    sync_target_accounts.each do |account|
+    # Creative analysis is Meta-only; a Google account has no creatives to pull.
+    sync_target_accounts.select { |account| account.platform == "meta" }.each do |account|
       next unless account.claim_backfill_slot!(manual: true)
 
       BackfillAdCreativesJob.perform_later(ad_account_id: account.id, days: BACKFILL_DAYS)
