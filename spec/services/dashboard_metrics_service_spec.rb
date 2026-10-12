@@ -29,8 +29,8 @@ RSpec.describe DashboardMetricsService do
       result = described_class.new(user, range_key: "today").call[:current]
 
       expect(result[:ad_platforms].keys).to eq(%w[meta google])
-      expect(result[:ad_platforms]["meta"]).to eq(spend: 300, roas: 3.0, cpa: 50)
-      expect(result[:ad_platforms]["google"]).to eq(spend: 100, roas: 0, cpa: nil)
+      expect(result[:ad_platforms]["meta"]).to eq(spend: 300, orders: 6, roas: 3.0, cpa: 50)
+      expect(result[:ad_platforms]["google"]).to eq(spend: 100, orders: 0, roas: 0, cpa: nil)
       # The blended totals stay Shopify-based over all platforms' spend.
       expect(result).to include(ad_spend: 400, roas: 2.5, cpa: 40, new_customer_cpa: 100)
     end
@@ -40,7 +40,7 @@ RSpec.describe DashboardMetricsService do
 
       platforms = described_class.new(user, range_key: "today").call[:current][:ad_platforms]
 
-      expect(platforms).to eq("meta" => { spend: 0, roas: 0, cpa: nil })
+      expect(platforms).to eq("meta" => { spend: 0, orders: 0, roas: 0, cpa: nil })
     end
 
     it "calculates conversion rate" do

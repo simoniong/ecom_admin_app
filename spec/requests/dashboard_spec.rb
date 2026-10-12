@@ -85,6 +85,23 @@ RSpec.describe "Dashboard", type: :request do
       expect(total_row).to include("#{I18n.t('dashboard.ad_platform_names.total')} #{I18n.t('dashboard.ad_spend')}", "$200.00")
     end
 
+    it "puts each platform's claimed orders beside Shopify's actual order count" do
+      sign_in user
+      store = create(:shopify_store, user: user)
+      create(:shopify_daily_metric, shopify_store: store, date: Date.current, orders_count: 7, revenue: 700)
+      create(:ad_daily_metric, ad_account: create(:ad_account, user: user), date: Date.current, spend: 120, conversions: 5)
+      create(:ad_daily_metric, ad_account: create(:ad_account, :google, user: user), date: Date.current, spend: 80, conversions: 4)
+
+      get authenticated_root_path(range: "today")
+
+      html = Nokogiri::HTML(response.body)
+      claimed = I18n.t("dashboard.ad_claimed_orders")
+      expect(html.at_css("[data-ad-platform='meta']").text.squish).to include("Meta #{claimed} 5")
+      expect(html.at_css("[data-ad-platform='google']").text.squish).to include("Google #{claimed} 4")
+      expect(html.at_css("[data-ad-platform='total']").text.squish)
+        .to include("#{I18n.t('dashboard.ad_platform_names.total')} #{I18n.t('dashboard.ad_shopify_orders')} 7")
+    end
+
     it "displays CPA and new customer CPA card titles" do
       sign_in user
       get authenticated_root_path
