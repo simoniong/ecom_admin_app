@@ -62,6 +62,52 @@ RSpec.describe MetaAdsService do
       expect(metric.conversions).to eq(0)
     end
 
+    # Meta zeroes spend/impressions/clicks on level=account rows whenever
+    # actions/action_values are requested in the same call (observed in
+    # production 2026-10-21); level=campaign rows are unaffected.
+    it "requests campaign-level rows from the account node and sums them per day" do
+      graph = instance_double(Koala::Facebook::API)
+      allow(Koala::Facebook::API).to receive(:new).and_return(graph)
+
+      expect(graph).to receive(:get_connections) do |node, edge, params|
+        expect(node).to eq(ad_account.account_id)
+        expect(edge).to eq("insights")
+        expect(params[:level]).to eq("campaign")
+        [
+          {
+            "date_start" => "2026-10-20", "campaign_id" => "c1",
+            "spend" => "71.84", "impressions" => "3000", "clicks" => "90",
+            "actions" => [ { "action_type" => "offsite_conversion.fb_pixel_purchase", "value" => "3" } ],
+            "action_values" => [ { "action_type" => "offsite_conversion.fb_pixel_purchase", "value" => "250.10" } ]
+          },
+          {
+            "date_start" => "2026-10-20", "campaign_id" => "c2",
+            "spend" => "49.45", "impressions" => "2000", "clicks" => "60",
+            "actions" => [ { "action_type" => "offsite_conversion.fb_pixel_purchase", "value" => "2" } ],
+            "action_values" => [ { "action_type" => "offsite_conversion.fb_pixel_purchase", "value" => "152.81" } ]
+          },
+          {
+            "date_start" => "2026-10-21", "campaign_id" => "c1",
+            "spend" => "10.00", "impressions" => "400", "clicks" => "12",
+            "actions" => nil, "action_values" => nil
+          }
+        ]
+      end
+
+      service.sync_date_range(Date.new(2026, 10, 20), Date.new(2026, 10, 21))
+
+      day = ad_account.ad_daily_metrics.find_by(date: "2026-10-20")
+      expect(day.spend).to eq(121.29)
+      expect(day.impressions).to eq(5000)
+      expect(day.clicks).to eq(150)
+      expect(day.conversions).to eq(5)
+      expect(day.conversion_value).to eq(402.91)
+
+      next_day = ad_account.ad_daily_metrics.find_by(date: "2026-10-21")
+      expect(next_day.spend).to eq(10.00)
+      expect(next_day.conversions).to eq(0)
+    end
+
     it "handles missing actions gracefully" do
       graph = instance_double(Koala::Facebook::API)
       allow(Koala::Facebook::API).to receive(:new).and_return(graph)
@@ -161,12 +207,12 @@ RSpec.describe MetaAdsService do
 
     before do
       allow(Koala::Facebook::API).to receive(:new).and_return(graph)
-      # stub campaigns fetch (used in sync_campaigns, not here directly)
       allow(graph).to receive(:get_connections).with(
-        "camp_001", "insights", anything
+        ad_account.account_id, "insights", hash_including(level: "campaign")
       ).and_return([
         {
           "date_start" => "2026-03-27",
+          "campaign_id" => "camp_001",
           "spend" => "100.50",
           "impressions" => "5000",
           "clicks" => "200",
@@ -208,10 +254,27 @@ RSpec.describe MetaAdsService do
       expect(metric.spend).to eq(100.50)
     end
 
-    it "handles API errors per campaign gracefully" do
-      allow(graph).to receive(:get_connections).with(
-        "camp_001", "insights", anything
-      ).and_raise(Koala::Facebook::ClientError.new(400, "Rate limited"))
+    it "fetches every campaign in one account-level call instead of per campaign node" do
+      create(:ad_campaign, ad_account: ad_account, campaign_id: "camp_002")
+
+      service.sync_campaign_insights(Date.new(2026, 3, 27), Date.new(2026, 3, 27))
+
+      expect(graph).to have_received(:get_connections).once
+      expect(graph).not_to have_received(:get_connections).with("camp_001", anything, anything)
+    end
+
+    it "skips rows for campaigns that have not been synced yet" do
+      allow(graph).to receive(:get_connections).and_return([
+        { "date_start" => "2026-03-27", "campaign_id" => "unknown", "spend" => "5.00" }
+      ])
+
+      expect {
+        service.sync_campaign_insights(Date.new(2026, 3, 27), Date.new(2026, 3, 27))
+      }.not_to change(AdCampaignDailyMetric, :count)
+    end
+
+    it "handles API errors gracefully" do
+      allow(graph).to receive(:get_connections).and_raise(Koala::Facebook::ClientError.new(400, "Rate limited"))
 
       expect { service.sync_campaign_insights(Date.new(2026, 3, 27), Date.new(2026, 3, 27)) }.not_to raise_error
     end
