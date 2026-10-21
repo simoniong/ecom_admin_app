@@ -4,27 +4,20 @@ class MetaAdsService
     @graph = build_graph
   end
 
+  # Meta returns spend/impressions/clicks as 0 on level=account rows (and on
+  # /{campaign_id}/insights) whenever actions/action_values are requested in
+  # the same call -- observed in production 2026-10-21 with actions still
+  # correct. level=campaign rows from the account node are unaffected, so
+  # account totals are summed from those.
   def sync_date_range(start_date, end_date)
-    all_insights = fetch_all_pages(
-      @ad_account.account_id, "insights",
-      fields: "spend,impressions,clicks,actions,action_values",
-      time_range: { since: start_date.iso8601, until: end_date.iso8601 },
-      time_increment: 1,
-      level: "account"
-    )
-
-    all_insights.each do |day_data|
-      date = Date.parse(day_data["date_start"])
-      metric = @ad_account.ad_daily_metrics.find_or_initialize_by(date: date)
-      conversions = extract_action_count(day_data["actions"], "offsite_conversion.fb_pixel_purchase")
-      conversion_value = extract_action_value(day_data["action_values"], "offsite_conversion.fb_pixel_purchase")
-
+    fetch_campaign_level_insights(start_date, end_date).group_by { |row| row["date_start"] }.each do |date_start, rows|
+      metric = @ad_account.ad_daily_metrics.find_or_initialize_by(date: Date.parse(date_start))
       metric.assign_attributes(
-        spend: day_data["spend"].to_d,
-        impressions: day_data["impressions"].to_i,
-        clicks: day_data["clicks"].to_i,
-        conversions: conversions,
-        conversion_value: conversion_value
+        spend: rows.sum { |row| row["spend"].to_d },
+        impressions: rows.sum { |row| row["impressions"].to_i },
+        clicks: rows.sum { |row| row["clicks"].to_i },
+        conversions: rows.sum { |row| extract_action_count(row["actions"], "offsite_conversion.fb_pixel_purchase") },
+        conversion_value: rows.sum { |row| extract_action_value(row["action_values"], "offsite_conversion.fb_pixel_purchase") }
       )
       metric.save!
     end
@@ -62,32 +55,30 @@ class MetaAdsService
     end
   end
 
+  # One account-level call for every campaign rather than one call per
+  # campaign node -- see sync_date_range for why the campaign node is avoided.
   def sync_campaign_insights(start_date, end_date)
-    @ad_account.ad_campaigns.find_each do |campaign|
-      insights = fetch_all_pages(
-        campaign.campaign_id, "insights",
-        fields: "spend,impressions,clicks,actions,action_values",
-        time_range: { since: start_date.iso8601, until: end_date.iso8601 },
-        time_increment: 1
-      )
+    campaigns = @ad_account.ad_campaigns.index_by(&:campaign_id)
 
-      insights.each do |day_data|
-        date = Date.parse(day_data["date_start"])
-        metric = campaign.ad_campaign_daily_metrics.find_or_initialize_by(date: date)
-        metric.assign_attributes(
-          impressions: day_data["impressions"].to_i,
-          clicks: day_data["clicks"].to_i,
-          add_to_cart: extract_action_count(day_data["actions"], "offsite_conversion.fb_pixel_add_to_cart"),
-          checkout_initiated: extract_action_count(day_data["actions"], "offsite_conversion.fb_pixel_initiate_checkout"),
-          purchases: extract_action_count(day_data["actions"], "offsite_conversion.fb_pixel_purchase"),
-          spend: day_data["spend"].to_d,
-          conversion_value: extract_action_value(day_data["action_values"], "offsite_conversion.fb_pixel_purchase")
-        )
-        metric.save!
-      end
-    rescue Koala::Facebook::ClientError => e
-      Rails.logger.error("[SyncCampaignInsights] campaign=#{campaign.campaign_id}: #{e.message}")
+    fetch_campaign_level_insights(start_date, end_date).each do |day_data|
+      campaign = campaigns[day_data["campaign_id"]]
+      next unless campaign
+
+      date = Date.parse(day_data["date_start"])
+      metric = campaign.ad_campaign_daily_metrics.find_or_initialize_by(date: date)
+      metric.assign_attributes(
+        impressions: day_data["impressions"].to_i,
+        clicks: day_data["clicks"].to_i,
+        add_to_cart: extract_action_count(day_data["actions"], "offsite_conversion.fb_pixel_add_to_cart"),
+        checkout_initiated: extract_action_count(day_data["actions"], "offsite_conversion.fb_pixel_initiate_checkout"),
+        purchases: extract_action_count(day_data["actions"], "offsite_conversion.fb_pixel_purchase"),
+        spend: day_data["spend"].to_d,
+        conversion_value: extract_action_value(day_data["action_values"], "offsite_conversion.fb_pixel_purchase")
+      )
+      metric.save!
     end
+  rescue Koala::Facebook::ClientError => e
+    Rails.logger.error("[SyncCampaignInsights] account=#{@ad_account.account_id}: #{e.message}")
   end
 
   # `asset_feed_spec` is sub-selected down to just `videos`/`images` --
@@ -296,6 +287,17 @@ class MetaAdsService
       "reducing page size #{current_limit} -> #{new_limit} after: #{e.message}"
     )
     fetch_all_pages(node, edge, **params.merge(limit: new_limit))
+  end
+
+  def fetch_campaign_level_insights(start_date, end_date)
+    fetch_all_pages(
+      @ad_account.account_id, "insights",
+      fields: "campaign_id,spend,impressions,clicks,actions,action_values",
+      time_range: { since: start_date.iso8601, until: end_date.iso8601 },
+      time_increment: 1,
+      level: "campaign",
+      limit: 500
+    )
   end
 
   def map_campaign_status(effective_status)
