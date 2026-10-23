@@ -1,25 +1,121 @@
-<%# Plain markup only: Task 5 builds the real badge + drawer UI on top of this
-    frame. Here we just surface the badge numbers and each source's state and
-    failures so the endpoints are independently testable. %>
-<%= turbo_frame_tag "dashboard_sync_status" do %>
-  <div data-sync-badge-state="<%= sync_status.badge[:state] %>">
-    <span data-sync-badge-failed-count><%= sync_status.badge[:failed_count] %></span>
-    <span data-sync-badge-running-count><%= sync_status.badge[:running_count] %></span>
-    <span data-sync-badge-updated-at><%= sync_status.badge[:updated_at] %></span>
-  </div>
+<%# Badge, drawer and 5 s poll for the Dashboard's sync status.
 
-  <ul>
-    <% sync_status.sources.each do |source| %>
-      <li data-sync-source="<%= source.key %>" data-sync-source-state="<%= source.state %>">
-        <%= source.key %>: <%= source.state %>
-        <% unless source.failures.empty? %>
-          <ul>
-            <% source.failures.each do |failure| %>
-              <li><%= failure[:target_name] %>: <%= failure[:message] %></li>
-            <% end %>
-          </ul>
-        <% end %>
-      </li>
+    The frame is deliberately rendered without a src: the dashboard already
+    paints the badge inline, and a src here would make Turbo fetch it a second
+    time on every load. The Stimulus controller sets the src itself, with the
+    range params, when it has a running sync to poll for. %>
+<% badge = sync_status.badge %>
+<% range_params = params.permit(:range, :start_date, :end_date).to_h.compact_blank %>
+<% dot_colors = { succeeded: "bg-green-600", running: "bg-amber-500", failed: "bg-red-600", never: "bg-gray-400" } %>
+<% run_marks = { "succeeded" => "✓", "failed" => "✕", "running" => "…" } %>
+<% neutral_pill = "border-gray-200 bg-gray-50 text-gray-700 hover:bg-gray-100" %>
+
+<% pill_label, pill_classes, pill_dot =
+     case badge[:state]
+     when :failed
+       [ t("dashboard.sync.failed", count: badge[:failed_count]),
+         "border-red-200 bg-red-50 text-red-800 hover:bg-red-100", dot_colors[:failed] ]
+     when :running
+       [ t("dashboard.sync.running", count: badge[:running_count]), neutral_pill, dot_colors[:running] ]
+     when :never
+       [ t("dashboard.sync.never"), "border-gray-200 bg-gray-50 text-gray-500 hover:bg-gray-100", dot_colors[:never] ]
+     else
+       [ badge[:updated_at] ? t("dashboard.sync.updated_ago", time: time_ago_in_words(badge[:updated_at])) : t("dashboard.sync.updated_unknown"),
+         neutral_pill, dot_colors[:succeeded] ]
+     end %>
+
+<%# The numbers on the page are the ones the manual run just refreshed, so
+    offer to reload them — but only once that run is actually over. %>
+<% refreshable = !sync_status.running? && sync_status.sources.any? { |source|
+     source.history.any? { |run| run.trigger_manual? && run.finished_at.present? && run.finished_at > 10.minutes.ago } } %>
+
+<%= turbo_frame_tag "dashboard_sync_status" do %>
+  <div class="flex w-full items-center gap-2 sm:w-auto"
+       data-controller="sync-status"
+       data-sync-status-running-value="<%= sync_status.running? %>"
+       data-sync-status-url-value="<%= dashboard_sync_status_path(range_params) %>">
+    <% if refreshable %>
+      <%= link_to t("dashboard.sync.refresh_numbers"), authenticated_root_path(range_params),
+          data: { turbo_frame: "dashboard_metrics" },
+          class: "hidden sm:inline text-xs text-gray-500 underline underline-offset-2 hover:text-gray-900" %>
     <% end %>
-  </ul>
+
+    <button type="button"
+            data-sync-badge-state="<%= badge[:state] %>"
+            data-action="click->sync-status#open"
+            class="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-3 py-1.5 text-xs rounded-full border transition <%= pill_classes %>">
+      <span class="w-2 h-2 rounded-full flex-none <%= pill_dot %>"></span>
+      <%= pill_label %>
+    </button>
+
+    <%= button_to dashboard_sync_path(range_params),
+        disabled: sync_status.running?,
+        form: { data: { turbo_frame: "_top" } },
+        data: { sync_button: "" },
+        class: "px-3 py-1.5 text-xs font-medium text-white bg-gray-900 rounded-full hover:bg-gray-800 disabled:opacity-50" do %>
+      ⟳ <%= t("dashboard.sync.button") %>
+    <% end %>
+
+    <%# Mobile only: the bottom sheet covers the numbers, so it needs the dim
+        to say so. The desktop drawer sits beside them and does not. %>
+    <div data-sync-status-target="backdrop"
+         data-action="click->sync-status#closeBackdrop"
+         class="hidden fixed inset-0 z-30 bg-black/35 sm:hidden"></div>
+
+    <div data-sync-status-target="drawer"
+         class="hidden fixed z-40 bg-white shadow-xl inset-x-0 bottom-0 rounded-t-2xl max-h-[80vh] overflow-y-auto
+                sm:inset-y-0 sm:right-0 sm:left-auto sm:w-96 sm:max-h-none sm:rounded-none sm:border-l sm:border-gray-200">
+      <div class="mx-auto mt-2 h-1 w-9 rounded-full bg-gray-300 sm:hidden"></div>
+
+      <div class="flex items-center justify-between px-4 py-3 border-b border-gray-200">
+        <h2 class="text-sm font-semibold text-gray-900"><%= t("dashboard.sync.title") %></h2>
+        <button type="button"
+                data-action="click->sync-status#close"
+                aria-label="<%= t("dashboard.sync.close") %>"
+                class="px-2 text-gray-400 hover:text-gray-900">✕</button>
+      </div>
+
+      <% sync_status.sources.each do |source| %>
+        <div class="flex items-start gap-3 px-4 py-3 border-b border-gray-100 last:border-b-0"
+             data-sync-source="<%= source.key %>"
+             data-sync-source-state="<%= source.state %>">
+          <span class="mt-1.5 w-2 h-2 rounded-full flex-none <%= dot_colors[source.state] %>"></span>
+
+          <div class="flex-1 min-w-0">
+            <p class="text-sm text-gray-900"><%= t("dashboard.sync.sources.#{source.key}") %></p>
+
+            <%# Kept even once acknowledged: the badge stops counting it, the
+                drawer still has to say what broke. %>
+            <% source.failures.each do |failure| %>
+              <p class="mt-1 px-2 py-1.5 rounded-md bg-red-50 text-red-800 font-mono text-[11px] break-words">
+                <%= failure[:target_name] %>: <%= failure[:message] %>
+              </p>
+            <% end %>
+
+            <p class="mt-1 text-xs text-gray-500">
+              <% if source.state == :never %>
+                <%= t("dashboard.sync.never") %>
+              <% else %>
+                <% source.history.each_with_index do |run, index| %>
+                  <%= " · " if index.positive? %><%= run.started_at.strftime("%H:%M") %>
+                  <%= t("dashboard.sync.#{run.trigger}") %>
+                  <%= run_marks.fetch(run.effective_status) %>
+                <% end %>
+              <% end %>
+            </p>
+          </div>
+
+          <%# Per source, not per drawer: an acknowledgement is recorded against
+              one source's failure signature, and several can fail at once. %>
+          <% if source.state == :failed && !source.acknowledged %>
+            <%= button_to t("dashboard.sync.acknowledge"),
+                dashboard_acknowledge_sync_path(range_params.merge(source: source.key)),
+                class: "flex-none px-2 py-1 text-[11px] font-medium text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50" %>
+          <% end %>
+        </div>
+      <% end %>
+
+      <div class="h-4 sm:hidden"></div>
+    </div>
+  </div>
 <% end %>

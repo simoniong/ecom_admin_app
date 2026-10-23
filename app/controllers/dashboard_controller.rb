@@ -18,6 +18,7 @@ class DashboardController < AdminController
     ).call
     @range_key = @metrics[:range_key]
     @current_view_group = selected_view_group
+    @sync_status = sync_status_for_current_scope
   end
 
   def sync

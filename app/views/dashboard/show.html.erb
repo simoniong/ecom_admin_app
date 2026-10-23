@@ -41,6 +41,14 @@
         <%= t("dashboard.apply") %>
       </button>
     </div>
+
+    <%# Sits outside dashboard_metrics on purpose: the range links reload that
+        frame, and the sync badge keeps its own poll going across those loads.
+        Below sm it takes a full-width row of its own under the presets. The
+        grid is what stretches the frame itself to that row's width. %>
+    <div class="grid w-full sm:ml-auto sm:w-auto">
+      <%= render "dashboard/sync_status", sync_status: @sync_status %>
+    </div>
   </div>
 
   <%= turbo_frame_tag "dashboard_metrics" do %>

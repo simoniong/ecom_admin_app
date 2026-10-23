@@ -28,6 +28,42 @@
               locked_after_first_package: "產生第一個包裹後即無法變更"
             package_number_start:
               locked_after_first_package: "產生第一個包裹後即無法變更"
+  datetime:
+    distance_in_words:
+      half_a_minute: "半分鐘"
+      less_than_x_seconds:
+        one: "不到 1 秒"
+        other: "不到 %{count} 秒"
+      x_seconds:
+        one: "1 秒"
+        other: "%{count} 秒"
+      less_than_x_minutes:
+        one: "不到 1 分鐘"
+        other: "不到 %{count} 分鐘"
+      x_minutes:
+        one: "1 分鐘"
+        other: "%{count} 分鐘"
+      about_x_hours:
+        one: "約 1 小時"
+        other: "約 %{count} 小時"
+      x_days:
+        one: "1 天"
+        other: "%{count} 天"
+      about_x_months:
+        one: "約 1 個月"
+        other: "約 %{count} 個月"
+      x_months:
+        one: "1 個月"
+        other: "%{count} 個月"
+      about_x_years:
+        one: "約 1 年"
+        other: "約 %{count} 年"
+      over_x_years:
+        one: "超過 1 年"
+        other: "超過 %{count} 年"
+      almost_x_years:
+        one: "將近 1 年"
+        other: "將近 %{count} 年"
   errors:
     messages:
       required_when_company_has_groups: "公司已有部門，必須指定所屬部門"
@@ -154,6 +190,26 @@
     multi_parcel_orders: "多包裹訂單"
     shipping_coverage_caveat: "（覆蓋率越低，差異數字越不可靠）"
     view_variance: "查看差異明細 →"
+    sync:
+      button: "同步"
+      title: "資料同步狀態"
+      updated_ago: "已更新 · %{time}前"
+      updated_unknown: "已更新"
+      running: "同步中 %{count}/4…"
+      failed: "%{count} 項同步失敗"
+      never: "尚未同步"
+      acknowledge: "知道了，隱藏"
+      close: "關閉"
+      auto: "自動"
+      manual: "手動"
+      refresh_numbers: "重新整理數字"
+      enqueued: "同步任務已加入佇列，數字稍後更新。"
+      already_running: "已有同步正在進行中。"
+      sources:
+        shopify_metrics: "Shopify 營收／訂單指標"
+        shopify_orders: "Shopify 訂單（運費）"
+        meta_ads: "Meta 廣告"
+        google_ads: "Google 廣告"
   email_accounts:
     title: "郵箱"
     empty: "尚未綁定任何郵箱。"
