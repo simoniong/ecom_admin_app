@@ -47,8 +47,33 @@ RSpec.describe SyncStatus do
     expect(source.last_success_at).to eq(at(10, 0))
     expect(source.failures).to be_empty
     expect(source.signature).to be_nil
-    # The three sources without runs are ignored rather than held against green.
-    expect(status.badge).to eq(state: :ok, failed_count: 0, running_count: 0, updated_at: at(10, 0))
+    # shopify_orders runs over the same two stores and has never run for either,
+    # so the badge must not claim the scope is up to date. The two ad sources
+    # have no unit in scope at all and are the only ones ignored.
+    expect(status.badge).to eq(state: :incomplete, failed_count: 0, running_count: 0,
+                               applicable_count: 2, updated_at: nil)
+  end
+
+  it "is ok only once every applicable source has every unit succeeded" do
+    record(store_a, source: "shopify_metrics", started_at: at(10, 0))
+    record(store_a, source: "shopify_orders", started_at: at(10, 30))
+
+    status = sync_status(store_scope: stores(store_a))
+
+    expect(source_for(status, "meta_ads").state).to eq(:not_applicable)
+    expect(status.badge).to eq(state: :ok, failed_count: 0, running_count: 0,
+                               applicable_count: 2, updated_at: at(10, 0))
+  end
+
+  it "is incomplete while one unit of an otherwise succeeded source has never run" do
+    record(store_a, source: "shopify_metrics", started_at: at(10, 0))
+    record(store_a, source: "shopify_orders", started_at: at(10, 0))
+    record(store_b, source: "shopify_orders", started_at: at(10, 0))
+
+    status = sync_status(store_scope: stores(store_a, store_b))
+
+    expect(source_for(status, "shopify_metrics").state).to eq(:incomplete)
+    expect(status.badge).to include(state: :incomplete, applicable_count: 2, updated_at: nil)
   end
 
   it "is running if any unit's latest run is running" do
@@ -91,11 +116,64 @@ RSpec.describe SyncStatus do
     expect(status.badge).to include(state: :failed, failed_count: 1, running_count: 0)
   end
 
-  it "reports never for a source with no runs" do
+  it "is never when every applicable source has never run" do
     status = sync_status(store_scope: stores(store_a), ad_scope: ad_accounts(meta_account, google_account))
 
     expect(status.sources.map(&:state)).to all(eq(:never))
-    expect(status.badge).to eq(state: :never, failed_count: 0, running_count: 0, updated_at: nil)
+    expect(status.badge).to eq(state: :never, failed_count: 0, running_count: 0,
+                               applicable_count: 4, updated_at: nil)
+  end
+
+  it "is never when no source has a unit in scope at all" do
+    status = sync_status
+
+    expect(status.sources.map(&:state)).to all(eq(:not_applicable))
+    expect(status.badge).to eq(state: :never, failed_count: 0, running_count: 0,
+                               applicable_count: 0, updated_at: nil)
+  end
+
+  it "keeps a source failed while a retry of the failing unit is already running" do
+    record(store_a, source: "shopify_metrics", status: "failed", started_at: at(11, 0), message: "boom")
+    record(store_a, source: "shopify_metrics", status: "running", started_at: at(11, 55))
+
+    status = sync_status(store_scope: stores(store_a))
+    source = source_for(status, "shopify_metrics")
+
+    expect(source.state).to eq(:failed)
+    expect(source.failures).to eq([ { target_name: store_a.name, message: "boom" } ])
+    expect(status).to be_running
+    expect(status.badge).to include(state: :failed, failed_count: 1, running_count: 1)
+  end
+
+  it "clears the failure once a later run of that unit has succeeded" do
+    record(store_a, source: "shopify_metrics", status: "failed", started_at: at(11, 0), message: "boom")
+    record(store_a, source: "shopify_metrics", started_at: at(11, 55))
+
+    status = sync_status(store_scope: stores(store_a))
+
+    expect(source_for(status, "shopify_metrics").state).to eq(:succeeded)
+    expect(status).not_to be_running
+  end
+
+  it "stays running while an older run of a unit is still going after a newer one finished" do
+    record(store_a, source: "shopify_metrics", status: "running", started_at: at(11, 50))
+    record(store_a, source: "shopify_metrics", started_at: at(11, 55))
+
+    status = sync_status(store_scope: stores(store_a))
+
+    expect(source_for(status, "shopify_metrics").state).to eq(:running)
+    expect(status).to be_running
+    expect(status.badge).to include(state: :running, running_count: 1)
+  end
+
+  it "does not keep polling for an older running row that has already gone stale" do
+    record(store_a, source: "shopify_metrics", status: "running", started_at: at(11, 40))
+    record(store_a, source: "shopify_metrics", started_at: at(11, 55))
+
+    status = sync_status(store_scope: stores(store_a))
+
+    expect(source_for(status, "shopify_metrics").state).to eq(:succeeded)
+    expect(status).not_to be_running
   end
 
   it "is running while one unit runs even though another unit of the same source failed" do
@@ -118,7 +196,9 @@ RSpec.describe SyncStatus do
 
     expect(ack).to have_attributes(user: user, company: company, source: "google_ads", acknowledged_at: at(12))
     expect(source_for(status, "google_ads").acknowledged).to be(true)
-    expect(status.badge).to include(state: :ok, failed_count: 0)
+    # Acknowledged, so it stops counting as failed — but it has still never
+    # synced, which is neutral rather than green.
+    expect(status.badge).to include(state: :incomplete, failed_count: 0)
 
     others = sync_status(ad_scope: ad_accounts(google_account), as: create(:user))
 
@@ -131,20 +211,22 @@ RSpec.describe SyncStatus do
       .to raise_error(ArgumentError, /shopify_inventory/)
   end
 
-  it "has no updated_at when an acknowledged source has never succeeded, even though another source has" do
+  it "is never green for an acknowledged first failure, even though another source has succeeded" do
     record(google_account, source: "google_ads", status: "failed", started_at: at(11),
                            message: "Token expired — reconnect this ad account")
     record(store_a, source: "shopify_metrics", started_at: at(10, 30))
+    record(store_a, source: "shopify_orders", started_at: at(10, 30))
 
     status = sync_status(store_scope: stores(store_a), ad_scope: ad_accounts(google_account))
     status.acknowledge!(:google_ads)
     status = sync_status(store_scope: stores(store_a), ad_scope: ad_accounts(google_account))
 
     expect(source_for(status, "google_ads").acknowledged).to be(true)
-    # google_ads is acknowledged (not :never — it has a failed run), so the badge
-    # is :ok, but it never succeeded: updated_at must not borrow shopify_metrics'
-    # success time and claim the whole scope is fresh.
-    expect(status.badge).to include(state: :ok, failed_count: 0, updated_at: nil)
+    # The ack stops google_ads counting as failed, but it has never succeeded:
+    # the badge must not borrow the Shopify sources' success time and report the
+    # whole scope as fresh.
+    expect(status.badge).to include(state: :incomplete, failed_count: 0,
+                                    applicable_count: 3, updated_at: nil)
   end
 
   it "updates signature and acknowledged_at in place on a second acknowledge! for the same source" do
@@ -181,7 +263,7 @@ RSpec.describe SyncStatus do
     status = sync_status(ad_scope: ad_accounts(google_account))
 
     expect(source_for(status, "google_ads").acknowledged).to be(true)
-    expect(status.badge).to include(state: :ok, failed_count: 0)
+    expect(status.badge).to include(state: :incomplete, failed_count: 0)
   end
 
   it "re-raises a red after an intervening success, even with the same message" do
@@ -214,6 +296,7 @@ RSpec.describe SyncStatus do
 
   it "limits units to the given scopes" do
     record(store_a, source: "shopify_metrics", started_at: at(10))
+    record(store_a, source: "shopify_orders", started_at: at(10))
     record(store_b, source: "shopify_metrics", status: "failed", started_at: at(11), message: "boom")
 
     status = sync_status(store_scope: stores(store_a))

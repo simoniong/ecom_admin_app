@@ -31,8 +31,12 @@ RSpec.describe "Dashboard", type: :request do
 
     it "localizes the sync badge's relative time in zh-TW" do
       store = create(:shopify_store, user: user)
-      create(:sync_run, company: user.companies.first, target: store, source: "shopify_metrics",
-                        started_at: 5.minutes.ago, finished_at: 5.minutes.ago)
+      # Both Shopify sources, since the badge only carries a time once every
+      # applicable source has synced.
+      %w[shopify_metrics shopify_orders].each do |source|
+        create(:sync_run, company: user.companies.first, target: store, source: source,
+                          started_at: 5.minutes.ago, finished_at: 5.minutes.ago)
+      end
 
       sign_in user
       get authenticated_root_path(locale: "zh-TW")

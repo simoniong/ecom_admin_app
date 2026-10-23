@@ -158,8 +158,8 @@ en:
       button: "Sync"
       title: "Data sync status"
       updated_ago: "Updated %{time} ago"
-      updated_unknown: "Updated"
-      running: "Syncing %{count}/4…"
+      running: "Syncing %{count}/%{total}…"
+      incomplete: "Some data not synced yet"
       failed:
         one: "%{count} source failed to sync"
         other: "%{count} sources failed to sync"

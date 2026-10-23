@@ -12,6 +12,8 @@ class SyncStatus
 
   AD_PLATFORMS = { "meta_ads" => "meta", "google_ads" => "google" }.freeze
 
+  TERMINAL_STATUSES = %w[succeeded failed].freeze
+
   def initialize(company:, store_scope:, ad_scope:, user:)
     @company = company
     @store_scope = store_scope
@@ -28,6 +30,7 @@ class SyncStatus
       state: badge_state,
       failed_count: failed_count,
       running_count: running_count,
+      applicable_count: applicable_sources.size,
       updated_at: updated_at
     }
   end
@@ -84,30 +87,37 @@ class SyncStatus
 
   def rollup(key)
     units = units_for(key)
-    latest = latest_runs(key, units)
+    terminal = latest_terminal_runs(key, units)
     successes = latest_successes(key, units)
-    failing = units.select { |unit| latest[unit.id]&.effective_status == "failed" }
-    signature = signature_for(failing, latest)
+    active = active_unit_ids(key, units)
+    failing = units.select { |unit| terminal[unit.id]&.effective_status == "failed" }
+    signature = signature_for(failing, terminal)
 
     source = Source.new(
       key: key,
-      state: state_for(units, latest),
+      state: state_for(units, terminal, active, started_unit_ids(key, units)),
       last_success_at: successes.values.filter_map { |run| run.finished_at || run.started_at }.min,
-      failures: failing.map { |unit| { target_name: unit_name(unit), message: latest[unit.id].effective_error } },
+      failures: failing.map { |unit| { target_name: unit_name(unit), message: terminal[unit.id].effective_error } },
       history: history_for(key, units),
       signature: signature,
       acknowledged: acknowledged?(key, signature, failing, successes)
     )
 
-    { source: source, running: units.any? { |unit| latest[unit.id]&.effective_status == "running" } }
+    { source: source, running: units.any? { |unit| active.include?(unit.id) } }
   end
 
-  def state_for(units, latest)
-    statuses = units.filter_map { |unit| latest[unit.id]&.effective_status }
-
-    return :never if statuses.empty?
-    return :failed if statuses.include?("failed")
-    return :running if statuses.include?("running")
+  # Four independent questions, not one latest-row status: whether the source
+  # applies to this scope at all, whether any unit is still working, whether a
+  # unit's latest *terminal* run failed, and whether every unit has one.
+  #
+  # :never is asked before :incomplete — a source no unit in scope has ever run
+  # reads as "not synced yet", not as "partly synced".
+  def state_for(units, terminal, active, started)
+    return :not_applicable if units.empty?
+    return :failed if units.any? { |unit| terminal[unit.id]&.effective_status == "failed" }
+    return :running if units.any? { |unit| active.include?(unit.id) }
+    return :never if units.none? { |unit| started.include?(unit.id) }
+    return :incomplete if units.any? { |unit| terminal[unit.id].nil? }
 
     :succeeded
   end
@@ -138,10 +148,30 @@ class SyncStatus
     SyncRun.where(company_id: @company.id, source: key, target: units)
   end
 
-  def latest_runs(key, units)
+  # The newest run per unit that has reached an end: succeeded, failed, or a
+  # running row that has been running too long to still be waited on. A fresh
+  # running retry is not one of these, so it can't hide the failure under it.
+  def latest_terminal_runs(key, units)
     return {} if units.empty?
 
-    distinct_on_unit(runs_for(key, units)).index_by(&:target_id)
+    distinct_on_unit(terminal(runs_for(key, units), key)).index_by(&:target_id)
+  end
+
+  # Units with a running row still inside their source's threshold — any such
+  # row, not only each unit's newest. An older run can still be working after a
+  # newer one finished, and the poll has to follow it to its end.
+  def active_unit_ids(key, units)
+    return [] if units.empty?
+
+    runs_for(key, units).running
+                        .where(started_at: SyncRun::STALE_AFTER.fetch(key).ago..)
+                        .distinct.pluck(:target_id)
+  end
+
+  def started_unit_ids(key, units)
+    return [] if units.empty?
+
+    runs_for(key, units).distinct.pluck(:target_id)
   end
 
   def latest_successes(key, units)
@@ -163,11 +193,11 @@ class SyncStatus
     runs_for(key, units).order(started_at: :desc).limit(HISTORY_LIMIT).to_a
   end
 
-  def signature_for(failing, latest)
+  def signature_for(failing, terminal)
     return nil if failing.empty?
 
     lines = failing.map do |unit|
-      run = latest[unit.id]
+      run = terminal[unit.id]
       "#{run.target_type}:#{run.target_id}:#{SyncRun.normalize_error(run.effective_error)}"
     end
 
@@ -205,7 +235,14 @@ class SyncStatus
   end
 
   # Mirrors SyncRun#effective_status in SQL: a running row past its source's
-  # threshold is part of the failure streak too.
+  # threshold has ended, as a failure.
+  def terminal(relation, key)
+    relation.where("status IN (?) OR (status = ? AND started_at < ?)",
+                   TERMINAL_STATUSES, "running", SyncRun::STALE_AFTER.fetch(key).ago)
+  end
+
+  # The failure streak is built from terminal rows for the same reason the
+  # roll-up is: a retry that is merely running again has resolved nothing.
   def effectively_failed(relation, key)
     relation.where("status = ? OR (status = ? AND started_at < ?)",
                    "failed", "running", SyncRun::STALE_AFTER.fetch(key).ago)
@@ -219,24 +256,32 @@ class SyncStatus
     rollups.count { |rollup| rollup[:running] }
   end
 
-  # Only :never sources (no runs at all) are excluded, so they don't hold the
-  # badge back from green forever on a scope that never used that source. Any
-  # other remaining source — including one that is failed but acknowledged —
-  # that has never succeeded makes updated_at nil rather than silently
-  # reporting a different source's success time as if the whole scope were
-  # fresh.
-  def updated_at
-    relevant = sources.reject { |source| source.state == :never }
-    return nil if relevant.any? { |source| source.last_success_at.nil? }
-
-    relevant.map(&:last_success_at).min
+  # A source with no unit in scope is not applicable: it is ignored by every
+  # count, including the "n/m" denominator, so a scope with no ad accounts is
+  # not held back by ad sources it will never run.
+  def applicable_sources
+    sources.reject { |source| source.state == :not_applicable }
   end
 
+  # Only ever shown on green, which means every applicable source has every
+  # unit succeeded — so there is always a time to show, and it is the oldest of
+  # those successes rather than the freshest.
+  def updated_at
+    return nil unless badge_state == :ok
+
+    applicable_sources.map(&:last_success_at).min
+  end
+
+  # :never before :ok, which also settles a scope with nothing applicable at
+  # all: there is no success to report there either, so it reads as not synced
+  # rather than up to date. :incomplete is what is left — never-run units and
+  # acknowledged failures, neither of which may ever show as green.
   def badge_state
-    return :never if sources.all? { |source| source.state == :never }
     return :failed if failed_count.positive?
     return :running if running_count.positive?
+    return :never if applicable_sources.all? { |source| source.state == :never }
+    return :ok if applicable_sources.all? { |source| source.state == :succeeded }
 
-    :ok
+    :incomplete
   end
 end

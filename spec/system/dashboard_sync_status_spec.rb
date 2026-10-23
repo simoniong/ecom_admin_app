@@ -19,6 +19,14 @@ RSpec.describe "Dashboard sync status", type: :system do
                       trigger: "manual", started_at: 2.minutes.ago, finished_at: 2.minutes.ago)
   end
 
+  # Both Shopify sources, which is what green takes: every source the store is
+  # in scope for has to have synced it.
+  def synced_store(at: 5.minutes.ago)
+    %w[shopify_metrics shopify_orders].each do |source|
+      create(:sync_run, company: company, target: store, source: source, started_at: at, finished_at: at)
+    end
+  end
+
   # Reloading the metrics frame replaces its children, so a marker on one of
   # them disappearing is proof that the refresh actually landed.
   def mark_metrics
@@ -30,10 +38,7 @@ RSpec.describe "Dashboard sync status", type: :system do
   end
 
   it "shows a green badge with the last update time" do
-    create(:sync_run, company: company, target: store, source: "shopify_metrics",
-                      started_at: 5.minutes.ago, finished_at: 5.minutes.ago)
-    create(:sync_run, company: company, target: store, source: "shopify_orders",
-                      started_at: 5.minutes.ago, finished_at: 5.minutes.ago)
+    synced_store
 
     sign_in_as(user)
     visit authenticated_root_path
@@ -43,6 +48,9 @@ RSpec.describe "Dashboard sync status", type: :system do
   end
 
   it "shows a neutral badge and never rows when nothing has ever synced" do
+    create(:ad_account, user: user)
+    create(:ad_account, :google, user: user)
+
     sign_in_as(user)
     visit authenticated_root_path
 
@@ -51,6 +59,34 @@ RSpec.describe "Dashboard sync status", type: :system do
 
     open_drawer
     expect(page).to have_css("[data-sync-source-state='never']", count: 4)
+  end
+
+  it "leaves a source with nothing in scope out of the drawer and the badge counts" do
+    synced_store
+
+    sign_in_as(user)
+    visit authenticated_root_path
+
+    # No ad accounts in scope, so the two ad sources neither appear nor hold the
+    # badge back from green.
+    expect(page).to have_css("[data-sync-badge-state='ok']")
+
+    open_drawer
+    expect(page).to have_css("[data-sync-source]", count: 2)
+    expect(page).to have_no_content(sync_t("sources.meta_ads"))
+  end
+
+  it "shows a neutral badge while a source in scope has never synced" do
+    create(:sync_run, company: company, target: store, source: "shopify_metrics",
+                      started_at: 5.minutes.ago, finished_at: 5.minutes.ago)
+
+    sign_in_as(user)
+    visit authenticated_root_path
+
+    # shopify_orders runs over the same store and never has, so the badge must
+    # not claim the numbers on the page are up to date.
+    expect(page).to have_css("[data-sync-badge-state='incomplete']")
+    expect(page).to have_content(sync_t(:incomplete))
   end
 
   it "opens the drawer with one row per source and its history labels" do
@@ -75,8 +111,7 @@ RSpec.describe "Dashboard sync status", type: :system do
   end
 
   it "keeps a single badge frame when a range preset reloads the metrics" do
-    create(:sync_run, company: company, target: store, source: "shopify_metrics",
-                      started_at: 5.minutes.ago, finished_at: 5.minutes.ago)
+    synced_store
 
     sign_in_as(user)
     visit authenticated_root_path
@@ -104,8 +139,9 @@ RSpec.describe "Dashboard sync status", type: :system do
     expect(page).not_to have_content(sync_t(:failed, count: 1))
     # An acknowledgement only drops the failure from the pill; the row keeps it.
     expect(page).to have_content("PERMISSION_DENIED")
-    # Nothing in scope has ever succeeded, so the green pill carries no time.
-    expect(find("[data-sync-badge-state='ok']").text).to eq(sync_t(:updated_unknown))
+    # Nothing in scope has ever succeeded, so the pill stays neutral — an
+    # acknowledged failure is never green.
+    expect(find("[data-sync-badge-state='incomplete']").text).to eq(sync_t(:incomplete))
   end
 
   it "turns the badge to running and disables the button when Sync is clicked" do
@@ -118,19 +154,21 @@ RSpec.describe "Dashboard sync status", type: :system do
     visit authenticated_root_path
     find("[data-sync-button]").click
 
-    expect(page).to have_content(sync_t(:running, count: 2))
+    expect(page).to have_content(sync_t(:running, count: 2, total: 2))
     expect(page).to have_css("[data-sync-button][disabled]")
   ensure
     ActiveJob::Base.queue_adapter = original_adapter
   end
 
   it "updates from running to done without reloading the page" do
+    create(:sync_run, company: company, target: store, source: "shopify_orders",
+                      started_at: 1.minute.ago, finished_at: Time.current)
     run = create(:sync_run, company: company, target: store, source: "shopify_metrics",
                             status: "running", started_at: 1.minute.ago, finished_at: nil)
 
     sign_in_as(user)
     visit authenticated_root_path
-    expect(page).to have_content(sync_t(:running, count: 1))
+    expect(page).to have_content(sync_t(:running, count: 1, total: 2))
 
     page.execute_script("window.dashboardNotReloaded = true")
     run.update!(status: "succeeded", finished_at: Time.current)

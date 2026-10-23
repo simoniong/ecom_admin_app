@@ -6,21 +6,28 @@
     range params, when it has a running sync to poll for. %>
 <% badge = sync_status.badge %>
 <% range_params = params.permit(:range, :start_date, :end_date).to_h.compact_blank %>
-<% dot_colors = { succeeded: "bg-green-600", running: "bg-amber-500", failed: "bg-red-600", never: "bg-gray-400" } %>
+<% dot_colors = { succeeded: "bg-green-600", running: "bg-amber-500", failed: "bg-red-600",
+                  incomplete: "bg-gray-400", never: "bg-gray-400" } %>
 <% run_marks = { "succeeded" => "✓", "failed" => "✕", "running" => "…" } %>
 <% neutral_pill = "border-gray-200 bg-gray-50 text-gray-700 hover:bg-gray-100" %>
+<% muted_pill = "border-gray-200 bg-gray-50 text-gray-500 hover:bg-gray-100" %>
 
+<%# Green is the only state with an update time to show, and on green there is
+    always one: every applicable source has every unit synced. %>
 <% pill_label, pill_classes, pill_dot =
      case badge[:state]
      when :failed
        [ t("dashboard.sync.failed", count: badge[:failed_count]),
          "border-red-200 bg-red-50 text-red-800 hover:bg-red-100", dot_colors[:failed] ]
      when :running
-       [ t("dashboard.sync.running", count: badge[:running_count]), neutral_pill, dot_colors[:running] ]
+       [ t("dashboard.sync.running", count: badge[:running_count], total: badge[:applicable_count]),
+         neutral_pill, dot_colors[:running] ]
      when :never
-       [ t("dashboard.sync.never"), "border-gray-200 bg-gray-50 text-gray-500 hover:bg-gray-100", dot_colors[:never] ]
+       [ t("dashboard.sync.never"), muted_pill, dot_colors[:never] ]
+     when :incomplete
+       [ t("dashboard.sync.incomplete"), muted_pill, dot_colors[:incomplete] ]
      else
-       [ badge[:updated_at] ? t("dashboard.sync.updated_ago", time: time_ago_in_words(badge[:updated_at])) : t("dashboard.sync.updated_unknown"),
+       [ t("dashboard.sync.updated_ago", time: time_ago_in_words(badge[:updated_at])),
          neutral_pill, dot_colors[:succeeded] ]
      end %>
 
@@ -78,7 +85,9 @@
                 class="px-2 text-gray-400 hover:text-gray-900">✕</button>
       </div>
 
-      <% sync_status.sources.each do |source| %>
+      <%# A source with no store or ad account in scope has nothing to say here,
+          the same way it is left out of the badge's counts. %>
+      <% sync_status.sources.reject { |source| source.state == :not_applicable }.each do |source| %>
         <div class="flex items-start gap-3 px-4 py-3 border-b border-gray-100 last:border-b-0"
              data-sync-source="<%= source.key %>"
              data-sync-source-state="<%= source.state %>">
