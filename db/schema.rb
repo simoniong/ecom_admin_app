@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_23_142932) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_24_002300) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -829,10 +829,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_23_142932) do
   end
 
   create_table "sync_runs", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "batch_id"
     t.uuid "company_id", null: false
     t.datetime "created_at", null: false
     t.text "error_message"
     t.datetime "finished_at"
+    t.boolean "placeholder", default: false, null: false
     t.string "source", null: false
     t.datetime "started_at", null: false
     t.string "status", null: false
@@ -840,6 +842,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_23_142932) do
     t.string "target_type", null: false
     t.string "trigger", null: false
     t.datetime "updated_at", null: false
+    t.index ["batch_id", "source", "target_type", "target_id"], name: "idx_sync_runs_on_batch_source_target"
     t.index ["company_id", "source", "target_type", "target_id", "started_at"], name: "idx_sync_runs_on_company_source_target_started_at"
     t.index ["company_id"], name: "index_sync_runs_on_company_id"
   end

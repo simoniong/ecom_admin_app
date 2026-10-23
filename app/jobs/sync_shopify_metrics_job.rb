@@ -2,7 +2,7 @@ class SyncShopifyMetricsJob < ApplicationJob
   queue_as :default
 
   # days: number of past days to sync (default: 1 = yesterday + today in shop timezone)
-  def perform(days: 1, store_ids: nil, trigger: "auto")
+  def perform(days: 1, store_ids: nil, trigger: "auto", sync_batch_id: nil)
     shopify_store_klass = "ShopifyStore".safe_constantize
     return unless shopify_store_klass
 
@@ -14,7 +14,7 @@ class SyncShopifyMetricsJob < ApplicationJob
       shop_today = Time.current.in_time_zone(shop_tz).to_date
       dates = ((shop_today - days.days)..shop_today).to_a
 
-      SyncRun.track(source: "shopify_metrics", target: store, trigger: trigger) do
+      SyncRun.track(source: "shopify_metrics", target: store, trigger: trigger, batch_id: sync_batch_id) do
         service = ShopifyAnalyticsService.new(
           shop_domain: store.shop_domain,
           access_token: store.access_token,

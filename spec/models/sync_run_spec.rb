@@ -38,11 +38,51 @@ RSpec.describe SyncRun, type: :model do
       expect(SyncRun.last).to have_attributes(status: "failed", error_message: "ArgumentError: boom")
     end
 
-    it "replaces a pre-created manual running row for the same target" do
+    it "claims its batch's placeholder instead of inserting a second row" do
       store = create(:shopify_store)
-      create(:sync_run, source: "shopify_orders", target: store, trigger: "manual", status: "running", finished_at: nil)
-      SyncRun.track(source: "shopify_orders", target: store, trigger: "manual") { :ok }
-      expect(SyncRun.where(source: "shopify_orders", target: store).pluck(:status)).to eq([ "succeeded" ])
+      placeholder = create(:sync_run, :placeholder, source: "shopify_orders", target: store,
+                                      started_at: 1.minute.ago)
+
+      SyncRun.track(source: "shopify_orders", target: store, trigger: "manual",
+                    batch_id: placeholder.batch_id) { :ok }
+
+      expect(SyncRun.where(source: "shopify_orders", target: store).pluck(:id)).to eq([ placeholder.id ])
+      expect(placeholder.reload).to have_attributes(status: "succeeded", placeholder: false)
+      # The placeholder was created when Sync was clicked; the run started when
+      # the job claimed it.
+      expect(placeholder.started_at).to be > 1.minute.ago
+    end
+
+    it "leaves a manual batch's placeholder alone when an auto run overlaps it" do
+      store = create(:shopify_store)
+      placeholder = create(:sync_run, :placeholder, source: "shopify_orders", target: store)
+
+      SyncRun.track(source: "shopify_orders", target: store, trigger: "auto") { :ok }
+
+      expect(placeholder.reload).to have_attributes(status: "running", placeholder: true)
+      expect(SyncRun.where(source: "shopify_orders", target: store).count).to eq(2)
+    end
+
+    it "leaves another batch's placeholder alone" do
+      store = create(:shopify_store)
+      placeholder = create(:sync_run, :placeholder, source: "shopify_orders", target: store)
+
+      SyncRun.track(source: "shopify_orders", target: store, trigger: "manual",
+                    batch_id: SecureRandom.uuid) { :ok }
+
+      expect(placeholder.reload).to have_attributes(status: "running", placeholder: true)
+      expect(SyncRun.where(source: "shopify_orders", target: store).count).to eq(2)
+    end
+
+    it "keeps both runs in history when two manual runs overlap on the same target" do
+      store = create(:shopify_store)
+
+      SyncRun.track(source: "shopify_orders", target: store, trigger: "manual") do
+        SyncRun.track(source: "shopify_orders", target: store, trigger: "manual") { :ok }
+      end
+
+      expect(SyncRun.where(source: "shopify_orders", target: store).pluck(:status))
+        .to eq(%w[succeeded succeeded])
     end
   end
 
@@ -57,16 +97,30 @@ RSpec.describe SyncRun, type: :model do
       expect(run.error_message).to eq("Token expired — reconnect this ad account")
     end
 
-    it "replaces a pre-created manual placeholder for the same target" do
+    it "claims its batch's placeholder for the same target" do
       store = create(:shopify_store)
-      create(:sync_run, source: "meta_ads", target: store, trigger: "manual", status: "running", finished_at: nil)
+      placeholder = create(:sync_run, :placeholder, source: "meta_ads", target: store)
 
       SyncRun.record_failure(
-        source: "meta_ads", target: store, trigger: "manual",
+        source: "meta_ads", target: store, trigger: "manual", batch_id: placeholder.batch_id,
         message: "Token expired — reconnect this ad account"
       )
 
-      expect(SyncRun.where(source: "meta_ads", target: store).pluck(:status)).to eq([ "failed" ])
+      expect(SyncRun.where(source: "meta_ads", target: store).pluck(:id)).to eq([ placeholder.id ])
+      expect(placeholder.reload).to have_attributes(status: "failed", placeholder: false)
+    end
+
+    it "leaves another batch's placeholder alone" do
+      store = create(:shopify_store)
+      placeholder = create(:sync_run, :placeholder, source: "meta_ads", target: store)
+
+      SyncRun.record_failure(
+        source: "meta_ads", target: store, trigger: "auto",
+        message: "Token expired — reconnect this ad account"
+      )
+
+      expect(placeholder.reload).to have_attributes(status: "running", placeholder: true)
+      expect(SyncRun.where(source: "meta_ads", target: store).count).to eq(2)
     end
   end
 

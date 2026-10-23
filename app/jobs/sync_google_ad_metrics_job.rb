@@ -8,7 +8,8 @@ class SyncGoogleAdMetricsJob < ApplicationJob
   # narrows it to one company (the Ad Campaigns page's sync button);
   # ad_account_id to a single account — used right after it is connected, with
   # a long `days` to backfill its history.
-  def perform(ad_account_id: nil, ad_account_ids: nil, company_id: nil, days: LOOKBACK_DAYS, trigger: "auto")
+  def perform(ad_account_id: nil, ad_account_ids: nil, company_id: nil, days: LOOKBACK_DAYS,
+              trigger: "auto", sync_batch_id: nil)
     scope = AdAccount.google
     scope = scope.where(id: ad_account_id) if ad_account_id
     scope = scope.where(id: ad_account_ids) if ad_account_ids
@@ -17,7 +18,7 @@ class SyncGoogleAdMetricsJob < ApplicationJob
     scope.find_each do |account|
       if account.token_expired?
         SyncRun.record_failure(
-          source: "google_ads", target: account, trigger: trigger,
+          source: "google_ads", target: account, trigger: trigger, batch_id: sync_batch_id,
           message: "Token expired — reconnect this ad account"
         )
         next
@@ -25,7 +26,7 @@ class SyncGoogleAdMetricsJob < ApplicationJob
 
       today = account.today_in_zone
 
-      SyncRun.track(source: "google_ads", target: account, trigger: trigger) do
+      SyncRun.track(source: "google_ads", target: account, trigger: trigger, batch_id: sync_batch_id) do
         service = GoogleAdsService.new(account)
         service.sync_date_range(today - days, today)
         service.sync_campaigns(today - days, today)

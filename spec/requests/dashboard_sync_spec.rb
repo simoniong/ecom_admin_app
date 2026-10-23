@@ -14,27 +14,46 @@ RSpec.describe "Dashboard sync", type: :request do
 
       sign_in user
 
-      expect {
-        post dashboard_sync_path, params: { store_id: store.id }
-      }.to have_enqueued_job(SyncShopifyMetricsJob).with(store_ids: [ store.id ], trigger: "manual")
-        .and have_enqueued_job(SyncAllShopifyOrdersJob).with(store.id, trigger: "manual")
-        .and have_enqueued_job(SyncAdMetricsJob).with(ad_account_ids: [ meta_account.id ], trigger: "manual")
-        .and have_enqueued_job(SyncGoogleAdMetricsJob).with(ad_account_ids: [ google_account.id ], trigger: "manual")
+      post dashboard_sync_path, params: { store_id: store.id }
+
+      # Every job carries the batch its placeholders were created under, which
+      # is what lets each one claim its own row instead of inserting another.
+      batch_id = SyncRun.where(company_id: company.id).distinct.pluck(:batch_id).sole
+
+      expect(SyncShopifyMetricsJob).to have_been_enqueued
+        .with(store_ids: [ store.id ], trigger: "manual", sync_batch_id: batch_id)
+      expect(SyncAllShopifyOrdersJob).to have_been_enqueued
+        .with(store.id, trigger: "manual", sync_batch_id: batch_id)
+      expect(SyncAdMetricsJob).to have_been_enqueued
+        .with(ad_account_ids: [ meta_account.id ], trigger: "manual", sync_batch_id: batch_id)
+      expect(SyncGoogleAdMetricsJob).to have_been_enqueued
+        .with(ad_account_ids: [ google_account.id ], trigger: "manual", sync_batch_id: batch_id)
+
+      # The other store is outside the selected scope, so no job may run for it.
+      expect(SyncAllShopifyOrdersJob).to have_been_enqueued.exactly(:once)
+      expect(SyncAllShopifyOrdersJob).not_to have_been_enqueued
+        .with(other_store.id, trigger: "manual", sync_batch_id: batch_id)
 
       expect(response).to redirect_to(authenticated_root_path)
       expect(flash[:notice]).to eq(I18n.t("dashboard.sync.enqueued"))
     end
 
-    it "pre-creates running rows so the status is running immediately" do
+    it "pre-creates a placeholder per unit per source so the status is running immediately" do
       store = create(:shopify_store, user: user)
+      meta_account = create(:ad_account, user: user, shopify_store: store)
+      google_account = create(:ad_account, :google, user: user, shopify_store: store)
 
       sign_in user
       post dashboard_sync_path, params: { store_id: store.id }
 
-      expect(SyncRun.where(company_id: company.id, source: "shopify_metrics",
-                            target: store, status: "running")).to exist
-      expect(SyncRun.where(company_id: company.id, source: "shopify_orders",
-                            target: store, status: "running")).to exist
+      placeholders = SyncRun.where(company_id: company.id, placeholder: true, status: "running",
+                                   trigger: "manual")
+      expect(placeholders.map { |run| [ run.source, run.target ] }).to contain_exactly(
+        [ "shopify_metrics", store ], [ "shopify_orders", store ],
+        [ "meta_ads", meta_account ], [ "google_ads", google_account ]
+      )
+      # One batch for the whole click, so each job can claim exactly its own row.
+      expect(placeholders.distinct.pluck(:batch_id).compact.size).to eq(1)
 
       get dashboard_sync_status_path, params: { store_id: store.id }
       expect(response.body).to include("running")
@@ -80,6 +99,25 @@ RSpec.describe "Dashboard sync", type: :request do
       }.to raise_error(StandardError, "queue down")
 
       expect(SyncRun.where(company_id: company.id, target: store)).to be_empty
+    end
+
+    it "keeps the placeholders of the jobs it already enqueued when a later enqueue raises" do
+      store = create(:shopify_store, user: user)
+      meta_account = create(:ad_account, user: user, shopify_store: store)
+      sign_in user
+
+      allow(SyncAllShopifyOrdersJob).to receive(:perform_later).and_raise(StandardError, "queue down")
+
+      expect {
+        post dashboard_sync_path, params: { store_id: store.id }
+      }.to raise_error(StandardError, "queue down")
+
+      # The metrics job is out on the queue and will do its work, so its
+      # placeholder has to stay. The two that never got enqueued must not.
+      expect(SyncShopifyMetricsJob).to have_been_enqueued
+      expect(SyncRun.where(target: store, source: "shopify_metrics")).to exist
+      expect(SyncRun.where(target: store, source: "shopify_orders")).to be_empty
+      expect(SyncRun.where(target: meta_account, source: "meta_ads")).to be_empty
     end
   end
 

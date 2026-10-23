@@ -27,14 +27,12 @@ class SyncRun < ApplicationRecord
   validates :status, presence: true
   validates :started_at, presence: true
 
-  # Wraps a sync unit of work: deletes any pre-created manual placeholder row
-  # for the same (source, target) — see the Dashboard Sync action in Task 4 —
-  # then records a running row, yields, and marks it succeeded/failed. Always
-  # re-raises so existing job error handling (log and continue) is unchanged.
-  def self.track(source:, target:, trigger:)
-    delete_matching_manual_placeholder(source: source, target: target)
-
-    run = create!(
+  # Wraps a sync unit of work: takes over the placeholder row the Dashboard's
+  # Sync action pre-created for this batch if there is one, otherwise records a
+  # fresh running row, yields, and marks it succeeded/failed. Always re-raises
+  # so existing job error handling (log and continue) is unchanged.
+  def self.track(source:, target:, trigger:, batch_id: nil)
+    run = claim_placeholder(source: source, target: target, batch_id: batch_id) || create!(
       company_id: target.company_id,
       source: source,
       target: target,
@@ -58,14 +56,19 @@ class SyncRun < ApplicationRecord
     result
   end
 
-  # Records a single finished failed run, e.g. for an expired-token skip
-  # that never started any work. Consumes the matching manual placeholder
-  # the same way .track does, so an expired-token skip doesn't leave a
-  # "running" row occupying a history slot alongside the failed one.
-  def self.record_failure(source:, target:, trigger:, message:)
-    delete_matching_manual_placeholder(source: source, target: target)
-
+  # Records a single finished failed run, e.g. for an expired-token skip that
+  # never started any work. Claims this batch's placeholder the same way .track
+  # does, so an expired-token skip doesn't leave a "running" row occupying a
+  # history slot alongside the failed one.
+  def self.record_failure(source:, target:, trigger:, message:, batch_id: nil)
     now = Time.current
+    claimed = claim_placeholder(source: source, target: target, batch_id: batch_id)
+
+    if claimed
+      claimed.update!(status: "failed", finished_at: now, error_message: message)
+      return claimed
+    end
+
     create!(
       company_id: target.company_id,
       source: source,
@@ -91,17 +94,31 @@ class SyncRun < ApplicationRecord
     where("started_at < ?", age.ago).delete_all
   end
 
-  # Shared by .track and .record_failure: removes the manual placeholder row
-  # Task 4's Dashboard Sync action pre-created for this unit, so every job
-  # terminal path (succeeded, failed, or an expired-token skip) consumes it
-  # instead of leaving it stuck as "running".
-  def self.delete_matching_manual_placeholder(source:, target:)
-    where(
-      source: source, target: target, status: "running",
-      trigger: "manual", finished_at: nil
-    ).delete_all
+  # Shared by .track and .record_failure: takes over the placeholder row the
+  # Dashboard's Sync action pre-created for this unit under this batch, so the
+  # job the click enqueued reports into the row the badge is already showing.
+  #
+  # The batch id is what makes that safe: a scheduled auto run, or a manual run
+  # someone started elsewhere, carries no batch and so records its own row
+  # instead of eating this one. The single UPDATE ... RETURNING is what makes it
+  # exclusive — two jobs racing for the same placeholder cannot both claim it,
+  # and an unclaimed placeholder just goes stale through STALE_AFTER.
+  def self.claim_placeholder(source:, target:, batch_id:)
+    return nil if batch_id.blank?
+
+    now = Time.current
+    find_by_sql([ <<~SQL.squish, now, now, batch_id, source, target.class.polymorphic_name, target.id ]).first
+      UPDATE sync_runs SET placeholder = FALSE, started_at = ?, updated_at = ?
+      WHERE id = (
+        SELECT id FROM sync_runs
+        WHERE placeholder = TRUE AND batch_id = ? AND source = ?
+          AND target_type = ? AND target_id = ?
+        LIMIT 1 FOR UPDATE SKIP LOCKED
+      )
+      RETURNING *
+    SQL
   end
-  private_class_method :delete_matching_manual_placeholder
+  private_class_method :claim_placeholder
 
   def stale?
     running? && started_at < STALE_AFTER.fetch(source).ago

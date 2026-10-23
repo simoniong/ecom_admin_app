@@ -71,6 +71,16 @@ RSpec.describe SyncGoogleAdMetricsJob, type: :job do
     expect(run.trigger).to eq("auto")
   end
 
+  it "claims the Dashboard batch's placeholder for the account" do
+    placeholder = create(:sync_run, :placeholder, source: "google_ads", target: google)
+    stub_service
+
+    described_class.perform_now(trigger: "manual", sync_batch_id: placeholder.batch_id)
+
+    expect(SyncRun.where(source: "google_ads", target: google).pluck(:id)).to eq([ placeholder.id ])
+    expect(placeholder.reload).to have_attributes(status: "succeeded", placeholder: false)
+  end
+
   it "records an expired-token account as failed with the reconnect message" do
     google.update!(token_expires_at: 1.minute.ago)
     stub_service

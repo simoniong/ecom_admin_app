@@ -83,12 +83,13 @@ class DashboardController < AdminController
       next nil if sync_status_for_current_scope.running?
 
       store_scope, ad_scope = dashboard_scopes
-      {
+      plan = {
+        batch_id: SecureRandom.uuid,
         store_ids: store_scope.pluck(:id),
         meta_ids: ad_scope.where(platform: "meta").pluck(:id),
-        google_ids: ad_scope.where(platform: "google").pluck(:id),
-        runs: create_placeholder_runs(store_scope, ad_scope)
+        google_ids: ad_scope.where(platform: "google").pluck(:id)
       }
+      plan.merge(placeholders: create_placeholder_runs(plan))
     end
   end
 
@@ -100,51 +101,73 @@ class DashboardController < AdminController
     )
   end
 
-  # One placeholder per unit per source it will run under, so the badge goes
-  # yellow the instant Sync is clicked. SyncRun#track (Task 1) deletes these
-  # once the matching job actually starts, which closes the double-click race
-  # without this request having to wait on the jobs themselves.
-  def create_placeholder_runs(store_scope, ad_scope)
+  # One placeholder per unit per source it will run under, all tagged with this
+  # click's batch id, so the badge goes yellow the instant Sync is clicked and
+  # the job this request enqueues for that unit claims that exact row
+  # (SyncRun.track) rather than racing it. Returns the row ids keyed by
+  # [source, target_id], which is how enqueue_sync_jobs finds the placeholders
+  # of the jobs it never got to enqueue.
+  def create_placeholder_runs(plan)
     now = Time.current
-    runs = []
-
-    store_scope.find_each do |store|
-      runs << SyncRun.create!(source: "shopify_metrics", target: store, company_id: current_company.id,
-                               trigger: "manual", status: "running", started_at: now)
-      runs << SyncRun.create!(source: "shopify_orders", target: store, company_id: current_company.id,
-                               trigger: "manual", status: "running", started_at: now)
+    units = plan[:store_ids].flat_map do |store_id|
+      [ [ "shopify_metrics", "ShopifyStore", store_id ], [ "shopify_orders", "ShopifyStore", store_id ] ]
     end
+    units += plan[:meta_ids].map { |id| [ "meta_ads", "AdAccount", id ] }
+    units += plan[:google_ids].map { |id| [ "google_ads", "AdAccount", id ] }
 
-    ad_scope.where(platform: "meta").find_each do |account|
-      runs << SyncRun.create!(source: "meta_ads", target: account, company_id: current_company.id,
-                               trigger: "manual", status: "running", started_at: now)
+    units.to_h do |source, target_type, target_id|
+      run = SyncRun.create!(source: source, target_type: target_type, target_id: target_id,
+                            company_id: current_company.id, trigger: "manual", status: "running",
+                            placeholder: true, batch_id: plan[:batch_id], started_at: now)
+      [ [ source, target_id ], run.id ]
     end
-
-    ad_scope.where(platform: "google").find_each do |account|
-      runs << SyncRun.create!(source: "google_ads", target: account, company_id: current_company.id,
-                               trigger: "manual", status: "running", started_at: now)
-    end
-
-    runs
   end
 
-  # Enqueues after the placeholder transaction has committed, so the jobs
-  # never see rows a rolled-back transaction removed. If enqueueing raises
-  # partway through, the placeholders this request created would otherwise
-  # sit as "running" until they go stale; delete them and re-raise so the
-  # failure is still visible (same job-error handling callers already expect).
+  # Enqueues after the placeholder transaction has committed, so the jobs never
+  # see rows a rolled-back transaction removed. One job at a time: an enqueue
+  # that raises leaves the jobs already on the queue alone — they are real work
+  # now and their placeholders are the only sign of it — and removes only the
+  # placeholders of the jobs that never made it out before re-raising.
   def enqueue_sync_jobs(sync_plan)
+    steps = sync_enqueue_steps(sync_plan)
+
+    steps.each_with_index do |step, index|
+      step[:enqueue].call
+    rescue StandardError
+      SyncRun.where(id: steps[index..].flat_map { |pending| pending[:run_ids] }).delete_all
+      raise
+    end
+  end
+
+  def sync_enqueue_steps(sync_plan)
+    batch_id = sync_plan[:batch_id]
+    placeholders = sync_plan[:placeholders]
     store_ids = sync_plan[:store_ids]
     meta_ids = sync_plan[:meta_ids]
     google_ids = sync_plan[:google_ids]
+    steps = []
 
-    SyncShopifyMetricsJob.perform_later(store_ids: store_ids, trigger: "manual") if store_ids.any?
-    store_ids.each { |store_id| SyncAllShopifyOrdersJob.perform_later(store_id, trigger: "manual") }
-    SyncAdMetricsJob.perform_later(ad_account_ids: meta_ids, trigger: "manual") if meta_ids.any?
-    SyncGoogleAdMetricsJob.perform_later(ad_account_ids: google_ids, trigger: "manual") if google_ids.any?
-  rescue StandardError
-    SyncRun.where(id: sync_plan[:runs].map(&:id)).delete_all
-    raise
+    if store_ids.any?
+      steps << { run_ids: store_ids.map { |id| placeholders[[ "shopify_metrics", id ]] },
+                 enqueue: -> { SyncShopifyMetricsJob.perform_later(store_ids: store_ids, trigger: "manual", sync_batch_id: batch_id) } }
+    end
+
+    store_ids.each do |store_id|
+      steps << { run_ids: [ placeholders[[ "shopify_orders", store_id ]] ],
+                 enqueue: -> { SyncAllShopifyOrdersJob.perform_later(store_id, trigger: "manual", sync_batch_id: batch_id) } }
+    end
+
+    if meta_ids.any?
+      steps << { run_ids: meta_ids.map { |id| placeholders[[ "meta_ads", id ]] },
+                 enqueue: -> { SyncAdMetricsJob.perform_later(ad_account_ids: meta_ids, trigger: "manual", sync_batch_id: batch_id) } }
+    end
+
+    if google_ids.any?
+      steps << { run_ids: google_ids.map { |id| placeholders[[ "google_ads", id ]] },
+                 enqueue: -> { SyncGoogleAdMetricsJob.perform_later(ad_account_ids: google_ids, trigger: "manual", sync_batch_id: batch_id) } }
+    end
+
+    steps
   end
 
   def sync_redirect_params

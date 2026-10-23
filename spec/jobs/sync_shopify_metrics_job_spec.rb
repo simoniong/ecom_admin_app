@@ -46,6 +46,20 @@ RSpec.describe SyncShopifyMetricsJob, type: :job do
     described_class.perform_now
   end
 
+  it "claims the Dashboard batch's placeholder for the store" do
+    store = create(:shopify_store)
+    placeholder = create(:sync_run, :placeholder, source: "shopify_metrics", target: store)
+
+    service = instance_double(ShopifyAnalyticsService)
+    allow(ShopifyAnalyticsService).to receive(:new).and_return(service)
+    allow(service).to receive(:sync_date)
+
+    described_class.perform_now(trigger: "manual", sync_batch_id: placeholder.batch_id)
+
+    expect(SyncRun.where(source: "shopify_metrics", target: store).pluck(:id)).to eq([ placeholder.id ])
+    expect(placeholder.reload).to have_attributes(status: "succeeded", placeholder: false)
+  end
+
   it "records a succeeded auto run per store" do
     store = create(:shopify_store)
 
