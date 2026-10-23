@@ -45,6 +45,10 @@ Rails.application.routes.draw do
       root "dashboard#show", as: :authenticated_root
     end
 
+    post "dashboard/sync" => "dashboard#sync", as: :dashboard_sync
+    get "dashboard/sync_status" => "dashboard#sync_status", as: :dashboard_sync_status
+    post "dashboard/sync_status/acknowledge" => "dashboard#acknowledge_sync", as: :dashboard_acknowledge_sync
+
     resource :profile, only: [ :edit, :update ]
     resource :company, only: [ :new, :create, :edit, :update ]
     post "company/agent_api_key", to: "companies#regenerate_agent_api_key", as: :regenerate_company_agent_api_key

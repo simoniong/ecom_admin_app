@@ -1,0 +1,25 @@
+<%# Plain markup only: Task 5 builds the real badge + drawer UI on top of this
+    frame. Here we just surface the badge numbers and each source's state and
+    failures so the endpoints are independently testable. %>
+<%= turbo_frame_tag "dashboard_sync_status" do %>
+  <div data-sync-badge-state="<%= sync_status.badge[:state] %>">
+    <span data-sync-badge-failed-count><%= sync_status.badge[:failed_count] %></span>
+    <span data-sync-badge-running-count><%= sync_status.badge[:running_count] %></span>
+    <span data-sync-badge-updated-at><%= sync_status.badge[:updated_at] %></span>
+  </div>
+
+  <ul>
+    <% sync_status.sources.each do |source| %>
+      <li data-sync-source="<%= source.key %>" data-sync-source-state="<%= source.state %>">
+        <%= source.key %>: <%= source.state %>
+        <% unless source.failures.empty? %>
+          <ul>
+            <% source.failures.each do |failure| %>
+              <li><%= failure[:target_name] %>: <%= failure[:message] %></li>
+            <% end %>
+          </ul>
+        <% end %>
+      </li>
+    <% end %>
+  </ul>
+<% end %>
