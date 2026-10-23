@@ -131,6 +131,35 @@ RSpec.describe SyncStatus do
       .to raise_error(ArgumentError, /shopify_inventory/)
   end
 
+  it "has no updated_at when an acknowledged source has never succeeded, even though another source has" do
+    record(google_account, source: "google_ads", status: "failed", started_at: at(11),
+                           message: "Token expired — reconnect this ad account")
+    record(store_a, source: "shopify_metrics", started_at: at(10, 30))
+
+    status = sync_status(store_scope: stores(store_a), ad_scope: ad_accounts(google_account))
+    status.acknowledge!(:google_ads)
+    status = sync_status(store_scope: stores(store_a), ad_scope: ad_accounts(google_account))
+
+    expect(source_for(status, "google_ads").acknowledged).to be(true)
+    # google_ads is acknowledged (not :never — it has a failed run), so the badge
+    # is :ok, but it never succeeded: updated_at must not borrow shopify_metrics'
+    # success time and claim the whole scope is fresh.
+    expect(status.badge).to include(state: :ok, failed_count: 0, updated_at: nil)
+  end
+
+  it "updates signature and acknowledged_at in place on a second acknowledge! for the same source" do
+    record(google_account, source: "google_ads", status: "failed", started_at: at(10), message: "Error A")
+    first = sync_status(ad_scope: ad_accounts(google_account)).acknowledge!(:google_ads)
+
+    record(google_account, source: "google_ads", status: "failed", started_at: at(11), message: "Error B")
+    second = travel_to(at(13)) { sync_status(ad_scope: ad_accounts(google_account)).acknowledge!(:google_ads) }
+
+    expect(second.id).to eq(first.id)
+    expect(second.signature).not_to eq(first.signature)
+    expect(second.acknowledged_at).to eq(at(13))
+    expect(SyncAcknowledgement.where(user: user, company: company, source: "google_ads").count).to eq(1)
+  end
+
   it "re-raises a red when the error message changes after ack" do
     record(google_account, source: "google_ads", status: "failed", started_at: at(10), message: "Error A")
     travel_to(at(10, 30)) { sync_status(ad_scope: ad_accounts(google_account)).acknowledge!(:google_ads) }

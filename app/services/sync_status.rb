@@ -41,11 +41,17 @@ class SyncStatus
     source = sources.find { |candidate| candidate.key == source_key.to_s }
     raise ArgumentError, "unknown sync source: #{source_key}" if source.nil?
 
-    ack = SyncAcknowledgement.find_or_initialize_by(user: @user, company: @company, source: source.key)
-    ack.update!(signature: source.signature, acknowledged_at: Time.current)
+    # A single INSERT ... ON CONFLICT, not a check-then-insert: two concurrent
+    # acknowledgements for the same (user, company, source) can't both miss
+    # the row and hit the unique index in db/schema.rb.
+    SyncAcknowledgement.upsert(
+      { user_id: @user.id, company_id: @company.id, source: source.key,
+        signature: source.signature, acknowledged_at: Time.current },
+      unique_by: [ :user_id, :company_id, :source ]
+    )
     @acknowledgements = nil
     @rollups = nil
-    ack
+    SyncAcknowledgement.find_by!(user: @user, company: @company, source: source.key)
   end
 
   private
@@ -193,10 +199,17 @@ class SyncStatus
     rollups.count { |rollup| rollup[:running] }
   end
 
-  # Sources with no runs at all are ignored here: they would otherwise hold the
-  # badge back from green forever on a scope that never used that source.
+  # Only :never sources (no runs at all) are excluded, so they don't hold the
+  # badge back from green forever on a scope that never used that source. Any
+  # other remaining source — including one that is failed but acknowledged —
+  # that has never succeeded makes updated_at nil rather than silently
+  # reporting a different source's success time as if the whole scope were
+  # fresh.
   def updated_at
-    sources.reject { |source| source.state == :never }.filter_map(&:last_success_at).min
+    relevant = sources.reject { |source| source.state == :never }
+    return nil if relevant.any? { |source| source.last_success_at.nil? }
+
+    relevant.map(&:last_success_at).min
   end
 
   def badge_state
