@@ -26,18 +26,21 @@
 
 <%# The numbers on the page are the ones the manual run just refreshed, so
     offer to reload them — but only once that run is actually over. %>
-<% refreshable = !sync_status.running? && sync_status.sources.any? { |source|
-     source.history.any? { |run| run.trigger_manual? && run.finished_at.present? && run.finished_at > 10.minutes.ago } } %>
+<% refreshable = !sync_status.running? && sync_status.recent_manual_finish? %>
 
 <%= turbo_frame_tag "dashboard_sync_status" do %>
-  <div class="flex w-full items-center gap-2 sm:w-auto"
+  <div class="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:flex-nowrap"
        data-controller="sync-status"
        data-sync-status-running-value="<%= sync_status.running? %>"
        data-sync-status-url-value="<%= dashboard_sync_status_path(range_params) %>">
     <% if refreshable %>
-      <%= link_to t("dashboard.sync.refresh_numbers"), authenticated_root_path(range_params),
-          data: { turbo_frame: "dashboard_metrics" },
-          class: "hidden sm:inline text-xs text-gray-500 underline underline-offset-2 hover:text-gray-900" %>
+      <%# The href goes nowhere: which range to reload is client state, and the
+          controller reads it off the metrics frame. A range rendered here would
+          be the one the page first loaded with, which a preset click since then
+          has already left behind. %>
+      <%= link_to t("dashboard.sync.refresh_numbers"), "#",
+          data: { action: "click->sync-status#refreshMetrics" },
+          class: "text-xs text-gray-500 underline underline-offset-2 hover:text-gray-900" %>
     <% end %>
 
     <button type="button"

@@ -8,6 +8,8 @@ class SyncStatus
 
   HISTORY_LIMIT = 5
 
+  MANUAL_REFRESH_WINDOW = 10.minutes
+
   AD_PLATFORMS = { "meta_ads" => "meta", "google_ads" => "google" }.freeze
 
   def initialize(company:, store_scope:, ad_scope:, user:)
@@ -35,6 +37,24 @@ class SyncStatus
   # poll still has to follow the running unit to its end.
   def running?
     running_count.positive?
+  end
+
+  # Whether a manual sync in scope has just finished, so the numbers on the
+  # page are the ones it refreshed and the view can offer to reload them. Asked
+  # of every in-scope row rather than of the truncated history, which a burst
+  # of auto runs can push the manual run out of while it is still recent.
+  def recent_manual_finish?
+    return @recent_manual_finish unless @recent_manual_finish.nil?
+
+    @recent_manual_finish = SyncRun::SOURCES.any? do |key|
+      units = units_for(key)
+      next false if units.empty?
+
+      runs_for(key, units).trigger_manual
+                          .where(status: %w[succeeded failed])
+                          .where(finished_at: MANUAL_REFRESH_WINDOW.ago..)
+                          .exists?
+    end
   end
 
   def acknowledge!(source_key)

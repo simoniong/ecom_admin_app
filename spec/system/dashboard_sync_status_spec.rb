@@ -14,6 +14,21 @@ RSpec.describe "Dashboard sync status", type: :system do
     expect(page).to have_css("[data-sync-status-target='drawer']", visible: :visible)
   end
 
+  def manual_run
+    create(:sync_run, company: company, target: store, source: "shopify_metrics",
+                      trigger: "manual", started_at: 2.minutes.ago, finished_at: 2.minutes.ago)
+  end
+
+  # Reloading the metrics frame replaces its children, so a marker on one of
+  # them disappearing is proof that the refresh actually landed.
+  def mark_metrics
+    page.execute_script("document.querySelector('#dashboard_metrics p').dataset.refreshMarker = '1'")
+  end
+
+  def today_range
+    "#{I18n.l(Date.current)} — #{I18n.l(Date.current)}"
+  end
+
   it "shows a green badge with the last update time" do
     create(:sync_run, company: company, target: store, source: "shopify_metrics",
                       started_at: 5.minutes.ago, finished_at: 5.minutes.ago)
@@ -153,13 +168,49 @@ RSpec.describe "Dashboard sync status", type: :system do
   end
 
   it "offers a link to refresh the numbers after a manual sync finished" do
-    create(:sync_run, company: company, target: store, source: "shopify_metrics",
-                      trigger: "manual", started_at: 2.minutes.ago, finished_at: 2.minutes.ago)
+    manual_run
 
     sign_in_as(user)
     visit authenticated_root_path
 
     expect(page).to have_link(sync_t(:refresh_numbers))
+
+    mark_metrics
+    click_on sync_t(:refresh_numbers)
+
+    # The frame has no src on the first paint, so the refresh falls back to a
+    # Turbo visit; either way the numbers must come back.
+    expect(page).to have_no_css("[data-refresh-marker]")
+    expect(page).to have_content(I18n.t("dashboard.revenue"))
+  end
+
+  it "still offers the link when newer auto runs have filled the drawer history" do
+    manual_run
+    6.times do |index|
+      create(:sync_run, company: company, target: store, source: "shopify_metrics",
+                        started_at: (index + 1).seconds.ago, finished_at: (index + 1).seconds.ago)
+    end
+
+    sign_in_as(user)
+    visit authenticated_root_path
+
+    expect(page).to have_link(sync_t(:refresh_numbers))
+  end
+
+  it "refreshes the numbers for the range the user switched to, not the rendered one" do
+    manual_run
+
+    sign_in_as(user)
+    visit authenticated_root_path
+    click_on I18n.t("dashboard.ranges.today")
+
+    expect(page).to have_content(today_range, wait: 10)
+
+    mark_metrics
+    click_on sync_t(:refresh_numbers)
+
+    expect(page).to have_no_css("[data-refresh-marker]", wait: 10)
+    expect(page).to have_content(today_range, wait: 10)
   end
 
   context "at phone width" do
@@ -173,6 +224,16 @@ RSpec.describe "Dashboard sync status", type: :system do
 
       expect(page).to have_css("[data-sync-status-target='drawer'].bottom-0", visible: :visible)
       expect(page).to have_css("[data-sync-status-target='backdrop']", visible: :visible)
+    end
+
+    it "still shows the refresh link" do
+      manual_run
+
+      sign_in_as(user)
+      page.driver.browser.manage.window.resize_to(375, 800)
+      visit authenticated_root_path
+
+      expect(page).to have_link(sync_t(:refresh_numbers))
     end
   end
 end

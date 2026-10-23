@@ -44,7 +44,7 @@ class DashboardController < AdminController
     source = params[:source].to_s
 
     unless SyncRun::SOURCES.include?(source)
-      head :unprocessable_entity
+      head :unprocessable_content
       return
     end
 

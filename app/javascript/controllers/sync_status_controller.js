@@ -46,6 +46,21 @@ export default class extends Controller {
     if (event.target === this.backdropTarget) this.close()
   }
 
+  // The metrics frame carries the range the user is actually on: a preset click
+  // sets its src, so reloading that src re-runs the numbers for that range.
+  // With no src the frame has never moved off the range the page rendered with,
+  // and only a visit can reload it.
+  refreshMetrics(event) {
+    event.preventDefault()
+
+    const metrics = document.getElementById("dashboard_metrics")
+    if (metrics?.src) {
+      metrics.reload()
+    } else {
+      window.Turbo.visit(window.location.href)
+    }
+  }
+
   reveal() {
     this.drawerTarget.classList.remove("hidden")
     this.backdropTarget.classList.remove("hidden")

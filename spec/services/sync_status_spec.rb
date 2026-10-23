@@ -14,8 +14,8 @@ RSpec.describe SyncStatus do
     Time.zone.local(2026, 10, 23, hour, minute, 0)
   end
 
-  def record(target, source:, started_at:, status: "succeeded", message: nil)
-    create(:sync_run, target: target, source: source, status: status, error_message: message,
+  def record(target, source:, started_at:, status: "succeeded", message: nil, trigger: "auto")
+    create(:sync_run, target: target, source: source, status: status, error_message: message, trigger: trigger,
                       started_at: started_at, finished_at: (started_at unless status == "running"))
   end
 
@@ -231,5 +231,54 @@ RSpec.describe SyncStatus do
     history = source_for(sync_status(store_scope: stores(store_a)), "shopify_metrics").history
 
     expect(history.map(&:started_at)).to eq([ at(11), at(10), at(9), at(8), at(7) ])
+  end
+
+  describe "#recent_manual_finish?" do
+    it "is true for a manual run that finished inside the window" do
+      record(store_a, source: "shopify_metrics", started_at: at(11, 55), trigger: "manual")
+
+      expect(sync_status(store_scope: stores(store_a))).to be_recent_manual_finish
+    end
+
+    it "is true for a failed manual run: the numbers may still have moved" do
+      record(store_a, source: "shopify_metrics", started_at: at(11, 55), trigger: "manual",
+                      status: "failed", message: "boom")
+
+      expect(sync_status(store_scope: stores(store_a))).to be_recent_manual_finish
+    end
+
+    it "is true even once newer auto runs push the manual run out of the history" do
+      record(store_a, source: "shopify_metrics", started_at: at(11, 52), trigger: "manual")
+      (53..58).each { |minute| record(store_a, source: "shopify_metrics", started_at: at(11, minute)) }
+
+      status = sync_status(store_scope: stores(store_a))
+
+      expect(source_for(status, "shopify_metrics").history.map(&:trigger)).to all(eq("auto"))
+      expect(status).to be_recent_manual_finish
+    end
+
+    it "is false for a manual run that finished before the window" do
+      record(store_a, source: "shopify_metrics", started_at: at(11, 49), trigger: "manual")
+
+      expect(sync_status(store_scope: stores(store_a))).not_to be_recent_manual_finish
+    end
+
+    it "is false while the manual run is still running" do
+      record(store_a, source: "shopify_metrics", started_at: at(11, 55), trigger: "manual", status: "running")
+
+      expect(sync_status(store_scope: stores(store_a))).not_to be_recent_manual_finish
+    end
+
+    it "is false for a recent auto run" do
+      record(store_a, source: "shopify_metrics", started_at: at(11, 55))
+
+      expect(sync_status(store_scope: stores(store_a))).not_to be_recent_manual_finish
+    end
+
+    it "is false for a manual run on a unit outside the scope" do
+      record(store_b, source: "shopify_metrics", started_at: at(11, 55), trigger: "manual")
+
+      expect(sync_status(store_scope: stores(store_a))).not_to be_recent_manual_finish
+    end
   end
 end

@@ -134,7 +134,7 @@ RSpec.describe "Dashboard sync", type: :request do
     it "rejects an unknown source" do
       sign_in user
       post dashboard_acknowledge_sync_path, params: { source: "bogus_source" }
-      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response).to have_http_status(:unprocessable_content)
     end
 
     it "does not acknowledge a source with no active failure" do
