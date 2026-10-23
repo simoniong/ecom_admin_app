@@ -80,6 +80,28 @@ RSpec.describe SyncShopifyMetricsJob, type: :job do
     expect(run_b.status).to eq("succeeded")
   end
 
+  it "records a failed run when the service fails to initialise and still processes the other stores" do
+    store_a = create(:shopify_store)
+    store_b = create(:shopify_store)
+
+    service_b = instance_double(ShopifyAnalyticsService)
+    allow(ShopifyAnalyticsService).to receive(:new)
+      .with(hash_including(store_id: store_a.id))
+      .and_raise(RuntimeError, "bad credentials")
+    allow(ShopifyAnalyticsService).to receive(:new)
+      .with(hash_including(store_id: store_b.id))
+      .and_return(service_b)
+    allow(service_b).to receive(:sync_date)
+
+    expect { described_class.perform_now }.not_to raise_error
+
+    run_a = SyncRun.where(source: "shopify_metrics", target: store_a).last
+    run_b = SyncRun.where(source: "shopify_metrics", target: store_b).last
+    expect(run_a.status).to eq("failed")
+    expect(run_a.error_message).to include("bad credentials")
+    expect(run_b.status).to eq("succeeded")
+  end
+
   it "limits to store_ids and records trigger manual" do
     store_a = create(:shopify_store)
     store_b = create(:shopify_store)

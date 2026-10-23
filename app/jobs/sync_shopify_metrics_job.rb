@@ -14,14 +14,14 @@ class SyncShopifyMetricsJob < ApplicationJob
       shop_today = Time.current.in_time_zone(shop_tz).to_date
       dates = ((shop_today - days.days)..shop_today).to_a
 
-      service = ShopifyAnalyticsService.new(
-        shop_domain: store.shop_domain,
-        access_token: store.access_token,
-        store_id: store.id,
-        timezone: store.timezone
-      )
-
       SyncRun.track(source: "shopify_metrics", target: store, trigger: trigger) do
+        service = ShopifyAnalyticsService.new(
+          shop_domain: store.shop_domain,
+          access_token: store.access_token,
+          store_id: store.id,
+          timezone: store.timezone
+        )
+
         messages = []
 
         dates.each do |date|
