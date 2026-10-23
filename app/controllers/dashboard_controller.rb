@@ -139,32 +139,35 @@ class DashboardController < AdminController
     end
   end
 
+  # Each step pairs one perform_later with the placeholders it is the only
+  # thing that will ever report into, which is what makes a partial failure
+  # recoverable row by row.
   def sync_enqueue_steps(sync_plan)
-    batch_id = sync_plan[:batch_id]
     placeholders = sync_plan[:placeholders]
     store_ids = sync_plan[:store_ids]
     meta_ids = sync_plan[:meta_ids]
     google_ids = sync_plan[:google_ids]
+    batch = { trigger: "manual", sync_batch_id: sync_plan[:batch_id] }
     steps = []
 
     if store_ids.any?
       steps << { run_ids: store_ids.map { |id| placeholders[[ "shopify_metrics", id ]] },
-                 enqueue: -> { SyncShopifyMetricsJob.perform_later(store_ids: store_ids, trigger: "manual", sync_batch_id: batch_id) } }
+                 enqueue: -> { SyncShopifyMetricsJob.perform_later(store_ids: store_ids, **batch) } }
     end
 
     store_ids.each do |store_id|
       steps << { run_ids: [ placeholders[[ "shopify_orders", store_id ]] ],
-                 enqueue: -> { SyncAllShopifyOrdersJob.perform_later(store_id, trigger: "manual", sync_batch_id: batch_id) } }
+                 enqueue: -> { SyncAllShopifyOrdersJob.perform_later(store_id, **batch) } }
     end
 
     if meta_ids.any?
       steps << { run_ids: meta_ids.map { |id| placeholders[[ "meta_ads", id ]] },
-                 enqueue: -> { SyncAdMetricsJob.perform_later(ad_account_ids: meta_ids, trigger: "manual", sync_batch_id: batch_id) } }
+                 enqueue: -> { SyncAdMetricsJob.perform_later(ad_account_ids: meta_ids, **batch) } }
     end
 
     if google_ids.any?
       steps << { run_ids: google_ids.map { |id| placeholders[[ "google_ads", id ]] },
-                 enqueue: -> { SyncGoogleAdMetricsJob.perform_later(ad_account_ids: google_ids, trigger: "manual", sync_batch_id: batch_id) } }
+                 enqueue: -> { SyncGoogleAdMetricsJob.perform_later(ad_account_ids: google_ids, **batch) } }
     end
 
     steps
