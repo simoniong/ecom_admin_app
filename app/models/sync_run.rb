@@ -1,4 +1,6 @@
 class SyncRun < ApplicationRecord
+  class Failed < StandardError; end
+
   belongs_to :company
   belongs_to :target, polymorphic: true
 
