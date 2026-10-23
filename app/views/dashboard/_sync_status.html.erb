@@ -58,12 +58,24 @@
       <%= pill_label %>
     </button>
 
-    <%= button_to dashboard_sync_path(range_params),
-        disabled: sync_status.running?,
-        form: { data: { turbo_frame: "_top" } },
-        data: { sync_button: "" },
-        class: "px-3 py-1.5 text-xs font-medium text-white bg-gray-900 rounded-full hover:bg-gray-800 disabled:opacity-50" do %>
-      ⟳ <%= t("dashboard.sync.button") %>
+    <%# The range travels in hidden fields rather than the action, because the
+        redirect is a _top visit and has to land on the range the user is on
+        now. These carry the server-rendered range; the controller overwrites
+        them from the metrics frame on submit if a preset click has moved it. %>
+    <%= form_with url: dashboard_sync_path, method: :post,
+        data: { turbo_frame: "_top", action: "submit->sync-status#applyCurrentRange" } do |form| %>
+      <%= form.hidden_field :range, value: range_params[:range],
+          data: { sync_status_target: "range" } %>
+      <%= form.hidden_field :start_date, value: range_params[:start_date],
+          data: { sync_status_target: "startDate" } %>
+      <%= form.hidden_field :end_date, value: range_params[:end_date],
+          data: { sync_status_target: "endDate" } %>
+      <%= form.button type: :submit,
+          disabled: sync_status.running?,
+          data: { sync_button: "" },
+          class: "px-3 py-1.5 text-xs font-medium text-white bg-gray-900 rounded-full hover:bg-gray-800 disabled:opacity-50" do %>
+        ⟳ <%= t("dashboard.sync.button") %>
+      <% end %>
     <% end %>
 
     <%# Mobile only: the bottom sheet covers the numbers, so it needs the dim

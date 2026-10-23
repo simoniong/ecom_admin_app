@@ -9,7 +9,7 @@ import { Controller } from "@hotwired/stimulus"
 let openedOnBody = null
 
 export default class extends Controller {
-  static targets = ["drawer", "backdrop"]
+  static targets = ["drawer", "backdrop", "range", "startDate", "endDate"]
   static values = {
     running: Boolean,
     interval: { type: Number, default: 5000 },
@@ -59,6 +59,20 @@ export default class extends Controller {
     } else {
       window.Turbo.visit(window.location.href)
     }
+  }
+
+  // Sync redirects the whole page, so it has to be told which range to come
+  // back on. A preset click only moves the metrics frame's src, leaving the
+  // form holding the range the page was first rendered with — copy the frame's
+  // range over it before the submission is serialized.
+  applyCurrentRange() {
+    const metrics = document.getElementById("dashboard_metrics")
+    if (!metrics?.src) return
+
+    const params = new URL(metrics.src, window.location.origin).searchParams
+    this.rangeTarget.value = params.get("range") || ""
+    this.startDateTarget.value = params.get("start_date") || ""
+    this.endDateTarget.value = params.get("end_date") || ""
   }
 
   reveal() {

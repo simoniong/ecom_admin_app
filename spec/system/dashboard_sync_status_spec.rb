@@ -160,6 +160,27 @@ RSpec.describe "Dashboard sync status", type: :system do
     ActiveJob::Base.queue_adapter = original_adapter
   end
 
+  it "stays on the range the user switched to when Sync redirects" do
+    # The placeholder rows are what the badge reads; running the jobs for real
+    # would resolve them before the assertions below.
+    original_adapter = ActiveJob::Base.queue_adapter
+    ActiveJob::Base.queue_adapter = :test
+
+    sign_in_as(user)
+    visit authenticated_root_path
+    click_on I18n.t("dashboard.ranges.today")
+    expect(page).to have_content(today_range, wait: 10)
+
+    find("[data-sync-button]").click
+
+    # The form was rendered with the range the page first loaded with; the
+    # redirect must still land on the one the user is actually looking at.
+    expect(page).to have_content(sync_t(:running, count: 2, total: 2))
+    expect(page).to have_content(today_range)
+  ensure
+    ActiveJob::Base.queue_adapter = original_adapter
+  end
+
   it "updates from running to done without reloading the page" do
     create(:sync_run, company: company, target: store, source: "shopify_orders",
                       started_at: 1.minute.ago, finished_at: Time.current)
