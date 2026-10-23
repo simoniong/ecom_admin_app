@@ -13,6 +13,8 @@ class Company < ApplicationRecord
   has_many :shipping_zone_postal_rules, dependent: :destroy
   has_many :shipping_remote_area_versions, dependent: :destroy
   has_many :logistics_accounts, dependent: :destroy
+  has_many :sync_runs, dependent: :delete_all
+  has_many :sync_acknowledgements, dependent: :delete_all
 
   AVAILABLE_LOCALES = I18n.available_locales.map(&:to_s).freeze
 

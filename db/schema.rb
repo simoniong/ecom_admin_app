@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_11_154952) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_23_142932) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -815,6 +815,35 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_11_154952) do
     t.index ["key"], name: "index_solid_queue_semaphores_on_key", unique: true
   end
 
+  create_table "sync_acknowledgements", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.datetime "acknowledged_at", null: false
+    t.uuid "company_id", null: false
+    t.datetime "created_at", null: false
+    t.string "signature", null: false
+    t.string "source", null: false
+    t.datetime "updated_at", null: false
+    t.uuid "user_id", null: false
+    t.index ["company_id"], name: "index_sync_acknowledgements_on_company_id"
+    t.index ["user_id", "company_id", "source"], name: "idx_on_user_id_company_id_source_e45d84fdaf", unique: true
+    t.index ["user_id"], name: "index_sync_acknowledgements_on_user_id"
+  end
+
+  create_table "sync_runs", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "company_id", null: false
+    t.datetime "created_at", null: false
+    t.text "error_message"
+    t.datetime "finished_at"
+    t.string "source", null: false
+    t.datetime "started_at", null: false
+    t.string "status", null: false
+    t.uuid "target_id", null: false
+    t.string "target_type", null: false
+    t.string "trigger", null: false
+    t.datetime "updated_at", null: false
+    t.index ["company_id", "source", "target_type", "target_id", "started_at"], name: "idx_sync_runs_on_company_source_target_started_at"
+    t.index ["company_id"], name: "index_sync_runs_on_company_id"
+  end
+
   create_table "tickets", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.boolean "bcc_trustpilot", default: false, null: false
     t.datetime "created_at", null: false
@@ -933,6 +962,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_11_154952) do
   add_foreign_key "solid_queue_ready_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
   add_foreign_key "solid_queue_recurring_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
   add_foreign_key "solid_queue_scheduled_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
+  add_foreign_key "sync_acknowledgements", "companies"
+  add_foreign_key "sync_acknowledgements", "users"
+  add_foreign_key "sync_runs", "companies"
   add_foreign_key "tickets", "customers"
   add_foreign_key "tickets", "email_accounts"
   add_foreign_key "tickets", "orders"
