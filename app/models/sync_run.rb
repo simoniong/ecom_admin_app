@@ -32,10 +32,7 @@ class SyncRun < ApplicationRecord
   # then records a running row, yields, and marks it succeeded/failed. Always
   # re-raises so existing job error handling (log and continue) is unchanged.
   def self.track(source:, target:, trigger:)
-    where(
-      source: source, target: target, status: "running",
-      trigger: "manual", finished_at: nil
-    ).delete_all
+    delete_matching_manual_placeholder(source: source, target: target)
 
     run = create!(
       company_id: target.company_id,
@@ -62,8 +59,12 @@ class SyncRun < ApplicationRecord
   end
 
   # Records a single finished failed run, e.g. for an expired-token skip
-  # that never started any work.
+  # that never started any work. Consumes the matching manual placeholder
+  # the same way .track does, so an expired-token skip doesn't leave a
+  # "running" row occupying a history slot alongside the failed one.
   def self.record_failure(source:, target:, trigger:, message:)
+    delete_matching_manual_placeholder(source: source, target: target)
+
     now = Time.current
     create!(
       company_id: target.company_id,
@@ -89,6 +90,18 @@ class SyncRun < ApplicationRecord
   def self.purge_older_than(age)
     where("started_at < ?", age.ago).delete_all
   end
+
+  # Shared by .track and .record_failure: removes the manual placeholder row
+  # Task 4's Dashboard Sync action pre-created for this unit, so every job
+  # terminal path (succeeded, failed, or an expired-token skip) consumes it
+  # instead of leaving it stuck as "running".
+  def self.delete_matching_manual_placeholder(source:, target:)
+    where(
+      source: source, target: target, status: "running",
+      trigger: "manual", finished_at: nil
+    ).delete_all
+  end
+  private_class_method :delete_matching_manual_placeholder
 
   def stale?
     running? && started_at < STALE_AFTER.fetch(source).ago

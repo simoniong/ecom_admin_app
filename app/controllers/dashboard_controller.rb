@@ -21,24 +21,14 @@ class DashboardController < AdminController
   end
 
   def sync
-    status = sync_status_for_current_scope
+    sync_plan = create_sync_placeholders_if_idle
 
-    if status.running?
+    if sync_plan.nil?
       redirect_to authenticated_root_path(sync_redirect_params), alert: t("dashboard.sync.already_running")
       return
     end
 
-    store_scope, ad_scope = dashboard_scopes
-    store_ids = store_scope.pluck(:id)
-    meta_ids = ad_scope.where(platform: "meta").pluck(:id)
-    google_ids = ad_scope.where(platform: "google").pluck(:id)
-
-    create_placeholder_runs(store_scope, ad_scope)
-
-    SyncShopifyMetricsJob.perform_later(store_ids: store_ids, trigger: "manual") if store_ids.any?
-    store_ids.each { |store_id| SyncAllShopifyOrdersJob.perform_later(store_id, trigger: "manual") }
-    SyncAdMetricsJob.perform_later(ad_account_ids: meta_ids, trigger: "manual") if meta_ids.any?
-    SyncGoogleAdMetricsJob.perform_later(ad_account_ids: google_ids, trigger: "manual") if google_ids.any?
+    enqueue_sync_jobs(sync_plan)
 
     redirect_to authenticated_root_path(sync_redirect_params), notice: t("dashboard.sync.enqueued")
   end
@@ -58,7 +48,12 @@ class DashboardController < AdminController
     end
 
     status = sync_status_for_current_scope
-    status.acknowledge!(source)
+    current_source = status.sources.find { |candidate| candidate.key == source }
+
+    # A source with no current failure has no signature to acknowledge
+    # against (sync_acknowledgements.signature is NOT NULL) — silently no-op
+    # and re-render instead of writing a meaningless acknowledgement.
+    status.acknowledge!(source) if current_source&.signature.present?
 
     render partial: "dashboard/sync_status", locals: { sync_status: status }, layout: false
   end
@@ -74,29 +69,81 @@ class DashboardController < AdminController
     DashboardMetricsService.scopes_for(selected_view_group || current_company, current_shopify_store)
   end
 
+  # Serializes the running?-check/placeholder-create transition per company:
+  # takes a Postgres transaction-level advisory lock scoped to the company
+  # before checking, so two overlapping requests can't both see nothing
+  # running and both enqueue. Returns nil (do nothing) if a run in scope is
+  # already running, otherwise the ids to enqueue plus the placeholder rows
+  # this request created, once the transaction has committed.
+  def create_sync_placeholders_if_idle
+    ActiveRecord::Base.transaction do
+      acquire_sync_advisory_lock
+
+      next nil if sync_status_for_current_scope.running?
+
+      store_scope, ad_scope = dashboard_scopes
+      {
+        store_ids: store_scope.pluck(:id),
+        meta_ids: ad_scope.where(platform: "meta").pluck(:id),
+        google_ids: ad_scope.where(platform: "google").pluck(:id),
+        runs: create_placeholder_runs(store_scope, ad_scope)
+      }
+    end
+  end
+
+  def acquire_sync_advisory_lock
+    ActiveRecord::Base.connection.execute(
+      ActiveRecord::Base.sanitize_sql_array(
+        [ "SELECT pg_advisory_xact_lock(hashtext(?))", "dashboard_sync:#{current_company.id}" ]
+      )
+    )
+  end
+
   # One placeholder per unit per source it will run under, so the badge goes
   # yellow the instant Sync is clicked. SyncRun#track (Task 1) deletes these
   # once the matching job actually starts, which closes the double-click race
   # without this request having to wait on the jobs themselves.
   def create_placeholder_runs(store_scope, ad_scope)
     now = Time.current
+    runs = []
 
     store_scope.find_each do |store|
-      SyncRun.create!(source: "shopify_metrics", target: store, company_id: current_company.id,
-                       trigger: "manual", status: "running", started_at: now)
-      SyncRun.create!(source: "shopify_orders", target: store, company_id: current_company.id,
-                       trigger: "manual", status: "running", started_at: now)
+      runs << SyncRun.create!(source: "shopify_metrics", target: store, company_id: current_company.id,
+                               trigger: "manual", status: "running", started_at: now)
+      runs << SyncRun.create!(source: "shopify_orders", target: store, company_id: current_company.id,
+                               trigger: "manual", status: "running", started_at: now)
     end
 
     ad_scope.where(platform: "meta").find_each do |account|
-      SyncRun.create!(source: "meta_ads", target: account, company_id: current_company.id,
-                       trigger: "manual", status: "running", started_at: now)
+      runs << SyncRun.create!(source: "meta_ads", target: account, company_id: current_company.id,
+                               trigger: "manual", status: "running", started_at: now)
     end
 
     ad_scope.where(platform: "google").find_each do |account|
-      SyncRun.create!(source: "google_ads", target: account, company_id: current_company.id,
-                       trigger: "manual", status: "running", started_at: now)
+      runs << SyncRun.create!(source: "google_ads", target: account, company_id: current_company.id,
+                               trigger: "manual", status: "running", started_at: now)
     end
+
+    runs
+  end
+
+  # Enqueues after the placeholder transaction has committed, so the jobs
+  # never see rows a rolled-back transaction removed. If enqueueing raises
+  # partway through, the placeholders this request created would otherwise
+  # sit as "running" until they go stale; delete them and re-raise so the
+  # failure is still visible (same job-error handling callers already expect).
+  def enqueue_sync_jobs(sync_plan)
+    store_ids = sync_plan[:store_ids]
+    meta_ids = sync_plan[:meta_ids]
+    google_ids = sync_plan[:google_ids]
+
+    SyncShopifyMetricsJob.perform_later(store_ids: store_ids, trigger: "manual") if store_ids.any?
+    store_ids.each { |store_id| SyncAllShopifyOrdersJob.perform_later(store_id, trigger: "manual") }
+    SyncAdMetricsJob.perform_later(ad_account_ids: meta_ids, trigger: "manual") if meta_ids.any?
+    SyncGoogleAdMetricsJob.perform_later(ad_account_ids: google_ids, trigger: "manual") if google_ids.any?
+  rescue StandardError
+    SyncRun.where(id: sync_plan[:runs].map(&:id)).delete_all
+    raise
   end
 
   def sync_redirect_params

@@ -54,6 +54,33 @@ RSpec.describe "Dashboard sync", type: :request do
       expect(response).to have_http_status(:redirect)
       expect(flash[:alert]).to eq(I18n.t("dashboard.sync.already_running"))
     end
+
+    it "enqueues nothing on a second request once the first's running placeholders are in scope" do
+      store = create(:shopify_store, user: user)
+      sign_in user
+
+      post dashboard_sync_path, params: { store_id: store.id }
+
+      expect {
+        post dashboard_sync_path, params: { store_id: store.id }
+      }.not_to have_enqueued_job
+
+      expect(response).to have_http_status(:redirect)
+      expect(flash[:alert]).to eq(I18n.t("dashboard.sync.already_running"))
+    end
+
+    it "removes the placeholder rows it created when enqueueing raises" do
+      store = create(:shopify_store, user: user)
+      sign_in user
+
+      allow(SyncShopifyMetricsJob).to receive(:perform_later).and_raise(StandardError, "queue down")
+
+      expect {
+        post dashboard_sync_path, params: { store_id: store.id }
+      }.to raise_error(StandardError, "queue down")
+
+      expect(SyncRun.where(company_id: company.id, target: store)).to be_empty
+    end
   end
 
   describe "GET /dashboard/sync_status" do
@@ -108,6 +135,17 @@ RSpec.describe "Dashboard sync", type: :request do
       sign_in user
       post dashboard_acknowledge_sync_path, params: { source: "bogus_source" }
       expect(response).to have_http_status(:unprocessable_entity)
+    end
+
+    it "does not acknowledge a source with no active failure" do
+      sign_in user
+
+      expect {
+        post dashboard_acknowledge_sync_path, params: { source: "shopify_metrics" }
+      }.not_to change(SyncAcknowledgement, :count)
+
+      expect(response).to have_http_status(:success)
+      expect(response.body).to include('turbo-frame id="dashboard_sync_status"')
     end
   end
 end

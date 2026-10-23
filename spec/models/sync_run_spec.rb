@@ -56,6 +56,18 @@ RSpec.describe SyncRun, type: :model do
       expect(run).to have_attributes(status: "failed", started_at: run.finished_at)
       expect(run.error_message).to eq("Token expired — reconnect this ad account")
     end
+
+    it "replaces a pre-created manual placeholder for the same target" do
+      store = create(:shopify_store)
+      create(:sync_run, source: "meta_ads", target: store, trigger: "manual", status: "running", finished_at: nil)
+
+      SyncRun.record_failure(
+        source: "meta_ads", target: store, trigger: "manual",
+        message: "Token expired — reconnect this ad account"
+      )
+
+      expect(SyncRun.where(source: "meta_ads", target: store).pluck(:status)).to eq([ "failed" ])
+    end
   end
 
   describe "#stale? and #effective_status/#effective_error" do
