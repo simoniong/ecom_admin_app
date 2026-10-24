@@ -131,4 +131,41 @@ RSpec.describe EmailScheduler do
       expect(ticket.scheduled_job_id).to be_nil
     end
   end
+
+  describe ".send_now!" do
+    it "points the ticket at a new immediate job and enqueues it" do
+      ticket.update!(status: :draft_confirmed, scheduled_send_at: 10.hours.from_now, scheduled_job_id: "old-job")
+
+      freeze_time do
+        expect { described_class.send_now!(ticket) }.to have_enqueued_job(SendScheduledEmailJob).with(ticket.id)
+        ticket.reload
+
+        expect(ticket.scheduled_send_at).to eq(Time.current)
+        expect(ticket.scheduled_job_id).not_to eq("old-job")
+        expect(ticket.scheduled_job_id).to eq(ActiveJob::Base.queue_adapter.enqueued_jobs.last["job_id"])
+      end
+    end
+
+    it "makes the previously scheduled job skip itself" do
+      ticket.update!(status: :draft_confirmed, scheduled_job_id: "old-job")
+      described_class.send_now!(ticket)
+
+      SendScheduledEmailJob.new(ticket.id).perform(ticket.id, expected_job_id: "old-job")
+
+      expect(ticket.reload).to be_draft_confirmed
+      expect(ticket.sending_started_at).to be_nil
+    end
+
+    it "refuses a ticket that is not draft_confirmed" do
+      expect { described_class.send_now!(ticket) }.to raise_error(EmailScheduler::NotSendable)
+      expect(ticket.reload.scheduled_job_id).to be_nil
+    end
+
+    it "refuses a ticket whose send has already started" do
+      ticket.update!(status: :draft_confirmed, scheduled_job_id: "old-job", sending_started_at: 1.minute.ago)
+
+      expect { described_class.send_now!(ticket) }.to raise_error(EmailScheduler::NotSendable)
+      expect(ticket.reload.scheduled_job_id).to eq("old-job")
+    end
+  end
 end

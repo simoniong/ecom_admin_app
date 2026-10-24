@@ -253,4 +253,30 @@ RSpec.describe "Tickets", type: :system do
       expect(page).to have_button(I18n.t("tickets.show.confirm_schedule"))
     end
   end
+
+  describe "Send Now" do
+    it "sends a confirmed ticket immediately after confirming" do
+      ticket = create(:ticket, :draft_confirmed, email_account: email_account, scheduled_send_at: 10.hours.from_now, scheduled_job_id: "old-job")
+
+      sign_in_as user
+      visit ticket_path(id: ticket.id)
+
+      accept_confirm do
+        click_button I18n.t("tickets.show.send_now")
+      end
+
+      expect(page).to have_text(I18n.t("tickets.show.send_now_queued"))
+      expect(ticket.reload.scheduled_job_id).not_to eq("old-job")
+    end
+
+    it "hides the button once sending has started" do
+      ticket = create(:ticket, :draft_confirmed, email_account: email_account, sending_started_at: 1.minute.ago)
+
+      sign_in_as user
+      visit ticket_path(id: ticket.id)
+
+      expect(page).to have_button(I18n.t("tickets.show.edit_draft"))
+      expect(page).not_to have_button(I18n.t("tickets.show.send_now"))
+    end
+  end
 end

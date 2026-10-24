@@ -1,5 +1,5 @@
 class TicketsController < AdminController
-  before_action :set_ticket, only: [ :show, :update, :search_customers, :search_orders, :link_customer, :instruct_agent, :bind_order ]
+  before_action :set_ticket, only: [ :show, :update, :search_customers, :search_orders, :link_customer, :instruct_agent, :bind_order, :send_now ]
 
   def index
     tickets = visible_tickets.includes(:email_account, :customer)
@@ -215,6 +215,13 @@ class TicketsController < AdminController
     else
       handle_draft_update
     end
+  end
+
+  def send_now
+    EmailScheduler.send_now!(@ticket)
+    redirect_to ticket_path(id: @ticket.id), notice: t("tickets.show.send_now_queued")
+  rescue EmailScheduler::NotSendable
+    redirect_to ticket_path(id: @ticket.id), alert: t("tickets.show.send_now_unavailable")
   end
 
   private
