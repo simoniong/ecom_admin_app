@@ -503,7 +503,7 @@ RSpec.describe "AdCampaigns", type: :request do
       expect {
         post sync_ad_campaigns_path
       }.to have_enqueued_job(SyncAdCampaignsJob).with(company_id: company_id)
-        .and have_enqueued_job(SyncGoogleAdMetricsJob).with(company_id: company_id)
+        .and have_enqueued_job(SyncGoogleAdMetricsJob).with(company_id: company_id, trigger: "manual")
       expect(response).to redirect_to(ad_campaigns_path)
       expect(flash[:notice]).to eq(I18n.t("ad_campaigns.sync_enqueued"))
     end

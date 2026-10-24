@@ -80,7 +80,7 @@ class GoogleAdsOauthController < AdminController
       )
       ad_account.save!
 
-      SyncGoogleAdMetricsJob.perform_later(ad_account_id: ad_account.id, days: BACKFILL_DAYS)
+      SyncGoogleAdMetricsJob.perform_later(ad_account_id: ad_account.id, days: BACKFILL_DAYS, trigger: "manual")
     end
 
     redirect_to ad_accounts_path, notice: t("ad_accounts.bind_success")

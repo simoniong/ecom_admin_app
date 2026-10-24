@@ -60,4 +60,45 @@ RSpec.describe SyncGoogleAdMetricsJob, type: :job do
     expect { described_class.perform_now }.not_to raise_error
     expect(GoogleAdsService).to have_received(:new).with(second)
   end
+
+  it "records a succeeded auto run per account" do
+    stub_service
+
+    described_class.perform_now
+
+    run = SyncRun.where(source: "google_ads", target: google).last
+    expect(run.status).to eq("succeeded")
+    expect(run.trigger).to eq("auto")
+  end
+
+  it "claims the Dashboard batch's placeholder for the account" do
+    placeholder = create(:sync_run, :placeholder, source: "google_ads", target: google)
+    stub_service
+
+    described_class.perform_now(trigger: "manual", sync_batch_id: placeholder.batch_id)
+
+    expect(SyncRun.where(source: "google_ads", target: google).pluck(:id)).to eq([ placeholder.id ])
+    expect(placeholder.reload).to have_attributes(status: "succeeded", placeholder: false)
+  end
+
+  it "records an expired-token account as failed with the reconnect message" do
+    google.update!(token_expires_at: 1.minute.ago)
+    stub_service
+
+    described_class.perform_now
+
+    run = SyncRun.where(source: "google_ads", target: google).last
+    expect(run.status).to eq("failed")
+    expect(run.error_message).to eq("Token expired — reconnect this ad account")
+  end
+
+  it "limits to ad_account_ids" do
+    other = create(:ad_account, :google)
+    stub_service
+
+    described_class.perform_now(ad_account_ids: [ google.id ])
+
+    expect(SyncRun.where(source: "google_ads", target: google)).to be_present
+    expect(SyncRun.where(source: "google_ads", target: other)).to be_empty
+  end
 end

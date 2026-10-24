@@ -43,4 +43,17 @@ RSpec.describe SyncAllShopifyOrdersRecurringJob, type: :job do
     expect(SyncAllOrdersService).not_to receive(:new)
     described_class.perform_now
   end
+
+  it "records trigger auto" do
+    store = create(:shopify_store)
+    service = instance_double(SyncAllOrdersService)
+    allow(SyncAllOrdersService).to receive(:new).with(store).and_return(service)
+    allow(service).to receive(:call).and_return(customers: 0, orders: 0)
+
+    described_class.perform_now
+
+    run = SyncRun.where(source: "shopify_orders", target: store).last
+    expect(run.status).to eq("succeeded")
+    expect(run.trigger).to eq("auto")
+  end
 end

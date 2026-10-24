@@ -45,4 +45,41 @@ RSpec.describe SyncAllShopifyOrdersJob, type: :job do
 
     expect { described_class.perform_now(store.id) }.not_to raise_error
   end
+
+  it "claims the Dashboard batch's placeholder for the store" do
+    store = create(:shopify_store)
+    placeholder = create(:sync_run, :placeholder, source: "shopify_orders", target: store)
+    service = instance_double(SyncAllOrdersService)
+    allow(SyncAllOrdersService).to receive(:new).with(store).and_return(service)
+    allow(service).to receive(:call).and_return(customers: 0, orders: 0)
+
+    described_class.perform_now(store.id, sync_batch_id: placeholder.batch_id)
+
+    expect(SyncRun.where(source: "shopify_orders", target: store).pluck(:id)).to eq([ placeholder.id ])
+    expect(placeholder.reload).to have_attributes(status: "succeeded", placeholder: false)
+  end
+
+  it "records a succeeded run with the default trigger manual" do
+    store = create(:shopify_store, orders_synced_at: 1.hour.ago)
+    service = instance_double(SyncAllOrdersService)
+    allow(SyncAllOrdersService).to receive(:new).with(store).and_return(service)
+    allow(service).to receive(:call).and_return(customers: 0, orders: 0)
+
+    described_class.perform_now(store.id)
+
+    run = SyncRun.where(source: "shopify_orders", target: store).last
+    expect(run.status).to eq("succeeded")
+    expect(run.trigger).to eq("manual")
+  end
+
+  it "records a failed run with the given trigger when the service raises" do
+    store = create(:shopify_store)
+    allow(SyncAllOrdersService).to receive(:new).and_raise(RuntimeError, "API error")
+
+    described_class.perform_now(store.id, trigger: "auto")
+
+    run = SyncRun.where(source: "shopify_orders", target: store).last
+    expect(run.status).to eq("failed")
+    expect(run.trigger).to eq("auto")
+  end
 end
