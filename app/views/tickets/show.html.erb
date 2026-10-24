@@ -188,6 +188,19 @@
                 color: "yellow", icon: "pencil" %>
           <% end %>
 
+          <%# draft_confirmed → send immediately, skipping the send window %>
+          <% if @ticket.draft_confirmed? && @ticket.sending_started_at.nil? %>
+            <%= button_to send_now_ticket_path(id: @ticket.id),
+                method: :post,
+                class: "inline-flex items-center gap-1.5 px-4 py-2 text-white text-sm font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 cursor-pointer bg-green-600 hover:bg-green-700 focus:ring-green-500",
+                data: { turbo_confirm: t("tickets.show.send_now_confirm") } do %>
+              <svg class="w-4 h-4" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" />
+              </svg>
+              <%= t("tickets.show.send_now") %>
+            <% end %>
+          <% end %>
+
           <%# draft → new_ticket %>
           <% if @ticket.draft? %>
             <%= render "tickets/status_transition_button",
