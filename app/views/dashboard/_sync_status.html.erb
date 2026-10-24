@@ -1,0 +1,145 @@
+<%# Badge, drawer and 5 s poll for the Dashboard's sync status.
+
+    The frame is deliberately rendered without a src: the dashboard already
+    paints the badge inline, and a src here would make Turbo fetch it a second
+    time on every load. The Stimulus controller sets the src itself, with the
+    range params, when it has a running sync to poll for. %>
+<% badge = sync_status.badge %>
+<% range_params = params.permit(:range, :start_date, :end_date).to_h.compact_blank %>
+<% dot_colors = { succeeded: "bg-green-600", running: "bg-amber-500", failed: "bg-red-600",
+                  incomplete: "bg-gray-400", never: "bg-gray-400" } %>
+<% run_marks = { "succeeded" => "✓", "failed" => "✕", "running" => "…" } %>
+<% neutral_pill = "border-gray-200 bg-gray-50 text-gray-700 hover:bg-gray-100" %>
+<% muted_pill = "border-gray-200 bg-gray-50 text-gray-500 hover:bg-gray-100" %>
+
+<%# Green is the only state with an update time to show, and on green there is
+    always one: every applicable source has every unit synced. %>
+<% pill_label, pill_classes, pill_dot =
+     case badge[:state]
+     when :failed
+       [ t("dashboard.sync.failed", count: badge[:failed_count]),
+         "border-red-200 bg-red-50 text-red-800 hover:bg-red-100", dot_colors[:failed] ]
+     when :running
+       [ t("dashboard.sync.running", count: badge[:running_count], total: badge[:applicable_count]),
+         neutral_pill, dot_colors[:running] ]
+     when :never
+       [ t("dashboard.sync.never"), muted_pill, dot_colors[:never] ]
+     when :incomplete
+       [ t("dashboard.sync.incomplete"), muted_pill, dot_colors[:incomplete] ]
+     else
+       [ t("dashboard.sync.updated_ago", time: time_ago_in_words(badge[:updated_at])),
+         neutral_pill, dot_colors[:succeeded] ]
+     end %>
+
+<%# The numbers on the page are the ones the manual run just refreshed, so
+    offer to reload them — but only once that run is actually over. %>
+<% refreshable = !sync_status.running? && sync_status.recent_manual_finish? %>
+
+<%= turbo_frame_tag "dashboard_sync_status" do %>
+  <div class="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:flex-nowrap"
+       data-controller="sync-status"
+       data-sync-status-running-value="<%= sync_status.running? %>"
+       data-sync-status-url-value="<%= dashboard_sync_status_path(range_params) %>">
+    <% if refreshable %>
+      <%# The href goes nowhere: which range to reload is client state, and the
+          controller reads it off the metrics frame. A range rendered here would
+          be the one the page first loaded with, which a preset click since then
+          has already left behind. %>
+      <%= link_to t("dashboard.sync.refresh_numbers"), "#",
+          data: { action: "click->sync-status#refreshMetrics" },
+          class: "text-xs text-gray-500 underline underline-offset-2 hover:text-gray-900" %>
+    <% end %>
+
+    <button type="button"
+            data-sync-badge-state="<%= badge[:state] %>"
+            data-action="click->sync-status#open"
+            class="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-3 py-1.5 text-xs rounded-full border transition <%= pill_classes %>">
+      <span class="w-2 h-2 rounded-full flex-none <%= pill_dot %>"></span>
+      <%= pill_label %>
+    </button>
+
+    <%# The range travels in hidden fields rather than the action, because the
+        redirect is a _top visit and has to land on the range the user is on
+        now. These carry the server-rendered range; the controller overwrites
+        them from the metrics frame on submit if a preset click has moved it. %>
+    <%= form_with url: dashboard_sync_path, method: :post,
+        data: { turbo_frame: "_top", action: "submit->sync-status#applyCurrentRange" } do |form| %>
+      <%= form.hidden_field :range, value: range_params[:range],
+          data: { sync_status_target: "range" } %>
+      <%= form.hidden_field :start_date, value: range_params[:start_date],
+          data: { sync_status_target: "startDate" } %>
+      <%= form.hidden_field :end_date, value: range_params[:end_date],
+          data: { sync_status_target: "endDate" } %>
+      <%= form.button type: :submit,
+          disabled: sync_status.running?,
+          data: { sync_button: "" },
+          class: "px-3 py-1.5 text-xs font-medium text-white bg-gray-900 rounded-full hover:bg-gray-800 disabled:opacity-50" do %>
+        ⟳ <%= t("dashboard.sync.button") %>
+      <% end %>
+    <% end %>
+
+    <%# Mobile only: the bottom sheet covers the numbers, so it needs the dim
+        to say so. The desktop drawer sits beside them and does not. %>
+    <div data-sync-status-target="backdrop"
+         data-action="click->sync-status#closeBackdrop"
+         class="hidden fixed inset-0 z-30 bg-black/35 sm:hidden"></div>
+
+    <div data-sync-status-target="drawer"
+         class="hidden fixed z-40 bg-white shadow-xl inset-x-0 bottom-0 rounded-t-2xl max-h-[80vh] overflow-y-auto
+                sm:inset-y-0 sm:right-0 sm:left-auto sm:w-96 sm:max-h-none sm:rounded-none sm:border-l sm:border-gray-200">
+      <div class="mx-auto mt-2 h-1 w-9 rounded-full bg-gray-300 sm:hidden"></div>
+
+      <div class="flex items-center justify-between px-4 py-3 border-b border-gray-200">
+        <h2 class="text-sm font-semibold text-gray-900"><%= t("dashboard.sync.title") %></h2>
+        <button type="button"
+                data-action="click->sync-status#close"
+                aria-label="<%= t("dashboard.sync.close") %>"
+                class="px-2 text-gray-400 hover:text-gray-900">✕</button>
+      </div>
+
+      <%# A source with no store or ad account in scope has nothing to say here,
+          the same way it is left out of the badge's counts. %>
+      <% sync_status.sources.reject { |source| source.state == :not_applicable }.each do |source| %>
+        <div class="flex items-start gap-3 px-4 py-3 border-b border-gray-100 last:border-b-0"
+             data-sync-source="<%= source.key %>"
+             data-sync-source-state="<%= source.state %>">
+          <span class="mt-1.5 w-2 h-2 rounded-full flex-none <%= dot_colors[source.state] %>"></span>
+
+          <div class="flex-1 min-w-0">
+            <p class="text-sm text-gray-900"><%= t("dashboard.sync.sources.#{source.key}") %></p>
+
+            <%# Kept even once acknowledged: the badge stops counting it, the
+                drawer still has to say what broke. %>
+            <% source.failures.each do |failure| %>
+              <p class="mt-1 px-2 py-1.5 rounded-md bg-red-50 text-red-800 font-mono text-[11px] break-words">
+                <%= failure[:target_name] %>: <%= failure[:message] %>
+              </p>
+            <% end %>
+
+            <p class="mt-1 text-xs text-gray-500">
+              <% if source.state == :never %>
+                <%= t("dashboard.sync.never") %>
+              <% else %>
+                <% source.history.each_with_index do |run, index| %>
+                  <%= " · " if index.positive? %><%= run.started_at.strftime("%H:%M") %>
+                  <%= t("dashboard.sync.#{run.trigger}") %>
+                  <%= run_marks.fetch(run.effective_status) %>
+                <% end %>
+              <% end %>
+            </p>
+          </div>
+
+          <%# Per source, not per drawer: an acknowledgement is recorded against
+              one source's failure signature, and several can fail at once. %>
+          <% if source.state == :failed && !source.acknowledged %>
+            <%= button_to t("dashboard.sync.acknowledge"),
+                dashboard_acknowledge_sync_path(range_params.merge(source: source.key)),
+                class: "flex-none px-2 py-1 text-[11px] font-medium text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50" %>
+          <% end %>
+        </div>
+      <% end %>
+
+      <div class="h-4 sm:hidden"></div>
+    </div>
+  </div>
+<% end %>

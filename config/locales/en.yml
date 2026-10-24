@@ -154,6 +154,28 @@ en:
     multi_parcel_orders: "Multi-parcel orders"
     shipping_coverage_caveat: "(the lower the coverage, the less the variance means)"
     view_variance: "View variance detail →"
+    sync:
+      button: "Sync"
+      title: "Data sync status"
+      updated_ago: "Updated %{time} ago"
+      running: "Syncing %{count}/%{total}…"
+      incomplete: "Some data not synced yet"
+      failed:
+        one: "%{count} source failed to sync"
+        other: "%{count} sources failed to sync"
+      never: "Not synced yet"
+      acknowledge: "Got it, hide this"
+      close: "Close"
+      auto: "Auto"
+      manual: "Manual"
+      refresh_numbers: "Refresh the numbers"
+      enqueued: "Sync queued. The numbers will update shortly."
+      already_running: "A sync is already running."
+      sources:
+        shopify_metrics: "Shopify revenue / order metrics"
+        shopify_orders: "Shopify orders (shipping)"
+        meta_ads: "Meta ads"
+        google_ads: "Google ads"
   email_accounts:
     title: "Email Accounts"
     empty: "No email accounts linked yet."

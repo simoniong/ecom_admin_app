@@ -20,6 +20,31 @@ RSpec.describe "Dashboard", type: :request do
       expect(response.body).to include(I18n.t("dashboard.roas"))
     end
 
+    it "renders the sync badge in the first response, without a second frame request" do
+      sign_in user
+      get authenticated_root_path
+
+      expect(response.body).to include('turbo-frame id="dashboard_sync_status"')
+      expect(response.body).to include(I18n.t("dashboard.sync.never"))
+      expect(response.body).not_to include("src=\"#{dashboard_sync_status_path}\"")
+    end
+
+    it "localizes the sync badge's relative time in zh-TW" do
+      store = create(:shopify_store, user: user)
+      # Both Shopify sources, since the badge only carries a time once every
+      # applicable source has synced.
+      %w[shopify_metrics shopify_orders].each do |source|
+        create(:sync_run, company: user.companies.first, target: store, source: source,
+                          started_at: 5.minutes.ago, finished_at: 5.minutes.ago)
+      end
+
+      sign_in user
+      get authenticated_root_path(locale: "zh-TW")
+
+      expect(response.body).to include("5 分鐘前")
+      expect(response.body).not_to include("minutes ago")
+    end
+
     it "displays date range buttons" do
       sign_in user
       get authenticated_root_path

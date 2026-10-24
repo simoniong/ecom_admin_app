@@ -22,6 +22,7 @@ class User < ApplicationRecord
   has_many :tickets, through: :email_accounts
   has_many :ad_accounts, dependent: :destroy
   has_many :campaign_display_templates, dependent: :destroy
+  has_many :sync_acknowledgements, dependent: :delete_all
 
   def membership_for(company)
     memberships.find_by(company: company)
