@@ -342,6 +342,42 @@ RSpec.describe "Tickets", type: :request do
     end
   end
 
+  describe "POST /tickets/:id/send_now" do
+    it "sends a confirmed ticket immediately" do
+      ticket = create(:ticket, :draft_confirmed, email_account: email_account, scheduled_send_at: 10.hours.from_now, scheduled_job_id: "old-job")
+      sign_in user
+
+      expect {
+        post send_now_ticket_path(id: ticket.id)
+      }.to have_enqueued_job(SendScheduledEmailJob).with(ticket.id)
+
+      expect(response).to redirect_to(ticket_path(id: ticket.id))
+      expect(flash[:notice]).to eq(I18n.t("tickets.show.send_now_queued"))
+      expect(ticket.reload.scheduled_job_id).not_to eq("old-job")
+    end
+
+    it "rejects a ticket that is not confirmed" do
+      ticket = create(:ticket, :draft, email_account: email_account)
+      sign_in user
+
+      expect {
+        post send_now_ticket_path(id: ticket.id)
+      }.not_to have_enqueued_job(SendScheduledEmailJob)
+
+      expect(response).to redirect_to(ticket_path(id: ticket.id))
+      expect(flash[:alert]).to eq(I18n.t("tickets.show.send_now_unavailable"))
+    end
+
+    it "does not reach another user's ticket" do
+      other_ticket = create(:ticket, :draft_confirmed)
+      sign_in user
+
+      post send_now_ticket_path(id: other_ticket.id)
+
+      expect(response).to have_http_status(:not_found)
+    end
+  end
+
   describe "POST /tickets/:id/instruct_agent" do
     it "sends instruction to agent for draft ticket" do
       ticket = create(:ticket, :draft, email_account: email_account)

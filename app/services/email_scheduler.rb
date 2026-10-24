@@ -1,12 +1,18 @@
 class EmailScheduler
   MIN_DELAY = 5.minutes
 
+  class NotSendable < StandardError; end
+
   def self.schedule!(ticket)
     new(ticket).schedule!
   end
 
   def self.cancel!(ticket)
     new(ticket).cancel!
+  end
+
+  def self.send_now!(ticket)
+    new(ticket).send_now!
   end
 
   def initialize(ticket)
@@ -22,6 +28,24 @@ class EmailScheduler
       scheduled_send_at: send_at,
       scheduled_job_id: job.job_id
     )
+  end
+
+  # Sends immediately, ignoring the send window. The ticket points at the new
+  # job before it is enqueued, so the previously scheduled job sees a different
+  # scheduled_job_id and skips itself even if it fires before it is removed.
+  def send_now!
+    job = SendScheduledEmailJob.new(@ticket.id)
+    previous_job_id = nil
+
+    @ticket.with_lock do
+      raise NotSendable unless @ticket.draft_confirmed? && @ticket.sending_started_at.nil?
+
+      previous_job_id = @ticket.scheduled_job_id
+      @ticket.update!(scheduled_send_at: Time.current, scheduled_job_id: job.job_id)
+    end
+
+    job.enqueue
+    SolidQueue::Job.find_by(active_job_id: previous_job_id)&.destroy if previous_job_id.present?
   end
 
   def cancel!
