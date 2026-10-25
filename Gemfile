@@ -39,7 +39,7 @@ gem "httparty", "~> 0.22"
 gem "caxlsx", "~> 4.1"
 
 # Read .xlsx carrier bills (caxlsx only writes; it cannot read)
-gem "roo", "~> 2.10"
+gem "roo", "~> 3.0"
 
 # Country data (ISO 3166)
 gem "countries", "~> 8.0"
