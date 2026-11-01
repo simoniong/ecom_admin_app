@@ -1,13 +1,14 @@
 import { Controller } from "@hotwired/stimulus"
 
 export default class extends Controller {
-  static targets = ["modal", "backdrop", "input", "results", "orderId", "form"]
-  static values = { url: String }
+  static targets = ["modal", "backdrop", "input", "results", "orderId", "form", "force", "confirm", "confirmMessage"]
+  static values = { url: String, ticketCustomerId: String, mismatchTemplate: String }
 
   open() {
     this.modalTarget.classList.remove("hidden")
     document.body.classList.add("overflow-hidden")
     this.inputTarget.value = ""
+    this.cancelForce()
     this._performSearch()
     setTimeout(() => this.inputTarget.focus(), 100)
   }
@@ -32,7 +33,32 @@ export default class extends Controller {
   }
 
   select(event) {
-    this.orderIdTarget.value = event.params.id || ""
+    const id = event.params.id || ""
+    const customerId = event.params.customerId || ""
+    const mismatch = id && this.ticketCustomerIdValue && customerId !== this.ticketCustomerIdValue
+    if (mismatch) {
+      this._pendingId = id
+      this.confirmMessageTarget.textContent = this.mismatchTemplateValue
+        .replace("%{order}", event.params.name || "")
+        .replace("%{customer}", event.params.customerLabel || "")
+      this.confirmTarget.classList.remove("hidden")
+      return
+    }
+    this._submit(id, false)
+  }
+
+  confirmForce() {
+    if (this._pendingId) this._submit(this._pendingId, true)
+  }
+
+  cancelForce() {
+    this._pendingId = null
+    this.confirmTarget.classList.add("hidden")
+  }
+
+  _submit(id, force) {
+    this.orderIdTarget.value = id
+    this.forceTarget.value = force ? "1" : ""
     this.formTarget.requestSubmit()
   }
 
@@ -60,6 +86,10 @@ export default class extends Controller {
       btn.type = "button"
       btn.dataset.action = "click->order-picker#select"
       btn.setAttribute("data-order-picker-id-param", o.id)
+      btn.setAttribute("data-order-picker-customer-id-param", o.customer_id ?? "")
+      btn.setAttribute("data-order-picker-name-param", o.name ?? "")
+      btn.setAttribute("data-order-picker-customer-label-param",
+        [o.customer_name, o.customer_email ? `(${o.customer_email})` : null].filter(Boolean).join(" "))
       btn.className = "w-full text-left px-5 py-3 hover:bg-gray-50"
 
       const nameLine = document.createElement("p")
