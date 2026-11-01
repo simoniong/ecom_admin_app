@@ -234,7 +234,11 @@ class ParcelsController < AdminController
 
     result = ParcelBillParser.new(file.tempfile.path).call
     errors = result[:errors]
-    rows = result[:rows]
+    # A 哆啦任意门 bill names no Shopify order — its rows carry our package_code
+    # instead, resolved to an order_name here so the preview and ParcelUpserter
+    # treat both bill shapes alike. Rows that already have an order_name pass
+    # through untouched.
+    rows = PackageOrderResolver.new(store).call(result[:rows])
 
     if rows.empty?
       return redirect_to(import_parcels_path, alert: t("parcels.import.no_rows", errors: errors.first(3).join("; ")))

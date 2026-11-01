@@ -59,12 +59,21 @@ class ParcelBillParser
     @path = path.to_s
   end
 
+  # Two bill shapes are accepted, told apart by their headers: the Dianxiaomi
+  # export (first sheet, 序号/订单编号) and the 哆啦任意门 statement (see
+  # ParcelBillParser::Doragate). A Dianxiaomi header row wins when present, so
+  # existing bills parse exactly as before.
   def call
-    sheet = Roo::Excelx.new(@path).sheet(0)
+    workbook = Roo::Excelx.new(@path)
+    sheet = workbook.sheet(0)
     header_row = sheet.row(1).map { |c| c.to_s.strip }
 
     missing = missing_headers(header_row)
-    return { rows: [], errors: [ "缺少必要欄位：#{missing.join('、')}" ] } if missing.any?
+    if missing.any?
+      return Doragate.new(workbook).call if Doragate.match?(workbook)
+
+      return { rows: [], errors: [ "缺少必要欄位：#{missing.join('、')}" ] }
+    end
 
     index = header_row.each_with_index.to_h
     rows = []

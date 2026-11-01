@@ -627,7 +627,7 @@ en:
       store: "Store this bill belongs to"
       store_hint: "The store's current cost FX rate will be used."
       file: "Bill file (.xlsx)"
-      file_hint: "The carrier bill exported from Dianxiaomi. Footer total rows are skipped automatically."
+      file_hint: "Either a carrier bill exported from Dianxiaomi, or a 哆啦任意门 statement (all detail sheets are read; the summary sheet is skipped). The format is detected automatically and footer total rows are skipped."
       parse: "Parse file"
       parsed: "Rows parsed"
       will_create: "Will create"
@@ -651,8 +651,8 @@ en:
       cost_missing: "One of the rows has no billed amount and could not be imported. Please check the file and try again."
       value_out_of_range: "One of the rows has a value that is too large to import. Please check the file and try again."
       derived_operation_fee_notice:
-        one: "A ¥%{fee}/parcel handling fee was added automatically for %{count} parcel — this bill has no 操作费 column."
-        other: "A ¥%{fee}/parcel handling fee was added automatically for %{count} parcels — this bill has no 操作费 column."
+        one: "A ¥%{fee}/parcel handling fee was added automatically for %{count} parcel — the bill itself does not include it."
+        other: "A ¥%{fee}/parcel handling fee was added automatically for %{count} parcels — the bill itself does not include it."
     export:
       button: "Export Excel"
       order_name: "Order"
