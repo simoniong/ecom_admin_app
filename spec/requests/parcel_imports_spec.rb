@@ -569,9 +569,10 @@ RSpec.describe "Parcel imports", type: :request do
   end
 
   describe "importing a 哆啦任意门 bill" do
-    before { store.update_columns(package_prefix: "XMBDP") }
-
-    let!(:package) { create(:package, shopify_store: store, order: order, number: 1_004_342) }
+    # Production shape: the ERP lives outside this app, so there are no
+    # packages and no package prefix — the waybill (运单号) the ERP wrote back to
+    # the Shopify fulfillment is what links a bill row to its order.
+    let!(:fulfillment) { create(:fulfillment, order: order, tracking_number: "DOR1") }
 
     def doragate_bill
       XlsxBuilder.build_doragate(sheets: {
@@ -580,7 +581,7 @@ RSpec.describe "Parcel imports", type: :request do
       })
     end
 
-    it "previews it with the order resolved from the package code and the ¥2 fee added" do
+    it "previews it with the order resolved from the fulfillment's waybill and the ¥2 fee added" do
       body = preview_upload(doragate_bill)
       values = summary_values(body)
 
@@ -592,7 +593,7 @@ RSpec.describe "Parcel imports", type: :request do
       expect(Parcel.count).to eq(0)
     end
 
-    it "lands the parcels on confirm, matched to the package's order" do
+    it "lands the parcels on confirm, matched to the fulfillment's order" do
       body = preview_upload(doragate_bill)
       post confirm_import_parcels_path, params: { batch_id: batch_id_from(body) }
 
