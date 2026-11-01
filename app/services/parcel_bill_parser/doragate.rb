@@ -6,10 +6,10 @@ class ParcelBillParser
   #   remaining sheets (one per billing period, e.g. "1026", "1027-1030"), each
   #   with its own header row and a SUM footer row. Any sheet whose first row
   #   lacks the required headers is skipped, which is how the summary is left out.
-  # * There is no Shopify order name. 客户订单号 is the package_code our packing
-  #   module sent to the carrier (Raydo order_customerinvoicecode), so the order
-  #   is resolved from the Package afterwards — see PackageOrderResolver. This
-  #   class stays pure parsing, like its parent.
+  # * There is no Shopify order name. 客户订单号 is the ERP's package code, so
+  #   the order is resolved afterwards — mainly by the waybill (运单号), which
+  #   the ERP writes back to the Shopify fulfillment — see ParcelOrderResolver.
+  #   This class stays pure parsing, like its parent.
   # * The bill's 操作费 (10/18/25 by channel and weight) is the carrier's own
   #   per-parcel fee — the counterpart of the Dianxiaomi bill's 挂号费 — so it is
   #   stored as registration_fee_cny. Our ¥2 handling fee is not on the bill at
