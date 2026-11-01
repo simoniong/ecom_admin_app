@@ -567,4 +567,44 @@ RSpec.describe "Parcel imports", type: :request do
       expect(body).not_to include(I18n.t("parcels.import.derived_operation_fee_notice", count: 1, fee: "2.00"))
     end
   end
+
+  describe "importing a 哆啦任意门 bill" do
+    before { store.update_columns(package_prefix: "XMBDP") }
+
+    let!(:package) { create(:package, shopify_store: store, order: order, number: 1_004_342) }
+
+    def doragate_bill
+      XlsxBuilder.build_doragate(sheets: {
+        "1026" => [ XlsxBuilder.doragate_row(code: "XMBDP1004342", waybill: "DOR1", total: 74.05) ],
+        "1027-1030" => [ XlsxBuilder.doragate_row(code: "XMBDP9999999", waybill: "DOR2", total: 59.10) ]
+      })
+    end
+
+    it "previews it with the order resolved from the package code and the ¥2 fee added" do
+      body = preview_upload(doragate_bill)
+      values = summary_values(body)
+
+      expect(values[I18n.t("parcels.import.parsed")]).to eq("2")
+      expect(values[I18n.t("parcels.import.unmatched")]).to eq("1")
+      expect(values[I18n.t("parcels.import.total_cny")]).to eq("¥137.15") # 74.05 + 59.10 + 2 × 2
+      expect(body).to include("XMBDP9999999") # the unmatched one is listed
+      expect(body).to include(I18n.t("parcels.import.derived_operation_fee_notice", count: 2, fee: "2.00"))
+      expect(Parcel.count).to eq(0)
+    end
+
+    it "lands the parcels on confirm, matched to the package's order" do
+      body = preview_upload(doragate_bill)
+      post confirm_import_parcels_path, params: { batch_id: batch_id_from(body) }
+
+      expect(response).to redirect_to(parcels_path)
+      matched = Parcel.find_by!(identifier: "XMBDP1004342")
+      expect(matched.order).to eq(order)
+      expect(matched.cost_cny).to eq(BigDecimal("76.05"))
+      expect(matched.registration_fee_cny).to eq(BigDecimal("10"))
+      expect(matched.operation_fee_cny).to eq(BigDecimal("2"))
+      expect(matched.internal_no).to eq("DOR1")
+      expect(Parcel.find_by!(identifier: "XMBDP9999999").order_id).to be_nil
+      expect(order.reload.actual_shipping_cost).to eq(BigDecimal("10.56")) # 76.05 / 7.2
+    end
+  end
 end
