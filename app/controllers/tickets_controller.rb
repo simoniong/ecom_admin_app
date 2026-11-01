@@ -98,7 +98,9 @@ class TicketsController < AdminController
       {
         id: o.id,
         name: o.name,
+        customer_id: o.customer_id,
         customer_name: o.customer&.full_name,
+        customer_email: o.customer&.email,
         total: o.total_price,
         fulfillment_status: o.fulfillment_status
       }
@@ -123,8 +125,17 @@ class TicketsController < AdminController
 
     order = Order.where(shopify_store: ticket_store_scope).find(params[:order_id])
 
+    # A customer may hold several Shopify customer records (e.g. contacted us from a
+    # different email than the one used at checkout). Binding another customer's order
+    # requires an explicit force, and never touches the ticket's customer/email — the
+    # reply must still go to whoever wrote in.
     if @ticket.customer_id.present? && order.customer_id != @ticket.customer_id
-      return redirect_to ticket_path(id: @ticket.id), alert: t("tickets.show.order_customer_mismatch")
+      unless ActiveModel::Type::Boolean.new.cast(params[:force])
+        return redirect_to ticket_path(id: @ticket.id), alert: t("tickets.show.order_customer_mismatch")
+      end
+
+      @ticket.update!(order: order)
+      return redirect_to ticket_path(id: @ticket.id), notice: t("tickets.show.order_force_bound")
     end
 
     attrs = { order: order }

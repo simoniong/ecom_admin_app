@@ -16,6 +16,12 @@
         <p class="text-[11px] text-gray-500"><%= number_to_currency(@ticket.order.total_price) %> · <%= @ticket.order.fulfillment_status %></p>
       </div>
     </div>
+    <% order_customer = @ticket.order.customer %>
+    <% if @ticket.customer_id.present? && order_customer && @ticket.order.customer_id != @ticket.customer_id %>
+      <p class="mt-2 rounded-md bg-amber-50 border border-amber-200 px-3 py-2 text-[11px] text-amber-800" data-testid="order-other-customer">
+        <%= t("tickets.show.order_other_customer", customer: [ order_customer.full_name, order_customer.email ].compact_blank.join(" · ")) %>
+      </p>
+    <% end %>
   <% else %>
     <button type="button" class="w-full flex items-center justify-center gap-2 rounded-md border border-dashed border-gray-300 px-3 py-3 text-sm text-gray-500 hover:border-blue-400 hover:text-blue-600"
             onclick="this.closest('[data-controller=customer-search-modal]').querySelector('[data-ticket-order-open]').click()">
