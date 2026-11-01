@@ -68,9 +68,8 @@ RSpec.describe "Parcel import", type: :system do
     expect(ParcelImportBatch.count).to eq(0)
   end
 
-  it "imports a 哆啦任意门 bill, matching parcels to orders by package code" do
-    store.update_columns(package_prefix: "XMBDP")
-    create(:package, shopify_store: store, order: order, number: 1_004_342)
+  it "imports a 哆啦任意门 bill, matching parcels to orders by the Shopify fulfillment's waybill" do
+    create(:fulfillment, order: order, tracking_number: "DOR1")
     path = XlsxBuilder.build_doragate(sheets: {
       "1026" => [ XlsxBuilder.doragate_row(code: "XMBDP1004342", waybill: "DOR1", total: 74.05) ],
       "1027-1030" => [ XlsxBuilder.doragate_row(code: "XMBDP1009999", waybill: "DOR2", total: 59.10) ]
