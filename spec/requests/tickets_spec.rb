@@ -602,6 +602,16 @@ RSpec.describe "Tickets", type: :request do
       expect(response.parsed_body.map { |o| o["name"] }).to include("#2001")
     end
 
+    it "includes the order's customer id and email so the UI can detect a mismatch" do
+      ticket = create(:ticket, email_account: email_account, customer: customer)
+      create(:order, customer: customer, name: "#2002")
+      sign_in user
+      get search_orders_ticket_path(id: ticket.id)
+      row = response.parsed_body.find { |o| o["name"] == "#2002" }
+      expect(row["customer_id"]).to eq(customer.id)
+      expect(row["customer_email"]).to eq(customer.email)
+    end
+
     it "searches visible orders by number for an unlinked ticket" do
       ticket = create(:ticket, email_account: email_account, customer: nil,
                       customer_email: "stranger@example.com")
@@ -824,6 +834,48 @@ RSpec.describe "Tickets", type: :request do
       sign_in user
       patch bind_order_ticket_path(id: ticket.id), params: { order_id: other_order.id }
       expect(ticket.reload.order).to be_nil
+    end
+
+    it "force-binds another customer's order without changing the ticket's customer or email" do
+      ticket = create(:ticket, email_account: email_account, customer: customer,
+                      customer_email: "contact@example.com", customer_name: "Contact Name")
+      other_customer = create(:customer, shopify_store: store, email: "checkout@example.com")
+      other_order = create(:order, customer: other_customer)
+      sign_in user
+      patch bind_order_ticket_path(id: ticket.id), params: { order_id: other_order.id, force: "1" }
+      ticket.reload
+      expect(ticket.order).to eq(other_order)
+      expect(ticket.customer).to eq(customer)
+      expect(ticket.customer_email).to eq("contact@example.com")
+      expect(ticket.customer_name).to eq("Contact Name")
+      expect(flash[:notice]).to eq(I18n.t("tickets.show.order_force_bound"))
+    end
+
+    it "treats a falsy force param as not forced" do
+      ticket = create(:ticket, email_account: email_account, customer: customer)
+      other_order = create(:order, customer: create(:customer, shopify_store: store))
+      sign_in user
+      patch bind_order_ticket_path(id: ticket.id), params: { order_id: other_order.id, force: "0" }
+      expect(ticket.reload.order).to be_nil
+      expect(flash[:alert]).to eq(I18n.t("tickets.show.order_customer_mismatch"))
+    end
+
+    it "shows the other-customer note on the order card after a force bind" do
+      other_customer = create(:customer, shopify_store: store, email: "checkout@example.com")
+      other_order = create(:order, customer: other_customer)
+      ticket = create(:ticket, email_account: email_account, customer: customer, order: other_order)
+      sign_in user
+      get ticket_path(id: ticket.id)
+      expect(response.body).to include('data-testid="order-other-customer"')
+      expect(response.body).to include("checkout@example.com")
+    end
+
+    it "does not show the other-customer note when the order matches the ticket's customer" do
+      order = create(:order, customer: customer)
+      ticket = create(:ticket, email_account: email_account, customer: customer, order: order)
+      sign_in user
+      get ticket_path(id: ticket.id)
+      expect(response.body).not_to include('data-testid="order-other-customer"')
     end
 
     it "reverse-binds: auto-links the customer when the ticket is unlinked" do
