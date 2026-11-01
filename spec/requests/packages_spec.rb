@@ -343,8 +343,13 @@ RSpec.describe "Packages", type: :request do
         get packages_path, params: { store: store.id }
         single_store_body = response.body
 
-        expect(multi_store_body).to include(Time.current.in_time_zone("America/Los_Angeles").zone)
-        expect(single_store_body).not_to include(Time.current.in_time_zone("America/Los_Angeles").zone)
+        # The row labels each timestamp with ITS OWN zone abbreviation, so the
+        # expectation must come from the displayed ordered_at, not Time.current:
+        # across a DST change (e.g. the day PDT ends) the two differ — PDT on an
+        # order placed yesterday, PST now.
+        zone = Order.find_by!(name: "PKS#1001").ordered_at.in_time_zone("America/Los_Angeles").zone
+        expect(multi_store_body).to include(zone)
+        expect(single_store_body).not_to include(zone)
 
         # Narrowing to one store via `store` also narrows the package list
         # itself now that show_zone and the list scoping share #selected_store —

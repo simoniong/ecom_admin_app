@@ -67,4 +67,31 @@ RSpec.describe "Parcel import", type: :system do
     expect(Parcel.count).to eq(0)
     expect(ParcelImportBatch.count).to eq(0)
   end
+
+  it "imports a 哆啦任意门 bill, matching parcels to orders by package code" do
+    store.update_columns(package_prefix: "XMBDP")
+    create(:package, shopify_store: store, order: order, number: 1_004_342)
+    path = XlsxBuilder.build_doragate(sheets: {
+      "1026" => [ XlsxBuilder.doragate_row(code: "XMBDP1004342", waybill: "DOR1", total: 74.05) ],
+      "1027-1030" => [ XlsxBuilder.doragate_row(code: "XMBDP1009999", waybill: "DOR2", total: 59.10) ]
+    })
+
+    visit import_parcels_path
+    select "CSFD", from: "shopify_store_id"
+    attach_file "file", path
+    click_button I18n.t("parcels.import.parse")
+
+    expect(page).to have_content(I18n.t("parcels.import.preview_title"))
+    expect(summary_value(I18n.t("parcels.import.parsed"))).to eq("2")
+    expect(summary_value(I18n.t("parcels.import.unmatched"))).to eq("1")
+    expect(page).to have_content("XMBDP1009999")
+    expect(page).to have_content(I18n.t("parcels.import.derived_operation_fee_notice", count: 2, fee: "2.00"))
+    expect(Parcel.count).to eq(0)
+
+    click_button I18n.t("parcels.import.confirm")
+
+    expect(page).to have_content(I18n.t("parcels.import.done", count: 2))
+    expect(Parcel.find_by(identifier: "XMBDP1004342").order).to eq(order)
+    expect(order.reload.actual_shipping_cost).to eq(BigDecimal("10.56"))
+  end
 end

@@ -133,4 +133,69 @@ module XlsxBuilder
     end
     path
   end
+  # --- 哆啦任意门 (Doragate) statement ------------------------------------
+  # Mirrors the carrier's own bill: a 汇总 summary sheet first, then one detail
+  # sheet per billing period, each with its header row and a SUM footer that
+  # carries only 件数 and 费用总金额.
+  DORAGATE_HEADERS = [
+    "计费时间", "客户名称", "客户订单号", "运单号", "派送单号", "运输方式", "国家", "邮编",
+    "件数", "结算重量(KG)", "币种", "运费", "操作费", "偏远费", "其他费用", "费用总金额"
+  ].freeze
+
+  def self.doragate_row(code:, waybill: "DOR0229399275CN", total: 74.05, **over)
+    {
+      "计费时间" => Date.new(2026, 10, 26),
+      "客户名称" => "千阳贸易",
+      "客户订单号" => code,
+      "运单号" => waybill,
+      "派送单号" => "YWE00001676211752",
+      "运输方式" => "美国标准（A带电）",
+      "国家" => "美国",
+      "邮编" => "30040",
+      "件数" => 1,
+      "结算重量(KG)" => 0.854,
+      "币种" => "人民币",
+      "运费" => 64.05,
+      "操作费" => 10,
+      "偏远费" => 0,
+      "其他费用" => 0,
+      "费用总金额" => total
+    }.merge(over.transform_keys(&:to_s))
+  end
+
+  # sheets: { "1026" => [rows], "1027-1030" => [rows] }. The footer SUM row is
+  # appended to each detail sheet automatically.
+  def self.build_doragate(sheets:, summary: true)
+    path = Rails.root.join("tmp", "parcel_bill_#{SecureRandom.hex(6)}.xlsx").to_s
+    Axlsx::Package.new do |p|
+      date_style = p.workbook.styles.add_style(format_code: "yyyy-mm-dd")
+      date_index = DORAGATE_HEADERS.index("计费时间")
+
+      if summary
+        p.workbook.add_worksheet(name: "汇总") do |sheet|
+          sheet.add_row [ "2026年10月千阳贸易小包应收对账单" ]
+          sheet.add_row []
+          sheet.add_row [ "序号", "日期", "件数", "应付款", "实付", "账户欠款", "备注" ]
+          sheet.add_row [ 1, "2026-10-26", 1, 74.05, 0, 74.05, nil ]
+        end
+      end
+
+      sheets.each do |name, rows|
+        p.workbook.add_worksheet(name: name) do |sheet|
+          sheet.add_row DORAGATE_HEADERS
+          rows.each do |r|
+            styles = Array.new(DORAGATE_HEADERS.size)
+            styles[date_index] = date_style
+            sheet.add_row(DORAGATE_HEADERS.map { |h| r[h] }, style: styles)
+          end
+          footer = Array.new(DORAGATE_HEADERS.size)
+          footer[DORAGATE_HEADERS.index("件数")] = rows.size
+          footer[DORAGATE_HEADERS.index("费用总金额")] = rows.sum { |r| r["费用总金额"].to_f }
+          sheet.add_row footer
+        end
+      end
+      p.serialize(path)
+    end
+    path
+  end
 end

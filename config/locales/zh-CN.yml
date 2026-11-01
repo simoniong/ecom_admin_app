@@ -661,7 +661,7 @@
       store: "账单所属店铺"
       store_hint: "汇率会采用该店铺当前的成本汇率。"
       file: "账单文件 (.xlsx)"
-      file_hint: "店小秘导出的货代账单。底部的合计行会自动跳过。"
+      file_hint: "支持店小秘导出的货代账单，或哆啦任意门的对账单（会读取所有明细工作表，跳过汇总页）。格式会自动识别，底部的合计行会自动跳过。"
       parse: "解析文件"
       parsed: "解析条数"
       will_create: "将新建"
@@ -684,7 +684,7 @@
       no_rows: "文件中没有可导入的数据行。%{errors}"
       cost_missing: "有一行没有账单金额，无法导入。请检查文件后重试。"
       value_out_of_range: "有一行的金额过大，无法导入。请检查文件后重试。"
-      derived_operation_fee_notice: "已自动为 %{count} 个包裹加入 ¥%{fee}/票的操作费——该账单没有操作费栏位。"
+      derived_operation_fee_notice: "已自动为 %{count} 个包裹加入 ¥%{fee}/票的操作费（账单本身不含这笔费用）。"
     export:
       button: "导出 Excel"
       order_name: "订单编号"
